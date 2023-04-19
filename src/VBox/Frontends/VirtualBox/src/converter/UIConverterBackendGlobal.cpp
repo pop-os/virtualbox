@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -46,6 +46,7 @@ template<> bool canConvert<Qt::Alignment>() { return true; }
 template<> bool canConvert<Qt::SortOrder>() { return true; }
 template<> bool canConvert<SizeSuffix>() { return true; }
 template<> bool canConvert<StorageSlot>() { return true; }
+template<> bool canConvert<DesktopWatchdogPolicy_SynthTest>() { return true; }
 template<> bool canConvert<UIExtraDataMetaDefs::DialogType>() { return true; }
 template<> bool canConvert<UIExtraDataMetaDefs::MenuType>() { return true; }
 template<> bool canConvert<UIExtraDataMetaDefs::MenuApplicationActionType>() { return true; }
@@ -72,6 +73,7 @@ template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFo
 template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface>() { return true; }
 template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeDescription>() { return true; }
 template<> bool canConvert<UIColorThemeType>() { return true; }
+template<> bool canConvert<UILaunchMode>() { return true; }
 template<> bool canConvert<UIToolType>() { return true; }
 template<> bool canConvert<UIVisualStateType>() { return true; }
 template<> bool canConvert<DetailsElementType>() { return true; }
@@ -449,6 +451,20 @@ template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot)
 
     /* Return result: */
     return result;
+}
+
+/* DesktopWatchdogPolicy_SynthTest <= QString: */
+template<> DesktopWatchdogPolicy_SynthTest fromInternalString<DesktopWatchdogPolicy_SynthTest>(const QString &strPolicyType)
+{
+    if (strPolicyType.compare("Disabled", Qt::CaseInsensitive) == 0)
+        return DesktopWatchdogPolicy_SynthTest_Disabled;
+    if (strPolicyType.compare("ManagerOnly", Qt::CaseInsensitive) == 0)
+        return DesktopWatchdogPolicy_SynthTest_ManagerOnly;
+    if (strPolicyType.compare("MachineOnly", Qt::CaseInsensitive) == 0)
+        return DesktopWatchdogPolicy_SynthTest_MachineOnly;
+    if (strPolicyType.compare("Both", Qt::CaseInsensitive) == 0)
+        return DesktopWatchdogPolicy_SynthTest_Both;
+    return DesktopWatchdogPolicy_SynthTest_Both;
 }
 
 /* QString <= UIExtraDataMetaDefs::DialogType: */
@@ -1656,6 +1672,18 @@ template<> UIColorThemeType fromInternalString<UIColorThemeType>(const QString &
     return UIColorThemeType_Auto;
 }
 
+/* UILaunchMode <= QString: */
+template<> UILaunchMode fromInternalString<UILaunchMode>(const QString &strDefaultFrontendType)
+{
+    if (strDefaultFrontendType.compare("Default", Qt::CaseInsensitive) == 0)
+        return UILaunchMode_Default;
+    if (strDefaultFrontendType.compare("Headless", Qt::CaseInsensitive) == 0)
+        return UILaunchMode_Headless;
+    if (strDefaultFrontendType.compare("Separate", Qt::CaseInsensitive) == 0)
+        return UILaunchMode_Separate;
+    return UILaunchMode_Invalid;
+}
+
 /* QString <= UIToolType: */
 template<> QString toInternalString(const UIToolType &enmToolType)
 {
@@ -2389,10 +2417,11 @@ template<> QString toInternalString(const MachineCloseAction &machineCloseAction
     QString strResult;
     switch (machineCloseAction)
     {
-        case MachineCloseAction_Detach:    strResult = "Detach"; break;
-        case MachineCloseAction_SaveState: strResult = "SaveState"; break;
-        case MachineCloseAction_Shutdown:  strResult = "Shutdown"; break;
-        case MachineCloseAction_PowerOff:  strResult = "PowerOff"; break;
+        case MachineCloseAction_Detach:                     strResult = "Detach"; break;
+        case MachineCloseAction_SaveState:                  strResult = "SaveState"; break;
+        case MachineCloseAction_Shutdown:                   strResult = "Shutdown"; break;
+        case MachineCloseAction_PowerOff:                   strResult = "PowerOff"; break;
+        case MachineCloseAction_PowerOff_RestoringSnapshot: strResult = "PowerOffRestoringSnapshot"; break;
         default:
         {
             AssertMsgFailed(("No text for indicator type=%d", machineCloseAction));
@@ -2413,6 +2442,8 @@ template<> MachineCloseAction fromInternalString<MachineCloseAction>(const QStri
         return MachineCloseAction_Shutdown;
     if (strMachineCloseAction.compare("PowerOff", Qt::CaseInsensitive) == 0)
         return MachineCloseAction_PowerOff;
+    if (strMachineCloseAction.compare("PowerOffRestoringSnapshot", Qt::CaseInsensitive) == 0)
+        return MachineCloseAction_PowerOff_RestoringSnapshot;
     return MachineCloseAction_Invalid;
 }
 

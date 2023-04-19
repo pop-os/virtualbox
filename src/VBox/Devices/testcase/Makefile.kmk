@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -69,7 +69,7 @@ VBOX_DEVICES_TESTS_FEATURES = \
 ifeq ($(KBUILD_TARGET),$(KBUILD_HOST))
  ifeq ($(filter-out x86.x86 amd64.amd64 x86.amd64, $(KBUILD_TARGET_ARCH).$(KBUILD_HOST_ARCH)),)
   OTHERS += \
-	$(VBOX_DEVICES_TEST_OUT_DIR)/tstDeviceStructSize.run
+  	$(VBOX_DEVICES_TEST_OUT_DIR)/tstDeviceStructSize.run
  endif
 endif
 
@@ -105,12 +105,12 @@ if "$(KBUILD_TARGET)" != "win" && $(VBOX_GCC_VERSION_CXX) < 40600
  # Template used for gcc older than 4.6.  (Strips away compiler options.)
  #
  TEMPLATE_tstDeviceStructSizeOldGCC         := tstDeviceStructSizeOldGCC
- TEMPLATE_tstDeviceStructSizeOldGCC_EXTENDS := VBOXR3AUTOTST
+ TEMPLATE_tstDeviceStructSizeOldGCC_EXTENDS := VBoxR3AutoTest
  TEMPLATE_tstDeviceStructSizeOldGCC_CXXFLAGS = $(filter-out -pedantic,$(TEMPLATE_$(TEMPLATE_tstDeviceStructSizeOldGCC_EXTENDS)_CXXFLAGS))
 
  tstDeviceStructSize_TEMPLATE = tstDeviceStructSizeOldGCC
 else
- tstDeviceStructSize_TEMPLATE = VBOXR3AUTOTST
+ tstDeviceStructSize_TEMPLATE = VBoxR3AutoTest
 endif
 tstDeviceStructSize_DEFS     = $(VBOX_DEVICES_TESTS_FEATURES)
 tstDeviceStructSize_INCS     = \
@@ -126,7 +126,7 @@ tstDeviceStructSize_CLEAN    = \
 ifdef VBOX_WITH_RAW_MODE
  tstDeviceStructSize.cpp_DEPS = $(VBOX_DEVICES_TEST_OUT_DIR)/tstDeviceStructSizeRC.h
 endif
- tstDeviceStructSize_INCS     += $(VBOX_PATH_VMM_DEVICES_SRC)
+tstDeviceStructSize_INCS      += $(VBOX_PATH_VMM_DEVICES_SRC)
 
 #
 # Run rule for tstDeviceStructSize.
@@ -137,8 +137,8 @@ endif
 ## future
 
 ifdef VBOX_WITH_RAW_MODE
-# 1&2. Manually dump selected structures and members.
-$(VBOX_DEVICES_TEST_OUT_DIR)/tstDeviceStructSizeRC.h: $$(tstDeviceStructSizeRC_1_STAGE_TARGET) | $$(dir $$@)
+ # 1&2. Manually dump selected structures and members.
+ $(VBOX_DEVICES_TEST_OUT_DIR)/tstDeviceStructSizeRC.h: $$(tstDeviceStructSizeRC_1_STAGE_TARGET) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@)
 	$(QUIET)$(REDIRECT) -wo $@ -- $^
 endif

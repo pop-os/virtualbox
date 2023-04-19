@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -133,7 +133,7 @@ HRESULT BandwidthGroup::init(BandwidthControl *aParent,
 
     /* sanity */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnRC(thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.hrc());
 
     if (aReshare)
     {
@@ -175,7 +175,7 @@ HRESULT BandwidthGroup::initCopy(BandwidthControl *aParent, BandwidthGroup *aTha
     /* m->pPeer is left null */
 
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnRC(thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.hrc());
 
     AutoReadLock thatlock(aThat COMMA_LOCKVAL_SRC_POS);
     m->bd.attachCopy(aThat->m->bd);
@@ -269,7 +269,7 @@ HRESULT BandwidthGroup::setMaxBytesPerSec(LONG64 aMaxBytesPerSec)
 void BandwidthGroup::i_rollback()
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -284,11 +284,11 @@ void BandwidthGroup::i_commit()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller peerCaller(m->pPeer);
-    AssertComRCReturnVoid(peerCaller.rc());
+    AssertComRCReturnVoid(peerCaller.hrc());
 
     /* lock both for writing since we modify both (m->pPeer is "master" so locked
      * first) */
@@ -317,11 +317,11 @@ void BandwidthGroup::i_unshare()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller peerCaller(m->pPeer);
-    AssertComRCReturnVoid(peerCaller.rc());
+    AssertComRCReturnVoid(peerCaller.hrc());
 
     /* peer is not modified, lock it for reading (m->pPeer is "master" so locked
      * first) */

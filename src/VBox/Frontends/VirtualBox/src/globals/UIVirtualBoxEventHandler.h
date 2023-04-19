@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -41,7 +41,6 @@
 #include "COMEnums.h"
 #include "CMedium.h"
 #include "CMediumAttachment.h"
-#include "CUpdateAgent.h"
 
 /* Forward declarations: */
 class UIVirtualBoxEventHandlerProxy;
@@ -98,14 +97,6 @@ signals:
       * @param  enmMediumType  Brings corresponding medium type.
       * @param  fRegistered    Brings whether medium is registered or unregistered. */
     void sigMediumRegistered(const QUuid &uMediumId, KDeviceType enmMediumType, bool fRegistered);
-    /** Notifies about an available update of an update agent. */
-    void sigUpdateAgentAvailable(CUpdateAgent, QString, KUpdateChannel, KUpdateSeverity, QString, QString, QString);
-    /** Notifies about an error of an update agent. */
-    void sigUpdateAgentError(CUpdateAgent, QString, long);
-    /** Notifies about a state change of an update agent. */
-    void sigUpdateAgentStateChanged(CUpdateAgent, KUpdateState);
-    /** Notifies about update agent @a comAgent settings change. */
-    void sigUpdateAgentSettingsChanged(CUpdateAgent comAgent, const QString &strAttributeHint);
 
 public:
 

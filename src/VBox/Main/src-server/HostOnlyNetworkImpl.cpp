@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -103,7 +103,7 @@ void HostOnlyNetwork::uninit()
 HRESULT HostOnlyNetwork::i_loadSettings(const settings::HostOnlyNetwork &data)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    AssertComRCReturnRC(autoCaller.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m->s = data;
@@ -114,7 +114,7 @@ HRESULT HostOnlyNetwork::i_loadSettings(const settings::HostOnlyNetwork &data)
 HRESULT HostOnlyNetwork::i_saveSettings(settings::HostOnlyNetwork &data)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(!m->s.strNetworkName.isEmpty(), E_FAIL);
@@ -158,8 +158,8 @@ HRESULT HostOnlyNetwork::setNetworkName(const com::Utf8Str &aNetworkName)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 
@@ -185,8 +185,8 @@ HRESULT HostOnlyNetwork::setNetworkMask(const com::Utf8Str &aNetworkMask)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 
@@ -207,8 +207,8 @@ HRESULT HostOnlyNetwork::setEnabled(BOOL aEnabled)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 
@@ -236,8 +236,8 @@ HRESULT HostOnlyNetwork::setLowerIP(const com::Utf8Str &aLowerIP)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 
@@ -258,8 +258,8 @@ HRESULT HostOnlyNetwork::setUpperIP(const com::Utf8Str &aUpperIP)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 
@@ -280,8 +280,8 @@ HRESULT HostOnlyNetwork::setId(const com::Guid &aId)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 

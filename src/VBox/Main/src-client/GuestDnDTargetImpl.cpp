@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -106,7 +106,7 @@ public:
         if (autoCaller.isNotOk())
             return;
 
-        /* ignore rc */ pThis->i_sendData(mpCtx, RT_INDEFINITE_WAIT /* msTimeout */);
+        pThis->i_sendData(mpCtx, RT_INDEFINITE_WAIT /* msTimeout */); /* ignore return code */
     }
 
     virtual ~GuestDnDSendDataTask(void) { }
@@ -198,7 +198,7 @@ HRESULT GuestDnDTarget::isFormatSupported(const com::Utf8Str &aFormat, BOOL *aSu
 #else /* VBOX_WITH_DRAG_AND_DROP */
 
     AutoCaller autoCaller(this);
-    if (autoCaller.isNotOk()) return autoCaller.rc();
+    if (autoCaller.isNotOk()) return autoCaller.hrc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -215,7 +215,7 @@ HRESULT GuestDnDTarget::getFormats(GuestDnDMIMEList &aFormats)
 #else /* VBOX_WITH_DRAG_AND_DROP */
 
     AutoCaller autoCaller(this);
-    if (autoCaller.isNotOk()) return autoCaller.rc();
+    if (autoCaller.isNotOk()) return autoCaller.hrc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -232,7 +232,7 @@ HRESULT GuestDnDTarget::addFormats(const GuestDnDMIMEList &aFormats)
 #else /* VBOX_WITH_DRAG_AND_DROP */
 
     AutoCaller autoCaller(this);
-    if (autoCaller.isNotOk()) return autoCaller.rc();
+    if (autoCaller.isNotOk()) return autoCaller.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -247,7 +247,7 @@ HRESULT GuestDnDTarget::removeFormats(const GuestDnDMIMEList &aFormats)
 #else /* VBOX_WITH_DRAG_AND_DROP */
 
     AutoCaller autoCaller(this);
-    if (autoCaller.isNotOk()) return autoCaller.rc();
+    if (autoCaller.isNotOk()) return autoCaller.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -277,7 +277,7 @@ HRESULT GuestDnDTarget::enter(ULONG aScreenId, ULONG aX, ULONG aY,
         return setError(E_INVALIDARG, tr("Number of supported formats is empty"));
 
     AutoCaller autoCaller(this);
-    if (autoCaller.isNotOk()) return autoCaller.rc();
+    if (autoCaller.isNotOk()) return autoCaller.hrc();
 
     /* Default action is ignoring. */
     DnDAction_T resAction = DnDAction_Ignore;
@@ -395,7 +395,7 @@ HRESULT GuestDnDTarget::move(ULONG aScreenId, ULONG aX, ULONG aY,
     /* Input validation. */
 
     AutoCaller autoCaller(this);
-    if (autoCaller.isNotOk()) return autoCaller.rc();
+    if (autoCaller.isNotOk()) return autoCaller.hrc();
 
     /* Default action is ignoring. */
     DnDAction_T resAction = DnDAction_Ignore;
@@ -500,7 +500,7 @@ HRESULT GuestDnDTarget::leave(ULONG uScreenId)
 #else /* VBOX_WITH_DRAG_AND_DROP */
 
     AutoCaller autoCaller(this);
-    if (autoCaller.isNotOk()) return autoCaller.rc();
+    if (autoCaller.isNotOk()) return autoCaller.hrc();
 
     GuestDnDState *pState = GuestDnDInst()->getState();
     AssertPtrReturn(pState, E_POINTER);
@@ -576,7 +576,7 @@ HRESULT GuestDnDTarget::drop(ULONG aScreenId, ULONG aX, ULONG aY,
     /* aResultAction is optional. */
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     /* Default action is ignoring. */
     DnDAction_T resAct = DnDAction_Ignore;
@@ -697,7 +697,7 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
 #else /* VBOX_WITH_DRAG_AND_DROP */
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     /* Input validation. */
     if (RT_UNLIKELY((aFormat.c_str()) == NULL || *(aFormat.c_str()) == '\0'))
@@ -1118,7 +1118,7 @@ int GuestDnDTarget::i_sendFile(GuestDnDSendCtx *pCtx,
         vrc = DnDTransferObjectOpen(pObj, RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_WRITE, 0 /* fMode */,
                                     DNDTRANSFEROBJECT_FLAGS_NONE);
         if (RT_FAILURE(vrc))
-            LogRel(("DnD: Opening host file '%s' failed, rc=%Rrc\n", pcszSrcPath, vrc));
+            LogRel(("DnD: Opening host file '%s' failed, vrc=%Rrc\n", pcszSrcPath, vrc));
     }
 
     if (RT_FAILURE(vrc))
@@ -1176,7 +1176,7 @@ int GuestDnDTarget::i_sendFile(GuestDnDSendCtx *pCtx,
     }
 
     if (RT_FAILURE(vrc))
-        LogRel(("DnD: Sending host file '%s' to guest failed, rc=%Rrc\n", pcszSrcPath, vrc));
+        LogRel(("DnD: Sending host file '%s' to guest failed, vrc=%Rrc\n", pcszSrcPath, vrc));
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;

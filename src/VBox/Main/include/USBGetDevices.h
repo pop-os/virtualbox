@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -96,7 +96,7 @@ extern bool USBProxyLinuxCheckDeviceRoot(const char *pcszRoot, bool fIsDeviceNod
 #ifdef UNIT_TEST
 void TestUSBSetupInit(const char *pcszUsbfsRoot, bool fUsbfsAccessible,
                       const char *pcszDevicesRoot, bool fDevicesAccessible,
-                      int rcMethodInitResult);
+                      int vrcMethodInitResult);
 void TestUSBSetEnv(const char *pcszEnvUsb, const char *pcszEnvUsbRoot);
 #endif
 

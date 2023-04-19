@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -118,13 +118,12 @@ private slots:
     /** Handles order changes. */
     void sltHandleOrderChange();
 
-    /** @todo EXAMPLE -- REMOVE THIS */
-    void sltUpdateAgentAvailable(CUpdateAgent comAgent, QString, KUpdateChannel, KUpdateSeverity, QString, QString, QString);
-
     /** Issues request to make open button @a fToggled. */
     void sltHandleOpenButtonToggled(bool fToggled);
+#ifdef VBOX_NOTIFICATION_CENTER_WITH_KEEP_BUTTON
     /** Toggles notification-progresses keep approach. */
     void sltHandleKeepButtonToggled(bool fToggled);
+#endif
     /** Removes finished notifications. */
     void sltHandleRemoveFinishedButtonClicked();
 
@@ -192,8 +191,10 @@ private:
     QIToolButton *m_pButtonOpen;
     /** Holds the toggle-sorting button instance. */
     QIToolButton *m_pButtonToggleSorting;
+#ifdef VBOX_NOTIFICATION_CENTER_WITH_KEEP_BUTTON
     /** Holds the keep-finished button instance. */
     QIToolButton *m_pButtonKeepFinished;
+#endif
     /** Holds the remove-finished button instance. */
     QIToolButton *m_pButtonRemoveFinished;
     /** Holds the items layout instance. */

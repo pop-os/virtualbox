@@ -317,6 +317,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">コピー(&amp;C)</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -25329,11 +25336,11 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;仮想マシンをオフにした後、現在のスナップショットに保存された状態に復元します。これは直前のセッションの状態を破棄し、差現在のスナップショットの状態に戻りたい場合に役立ちます。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;仮想マシンをオフにした後、現在のスナップショットに保存された状態に復元します。これは直前のセッションの状態を破棄し、差現在のスナップショットの状態に戻りたい場合に役立ちます。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">現在のスナップショット  &apos;%1&apos;  に復元(&amp;R)</translation>
+        <translation>現在のスナップショット  &apos;%1&apos;  に復元(&amp;R)</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

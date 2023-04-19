@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -892,6 +892,7 @@ void UIDetailsElement::popupNameAndSystemEditor(bool fChooseName, bool fChoosePa
         UINameAndSystemEditor *pEditor = new UINameAndSystemEditor(pPopup,
                                                                    fChooseName,
                                                                    fChoosePath,
+                                                                   false /* edition? */,
                                                                    false /* image? */,
                                                                    fChooseType);
         if (pEditor)

@@ -11,7 +11,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2004-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -39,7 +39,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -95,7 +95,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -151,7 +151,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -207,7 +207,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -263,7 +263,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2011-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2011-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -291,7 +291,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -347,7 +347,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -403,7 +403,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -459,7 +459,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -515,7 +515,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -571,7 +571,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -627,7 +627,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2013-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2013-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -651,7 +651,7 @@
 ; Source file: timepci.c
 ;
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -707,7 +707,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -763,7 +763,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -819,7 +819,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2004-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -847,7 +847,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2004-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -875,7 +875,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2011-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2011-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -903,7 +903,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2019-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2019-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -931,7 +931,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2021-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2021-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -959,7 +959,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2021-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2021-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -987,7 +987,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2004-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1015,7 +1015,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2004-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1043,7 +1043,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2011-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2011-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1071,7 +1071,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2011-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2011-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1099,7 +1099,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2012-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1128,7 +1128,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2012-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1157,7 +1157,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2012-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1186,7 +1186,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2012-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1215,7 +1215,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2012-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1244,7 +1244,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2012-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1273,7 +1273,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1302,7 +1302,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1331,7 +1331,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1387,7 +1387,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2011-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2011-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1415,7 +1415,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2006-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1444,7 +1444,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2022 Oracle and/or its affiliates.
+;  Copyright (C) 2004-2023 Oracle and/or its affiliates.
 ;  
 ;  This file is part of VirtualBox base platform packages, as
 ;  available from https://www.virtualbox.org.
@@ -1620,7 +1620,7 @@ section CONST progbits vstart=0xe0 align=1 ; size=0xcda class=DATA group=DGROUP
 section CONST2 progbits vstart=0xdba align=1 ; size=0x3fa class=DATA group=DGROUP
   ; disGetNextSymbol 0xf0dba LB 0x3fa -> off=0x0 cb=0000000000000012 uValue=00000000000f0dba 'bios_cvs_version_string'
 bios_cvs_version_string:                     ; 0xf0dba LB 0x12
-    db  'VirtualBox 7.0.6', 000h, 000h
+    db  'VirtualBox 7.0.8', 000h, 000h
   ; disGetNextSymbol 0xf0dcc LB 0x3e8 -> off=0x0 cb=0000000000000008 uValue=00000000000f0dcc '_bios_prefix_string'
 _bios_prefix_string:                         ; 0xf0dcc LB 0x8
     db  'BIOS: ', 000h, 000h
@@ -19363,4 +19363,4 @@ biosorg_check_before_or_at_0FFEEh:           ; 0xfff80 LB 0x70
 cpu_reset:                                   ; 0xffff0 LB 0x10
     jmp far 0f000h:0e05bh                     ; ea 5b e0 00 f0              ; 0xffff0 orgs.asm:2114
   ; disGetNextSymbol 0xffff5 LB 0xb -> off=0xb cb=0000000000000000 uValue=0000000000100000 '_dummy_addr_0x100000'
-    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fch, 0b6h
+    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fch, 0b4h

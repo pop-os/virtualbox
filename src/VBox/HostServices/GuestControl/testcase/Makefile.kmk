@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2022 Oracle and/or its affiliates.
+# Copyright (C) 2010-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -37,16 +37,16 @@ if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBO
 
  PROGRAMS += tstGuestControlSvc
  TESTING  += $(tstGuestControlSvc_0_OUTDIR)/tstGuestControlSvc.run
- tstGuestControlSvc_TEMPLATE = VBOXR3TSTEXE
+ tstGuestControlSvc_TEMPLATE = VBoxR3TstExe
  # The second define here is to ensure that the testcase will run fast,
  # without waiting for any thread synchronisation.
  tstGuestControlSvc_DEFS     = VBOX_WITH_HGCM VBOX_GUEST_CONTROL_TEST_NOTHREAD
  tstGuestControlSvc_SOURCES  = \
-	../VBoxGuestControlSvc.cpp \
-	tstGuestControlSvc.cpp
+ 	../VBoxGuestControlSvc.cpp \
+ 	tstGuestControlSvc.cpp
  tstGuestControlSvc_LIBS     = $(LIB_RUNTIME)
 
-$$(tstGuestControlSvc_0_OUTDIR)/tstGuestControlSvc.run: $$(tstGuestControlSvc_1_STAGE_TARGET)
+ $$(tstGuestControlSvc_0_OUTDIR)/tstGuestControlSvc.run: $$(tstGuestControlSvc_1_STAGE_TARGET)
 	export VBOX_LOG_DEST=nofile; $(tstGuestControlSvc_1_STAGE_TARGET) quiet
 	$(QUIET)$(APPEND) -t "$@" "done"
 

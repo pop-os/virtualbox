@@ -317,6 +317,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;Copia</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -3415,19 +3422,19 @@
     </message>
     <message>
         <source>&amp;Upgrade Guest Additions...</source>
-        <translation type="unfinished"></translation>
+        <translation>Aggiornamento G&amp;uest Additions...</translation>
     </message>
     <message>
         <source>Upgrade Guest Additions</source>
-        <translation type="unfinished"></translation>
+        <translation>Aggiornamento Guest Additions</translation>
     </message>
     <message>
         <source>Virtual Screen %1</source>
-        <translation type="unfinished">Schermo virtuale %1</translation>
+        <translation>Schermo virtuale %1</translation>
     </message>
     <message>
         <source>Use Host Screen %1</source>
-        <translation type="unfinished">Usa schermo %1 dell&apos;host</translation>
+        <translation>Usa schermo %1 dell&apos;host</translation>
     </message>
 </context>
 <context>
@@ -26061,11 +26068,11 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Se marcata, lo stato della macchina sarà ripristinato dallo stato memorizzato nell&apos;istantanea corrente immediatamente dopo lo spegnimento. Tale funzionalità è utile se volete scartare i risultati delle ultime sessioni e tornare all&apos;istantanea corrente.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Se marcata, lo stato della macchina sarà ripristinato dallo stato memorizzato nell&apos;istantanea corrente immediatamente dopo lo spegnimento. Tale funzionalità è utile se volete scartare i risultati delle ultime sessioni e tornare all&apos;istantanea corrente.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">&amp;Ripristina l&apos;istantanea corrente &apos;%1&apos;</translation>
+        <translation>&amp;Ripristina l&apos;istantanea corrente &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

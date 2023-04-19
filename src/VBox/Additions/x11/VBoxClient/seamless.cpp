@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -348,7 +348,7 @@ VBCLSERVICE g_SvcSeamless =
 {
     "seamless",                 /* szName */
     "Seamless Mode Support",    /* pszDescription */
-    ".vboxclient-seamless.pid", /* pszPidFilePath */
+    ".vboxclient-seamless",     /* pszPidFilePathTemplate */
     NULL,                       /* pszUsage */
     NULL,                       /* pszOptions */
     NULL,                       /* pfnOption */

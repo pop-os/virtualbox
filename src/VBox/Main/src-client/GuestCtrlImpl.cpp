@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -411,7 +411,7 @@ HRESULT Guest::createSession(const com::Utf8Str &aUser, const com::Utf8Str &aPas
 #else /* VBOX_WITH_GUEST_CONTROL */
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     /* Do not allow anonymous sessions (with system rights) with public API. */
     if (RT_UNLIKELY(!aUser.length()))
@@ -442,27 +442,26 @@ HRESULT Guest::createSession(const com::Utf8Str &aUser, const com::Utf8Str &aPas
          * on the guest. */
         vrc = pSession->i_startSessionAsync();
 
-    HRESULT hr = S_OK;
-
+    HRESULT hrc = S_OK;
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
         {
             case VERR_MAX_PROCS_REACHED:
-                hr = setErrorBoth(VBOX_E_MAXIMUM_REACHED, vrc, tr("Maximum number of concurrent guest sessions (%d) reached"),
-                                  VBOX_GUESTCTRL_MAX_SESSIONS);
+                hrc = setErrorBoth(VBOX_E_MAXIMUM_REACHED, vrc, tr("Maximum number of concurrent guest sessions (%d) reached"),
+                                   VBOX_GUESTCTRL_MAX_SESSIONS);
                 break;
 
             /** @todo Add more errors here. */
 
             default:
-                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Could not create guest session: %Rrc"), vrc);
+                hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Could not create guest session: %Rrc"), vrc);
                 break;
         }
     }
 
-    LogFlowThisFunc(("Returning rc=%Rhrc\n", hr));
-    return hr;
+    LogFlowThisFunc(("Returning hrc=%Rhrc\n", hrc));
+    return hrc;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 

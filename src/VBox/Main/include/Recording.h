@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -79,9 +79,9 @@ public:
     bool IsStarted(void);
     bool IsLimitReached(void);
     bool IsLimitReached(uint32_t uScreen, uint64_t msTimestamp);
-    bool NeedsUpdate( uint32_t uScreen, uint64_t msTimestamp);
+    bool NeedsUpdate(uint32_t uScreen, uint64_t msTimestamp);
 
-    DECLCALLBACK(int) OnLimitReached(uint32_t uScreen, int rc);
+    DECLCALLBACK(int) OnLimitReached(uint32_t uScreen, int vrc);
 
 protected:
 

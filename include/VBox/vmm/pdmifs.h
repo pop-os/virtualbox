@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2287,7 +2287,7 @@ typedef struct PDMIPCIRAWCONNECTOR
      */
     DECLR3CALLBACKMEMBER(int, pfnDeviceConstructComplete, (PPDMIPCIRAWCONNECTOR pInterface, const char *pcszName,
                                                            uint32_t uHostPciAddress, uint32_t uGuestPciAddress,
-                                                           int rc));
+                                                           int vrc));
 
 } PDMIPCIRAWCONNECTOR;
 /** PDMIPCIRAWCONNECTOR interface ID. */

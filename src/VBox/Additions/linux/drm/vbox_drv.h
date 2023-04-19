@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2023 Oracle and/or its affiliates.
  * This file is based on ast_drv.h
  * Copyright 2012 Red Hat Inc.
  *
@@ -172,8 +172,12 @@
 # include <drm/drm_gem.h>
 #endif
 
-#include <drm/ttm/ttm_bo_api.h>
-#include <drm/ttm/ttm_bo_driver.h>
+#if RTLNX_VER_MIN(6,3,0)
+# include <drm/ttm/ttm_bo.h>
+#else
+# include <drm/ttm/ttm_bo_api.h>
+# include <drm/ttm/ttm_bo_driver.h>
+#endif
 #include <drm/ttm/ttm_placement.h>
 #if RTLNX_VER_MAX(5,13,0) && !RTLNX_RHEL_RANGE(8,6, 8,99)
 # include <drm/ttm/ttm_memory.h>
@@ -185,7 +189,7 @@
 # include <drm/ttm/ttm_resource.h>
 #endif
 
-#if RTLNX_VER_MIN(6,0,0)
+#if RTLNX_VER_MIN(6,0,0) || RTLNX_RHEL_MAJ_PREREQ(9,2)
 # include <drm/drm_framebuffer.h>
 #endif
 

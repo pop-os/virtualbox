@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -423,15 +423,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
 #endif /* VBOX_WITH_HARDENING */
 
 #ifdef VBOX_WS_MAC
-        /* Apply font fixes (before QApplication get created and instantiated font-hints): */
-        switch (UICommon::determineOsRelease())
-        {
-            case MacOSXRelease_Mavericks: QFont::insertSubstitution(".Lucida Grande UI", "Lucida Grande"); break;
-            case MacOSXRelease_Yosemite:  QFont::insertSubstitution(".Helvetica Neue DeskInterface", "Helvetica Neue"); break;
-            case MacOSXRelease_ElCapitan: QFont::insertSubstitution(".SF NS Text", "Helvetica Neue"); break;
-            default: break;
-        }
-
         /* Instantiate own NSApplication before QApplication do it for us: */
         UICocoaApplication::instance();
 
@@ -448,7 +439,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
             RTPathAppend(szExecDir, sizeof(szExecDir), "plugins");      /* .../Contents/plugins */
             QCoreApplication::addLibraryPath(QString::fromUtf8(szExecDir));
         }
-# endif
+# endif /* VBOX_RUNTIME_UI */
 #endif /* VBOX_WS_MAC */
 
 #ifdef VBOX_WS_X11

@@ -1,10 +1,10 @@
 ; $Id: VBoxGuest.inf $
 ;; @file
-; INF file for installing the VirtualBox Windows guest driver.
+; INF file for installing the VirtualBox Windows guest driver, XP and later.
 ;
 
 ;
-; Copyright (C) 2006-2022 Oracle and/or its affiliates.
+; Copyright (C) 2006-2023 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -56,11 +56,9 @@ DefaultDestDir = 12 ; drivers
 VBoxTray_CopyFiles = 11 ; system32
 
 [Manufacturer]
-;x86   %ORACLE%=VBoxGuest
-;amd64 %ORACLE%=VBoxGuest, NTamd64
+%ORACLE%=VBoxGuest@COMMA-NT-ARCH@
 
-;x86   [VBoxGuest]
-;amd64 [VBoxGuest.NTamd64]
+[VBoxGuest@DOT-NT-ARCH@]
 %VBoxGuest.DeviceDesc%=VBoxGuest_Install,PCI\VEN_80ee&DEV_cafe
 
 [VBoxGuest_Install]

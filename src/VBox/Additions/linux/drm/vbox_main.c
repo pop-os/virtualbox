@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2023 Oracle and/or its affiliates.
  * This file is based on ast_main.c
  * Copyright 2012 Red Hat Inc.
  *
@@ -35,6 +35,10 @@
 #include "vbox_drv.h"
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
+
+#if RTLNX_VER_MIN(6,3,0)
+# include <drm/drm_modeset_helper.h>
+#endif
 
 #include <VBoxVideoGuest.h>
 #include <VBoxVideoVBE.h>

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -76,7 +76,7 @@ typedef struct
     /** Get the services default path to pidfile, relative to $HOME */
     /** @todo Should this also have a component relative to the X server number?
      */
-    const char *pszPidFilePath;
+    const char *pszPidFilePathTemplate;
     /** The usage options stuff for the --help screen. */
     const char *pszUsage;
     /** The option descriptions for the --help screen. */

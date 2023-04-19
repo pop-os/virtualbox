@@ -217,6 +217,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">ک&amp;پی</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -20767,11 +20774,11 @@
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;وقتیکه انتخاب شده، ماشین به وضعیت ذخیره شده در ضبط وضعیت فعلی بعداز اینکه آن خاموش شد باز میگردد. این سودمند هست اگر شما مطمئنید که میخواهید تغییرات ایجاد شده در آخرین دسترسی را ذخیره نشود و دوباره از ضبط وضعیت شروع کنید.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;وقتیکه انتخاب شده، ماشین به وضعیت ذخیره شده در ضبط وضعیت فعلی بعداز اینکه آن خاموش شد باز میگردد. این سودمند هست اگر شما مطمئنید که میخواهید تغییرات ایجاد شده در آخرین دسترسی را ذخیره نشود و دوباره از ضبط وضعیت شروع کنید.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">بازگردانی ضبط &amp;وضعیت فعلی &apos;%1&apos;</translation>
+        <translation>بازگردانی ضبط &amp;وضعیت فعلی &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

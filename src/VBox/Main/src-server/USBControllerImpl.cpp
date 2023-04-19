@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2005-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -158,7 +158,7 @@ HRESULT USBController::init(Machine *aParent, USBController *aPeer,
 
     /* sanity */
     AutoCaller peerCaller(aPeer);
-    AssertComRCReturnRC(peerCaller.rc());
+    AssertComRCReturnRC(peerCaller.hrc());
 
     if (fReshare)
     {
@@ -249,15 +249,15 @@ HRESULT USBController::setName(const com::Utf8Str &aName)
 {
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(m->pParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoMultiWriteLock2 alock(m->pParent, this COMMA_LOCKVAL_SRC_POS);
 
     if (m->bd->strName != aName)
     {
         ComObjPtr<USBController> ctrl;
-        HRESULT rc = m->pParent->i_getUSBControllerByName(aName, ctrl, false /* aSetError */);
-        if (SUCCEEDED(rc))
+        HRESULT hrc = m->pParent->i_getUSBControllerByName(aName, ctrl, false /* aSetError */);
+        if (SUCCEEDED(hrc))
             return setError(VBOX_E_OBJECT_IN_USE,
                             tr("USB controller named '%s' already exists"),
                             aName.c_str());
@@ -287,7 +287,7 @@ HRESULT USBController::setType(USBControllerType_T aType)
 {
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(m->pParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoMultiWriteLock2 alock(m->pParent, this COMMA_LOCKVAL_SRC_POS);
 
@@ -335,11 +335,11 @@ HRESULT USBController::getUSBStandard(USHORT *aUSBStandard)
 void USBController::i_rollback()
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* we need the machine state */
     AutoAnyStateDependency adep(m->pParent);
-    AssertComRCReturnVoid(adep.rc());
+    AssertComRCReturnVoid(adep.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -354,11 +354,11 @@ void USBController::i_commit()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller peerCaller(m->pPeer);
-    AssertComRCReturnVoid(peerCaller.rc());
+    AssertComRCReturnVoid(peerCaller.hrc());
 
     /* lock both for writing since we modify both (mPeer is "master" so locked
      * first) */
@@ -386,15 +386,15 @@ void USBController::i_copyFrom(USBController *aThat)
 
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnVoid(thatCaller.rc());
+    AssertComRCReturnVoid(thatCaller.hrc());
 
     /* even more sanity */
     AutoAnyStateDependency adep(m->pParent);
-    AssertComRCReturnVoid(adep.rc());
+    AssertComRCReturnVoid(adep.hrc());
     /* Machine::copyFrom() may not be called when the VM is running */
     AssertReturnVoid(!Global::IsOnline(adep.machineState()));
 
@@ -418,11 +418,11 @@ void USBController::i_unshare()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller peerCaller(m->pPeer);
-    AssertComRCReturnVoid(peerCaller.rc());
+    AssertComRCReturnVoid(peerCaller.hrc());
 
     /* peer is not modified, lock it for reading (m->pPeer is "master" so locked
      * first) */

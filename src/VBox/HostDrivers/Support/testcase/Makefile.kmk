@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -48,61 +48,61 @@ PROGRAMS += \
 	SUPLoggerCtl
 ifdef VBOX_WITH_TESTCASES
  if defined(VBOX_WITH_HARDENING)
-PROGRAMS += \
-	tstSupVerify
+  PROGRAMS += \
+  	tstSupVerify
  endif
  if !defined(VBOX_WITH_HARDENING) || "$(KBUILD_TARGET)" != "win"
-PROGRAMS += \
-	tstPage \
-	tstContiguous \
-	tstInit \
-	tstInt \
-	tstLow \
-	tstPin \
-	tstGetPagingMode \
-	tstSupLoadModule \
-	tstSupSem \
-	tstSupSem-Zombie \
-	tstSupTscDelta
+  PROGRAMS += \
+  	tstPage \
+  	tstContiguous \
+  	tstInit \
+  	tstInt \
+  	tstLow \
+  	tstPin \
+  	tstGetPagingMode \
+  	tstSupLoadModule \
+  	tstSupSem \
+  	tstSupSem-Zombie \
+  	tstSupTscDelta
  endif
-PROGRAMS.win += \
-	tstNtQueryStuff
+ PROGRAMS.win += \
+ 	tstNtQueryStuff
 endif # VBOX_WITH_TESTCASES
 
-SUPInstall_TEMPLATE   = VBOXR3EXE
+SUPInstall_TEMPLATE   = VBoxR3Exe
 SUPInstall_SOURCES    = SUPInstall.cpp
 SUPInstall_LIBS       = $(LIB_RUNTIME)
 
-SUPUninstall_TEMPLATE = VBOXR3EXE
+SUPUninstall_TEMPLATE = VBoxR3Exe
 SUPUninstall_SOURCES  = SUPUninstall.cpp
 SUPUninstall_LIBS     = $(LIB_RUNTIME)
 
-SUPLoggerCtl_TEMPLATE = VBOXR3EXE
+SUPLoggerCtl_TEMPLATE = VBoxR3Exe
 SUPLoggerCtl_SOURCES  = SUPLoggerCtl.cpp
 SUPLoggerCtl_LIBS     = $(LIB_RUNTIME)
 
-tstInt_TEMPLATE       = VBOXR3EXE
+tstInt_TEMPLATE       = VBoxR3Exe
 tstInt_DEFS           = $(VMM_COMMON_DEFS)
 tstInt_SOURCES        = tstInt.cpp
 tstInt_LIBS           = $(LIB_RUNTIME)
 
-tstContiguous_TEMPLATE= VBOXR3TSTEXE
+tstContiguous_TEMPLATE = VBoxR3TstExe
 tstContiguous_SOURCES = tstContiguous.cpp
 
-tstInit_TEMPLATE      = VBOXR3TSTEXE
+tstInit_TEMPLATE      = VBoxR3TstExe
 tstInit_SOURCES       = tstInit.cpp
 
-tstLow_TEMPLATE       = VBOXR3TSTEXE
+tstLow_TEMPLATE       = VBoxR3TstExe
 tstLow_SOURCES        = tstLow.cpp
 
-tstNtQueryStuff_TEMPLATE = VBOXR3TSTEXE
-tstNtQueryStuff_SDKS     = VBOX_NTDLL
+tstNtQueryStuff_TEMPLATE = VBoxR3TstExe
+tstNtQueryStuff_SDKS     = VBoxNtDll
 tstNtQueryStuff_SOURCES  = tstNtQueryStuff.cpp
 
-tstPin_TEMPLATE       = VBOXR3TSTEXE
+tstPin_TEMPLATE       = VBoxR3TstExe
 tstPin_SOURCES        = tstPin.cpp
 
-tstPage_TEMPLATE      = VBOXR3TSTEXE
+tstPage_TEMPLATE      = VBoxR3TstExe
 tstPage_SOURCES       = tstPage.cpp
 
 #
@@ -127,29 +127,29 @@ tstGIP-2Hardened_SOURCES = ../SUPR3HardenedMainTemplateTestcase.cpp
 tstGIP-2Hardened_NAME = tstGIP-2
 
 if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
-  tstGIP-2_TEMPLATE := VBoxR3HardenedTstDll
+ tstGIP-2_TEMPLATE  := VBoxR3HardenedTstDll
 else
-  tstGIP-2_TEMPLATE := VBOXR3TSTEXE
+ tstGIP-2_TEMPLATE  := VBoxR3TstExe
 endif
 tstGIP-2_SOURCES = tstGIP-2.cpp
 
-tstGetPagingMode_TEMPLATE = VBOXR3TSTEXE
+tstGetPagingMode_TEMPLATE = VBoxR3TstExe
 tstGetPagingMode_SOURCES = tstGetPagingMode.cpp
 
-tstSupLoadModule_TEMPLATE = VBOXR3TSTEXE
+tstSupLoadModule_TEMPLATE = VBoxR3TstExe
 tstSupLoadModule_SOURCES  = tstSupLoadModule.cpp
 
-tstSupSem_TEMPLATE    = VBOXR3TSTEXE
+tstSupSem_TEMPLATE    = VBoxR3TstExe
 tstSupSem_SOURCES     = tstSupSem.cpp
 
-tstSupSem-Zombie_TEMPLATE = VBOXR3TSTEXE
+tstSupSem-Zombie_TEMPLATE = VBoxR3TstExe
 tstSupSem-Zombie_SOURCES  = tstSupSem-Zombie.cpp
 
-tstSupTscDelta_TEMPLATE = VBOXR3TSTEXE
+tstSupTscDelta_TEMPLATE = VBoxR3TstExe
 tstSupTscDelta_SOURCES  = tstSupTscDelta.cpp
 
 # For testing supR3HardenedVerifyFile on windows.
-tstSupVerify_TEMPLATE = VBOXR3TSTEXE
+tstSupVerify_TEMPLATE = VBoxR3TstExe
 tstSupVerify_SOURCES  = tstSupVerify.cpp
 
 

@@ -257,6 +257,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;Копіювати</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -22510,11 +22517,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Якщо це позначено, стан машини буде відновлено до того, який збережено в поточному зрізі, відразу після її вимкнення. Це може бути корисним, якщо ви впевнені, що бажаєте відкинути результати останнього сеансу і вернутись до поточного зрізу.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Якщо це позначено, стан машини буде відновлено до того, який збережено в поточному зрізі, відразу після її вимкнення. Це може бути корисним, якщо ви впевнені, що бажаєте відкинути результати останнього сеансу і вернутись до поточного зрізу.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">&amp;Відновити поточний зріз &apos;%1&apos;</translation>
+        <translation>&amp;Відновити поточний зріз &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

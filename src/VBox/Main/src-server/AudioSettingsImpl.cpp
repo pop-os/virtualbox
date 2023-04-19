@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2022 Oracle and/or its affiliates.
+ * Copyright (C) 2022-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -129,7 +129,7 @@ HRESULT AudioSettings::init(Machine *aParent, AudioSettings *aThat)
     unconst(m->pPeer)    = aThat;
 
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnRC(thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.hrc());
 
     AutoReadLock thatlock(aThat COMMA_LOCKVAL_SRC_POS);
 
@@ -239,7 +239,7 @@ HRESULT AudioSettings::setHostAudioDevice(const ComPtr<IHostAudioDevice> &aDevic
 bool AudioSettings::i_canChangeSettings(void)
 {
     AutoAnyStateDependency adep(m->pMachine);
-    if (FAILED(adep.rc()))
+    if (FAILED(adep.hrc()))
         return false;
 
     /** @todo Do some more checks here? */
@@ -297,7 +297,7 @@ void AudioSettings::i_onSettingsChanged(void)
 HRESULT AudioSettings::i_loadSettings(const settings::AudioAdapter &data)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    AssertComRCReturnRC(autoCaller.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -318,7 +318,7 @@ HRESULT AudioSettings::i_loadSettings(const settings::AudioAdapter &data)
 HRESULT AudioSettings::i_saveSettings(settings::AudioAdapter &data)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    AssertComRCReturnRC(autoCaller.hrc());
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -345,11 +345,11 @@ void AudioSettings::i_copyFrom(AudioSettings *aThat)
 
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnVoid(thatCaller.rc());
+    AssertComRCReturnVoid(thatCaller.hrc());
 
     /* peer is not modified, lock it for reading (aThat is "master" so locked
      * first) */
@@ -368,27 +368,27 @@ void AudioSettings::i_copyFrom(AudioSettings *aThat)
 HRESULT AudioSettings::i_applyDefaults(ComObjPtr<GuestOSType> &aGuestOsType)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    AssertComRCReturnRC(autoCaller.hrc());
 
     AudioControllerType_T audioController;
-    HRESULT rc = aGuestOsType->COMGETTER(RecommendedAudioController)(&audioController);
-    if (FAILED(rc)) return rc;
+    HRESULT hrc = aGuestOsType->COMGETTER(RecommendedAudioController)(&audioController);
+    if (FAILED(hrc)) return hrc;
 
-    rc = m->pAdapter->COMSETTER(AudioController)(audioController);
-    if (FAILED(rc)) return rc;
+    hrc = m->pAdapter->COMSETTER(AudioController)(audioController);
+    if (FAILED(hrc)) return hrc;
 
     AudioCodecType_T audioCodec;
-    rc = aGuestOsType->COMGETTER(RecommendedAudioCodec)(&audioCodec);
-    if (FAILED(rc)) return rc;
+    hrc = aGuestOsType->COMGETTER(RecommendedAudioCodec)(&audioCodec);
+    if (FAILED(hrc)) return hrc;
 
-    rc = m->pAdapter->COMSETTER(AudioCodec)(audioCodec);
-    if (FAILED(rc)) return rc;
+    hrc = m->pAdapter->COMSETTER(AudioCodec)(audioCodec);
+    if (FAILED(hrc)) return hrc;
 
-    rc = m->pAdapter->COMSETTER(Enabled)(true);
-    if (FAILED(rc)) return rc;
+    hrc = m->pAdapter->COMSETTER(Enabled)(true);
+    if (FAILED(hrc)) return hrc;
 
-    rc = m->pAdapter->COMSETTER(EnabledOut)(true);
-    if (FAILED(rc)) return rc;
+    hrc = m->pAdapter->COMSETTER(EnabledOut)(true);
+    if (FAILED(hrc)) return hrc;
 
     /* Note: We do NOT enable audio input by default due to security reasons!
      *       This always has to be done by the user manually. */
@@ -406,7 +406,7 @@ void AudioSettings::i_rollback(void)
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -425,7 +425,7 @@ void AudioSettings::i_commit(void)
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     m->pAdapter->i_commit();
 

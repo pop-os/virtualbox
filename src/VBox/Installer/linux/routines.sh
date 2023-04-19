@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2007-2022 Oracle and/or its affiliates.
+# Copyright (C) 2007-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -186,12 +186,10 @@ WantedBy=multi-user.target
 EOF
 }
 
-# Checks if systemd is the init system of choice
+# Checks if systemctl is present and functional (i.e., systemd is the init process).
 use_systemd()
 {
-    # First condition is what halfway recent systemd uses itself, and the
-    # other two checks should cover everything back to v1.
-    test -e /run/systemd/system || test -e /sys/fs/cgroup/systemd || test -e /cgroup/systemd
+    systemctl status >/dev/null 2>&1
 }
 
 ## Installs a file containing a shell script as an init script.  Call

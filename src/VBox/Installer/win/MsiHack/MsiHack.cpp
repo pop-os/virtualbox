@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2016-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -32,11 +32,15 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define IPRT_NO_CRT_FOR_3RD_PARTY /* temp hack */
 #include <iprt/win/windows.h>
 #include <iprt/string.h>
 #include <iprt/asm.h>
 #include <stdio.h>
-#include <wchar.h>
+#include <stdlib.h>
+#ifndef IPRT_NO_CRT
+# include <wchar.h>
+#endif
 
 
 /*********************************************************************************************************************************

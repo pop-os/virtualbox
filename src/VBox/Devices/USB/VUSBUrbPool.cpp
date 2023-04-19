@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -162,6 +162,9 @@ DECLHIDDEN(PVUSBURB) vusbUrbPoolAlloc(PVUSBURBPOOL pUrbPool, VUSBXFERTYPE enmTyp
             {
                 RTListNodeRemove(&pIt->NdFree);
                 ASMAtomicDecU32(&pUrbPool->cUrbsInPool);
+                pIt->cbAllocated  = 0;
+                pIt->Urb.u32Magic = 0;
+                pIt->Urb.enmState = VUSBURBSTATE_INVALID;
                 RTMemFree(pIt);
             }
         }
@@ -184,6 +187,16 @@ DECLHIDDEN(PVUSBURB) vusbUrbPoolAlloc(PVUSBURBPOOL pUrbPool, VUSBXFERTYPE enmTyp
         pHdr->cbAllocated = cbDataAllocated;
         pHdr->cAge        = 0;
         ASMAtomicIncU32(&pUrbPool->cUrbsInPool);
+    }
+    else
+    {
+        /* Paranoia: Clear memory that's part of the guest data buffer now
+         * but wasn't before. See @bugref{10410}.
+         */
+        if (cbData > pHdr->Urb.cbData)
+        {
+            memset(&pHdr->Urb.abData[pHdr->Urb.cbData], 0, cbData - pHdr->Urb.cbData);
+        }
     }
     RTCritSectLeave(&pUrbPool->CritSectPool);
 
@@ -229,6 +242,9 @@ DECLHIDDEN(void) vusbUrbPoolFree(PVUSBURBPOOL pUrbPool, PVUSBURB pUrb)
     if (pHdr->cAge == VUSBURB_AGE_MAX)
     {
         ASMAtomicDecU32(&pUrbPool->cUrbsInPool);
+        pHdr->cbAllocated  = 0;
+        pHdr->Urb.u32Magic = 0;
+        pHdr->Urb.enmState = VUSBURBSTATE_INVALID;
         RTMemFree(pHdr);
     }
     else

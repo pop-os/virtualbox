@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -93,24 +93,11 @@ namespace UIDefs
     SHARED_LIBRARY_STUFF extern QStringList VBoxExtPackFileExts;
     /** Allowed OVF file extensions. */
     SHARED_LIBRARY_STUFF extern QStringList OVFFileExts;
+
+    /** Holds environment variable name for Desktop Watchdog / Synthetic Test policy type. */
+    SHARED_LIBRARY_STUFF extern const char *VBox_DesktopWatchdogPolicy_SynthTest;
 }
 using namespace UIDefs /* if header included */;
-
-
-#ifdef VBOX_WS_MAC
-/** Known macOS releases. */
-enum MacOSXRelease
-{
-    MacOSXRelease_Old,
-    MacOSXRelease_SnowLeopard,
-    MacOSXRelease_Lion,
-    MacOSXRelease_MountainLion,
-    MacOSXRelease_Mavericks,
-    MacOSXRelease_Yosemite,
-    MacOSXRelease_ElCapitan,
-    MacOSXRelease_New,
-};
-#endif /* VBOX_WS_MAC */
 
 
 /** Size suffixes. */
@@ -123,6 +110,16 @@ enum SizeSuffix
     SizeSuffix_TeraByte,
     SizeSuffix_PetaByte,
     SizeSuffix_Max
+};
+
+
+/** VM launch modes. */
+enum UILaunchMode
+{
+    UILaunchMode_Invalid,
+    UILaunchMode_Default,
+    UILaunchMode_Headless,
+    UILaunchMode_Separate
 };
 
 
@@ -157,6 +154,17 @@ struct ExactStorageSlot : public StorageSlot
     {}
     QString controller;
 };
+
+
+/** Desktop Watchdog / Synthetic Test policy type. */
+enum DesktopWatchdogPolicy_SynthTest
+{
+    DesktopWatchdogPolicy_SynthTest_Disabled,
+    DesktopWatchdogPolicy_SynthTest_ManagerOnly,
+    DesktopWatchdogPolicy_SynthTest_MachineOnly,
+    DesktopWatchdogPolicy_SynthTest_Both
+};
+Q_DECLARE_METATYPE(DesktopWatchdogPolicy_SynthTest);
 
 
 #endif /* !FEQT_INCLUDED_SRC_globals_UIDefs_h */

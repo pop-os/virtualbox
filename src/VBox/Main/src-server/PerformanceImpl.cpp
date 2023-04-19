@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -189,7 +189,7 @@ HRESULT PerformanceCollector::init()
 
     LogFlowThisFuncEnter();
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     m.hal = pm::createHAL();
     m.gm = new pm::CollectorGuestManager;
@@ -202,14 +202,14 @@ HRESULT PerformanceCollector::init()
                               &PerformanceCollector::staticSamplerCallback, this);
     AssertMsgRC(vrc, ("Failed to create resource usage sampling timer(%Rra)\n", vrc));
     if (RT_FAILURE(vrc))
-        rc = E_FAIL;
+        hrc = E_FAIL;
 
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         autoInitSpan.setSucceeded();
 
     LogFlowThisFuncLeave();
 
-    return rc;
+    return hrc;
 }
 
 /**
@@ -287,23 +287,23 @@ HRESULT PerformanceCollector::getMetricNames(std::vector<com::Utf8Str> &aMetricN
 HRESULT PerformanceCollector::toIPerformanceMetric(pm::Metric *src, ComPtr<IPerformanceMetric> &dst)
 {
     ComObjPtr<PerformanceMetric> metric;
-    HRESULT rc = metric.createObject();
-    if (SUCCEEDED(rc))
-        rc = metric->init(src);
-    AssertComRCReturnRC(rc);
+    HRESULT hrc = metric.createObject();
+    if (SUCCEEDED(hrc))
+        hrc = metric->init(src);
+    AssertComRCReturnRC(hrc);
     dst = metric;
-    return rc;
+    return hrc;
 }
 
 HRESULT PerformanceCollector::toIPerformanceMetric(pm::BaseMetric *src, ComPtr<IPerformanceMetric> &dst)
 {
     ComObjPtr<PerformanceMetric> metric;
-    HRESULT rc = metric.createObject();
-    if (SUCCEEDED(rc))
-        rc = metric->init(src);
-    AssertComRCReturnRC(rc);
+    HRESULT hrc = metric.createObject();
+    if (SUCCEEDED(hrc))
+        hrc = metric->init(src);
+    AssertComRCReturnRC(hrc);
     dst = metric;
-    return rc;
+    return hrc;
 }
 
 const Utf8Str& PerformanceCollector::getFailedGuestName()
@@ -318,7 +318,7 @@ HRESULT PerformanceCollector::getMetrics(const std::vector<com::Utf8Str> &aMetri
                                          const std::vector<ComPtr<IUnknown> > &aObjects,
                                          std::vector<ComPtr<IPerformanceMetric> > &aMetrics)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     pm::Filter filter(aMetricNames, aObjects);
 
@@ -335,14 +335,14 @@ HRESULT PerformanceCollector::getMetrics(const std::vector<com::Utf8Str> &aMetri
     for (it = filteredMetrics.begin(); it != filteredMetrics.end(); ++it)
     {
         ComObjPtr<PerformanceMetric> metric;
-        rc = metric.createObject();
-        if (SUCCEEDED(rc))
-            rc = metric->init(*it);
-        AssertComRCReturnRC(rc);
+        hrc = metric.createObject();
+        if (SUCCEEDED(hrc))
+            hrc = metric->init(*it);
+        AssertComRCReturnRC(hrc);
         LogFlow(("PerformanceCollector::GetMetrics() store a metric at retMetrics[%zu]...\n", i));
         aMetrics[i++] = metric;
     }
-    return rc;
+    return hrc;
 }
 
 HRESULT PerformanceCollector::setupMetrics(const std::vector<com::Utf8Str> &aMetricNames,
@@ -355,7 +355,7 @@ HRESULT PerformanceCollector::setupMetrics(const std::vector<com::Utf8Str> &aMet
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     BaseMetricList filteredMetrics;
     BaseMetricList::iterator it;
     for (it = m.baseMetrics.begin(); it != m.baseMetrics.end(); ++it)
@@ -368,16 +368,16 @@ HRESULT PerformanceCollector::setupMetrics(const std::vector<com::Utf8Str> &aMet
             {
                 LogFlow(("PerformanceCollector::SetupMetrics() disabling %s\n",
                          (*it)->getName()));
-                rc = (*it)->disable();
-                if (FAILED(rc))
+                hrc = (*it)->disable();
+                if (FAILED(hrc))
                     break;
             }
             else
             {
                 LogFlow(("PerformanceCollector::SetupMetrics() enabling %s\n",
                          (*it)->getName()));
-                rc = (*it)->enable();
-                if (FAILED(rc))
+                hrc = (*it)->enable();
+                if (FAILED(hrc))
                     break;
             }
             filteredMetrics.push_back(*it);
@@ -386,13 +386,13 @@ HRESULT PerformanceCollector::setupMetrics(const std::vector<com::Utf8Str> &aMet
     aAffectedMetrics.resize(filteredMetrics.size());
     size_t i = 0;
     for (it = filteredMetrics.begin();
-         it != filteredMetrics.end() && SUCCEEDED(rc); ++it)
-        rc = toIPerformanceMetric(*it, aAffectedMetrics[i++]);
+         it != filteredMetrics.end() && SUCCEEDED(hrc); ++it)
+        hrc = toIPerformanceMetric(*it, aAffectedMetrics[i++]);
 
-    if (FAILED(rc))
+    if (FAILED(hrc))
         return setError(E_FAIL, tr("Failed to setup metrics for '%s'"),
                         getFailedGuestName().c_str());
-    return rc;
+    return hrc;
 }
 
 HRESULT PerformanceCollector::enableMetrics(const std::vector<com::Utf8Str> &aMetricNames,
@@ -405,14 +405,14 @@ HRESULT PerformanceCollector::enableMetrics(const std::vector<com::Utf8Str> &aMe
                                 /* fiddling with enable bit only, but we */
                                 /* care for those who come next :-). */
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     BaseMetricList filteredMetrics;
     BaseMetricList::iterator it;
     for (it = m.baseMetrics.begin(); it != m.baseMetrics.end(); ++it)
         if (filter.match((*it)->getObject(), (*it)->getName()))
         {
-            rc = (*it)->enable();
-            if (FAILED(rc))
+            hrc = (*it)->enable();
+            if (FAILED(hrc))
                 break;
             filteredMetrics.push_back(*it);
         }
@@ -420,15 +420,15 @@ HRESULT PerformanceCollector::enableMetrics(const std::vector<com::Utf8Str> &aMe
     aAffectedMetrics.resize(filteredMetrics.size());
     size_t i = 0;
     for (it = filteredMetrics.begin();
-         it != filteredMetrics.end() && SUCCEEDED(rc); ++it)
-        rc = toIPerformanceMetric(*it, aAffectedMetrics[i++]);
+         it != filteredMetrics.end() && SUCCEEDED(hrc); ++it)
+        hrc = toIPerformanceMetric(*it, aAffectedMetrics[i++]);
 
     LogFlowThisFuncLeave();
 
-    if (FAILED(rc))
+    if (FAILED(hrc))
         return setError(E_FAIL, tr("Failed to enable metrics for '%s'"),
                         getFailedGuestName().c_str());
-    return rc;
+    return hrc;
 }
 
 HRESULT PerformanceCollector::disableMetrics(const std::vector<com::Utf8Str> &aMetricNames,
@@ -441,14 +441,14 @@ HRESULT PerformanceCollector::disableMetrics(const std::vector<com::Utf8Str> &aM
                                 /* fiddling with enable bit only, but we */
                                 /* care for those who come next :-). */
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     BaseMetricList filteredMetrics;
     BaseMetricList::iterator it;
     for (it = m.baseMetrics.begin(); it != m.baseMetrics.end(); ++it)
         if (filter.match((*it)->getObject(), (*it)->getName()))
         {
-            rc = (*it)->disable();
-            if (FAILED(rc))
+            hrc = (*it)->disable();
+            if (FAILED(hrc))
                 break;
             filteredMetrics.push_back(*it);
         }
@@ -456,15 +456,15 @@ HRESULT PerformanceCollector::disableMetrics(const std::vector<com::Utf8Str> &aM
     aAffectedMetrics.resize(filteredMetrics.size());
     size_t i = 0;
     for (it = filteredMetrics.begin();
-         it != filteredMetrics.end() && SUCCEEDED(rc); ++it)
-        rc = toIPerformanceMetric(*it, aAffectedMetrics[i++]);
+         it != filteredMetrics.end() && SUCCEEDED(hrc); ++it)
+        hrc = toIPerformanceMetric(*it, aAffectedMetrics[i++]);
 
     LogFlowThisFuncLeave();
 
-    if (FAILED(rc))
+    if (FAILED(hrc))
         return setError(E_FAIL, tr("Failed to disable metrics for '%s'"),
                         getFailedGuestName().c_str());
-    return rc;
+    return hrc;
 }
 
 HRESULT PerformanceCollector::queryMetricsData(const std::vector<com::Utf8Str> &aMetricNames,
@@ -534,7 +534,7 @@ void PerformanceCollector::registerBaseMetric(pm::BaseMetric *baseMetric)
 {
     //LogFlowThisFuncEnter();
     AutoCaller autoCaller(this);
-    if (!SUCCEEDED(autoCaller.rc())) return;
+    if (!SUCCEEDED(autoCaller.hrc())) return;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     Log7Func(("{%p}: obj=%p name=%s\n", this, (void *)baseMetric->getObject(), baseMetric->getName()));
@@ -546,7 +546,7 @@ void PerformanceCollector::registerMetric(pm::Metric *metric)
 {
     //LogFlowThisFuncEnter();
     AutoCaller autoCaller(this);
-    if (!SUCCEEDED(autoCaller.rc())) return;
+    if (!SUCCEEDED(autoCaller.hrc())) return;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     Log7Func(("{%p}: obj=%p name=%s\n", this, (void *)metric->getObject(), metric->getName()));
@@ -558,7 +558,7 @@ void PerformanceCollector::unregisterBaseMetricsFor(const ComPtr<IUnknown> &aObj
 {
     //LogFlowThisFuncEnter();
     AutoCaller autoCaller(this);
-    if (!SUCCEEDED(autoCaller.rc())) return;
+    if (!SUCCEEDED(autoCaller.hrc())) return;
 
     pm::Filter filter(name, aObject);
 
@@ -579,7 +579,7 @@ void PerformanceCollector::unregisterMetricsFor(const ComPtr<IUnknown> &aObject,
 {
     //LogFlowThisFuncEnter();
     AutoCaller autoCaller(this);
-    if (!SUCCEEDED(autoCaller.rc())) return;
+    if (!SUCCEEDED(autoCaller.hrc())) return;
 
     pm::Filter filter(name, aObject);
 
@@ -600,7 +600,7 @@ void PerformanceCollector::unregisterMetricsFor(const ComPtr<IUnknown> &aObject,
 void PerformanceCollector::registerGuest(pm::CollectorGuest* pGuest)
 {
     AutoCaller autoCaller(this);
-    if (!SUCCEEDED(autoCaller.rc())) return;
+    if (!SUCCEEDED(autoCaller.hrc())) return;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m.gm->registerGuest(pGuest);
@@ -609,7 +609,7 @@ void PerformanceCollector::registerGuest(pm::CollectorGuest* pGuest)
 void PerformanceCollector::unregisterGuest(pm::CollectorGuest* pGuest)
 {
     AutoCaller autoCaller(this);
-    if (!SUCCEEDED(autoCaller.rc())) return;
+    if (!SUCCEEDED(autoCaller.hrc())) return;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m.gm->unregisterGuest(pGuest);
@@ -618,23 +618,23 @@ void PerformanceCollector::unregisterGuest(pm::CollectorGuest* pGuest)
 void PerformanceCollector::suspendSampling()
 {
     AutoCaller autoCaller(this);
-    if (!SUCCEEDED(autoCaller.rc())) return;
+    if (!SUCCEEDED(autoCaller.hrc())) return;
 
-    int rc = RTTimerLRStop(m.sampler);
-    if (   RT_FAILURE(rc)
-        && rc != VERR_TIMER_SUSPENDED)     /* calling suspendSampling() successively shouldn't assert. See @bugref{3495}. */
-        AssertMsgFailed(("PerformanceCollector::suspendSampling(): RTTimerLRStop returned %Rrc\n", rc));
+    int vrc = RTTimerLRStop(m.sampler);
+    if (   RT_FAILURE(vrc)
+        && vrc != VERR_TIMER_SUSPENDED)     /* calling suspendSampling() successively shouldn't assert. See @bugref{3495}. */
+        AssertMsgFailed(("PerformanceCollector::suspendSampling(): RTTimerLRStop returned %Rrc\n", vrc));
 }
 
 void PerformanceCollector::resumeSampling()
 {
     AutoCaller autoCaller(this);
-    if (!SUCCEEDED(autoCaller.rc())) return;
+    if (!SUCCEEDED(autoCaller.hrc())) return;
 
-    int rc = RTTimerLRStart(m.sampler, 0);
-    if (   RT_FAILURE(rc)
-        && rc != VERR_TIMER_ACTIVE)     /* calling resumeSampling() successively shouldn't assert. See @bugref{3495}. */
-        AssertMsgFailed(("PerformanceCollector::resumeSampling(): RTTimerLRStart returned %Rrc\n", rc));
+    int vrc = RTTimerLRStart(m.sampler, 0);
+    if (   RT_FAILURE(vrc)
+        && vrc != VERR_TIMER_ACTIVE)     /* calling resumeSampling() successively shouldn't assert. See @bugref{3495}. */
+        AssertMsgFailed(("PerformanceCollector::resumeSampling(): RTTimerLRStart returned %Rrc\n", vrc));
 }
 
 

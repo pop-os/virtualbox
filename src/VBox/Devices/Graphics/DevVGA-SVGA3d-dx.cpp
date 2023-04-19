@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -576,7 +576,7 @@ int vmsvga3dDXSetSamplers(PVGASTATECC pThisCC, uint32_t idDXContext, SVGA3dCmdDX
 
 
 #ifdef DUMP_BITMAPS
-static void vmsvga3dDXDrawDumpRenderTargets(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
+static void vmsvga3dDXDrawDumpRenderTargets(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext, const char *pszPrefix = NULL)
 {
     for (uint32_t i = 0; i < SVGA3D_MAX_SIMULTANEOUS_RENDER_TARGETS; ++i)
     {
@@ -593,7 +593,7 @@ static void vmsvga3dDXDrawDumpRenderTargets(PVGASTATECC pThisCC, PVMSVGA3DDXCONT
             int rc = vmsvga3dSurfaceMap(pThisCC, &image, NULL, VMSVGA3D_SURFACE_MAP_READ, &map);
             if (RT_SUCCESS(rc))
             {
-                vmsvga3dMapWriteBmpFile(&map, "rt-");
+                vmsvga3dMapWriteBmpFile(&map, pszPrefix ? pszPrefix : "rt-");
                 vmsvga3dSurfaceUnmap(pThisCC, &image, &map, /* fWritten =  */ false);
             }
             else

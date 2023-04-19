@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2194,6 +2194,18 @@ int AudioMixerSinkSignalUpdateJob(PAUDMIXSINK pSink)
 
 
 /**
+ * Checks if the caller is the owner of the mixer sink's critical section.
+ *
+ * @returns \c true if the caller is the lock owner, \c false if not.
+ * @param   pSink       The mixer sink to check.
+ */
+bool AudioMixerSinkLockIsOwner(PAUDMIXSINK pSink)
+{
+    return RTCritSectIsOwner(&pSink->CritSect);
+}
+
+
+/**
  * Locks the mixer sink for purposes of serializing with the AIO thread.
  *
  * @returns VBox status code.
@@ -2227,7 +2239,7 @@ int AudioMixerSinkTryLock(PAUDMIXSINK pSink)
  * @returns VBox status code.
  * @param   pSink       The mixer sink to unlock.
  */
-int     AudioMixerSinkUnlock(PAUDMIXSINK pSink)
+int AudioMixerSinkUnlock(PAUDMIXSINK pSink)
 {
     AssertPtrReturn(pSink, VERR_INVALID_POINTER);
     return RTCritSectLeave(&pSink->CritSect);

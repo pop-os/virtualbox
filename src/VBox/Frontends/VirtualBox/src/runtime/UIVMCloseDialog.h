@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -84,6 +84,9 @@ protected:
 
 private slots:
 
+    /** Updates widgets availability. */
+    void sltUpdateWidgetAvailability();
+
     /** Accepts the dialog. */
     void accept();
 
@@ -108,6 +111,9 @@ private:
     void setButtonEnabledPowerOff(bool fEnabled);
     /** Defines whether 'PowerOff' button is visible. */
     void setButtonVisiblePowerOff(bool fVisible);
+
+    /** Defines whether 'Discard' check-box is visible. */
+    void setCheckBoxVisibleDiscard(bool fVisible);
 
     /** Prepares all. */
     void prepare();
@@ -175,6 +181,11 @@ private:
     QLabel       *m_pLabelIconPowerOff;
     /** Holds the 'PowerOff' radio-button instance.  */
     QRadioButton *m_pRadioButtonPowerOff;
+
+    /** Holds the 'Discard' check-box instance.  */
+    QCheckBox *m_pCheckBoxDiscard;
+    /** Holds the 'Discard' check-box text. */
+    QString    m_strDiscardCheckBoxText;
 
     /** Holds the last close action. */
     MachineCloseAction  m_enmLastCloseAction;

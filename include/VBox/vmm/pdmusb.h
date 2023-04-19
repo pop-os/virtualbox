@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -239,6 +239,9 @@ typedef struct PDMUSBREG
     /**
      * VM Resume notification.
      *
+     * This is not called when the device is hotplugged device, instead
+     * pfnHotPlugged will be called.
+     *
      * @returns VBox status.
      * @param   pUsbIns     The USB device instance data.
      * @remarks Optional.
@@ -259,7 +262,8 @@ typedef struct PDMUSBREG
     /**
      * Called after the constructor when attaching a device at run time.
      *
-     * This can be used to do tasks normally assigned to pfnInitComplete and/or pfnVMPowerOn.
+     * This can be used to do tasks normally assigned to pfnInitComplete and/or
+     * pfnVMPowerOn.  There will not be a call to pfnVMResume following this.
      *
      * @returns VBox status.
      * @param   pUsbIns     The USB device instance data.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2015-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -58,10 +58,9 @@ HostPowerServiceLinux::HostPowerServiceLinux(VirtualBox *aVirtualBox)
   , mpConnection(NULL)
 {
     DBusError error;
-    int rc;
 
-    rc = RTDBusLoadLib();
-    if (RT_FAILURE(rc))
+    int vrc = RTDBusLoadLib();
+    if (RT_FAILURE(vrc))
     {
         LogRel(("HostPowerServiceLinux: DBus library not found.  Service not available.\n"));
         return;
@@ -91,11 +90,11 @@ HostPowerServiceLinux::HostPowerServiceLinux(VirtualBox *aVirtualBox)
     Assert(pForAssert == mpConnection); RT_NOREF(pForAssert);
 
     /* Create the new worker thread. */
-    rc = RTThreadCreate(&mThread, HostPowerServiceLinux::powerChangeNotificationThread, this, 0 /* cbStack */,
-                        RTTHREADTYPE_MSG_PUMP, RTTHREADFLAGS_WAITABLE, "MainPower");
-    if (RT_FAILURE(rc))
+    vrc = RTThreadCreate(&mThread, HostPowerServiceLinux::powerChangeNotificationThread, this, 0 /* cbStack */,
+                         RTTHREADTYPE_MSG_PUMP, RTTHREADFLAGS_WAITABLE, "MainPower");
+    if (RT_FAILURE(vrc))
     {
-        LogRel(("HostPowerServiceLinux: RTThreadCreate failed with %Rrc\n", rc));
+        LogRel(("HostPowerServiceLinux: RTThreadCreate failed with %Rrc\n", vrc));
         dbus_connection_unref(mpConnection);
     }
 }

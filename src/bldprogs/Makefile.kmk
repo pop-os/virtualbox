@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -34,7 +34,8 @@ ifn1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), solaris.sparc64)
 endif
 
 bin2c_TEMPLATE = VBoxBldProg
-bin2c_SOURCES = bin2c.c
+bin2c_SOURCES = \
+	bin2c.c
 
 biossums_TEMPLATE = VBoxBldProg
 biossums_SOURCES = biossums.c
@@ -55,7 +56,8 @@ ifndef VBOX_ONLY_BUILD
  	scm.cpp \
  	scmdiff.cpp \
  	scmrw.cpp \
-       scmparser.cpp \
+ 	scmrw-kmk.cpp \
+ 	scmparser.cpp \
  	scmstream.cpp \
  	scmsubversion.cpp
  ifdef VBOX_PATH_SUBVERSION_INCS

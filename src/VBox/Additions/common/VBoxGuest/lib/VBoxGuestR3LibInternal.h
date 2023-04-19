@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -78,7 +78,8 @@ DECLINLINE(int) VbglHGCMParmUInt32Get(HGCMFunctionParameter *pParm, uint32_t *pu
         *pu32 = pParm->u.value32;
         return VINF_SUCCESS;
     }
-    return VERR_INVALID_PARAMETER;
+    *pu32 = UINT32_MAX; /* shut up gcc */
+    return VERR_WRONG_PARAMETER_TYPE;
 }
 
 
@@ -96,7 +97,8 @@ DECLINLINE(int) VbglHGCMParmUInt64Get(HGCMFunctionParameter *pParm, uint64_t *pu
         *pu64 = pParm->u.value64;
         return VINF_SUCCESS;
     }
-    return VERR_INVALID_PARAMETER;
+    *pu64 = UINT64_MAX; /* shut up gcc */
+    return VERR_WRONG_PARAMETER_TYPE;
 }
 
 

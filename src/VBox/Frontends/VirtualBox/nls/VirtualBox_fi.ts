@@ -286,6 +286,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">K&amp;opioi</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -18488,7 +18495,7 @@ Kaikki VirtualBoxin komponentit käyttävät sitä koneen tunnistukseen.&lt;/p&g
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kun tämä on asetettu, virtuaalikoneen tila palautetaan tämänhetkisestä palautuspisteeseen sammutuksen jälkeeen. Tämä on näppärää, jos olet varma että haluat hylätä viimeisten istuntojen muutokset ja vaihtaa takaisin viimeisimpään palautuspisteeseen.&lt;/p&gt;</translation>
+        <translation type="unfinished">&lt;p&gt;Kun tämä on asetettu, virtuaalikoneen tila palautetaan tämänhetkisestä palautuspisteeseen sammutuksen jälkeeen. Tämä on näppärää, jos olet varma että haluat hylätä viimeisten istuntojen muutokset ja vaihtaa takaisin viimeisimpään palautuspisteeseen.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>
@@ -18496,6 +18503,10 @@ Kaikki VirtualBoxin komponentit käyttävät sitä koneen tunnistukseen.&lt;/p&g
     </message>
     <message>
         <source>&lt;p&gt;Close the virtual machine windows but keep the virtual machine running.&lt;/p&gt;&lt;p&gt;You can use the VirtualBox Manager to return to running the virtual machine in a window.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Restore current snapshot &apos;%1&apos;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

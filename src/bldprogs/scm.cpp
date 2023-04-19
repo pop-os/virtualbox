@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -104,6 +104,8 @@ typedef enum SCMOPT
     SCMOPT_NO_PAGE_RESTRICTIONS,
     SCMOPT_NO_RC_USE,
     SCMOPT_UNRESTRICTED_RC_USE,
+    SCMOPT_STANDARIZE_KMK,
+    SCMOPT_NO_STANDARIZE_KMK,
     SCMOPT_UPDATE_COPYRIGHT_YEAR,
     SCMOPT_NO_UPDATE_COPYRIGHT_YEAR,
     SCMOPT_EXTERNAL_COPYRIGHT,
@@ -214,6 +216,7 @@ static SCMSETTINGSBASE const g_Defaults =
     /* .fOnlyGuestHostPage = */                     false,
     /* .fNoASMMemPageUse = */                       false,
     /* .fOnlyHrcVrcInsteadOfRc */                   false,
+    /* .fStandarizeKmk */                           true,
     /* .fUpdateCopyrightYear = */                   false,
     /* .fExternalCopyright = */                     false,
     /* .fLgplDisclaimer = */                        false,
@@ -273,6 +276,8 @@ static RTGETOPTDEF  g_aScmOpts[] =
     { "--unrestricted-ASMMemPage-use",      SCMOPT_UNRESTRICTED_ASM_MEM_PAGE_USE,   RTGETOPT_REQ_NOTHING },
     { "--no-rc-use",                        SCMOPT_NO_RC_USE,                       RTGETOPT_REQ_NOTHING },
     { "--unrestricted-rc-use",              SCMOPT_UNRESTRICTED_RC_USE,             RTGETOPT_REQ_NOTHING },
+    { "--standarize-kmk",                   SCMOPT_STANDARIZE_KMK,                  RTGETOPT_REQ_NOTHING },
+    { "--no-standarize-kmk",                SCMOPT_NO_STANDARIZE_KMK,               RTGETOPT_REQ_NOTHING },
     { "--update-copyright-year",            SCMOPT_UPDATE_COPYRIGHT_YEAR,           RTGETOPT_REQ_NOTHING },
     { "--no-update-copyright-year",         SCMOPT_NO_UPDATE_COPYRIGHT_YEAR,        RTGETOPT_REQ_NOTHING },
     { "--external-copyright",               SCMOPT_EXTERNAL_COPYRIGHT,              RTGETOPT_REQ_NOTHING },
@@ -829,7 +834,8 @@ static SCMCFGENTRY const g_aConfigs[] =
     SCM_CFG_ENTRY("nsis",       g_apRewritersFor_NsisFiles,        false, "*.nsh|*.nsi|*.nsis" ),
     SCM_CFG_ENTRY("java",       g_apRewritersFor_Java,             false, "*.java" ),
     SCM_CFG_ENTRY("scm",        g_apRewritersFor_ScmSettings,      false, "*.scm-settings" ),
-    SCM_CFG_ENTRY("image",      g_apRewritersFor_Images,           true,  "*.png|*.bmp|*.jpg|*.pnm|*.ico|*.icns|*.tiff|*.tif|*.xcf|*.gif" ),
+    SCM_CFG_ENTRY("image",      g_apRewritersFor_Images,           true,  "*.png|*.bmp|*.jpg|*.pnm|*.ico|*.icns|*.tiff|*.tif|"
+                                                                          "*.xcf|*.gif|*.jar|*.dll|*.exe|*.ttf|*.woff|*.woff2" ),
     SCM_CFG_ENTRY("xslt",       g_apRewritersFor_Xslt,             false, "*.xsl" ),
     SCM_CFG_ENTRY("xml",        g_apRewritersFor_Xml,              false, "*.xml|*.dist|*.qhcp" ),
     SCM_CFG_ENTRY("wix",        g_apRewritersFor_Wix,              false, "*.wxi|*.wxs|*.wxl" ),
@@ -1222,6 +1228,13 @@ static int scmSettingsBaseHandleOpt(PSCMSETTINGSBASE pSettings, int rc, PRTGETOP
             return VINF_SUCCESS;
         case SCMOPT_UNRESTRICTED_RC_USE:
             pSettings->fOnlyHrcVrcInsteadOfRc = false;
+            return VINF_SUCCESS;
+
+        case SCMOPT_STANDARIZE_KMK:
+            pSettings->fStandarizeKmk = true;
+            return VINF_SUCCESS;
+        case SCMOPT_NO_STANDARIZE_KMK:
+            pSettings->fStandarizeKmk = false;
             return VINF_SUCCESS;
 
         case SCMOPT_UPDATE_COPYRIGHT_YEAR:
@@ -2184,13 +2197,13 @@ void ScmVerbose(PSCMRWSTATE pState, int iLevel, const char *pszFormat, ...)
 /**
  * Prints an error message.
  *
- * @returns false
+ * @returns kScmUnmodified
  * @param   pState              The rewrite state.  Optional.
  * @param   rc                  The error code.
  * @param   pszFormat           The message format string.
  * @param   ...                 Format arguments.
  */
-bool ScmError(PSCMRWSTATE pState, int rc, const char *pszFormat, ...)
+SCMREWRITERRES ScmError(PSCMRWSTATE pState, int rc, const char *pszFormat, ...)
 {
     if (RT_SUCCESS(pState->rc))
         pState->rc = rc;
@@ -2205,7 +2218,7 @@ bool ScmError(PSCMRWSTATE pState, int rc, const char *pszFormat, ...)
     RTPrintf("%s: error: %s: %N", g_szProgName, pState->pszFilename, pszFormat, &va);
     va_end(va);
 
-    return false;
+    return kScmUnmodified;
 }
 
 
@@ -2220,6 +2233,25 @@ bool ScmError(PSCMRWSTATE pState, int rc, const char *pszFormat, ...)
  */
 bool ScmFixManually(PSCMRWSTATE pState, const char *pszFormat, ...)
 {
+    va_list va;
+    va_start(va, pszFormat);
+    ScmFixManuallyV(pState, pszFormat, va);
+    va_end(va);
+    return false;
+}
+
+
+/**
+ * Prints message indicating that something requires manual fixing.
+ *
+ * @returns false
+ * @param   pState              The rewrite state.  Optional.
+ * @param   rc                  The error code.
+ * @param   pszFormat           The message format string.
+ * @param   va                  Format arguments.
+ */
+bool ScmFixManuallyV(PSCMRWSTATE pState, const char *pszFormat, va_list va)
+{
     pState->fNeedsManualRepair = true;
 
     if (!pState->fFirst)
@@ -2227,10 +2259,10 @@ bool ScmFixManually(PSCMRWSTATE pState, const char *pszFormat, ...)
         RTPrintf("%s: info: --= Rewriting '%s' =--\n", g_szProgName, pState->pszFilename);
         pState->fFirst = true;
     }
-    va_list va;
-    va_start(va, pszFormat);
-    RTPrintf("%s: error/fixme: %s: %N", g_szProgName, pState->pszFilename, pszFormat, &va);
-    va_end(va);
+    va_list vaCopy;
+    va_copy(vaCopy, va);
+    RTPrintf("%s: error/fixme: %s: %N", g_szProgName, pState->pszFilename, pszFormat, &vaCopy);
+    va_end(vaCopy);
 
     return false;
 }
@@ -2397,10 +2429,12 @@ static int scmProcessFileInner(PSCMRWSTATE pState, const char *pszFilename, cons
                     for (size_t iRw = 0; iRw < pCfg->cRewriters; iRw++)
                     {
                         pState->rc = VINF_SUCCESS;
-                        bool fRc = pCfg->paRewriters[iRw]->pfnRewriter(pState, pIn, pOut, pBaseSettings);
+                        SCMREWRITERRES enmRes = pCfg->paRewriters[iRw]->pfnRewriter(pState, pIn, pOut, pBaseSettings);
                         if (RT_FAILURE(pState->rc))
                             break;
-                        if (fRc)
+                        if (enmRes == kScmMaybeModified)
+                            enmRes = ScmStreamAreIdentical(pIn, pOut) ? kScmUnmodified : kScmModified;
+                        if (enmRes == kScmModified)
                         {
                             PSCMSTREAM pTmp = pOut;
                             pOut = pIn == &Stream1 ? &Stream3 : pIn;
@@ -2959,6 +2993,9 @@ static int scmHelp(PCRTGETOPTDEF paOpts, size_t cOpts)
                          "      vrc for IPRT status codes and hrc for COM status codes.  Default: %RTbool\n",
                          g_Defaults.fOnlyHrcVrcInsteadOfRc);
                 break;
+            case SCMOPT_STANDARIZE_KMK:
+                RTPrintf("      Clean up kmk files (the makefile-kmk action).  Default: %RTbool\n", g_Defaults.fStandarizeKmk);
+                break;
             case SCMOPT_UPDATE_COPYRIGHT_YEAR:
                 RTPrintf("      Update the copyright year.  Default: %RTbool\n", g_Defaults.fUpdateCopyrightYear);
                 break;
@@ -3109,7 +3146,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 153224 $";
+                static const char s_szRev[] = "$Revision: 155710 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

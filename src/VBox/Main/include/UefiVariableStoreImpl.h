@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -75,6 +75,7 @@ private:
     HRESULT addSignatureToDb(const std::vector<BYTE> &aData, const com::Guid &aOwnerUuid, SignatureType_T enmSignatureType);
     HRESULT addSignatureToDbx(const std::vector<BYTE> &aData, const com::Guid &aOwnerUuid, SignatureType_T enmSignatureType);
     HRESULT enrollDefaultMsSignatures(void);
+    HRESULT addSignatureToMok(const std::vector<BYTE> &aData, const com::Guid &aOwnerUuid, SignatureType_T enmSignatureType);
 
     int i_uefiVarStoreSetVarAttr(const char *pszVar, uint32_t fAttr);
     int i_uefiVarStoreQueryVarAttr(const char *pszVar, uint32_t *pfAttr);
@@ -92,9 +93,9 @@ private:
     HRESULT i_uefiVarStoreQueryVar(const char *pszVar, void *pvData, size_t cbData);
     HRESULT i_uefiSigDbAddSig(RTEFISIGDB hEfiSigDb, const void *pvData, size_t cbData, const com::Guid &aOwnerUuid, SignatureType_T enmSignatureType);
     HRESULT i_uefiVarStoreAddSignatureToDbVec(PCEFI_GUID pGuid, const char *pszDb, const std::vector<BYTE> &aData,
-                                              const com::Guid &aOwnerUuid, SignatureType_T enmSignatureType);
+                                              const com::Guid &aOwnerUuid, SignatureType_T enmSignatureType, bool fRuntime = true);
     HRESULT i_uefiVarStoreAddSignatureToDb(PCEFI_GUID pGuid, const char *pszDb, const void *pvData, size_t cbData,
-                                           const com::Guid &aOwnerUuid, SignatureType_T enmSignatureType);
+                                           const com::Guid &aOwnerUuid, SignatureType_T enmSignatureType, bool fRuntime = true);
 
     struct Data;            // opaque data struct, defined in UefiVariableStoreImpl.cpp
     Data *m;

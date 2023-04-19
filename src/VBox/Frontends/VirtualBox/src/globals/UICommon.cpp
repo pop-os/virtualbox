@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -188,9 +188,6 @@ UICommon::UICommon(UIType enmType)
 #ifdef VBOX_WS_WIN
     , m_fDataCommitted(false)
 #endif
-#ifdef VBOX_WS_MAC
-    , m_enmMacOSVersion(MacOSXRelease_Old)
-#endif
 #ifdef VBOX_WS_X11
     , m_enmWindowManagerType(X11WMType_Unknown)
     , m_fCompositingManagerRunning(false)
@@ -243,11 +240,6 @@ void UICommon::prepare()
     connect(qApp, &QGuiApplication::commitDataRequest,
             this, &UICommon::sltHandleCommitDataRequest);
 #endif /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
-
-#ifdef VBOX_WS_MAC
-    /* Determine OS release early: */
-    m_enmMacOSVersion = determineOsRelease();
-#endif /* VBOX_WS_MAC */
 
     /* Create converter: */
     UIConverter::create();
@@ -945,34 +937,6 @@ QString UICommon::brandingGetKey(QString strKey) const
     return settings.value(QString("%1").arg(strKey)).toString();
 }
 
-#ifdef VBOX_WS_MAC
-/* static */
-MacOSXRelease UICommon::determineOsRelease()
-{
-    /* Prepare 'utsname' struct: */
-    utsname info;
-    if (uname(&info) != -1)
-    {
-        /* Compose map of known releases: */
-        QMap<int, MacOSXRelease> release;
-        release[10] = MacOSXRelease_SnowLeopard;
-        release[11] = MacOSXRelease_Lion;
-        release[12] = MacOSXRelease_MountainLion;
-        release[13] = MacOSXRelease_Mavericks;
-        release[14] = MacOSXRelease_Yosemite;
-        release[15] = MacOSXRelease_ElCapitan;
-
-        /* Cut the major release index of the string we have, s.a. 'man uname': */
-        const int iRelease = QString(info.release).section('.', 0, 0).toInt();
-
-        /* Return release if determined, return 'New' if version more recent than latest, return 'Old' otherwise: */
-        return release.value(iRelease, iRelease > release.keys().last() ? MacOSXRelease_New : MacOSXRelease_Old);
-    }
-    /* Return 'Old' by default: */
-    return MacOSXRelease_Old;
-}
-#endif /* VBOX_WS_MAC */
-
 #ifdef VBOX_WS_WIN
 /* static */
 void UICommon::loadColorTheme()
@@ -1264,7 +1228,7 @@ bool UICommon::switchToMachine(CMachine &comMachine)
 }
 
 /* static */
-bool UICommon::launchMachine(CMachine &comMachine, LaunchMode enmLaunchMode /* = LaunchMode_Default */)
+bool UICommon::launchMachine(CMachine &comMachine, UILaunchMode enmLaunchMode /* = UILaunchMode_Default */)
 {
     /* Switch to machine window(s) if possible: */
     if (   comMachine.GetSessionState() == KSessionState_Locked /* precondition for CanShowConsoleWindow() */
@@ -1290,7 +1254,7 @@ bool UICommon::launchMachine(CMachine &comMachine, LaunchMode enmLaunchMode /* =
     }
 
     /* Not for separate UI (which can connect to machine in any state): */
-    if (enmLaunchMode != LaunchMode_Separate)
+    if (enmLaunchMode != UILaunchMode_Separate)
     {
         /* Make sure machine-state is one of required: */
         const KMachineState enmState = comMachine.GetState(); NOREF(enmState);
@@ -1330,9 +1294,9 @@ bool UICommon::launchMachine(CMachine &comMachine, LaunchMode enmLaunchMode /* =
     QString strType;
     switch (enmLaunchMode)
     {
-        case LaunchMode_Default:  strType = ""; break;
-        case LaunchMode_Separate: strType = uiCommon().isSeparateProcess() ? "headless" : "separate"; break;
-        case LaunchMode_Headless: strType = "headless"; break;
+        case UILaunchMode_Default:  strType = ""; break;
+        case UILaunchMode_Separate: strType = uiCommon().isSeparateProcess() ? "headless" : "separate"; break;
+        case UILaunchMode_Headless: strType = "headless"; break;
         default: AssertFailedReturn(false);
     }
 
@@ -1341,7 +1305,7 @@ bool UICommon::launchMachine(CMachine &comMachine, LaunchMode enmLaunchMode /* =
     if (!comMachine.isOk())
     {
         /* If the VM is started separately and the VM process is already running, then it is OK. */
-        if (enmLaunchMode == LaunchMode_Separate)
+        if (enmLaunchMode == UILaunchMode_Separate)
         {
             const KMachineState enmState = comMachine.GetState();
             if (   enmState >= KMachineState_FirstOnline

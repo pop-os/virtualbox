@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -121,6 +121,7 @@ int         ScmStreamSeekAbsolute(PSCMSTREAM pStream, size_t offAbsolute);
 int         ScmStreamSeekRelative(PSCMSTREAM pStream, ssize_t offRelative);
 int         ScmStreamSeekByLine(PSCMSTREAM pStream, size_t iLine);
 bool        ScmStreamIsAtStartOfLine(PSCMSTREAM pStream);
+bool        ScmStreamAreIdentical(PCSCMSTREAM pStream1, PCSCMSTREAM pStream2);
 
 const char *ScmStreamGetLineByNo(PSCMSTREAM pStream, size_t iLine, size_t *pcchLine, PSCMEOL penmEol);
 const char *ScmStreamGetLine(PSCMSTREAM pStream, size_t *pcchLine, PSCMEOL penmEol);
@@ -128,6 +129,7 @@ unsigned    ScmStreamGetCh(PSCMSTREAM pStream);
 const char *ScmStreamGetCur(PSCMSTREAM pStream);
 unsigned    ScmStreamPeekCh(PSCMSTREAM pStream);
 int         ScmStreamRead(PSCMSTREAM pStream, void *pvBuf, size_t cbToRead);
+bool        ScmStreamIsEndOfStream(PSCMSTREAM pStream);
 bool        ScmStreamIsWhiteLine(PSCMSTREAM pStream, size_t iLine);
 SCMEOL      ScmStreamGetEol(PSCMSTREAM pStream);
 SCMEOL      ScmStreamGetEolByLine(PSCMSTREAM pStream, size_t iLine);

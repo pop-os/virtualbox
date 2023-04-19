@@ -5,7 +5,7 @@
 # for Linux Guest Additions
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -472,8 +472,6 @@ if [ -n "${INSTALLATION_MODULES_LIST}" ]; then
   done
 fi
 
-"$INSTALLATION_DIR"/init/vboxadd setup 2>&1 | tee -a "$LOGFILE"
-
 # Install, set up and start init scripts
 install_init_script "$INSTALLATION_DIR"/init/vboxadd vboxadd 2>> "$LOGFILE"
 install_init_script "$INSTALLATION_DIR"/init/vboxadd-service vboxadd-service \
@@ -481,6 +479,7 @@ install_init_script "$INSTALLATION_DIR"/init/vboxadd-service vboxadd-service \
 finish_init_script_install
 addrunlevel vboxadd 2>> "$LOGFILE"
 addrunlevel vboxadd-service 2>> "$LOGFILE"
+"$INSTALLATION_DIR"/init/vboxadd setup 2>&1 | tee -a "$LOGFILE"
 start_init_script vboxadd 2>> "$LOGFILE"
 start_init_script vboxadd-service 2>> "$LOGFILE"
 

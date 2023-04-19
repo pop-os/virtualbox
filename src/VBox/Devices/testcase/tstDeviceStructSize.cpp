@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -408,6 +408,8 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VGASTATE, CritSect, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, StatRZMemoryRead, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, CritSectIRQ, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, bmDirtyBitmap, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, pciRegions, 8);
     CHECK_MEMBER_ALIGNMENT(VMMDEV, CritSect, 8);
 #ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
     CHECK_MEMBER_ALIGNMENT(PCIRAWSENDREQ, u.aGetRegionInfo.u64RegionSize, 8);

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -192,7 +192,7 @@ int vbsf_nls_to_shflstring(struct vbsf_super_info *pSuperInfo, const char *pszNl
             if (pString) {
                 pString->u16Length = (uint16_t)cchNls;
                 pString->u16Size   = (uint16_t)(cchNls + 1);
-                memcpy(pString->String.ach, pszNls, cchNls);
+                VBOX_LINUX_MEMCPY(pString->String.ach, pszNls, cchNls);
                 pString->String.ach[cchNls] = '\0';
                 rc = 0;
             } else {
@@ -502,7 +502,7 @@ int vbsf_stat(const char *caller, struct vbsf_super_info *pSuperInfo, SHFLSTRING
     pReq = (VBOXSFCREATEREQ *)VbglR0PhysHeapAlloc(sizeof(*pReq) + path->u16Size);
     if (pReq) {
         RT_ZERO(*pReq);
-        memcpy(&pReq->StrPath, path, SHFLSTRING_HEADER_SIZE + path->u16Size);
+        VBOX_LINUX_MEMCPY(&pReq->StrPath, path, SHFLSTRING_HEADER_SIZE + path->u16Size);
         pReq->CreateParms.Handle = SHFL_HANDLE_NIL;
         pReq->CreateParms.CreateFlags = SHFL_CF_LOOKUP | SHFL_CF_ACT_FAIL_IF_NEW;
 
@@ -588,7 +588,7 @@ int vbsf_inode_revalidate_worker(struct dentry *dentry, bool fForced, bool fInod
                 VBOXSFCREATEREQ *pReq  = (VBOXSFCREATEREQ *)VbglR0PhysHeapAlloc(sizeof(*pReq) + pPath->u16Size);
                 if (pReq) {
                     RT_ZERO(*pReq);
-                    memcpy(&pReq->StrPath, pPath, SHFLSTRING_HEADER_SIZE + pPath->u16Size);
+                    VBOX_LINUX_MEMCPY(&pReq->StrPath, pPath, SHFLSTRING_HEADER_SIZE + pPath->u16Size);
                     pReq->CreateParms.Handle      = SHFL_HANDLE_NIL;
                     pReq->CreateParms.CreateFlags = SHFL_CF_LOOKUP | SHFL_CF_ACT_FAIL_IF_NEW;
 
@@ -697,8 +697,10 @@ int vbsf_inode_revalidate_with_handle(struct dentry *dentry, SHFLHANDLE hHostFil
    has inode at all) from these new attributes we derive [kstat] via
    [generic_fillattr] */
 #if RTLNX_VER_MIN(2,5,18)
-
-# if RTLNX_VER_MIN(5,12,0)
+# if RTLNX_VER_MIN(6,3,0)
+int vbsf_inode_getattr(struct mnt_idmap *idmap, const struct path *path,
+                       struct kstat *kstat, u32 request_mask, unsigned int flags)
+# elif RTLNX_VER_MIN(5,12,0)
 int vbsf_inode_getattr(struct user_namespace *ns, const struct path *path,
                        struct kstat *kstat, u32 request_mask, unsigned int flags)
 # elif RTLNX_VER_MIN(4,11,0)
@@ -741,7 +743,9 @@ int vbsf_inode_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat
 # endif
     if (rc == 0) {
         /* Do generic filling in of info. */
-# if RTLNX_VER_MIN(5,12,0)
+# if RTLNX_VER_MIN(6,3,0)
+        generic_fillattr(idmap, dentry->d_inode, kstat);
+# elif RTLNX_VER_MIN(5,12,0)
         generic_fillattr(ns, dentry->d_inode, kstat);
 # else
         generic_fillattr(dentry->d_inode, kstat);
@@ -791,7 +795,9 @@ int vbsf_inode_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat
 /**
  * Modify inode attributes.
  */
-#if RTLNX_VER_MIN(5,12,0)
+#if RTLNX_VER_MIN(6,3,0)
+int vbsf_inode_setattr(struct mnt_idmap *idmap, struct dentry *dentry, struct iattr *iattr)
+#elif RTLNX_VER_MIN(5,12,0)
 int vbsf_inode_setattr(struct user_namespace *ns, struct dentry *dentry, struct iattr *iattr)
 #else
 int vbsf_inode_setattr(struct dentry *dentry, struct iattr *iattr)
@@ -815,7 +821,9 @@ int vbsf_inode_setattr(struct dentry *dentry, struct iattr *iattr)
      */
     iattr->ia_valid |= ATTR_FORCE;
 #if (RTLNX_VER_RANGE(3,16,39,  3,17,0)) || RTLNX_VER_MIN(4,9,0) || (RTLNX_VER_RANGE(4,1,37,  4,2,0)) || RTLNX_UBUNTU_ABI_MIN(4,4,255,208)
-# if RTLNX_VER_MIN(5,12,0)
+# if RTLNX_VER_MIN(6,3,0)
+    rc = setattr_prepare(idmap, dentry, iattr);
+# elif RTLNX_VER_MIN(5,12,0)
     rc = setattr_prepare(ns, dentry, iattr);
 # else
     rc = setattr_prepare(dentry, iattr);
@@ -881,7 +889,7 @@ int vbsf_inode_setattr(struct dentry *dentry, struct iattr *iattr)
                                                          | SHFL_CF_ACCESS_ATTR_WRITE;
                     if (fAttrs & ATTR_SIZE)
                         pReq->Create.CreateParms.CreateFlags |= SHFL_CF_ACCESS_WRITE;
-                    memcpy(&pReq->Create.StrPath, sf_i->path, SHFLSTRING_HEADER_SIZE + sf_i->path->u16Size);
+                    VBOX_LINUX_MEMCPY(&pReq->Create.StrPath, sf_i->path, SHFLSTRING_HEADER_SIZE + sf_i->path->u16Size);
                     vrc = VbglR0SfHostReqCreate(pSuperInfo->map.root, &pReq->Create);
                     if (RT_SUCCESS(vrc)) {
                         if (pReq->Create.CreateParms.Result == SHFL_FILE_EXISTS) {
@@ -1019,11 +1027,11 @@ static int vbsf_make_path(const char *caller, struct vbsf_inode_info *sf_i,
     tmp->u16Size = path_len;
 
     if (fRoot)
-        memcpy(&tmp->String.utf8[0], d_name, d_len + 1);
+        VBOX_LINUX_MEMCPY(&tmp->String.utf8[0], d_name, d_len + 1);
     else {
-        memcpy(&tmp->String.utf8[0], p_name, p_len);
+        VBOX_LINUX_MEMCPY(&tmp->String.utf8[0], p_name, p_len);
         tmp->String.utf8[p_len] = '/';
-        memcpy(&tmp->String.utf8[p_len + 1], d_name, d_len);
+        VBOX_LINUX_MEMCPY(&tmp->String.utf8[p_len + 1], d_name, d_len);
         tmp->String.utf8[p_len + 1 + d_len] = '\0';
     }
 

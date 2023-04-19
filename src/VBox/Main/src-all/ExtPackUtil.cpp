@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -41,7 +41,6 @@
 #include <iprt/sha.h>
 #include <iprt/string.h>
 #include <iprt/vfs.h>
-#include <iprt/tar.h>
 #include <iprt/zip.h>
 #include <iprt/cpp/xml.h>
 

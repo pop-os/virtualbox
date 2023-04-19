@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -327,7 +327,7 @@ HRESULT DHCPServer::init(VirtualBox *aVirtualBox, const settings::DHCPServer &rD
 HRESULT DHCPServer::i_saveSettings(settings::DHCPServer &rData)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1005,7 +1005,7 @@ HRESULT DHCPServer::findLeaseByMAC(const com::Utf8Str &aMac, LONG aType,
         }
         catch (const xml::EIPRTFailure &e)
         {
-            vrc = e.rc();
+            vrc = e.getStatus();
             LogThisFunc(("caught xml::EIPRTFailure: rc=%Rrc (attempt %u, msg=%s)\n", vrc, uReadAttempt, e.what()));
             if (   (   vrc == VERR_FILE_NOT_FOUND
                     || vrc == VERR_OPEN_FAILED

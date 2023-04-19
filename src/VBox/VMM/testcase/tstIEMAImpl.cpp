@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2022 Oracle and/or its affiliates.
+ * Copyright (C) 2022-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -43,6 +43,7 @@
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
+#include <VBox/version.h>
 
 #include "tstIEMAImpl.h"
 
@@ -853,7 +854,7 @@ const char *GenFormatI16(int16_t const *pi16)
 static void GenerateHeader(PRTSTREAM pOut, const char *pszCpuDesc, const char *pszCpuType)
 {
     /* We want to tag the generated source code with the revision that produced it. */
-    static char s_szRev[] = "$Revision: 153842 $";
+    static char s_szRev[] = "$Revision: 155249 $";
     const char *pszRev = RTStrStripL(strchr(s_szRev, ':') + 1);
     size_t      cchRev = 0;
     while (RT_C_IS_DIGIT(pszRev[cchRev]))
@@ -866,7 +867,7 @@ static void GenerateHeader(PRTSTREAM pOut, const char *pszCpuDesc, const char *p
                  " */\n"
                  "\n"
                  "/*\n"
-                 " * Copyright (C) 2022 Oracle and/or its affiliates.\n"
+                 " * Copyright (C) 2022-" VBOX_C_YEAR " Oracle and/or its affiliates.\n"
                  " *\n"
                  " * This file is part of VirtualBox base platform packages, as\n"
                  " * available from https://www.virtualbox.org.\n"

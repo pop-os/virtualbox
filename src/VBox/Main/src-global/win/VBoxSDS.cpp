@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2017-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -351,7 +351,7 @@ protected:
     {
         uint32_t const uPrevState = ASMAtomicXchgU32((uint32_t volatile *)&m_Status.dwCurrentState, dwState);
         if (!::SetServiceStatus(m_hServiceStatus, &m_Status))
-            LogRel(("Error: SetServiceStatus(%u) failed: %u (uPrevState=%u)\n",
+            LogRel(("Error: SetServiceStatus(,%u) failed: %u (uPrevState=%u)\n",
                     dwState, GetLastError(), uPrevState));
     }
 
@@ -553,12 +553,12 @@ public:
         if (SUCCEEDED(hrc))
         {
             // copy service name
-            int rc = ::RTUtf16Copy(m_wszServiceName, sizeof(m_wszServiceName), p_wszServiceName);
-            AssertRCReturn(rc, E_NOT_SUFFICIENT_BUFFER);
-            rc = ::RTUtf16Copy(m_wszServiceDisplayName, sizeof(m_wszServiceDisplayName), p_wszDisplayName);
-            AssertRCReturn(rc, E_NOT_SUFFICIENT_BUFFER);
-            rc = ::RTUtf16Copy(m_wszServiceDescription, sizeof(m_wszServiceDescription), p_wszDescription);
-            AssertRCReturn(rc, E_NOT_SUFFICIENT_BUFFER);
+            int vrc = ::RTUtf16Copy(m_wszServiceName, sizeof(m_wszServiceName), p_wszServiceName);
+            AssertRCReturn(vrc, E_NOT_SUFFICIENT_BUFFER);
+            vrc = ::RTUtf16Copy(m_wszServiceDisplayName, sizeof(m_wszServiceDisplayName), p_wszDisplayName);
+            AssertRCReturn(vrc, E_NOT_SUFFICIENT_BUFFER);
+            vrc = ::RTUtf16Copy(m_wszServiceDescription, sizeof(m_wszServiceDescription), p_wszDescription);
+            AssertRCReturn(vrc, E_NOT_SUFFICIENT_BUFFER);
 
             m_fInitialized = true;
         }
@@ -651,14 +651,14 @@ protected:
                 if (pReleaseLogger)
                 {
                     char szDest[1024];
-                    int rc = ::RTLogQueryDestinations(pReleaseLogger, szDest, sizeof(szDest));
-                    if (RT_SUCCESS(rc))
+                    int vrc = ::RTLogQueryDestinations(pReleaseLogger, szDest, sizeof(szDest));
+                    if (RT_SUCCESS(vrc))
                     {
-                        rc = ::RTStrCat(szDest, sizeof(szDest), " nohistory");
-                        if (RT_SUCCESS(rc))
+                        vrc = ::RTStrCat(szDest, sizeof(szDest), " nohistory");
+                        if (RT_SUCCESS(vrc))
                         {
-                            rc = ::RTLogDestinations(pReleaseLogger, szDest);
-                            AssertRC(rc);
+                            vrc = ::RTLogDestinations(pReleaseLogger, szDest);
+                            AssertRC(vrc);
                         }
                     }
                 }
@@ -1030,6 +1030,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             else
                 LogRelFunc(("VBoxSDS: new CComServiceModule::Init failed: %Rhrc\n", hrcExit));
 
+            LogRelFunc(("VBoxSDS: deleting pServiceModule\n"));
             delete pServiceModule;
             pServiceModule = NULL;
         }

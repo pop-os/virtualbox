@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -118,7 +118,7 @@ static void vbsf_super_info_copy_remount_options(struct vbsf_super_info *pSuperI
 
     if ((unsigned)info->length >= RT_UOFFSETOF(struct vbsf_mount_info_new, cMaxIoPages)) {
         AssertCompile(sizeof(pSuperInfo->szTag) >= sizeof(info->szTag));
-        memcpy(pSuperInfo->szTag, info->szTag, sizeof(info->szTag));
+        VBOX_LINUX_MEMCPY(pSuperInfo->szTag, info->szTag, sizeof(info->szTag));
         pSuperInfo->szTag[sizeof(pSuperInfo->szTag) - 1] = '\0';
     } else {
         pSuperInfo->szTag[0] = '\0';
@@ -242,7 +242,7 @@ static int vbsf_super_info_alloc_and_map_it(struct vbsf_mount_info_new *info, st
 
         str_name->u16Length = name_len;
         str_name->u16Size = name_len + 1;
-        memcpy(str_name->String.utf8, info->name, name_len + 1);
+        VBOX_LINUX_MEMCPY(str_name->String.utf8, info->name, name_len + 1);
 
         /*
          * Init the NLS support, if needed.
@@ -1489,7 +1489,7 @@ static int vbsf_parse_monolithic(struct fs_context *fc, void *data)
 
     if (data) {
         if (VBSF_IS_MOUNT_VBOXSF_DATA(data)) {
-            memcpy(info, data, sizeof(struct vbsf_mount_info_new));
+            VBOX_LINUX_MEMCPY(info, data, sizeof(struct vbsf_mount_info_new));
         } else {
             /* this will call vbsf_parse_param() */
             return generic_parse_monolithic(fc, data);

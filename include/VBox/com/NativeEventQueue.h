@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -122,7 +122,7 @@ public:
         return mEventQ.get();
     }
 #else
-    static int dispatchMessageOnWindows(MSG const *pMsg, int rc);
+    static int dispatchMessageOnWindows(MSG const *pMsg, int vrc);
 #endif
 
 private:

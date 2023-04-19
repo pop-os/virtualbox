@@ -37,7 +37,7 @@
 <context>
     <name>QApplication</name>
     <message>
-        <location filename="../src/main.cpp" line="+518"/>
+        <location filename="../src/main.cpp" line="+509"/>
         <source>Executable &lt;b&gt;%1&lt;/b&gt; requires Qt %2.x, found Qt %3.</source>
         <translation>Exekutagarria &lt;b&gt;%1&lt;/b&gt; behar du Qt %2.x, aurkituta Qt %3.</translation>
     </message>
@@ -57,7 +57,7 @@
         <translation>&lt;html&gt;&lt;b&gt;%1 (rc=%2)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</translation>
     </message>
     <message>
-        <location line="-732"/>
+        <location line="-723"/>
         <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -77,7 +77,7 @@
         <translation>Zihurtu kernel moduloa ongi gertatu dela.</translation>
     </message>
     <message>
-        <location line="+600"/>
+        <location line="+591"/>
         <source>VirtualBox - Runtime Error</source>
         <translation>VirtualBox - Jarduera Akatsa</translation>
     </message>
@@ -97,7 +97,7 @@
         <translation>Kernel gidagailua ez dago eskuragarri</translation>
     </message>
     <message>
-        <location line="-635"/>
+        <location line="-626"/>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
         <translation>VirtualBox kernel moduloak ez datoz bat VirtualBox-en bertsio honekin. VirtualBox-en ezarpenak dirudienez ez da ongi egin. Mesedez saiatu osorik kentzen eta VirtualBox berriro ezartzen.</translation>
     </message>
@@ -245,6 +245,14 @@
         <location line="+48"/>
         <source>Copy</source>
         <translation>Kopiatu</translation>
+    </message>
+</context>
+<context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <location filename="../src/extensions/QIRichTextLabel.cpp" line="+291"/>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;Kopiatu</translation>
     </message>
 </context>
 <context>
@@ -3266,7 +3274,7 @@
         <translation>Aurreikuspen Monitorea %1</translation>
     </message>
     <message>
-        <location line="+1518"/>
+        <location line="+1529"/>
         <source>&amp;Connect Network Adapter</source>
         <translation>&amp;Elkarketatu Sare Egokitzailea</translation>
     </message>
@@ -3296,7 +3304,7 @@
         <translation>Ez dago sostengaturiko webkamerarik hostalari PC-ra elkarturik</translation>
     </message>
     <message>
-        <location filename="../src/manager/UIVirtualBoxManager.cpp" line="+2709"/>
+        <location filename="../src/manager/UIVirtualBoxManager.cpp" line="+2703"/>
         <location line="+57"/>
         <source>[Root]</source>
         <comment>group</comment>
@@ -4375,14 +4383,14 @@
     <message>
         <location filename="../src/widgets/UIApplianceEditorWidget.cpp" line="+249"/>
         <location line="+285"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="+162"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="+164"/>
         <location line="+19"/>
         <source>MB</source>
         <comment>size suffix MBytes=1024 KBytes</comment>
         <translation type="unfinished">MB</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIIndicatorsPool.cpp" line="+762"/>
+        <location filename="../src/runtime/UIIndicatorsPool.cpp" line="+774"/>
         <source>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</source>
         <comment>details report</comment>
         <translation type="unfinished">&lt;nobr&gt;%1 MB&lt;/nobr&gt;</translation>
@@ -5794,7 +5802,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+656"/>
+        <location line="+670"/>
         <source>Name</source>
         <translation type="unfinished">Izena</translation>
     </message>
@@ -6036,7 +6044,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+101"/>
+        <location line="+113"/>
         <source>Normal (window)</source>
         <comment>visual state</comment>
         <translation type="unfinished"></translation>
@@ -6240,7 +6248,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+187"/>
+        <location line="+190"/>
         <location line="+27"/>
         <source>General</source>
         <comment>InformationElementType</comment>
@@ -6465,7 +6473,7 @@
         </translation>
     </message>
     <message>
-        <location filename="../src/globals/UICommon.cpp" line="+1628"/>
+        <location filename="../src/globals/UICommon.cpp" line="+1592"/>
         <source>Please choose a virtual hard disk file</source>
         <translation type="unfinished">Mesedez hautatu diska gogor agiri birtual bat</translation>
     </message>
@@ -7250,7 +7258,7 @@
         <translation type="unfinished">%1 (%2 gaituta)</translation>
     </message>
     <message>
-        <location filename="../src/manager/details/UIDetailsElement.cpp" line="+1220"/>
+        <location filename="../src/manager/details/UIDetailsElement.cpp" line="+1221"/>
         <location filename="../src/snapshots/UISnapshotDetailsWidget.cpp" line="-399"/>
         <location filename="../src/globals/UIDetailsGenerator.cpp" line="+7"/>
         <source>Disabled</source>
@@ -7644,13 +7652,13 @@
 <context>
     <name>UIDetailsElement</name>
     <message>
-        <location filename="../src/manager/details/UIDetailsElement.cpp" line="-1016"/>
+        <location filename="../src/manager/details/UIDetailsElement.cpp" line="-1017"/>
         <source>%1 details</source>
         <comment>like &apos;General details&apos; or &apos;Storage details&apos;</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+1076"/>
+        <location line="+1077"/>
         <source>Copy value (%1)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12549,7 +12557,7 @@
         <translation type="obsolete">Sostengu gabeko gailuak elkartuta hostalari PG-ra</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="-990"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="-1001"/>
         <source>Select a filename for the screenshot ...</source>
         <translation>Hautatu ikusleiho-argazkiarentzako agirizen bat...</translation>
     </message>
@@ -14975,7 +14983,7 @@
 <context>
     <name>UIMachineWindow</name>
     <message>
-        <location filename="../src/runtime/UIMachineWindow.cpp" line="+273"/>
+        <location filename="../src/runtime/UIMachineWindow.cpp" line="+316"/>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation> ESPERIMENTALA eraiketa %1r%2 - %3</translation>
     </message>
@@ -19765,17 +19773,17 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="+3"/>
         <source>Keep finished progresses</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="+3"/>
         <source>Delete finished notifications</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+147"/>
+        <location line="+143"/>
         <source>Align Bottom</source>
         <translation type="unfinished"></translation>
     </message>
@@ -20659,7 +20667,7 @@
 <context>
     <name>UISessionStateStatusBarIndicator</name>
     <message>
-        <location filename="../src/runtime/UIIndicatorsPool.cpp" line="-1126"/>
+        <location filename="../src/runtime/UIIndicatorsPool.cpp" line="-1138"/>
         <source>%1 status-bar indicator</source>
         <comment>like &apos;hard-disk status-bar indicator&apos;</comment>
         <translation type="unfinished"></translation>
@@ -22485,7 +22493,7 @@
 <context>
     <name>UIUSBFilterDetailsEditor</name>
     <message>
-        <location filename="../src/settings/editors/UIUSBFilterDetailsEditor.cpp" line="+172"/>
+        <location filename="../src/settings/editors/UIUSBFilterDetailsEditor.cpp" line="+173"/>
         <source>USB Filter Details</source>
         <translation type="unfinished">USB Iragazki Xehetasunak</translation>
     </message>
@@ -23050,7 +23058,7 @@
 <context>
     <name>UIVMCloseDialog</name>
     <message>
-        <location filename="../src/runtime/UIVMCloseDialog.cpp" line="+148"/>
+        <location filename="../src/runtime/UIVMCloseDialog.cpp" line="+150"/>
         <source>Close Virtual Machine</source>
         <translation>Itxi Makina Birtuala</translation>
     </message>
@@ -23104,12 +23112,14 @@
         <translation type="vanished">Leheneratu makinaren biltegiratutako egoera oraingo berehalakoan</translation>
     </message>
     <message>
+        <location line="+10"/>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Hautatutakoan, makina oraingo berehalakoan biltegiratutako egoerara itzuliko da itzali ondoren. Hau erabilgarria da azken saioetako emaitzak baztertzea eta berehalako berri bat hasteaz zihur bazaude.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Hautatutakoan, makina oraingo berehalakoan biltegiratutako egoerara itzuliko da itzali ondoren. Hau erabilgarria da azken saioetako emaitzak baztertzea eta berehalako berri bat hasteaz zihur bazaude.&lt;/p&gt;</translation>
     </message>
     <message>
+        <location line="-1"/>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">&amp;Leheneratu oraingo berehalakoa &apos;%1&apos;</translation>
+        <translation>&amp;Leheneratu oraingo berehalakoa &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -24018,13 +24028,13 @@
 <context>
     <name>UIVirtualBoxManager</name>
     <message>
-        <location filename="../src/manager/UIVirtualBoxManager.cpp" line="-2586"/>
+        <location filename="../src/manager/UIVirtualBoxManager.cpp" line="-2580"/>
         <source>Manager</source>
         <comment>Note: main window title which is prepended by the product name.</comment>
         <translation type="unfinished">Kudeatzailea</translation>
     </message>
     <message>
-        <location line="+2048"/>
+        <location line="+2042"/>
         <source>Select a virtual machine file</source>
         <translation type="unfinished">Hautatu makina birtual agiria</translation>
     </message>
@@ -24348,7 +24358,7 @@
     </message>
     <message>
         <location line="+5"/>
-        <location filename="../src/wizards/addcloudvm/UIWizardAddCloudVMPageSource.cpp" line="+412"/>
+        <location filename="../src/wizards/addcloudvm/UIWizardAddCloudVMPageSource.cpp" line="+443"/>
         <source>Open Cloud Profile Manager...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -24943,7 +24953,7 @@
     </message>
     <message>
         <location filename="../src/wizards/exportappliance/UIWizardExportAppPageExpert.cpp" line="+437"/>
-        <location filename="../src/wizards/exportappliance/UIWizardExportAppPageFormat.cpp" line="+877"/>
+        <location filename="../src/wizards/exportappliance/UIWizardExportAppPageFormat.cpp" line="+908"/>
         <source>Appliance</source>
         <translation>Makina Birtuala</translation>
     </message>
@@ -25143,7 +25153,7 @@
         <translation type="obsolete">Mesedez hautatu makina birtual agiria</translation>
     </message>
     <message>
-        <location filename="../src/wizards/exportappliance/UIWizardExportAppPageFormat.cpp" line="-646"/>
+        <location filename="../src/wizards/exportappliance/UIWizardExportAppPageFormat.cpp" line="-676"/>
         <source>Open Virtualization Format Archive (%1)</source>
         <translation>Ireki Birtualizazio Heuskarri Artxiboa (%1)</translation>
     </message>
@@ -25153,7 +25163,7 @@
         <translation>Ireki Birtualizazio Heuskarria (%1)</translation>
     </message>
     <message>
-        <location line="+603"/>
+        <location line="+633"/>
         <source>Format settings</source>
         <translation type="unfinished"></translation>
     </message>
@@ -25311,7 +25321,7 @@
         <translation type="vanished">Inportatu</translation>
     </message>
     <message>
-        <location filename="../src/wizards/importappliance/UIWizardImportAppPageSource.cpp" line="+623"/>
+        <location filename="../src/wizards/importappliance/UIWizardImportAppPageSource.cpp" line="+654"/>
         <source>Appliance to import</source>
         <translation>Inportatzeko gailua</translation>
     </message>
@@ -25559,7 +25569,7 @@
     </message>
     <message>
         <location line="+10"/>
-        <location filename="../src/wizards/newcloudvm/UIWizardNewCloudVMPageSource.cpp" line="+465"/>
+        <location filename="../src/wizards/newcloudvm/UIWizardNewCloudVMPageSource.cpp" line="+496"/>
         <source>Create VM for cloud service provider.</source>
         <translation type="unfinished"></translation>
     </message>

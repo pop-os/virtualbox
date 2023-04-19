@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2012-2022 Oracle and/or its affiliates.
+# Copyright (C) 2012-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -58,7 +58,7 @@ SUB_DEPTH = ../../../../../..
 include	$(KBUILD_PATH)/subheader.kmk
 
 PROGRAMS += vboxvideo.accelerant
-vboxvideo.accelerant_TEMPLATE = VBOXGUESTR3EXE
+vboxvideo.accelerant_TEMPLATE = VBoxGuestR3Exe
 vboxvideo.accelerant_DEFS     = VBOX_WITH_HGCM LOG_TO_BACKDOOR
 vboxvideo.accelerant_DEFS    += LOG_ENABLED
 vboxvideo.accelerant_INCS     = ../include

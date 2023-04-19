@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -936,6 +936,7 @@ static uint32_t ichac97R3StreamFetchNextBdle(PPDMDEVINS pDevIns, PAC97STREAM pSt
 {
     RT_NOREF(pStreamCC);
     uint32_t fSrBcis = 0;
+    uint32_t cbTotal = 0; /* Counts the total length (in bytes) of the buffer descriptor list (BDL). */
 
     /*
      * Loop for skipping zero length entries.
@@ -953,6 +954,8 @@ static uint32_t ichac97R3StreamFetchNextBdle(PPDMDEVINS pDevIns, PAC97STREAM pSt
         pStream->Regs.bd.addr    = RT_H2LE_U32(Bdle.addr) & ~3;
         pStream->Regs.bd.ctl_len = RT_H2LE_U32(Bdle.ctl_len);
         pStream->Regs.picb       = pStream->Regs.bd.ctl_len & AC97_BD_LEN_MASK;
+
+        cbTotal += pStream->Regs.bd.ctl_len & AC97_BD_LEN_MASK;
 
         LogFlowFunc(("BDLE%02u: %#RX32 L %#x / LB %#x, ctl=%#06x%s%s\n",
                      pStream->Regs.civ, pStream->Regs.bd.addr, pStream->Regs.bd.ctl_len & AC97_BD_LEN_MASK,
@@ -987,9 +990,15 @@ static uint32_t ichac97R3StreamFetchNextBdle(PPDMDEVINS pDevIns, PAC97STREAM pSt
     ASSERT_GUEST_MSG(!(pStream->Regs.picb & 1),
                      ("Odd lengths buffers are not allowed: %#x (%d) samples\n",  pStream->Regs.picb, pStream->Regs.picb));
 
-    /* 1.2.4.2 PCM Buffer Restrictions (in 302349-003) - #2  */
-    ASSERT_GUEST_MSG(pStream->Regs.picb > 0, ("Zero length buffers not allowed to terminate list (LVI=%u CIV=%u)\n",
-                                              pStream->Regs.lvi, pStream->Regs.civ));
+    /* 1.2.4.2 PCM Buffer Restrictions (in 302349-003) - #2
+     *
+     * Note: Some guests (like older NetBSDs) first seem to set up the BDL a tad later so that cbTotal is 0.
+     *       This means that the BDL is not set up at all.
+     *       In such cases pStream->Regs.picb also will be 0 here and (debug) asserts here, which is annoying for debug builds.
+     *       So first check if we have *any* BDLE set up before checking if PICB is > 0.
+     */
+    ASSERT_GUEST_MSG(cbTotal == 0 || pStream->Regs.picb > 0, ("Zero length buffers not allowed to terminate list (LVI=%u CIV=%u, cbTotal=%zu)\n",
+                                                              pStream->Regs.lvi, pStream->Regs.civ, cbTotal));
 
     return fSrBcis;
 }
@@ -2020,6 +2029,11 @@ static int ichac97R3StreamSetUp(PPDMDEVINS pDevIns, PAC97STATE pThis, PAC97STATE
             AssertMsgFailedReturn(("u8SD=%d\n", pStream->u8SD), VERR_INTERNAL_ERROR_3);
     }
 
+    /** Validate locks -- see @bugref{10350}. */
+    Assert(PDMDevHlpCritSectIsOwner(pDevIns, &pThis->CritSect));
+    Assert(RTCritSectIsOwned(&pStreamCC->State.CritSect));
+    Assert(AudioMixerSinkLockIsOwner(pMixSink));
+
     /*
      * Don't continue if the frequency is out of range (the rest of the
      * properties should be okay).
@@ -2263,6 +2277,11 @@ static void ichac97R3StreamTearDown(PAC97STREAM pStream)
  * @param   pStreamCC   The AC'97 stream to re-open (ring-3).
  * @param   fForce      Whether to force re-opening the stream or not.
  *                      Otherwise re-opening only will happen if the PCM properties have changed.
+ *
+ * @remarks This is called holding:
+ *              -# The AC'97 device lock.
+ *
+ *          Will acquire the stream and mixer sink locks. See @bugref{10350}
  */
 static int ichac97R3StreamReSetUp(PPDMDEVINS pDevIns, PAC97STATE pThis, PAC97STATER3 pThisCC,
                                   PAC97STREAM pStream, PAC97STREAMR3 pStreamCC, bool fForce)
@@ -2273,12 +2292,22 @@ static int ichac97R3StreamReSetUp(PPDMDEVINS pDevIns, PAC97STATE pThis, PAC97STA
     Assert(pStream   - &pThis->aStreams[0]   == pStream->u8SD);
     Assert(pStreamCC - &pThisCC->aStreams[0] == pStream->u8SD);
 
+    ichac97R3StreamLock(pStreamCC);
+    PAUDMIXSINK const pSink = ichac97R3IndexToSink(pThisCC, pStream->u8SD);
+    if (pSink)
+        AudioMixerSinkLock(pSink);
+
     ichac97R3StreamTearDown(pStream);
     int rc = ichac97R3StreamSetUp(pDevIns, pThis, pThisCC, pStream, pStreamCC, fForce);
     if (rc == VINF_NO_CHANGE)
         STAM_REL_PROFILE_STOP_NS(&pStreamCC->State.StatReSetUpSame, r);
     else
         STAM_REL_PROFILE_STOP_NS(&pStreamCC->State.StatReSetUpChanged, r);
+
+    if (pSink)
+        AudioMixerSinkUnlock(pSink);
+    ichac97R3StreamUnlock(pStreamCC);
+
     return rc;
 }
 
@@ -2300,7 +2329,8 @@ static int ichac97R3StreamEnable(PPDMDEVINS pDevIns, PAC97STATE pThis, PAC97STAT
 {
     ichac97R3StreamLock(pStreamCC);
     PAUDMIXSINK const pSink = ichac97R3IndexToSink(pThisCC, pStream->u8SD);
-    AudioMixerSinkLock(pSink);
+    if (pSink)
+        AudioMixerSinkLock(pSink);
 
     int rc = VINF_SUCCESS;
     /*
@@ -2330,7 +2360,8 @@ static int ichac97R3StreamEnable(PPDMDEVINS pDevIns, PAC97STATE pThis, PAC97STAT
             }
 
             /* Do the actual enabling (won't fail as long as pSink is valid). */
-            rc = AudioMixerSinkStart(pSink);
+            if (pSink)
+                rc = AudioMixerSinkStart(pSink);
         }
     }
     /*
@@ -2343,7 +2374,8 @@ static int ichac97R3StreamEnable(PPDMDEVINS pDevIns, PAC97STATE pThis, PAC97STAT
     }
 
     /* Make sure to leave the lock before (eventually) starting the timer. */
-    AudioMixerSinkUnlock(pSink);
+    if (pSink)
+        AudioMixerSinkUnlock(pSink);
     ichac97R3StreamUnlock(pStreamCC);
     LogFunc(("[SD%RU8] fEnable=%RTbool, rc=%Rrc\n", pStream->u8SD, fEnable, rc));
     return rc;
@@ -2743,7 +2775,7 @@ ichac97IoPortNabmWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint3
                             /* Recover from underflow situation where CIV caught up with LVI
                                and the DMA processing stopped.  We clear the status condition,
                                update LVI and then try to load the next BDLE.  Unfortunately,
-                               we cannot do this from ring-3 as much of the BDLE state is
+                               we cannot do this from ring-0 as much of the BDLE state is
                                ring-3 only. */
                             pStream->Regs.sr &= ~(AC97_SR_DCH | AC97_SR_CELV);
                             pStream->Regs.lvi = u32 % AC97_MAX_BDLE;
@@ -2766,6 +2798,7 @@ ichac97IoPortNabmWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint3
                             int rc2 = PDMDevHlpTimerSetRelative(pDevIns, pStream->hTimer, cTicksToDeadline, &pStream->uArmedTs);
                             AssertRC(rc2);
 #else
+                            DEVAC97_UNLOCK(pDevIns, pThis);
                             rc = VINF_IOM_R3_IOPORT_WRITE;
 #endif
                         }

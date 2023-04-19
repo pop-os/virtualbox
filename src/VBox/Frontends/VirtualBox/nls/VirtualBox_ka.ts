@@ -16,7 +16,7 @@
     <message>
         <source>English</source>
         <comment>Language name, in English</comment>
-        <translation>ინგლისური</translation>
+        <translation>Georgian</translation>
     </message>
     <message>
         <source>--</source>
@@ -167,6 +167,13 @@
     <message>
         <source>Help</source>
         <translation>დახმარება</translation>
+    </message>
+</context>
+<context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;კოპირება</translation>
     </message>
 </context>
 <context>
@@ -5920,11 +5927,11 @@
     </message>
     <message>
         <source>File manager cannot work since the selected guest is not currently running.</source>
-        <translation type="unfinished"></translation>
+        <translation>ფაილების მმართველი ვერ მუშაობს: სტუმარი გაშვებული არაა.</translation>
     </message>
     <message>
         <source>File manager cannot work since the guest is paused.</source>
-        <translation type="unfinished"></translation>
+        <translation>ფაილების მმართველი ვერ მუშაობს: სტუმარი შეჩერებულია.</translation>
     </message>
     <message>
         <source>File manager cannot work since the selected guest does not have the guest additions.</source>
@@ -5932,7 +5939,7 @@
     </message>
     <message>
         <source>Enter a valid user name and password to initiate the file manager.</source>
-        <translation type="unfinished"></translation>
+        <translation>ფაილების მმართველის გასაშვებად სწორი მომხმარებელი და პაროლია საჭირო.</translation>
     </message>
     <message>
         <source>Guest control session is running.</source>
@@ -5940,7 +5947,7 @@
     </message>
     <message>
         <source>Some error has occurred. Please check the log panel.</source>
-        <translation type="unfinished"></translation>
+        <translation>მოულოდნელი შეცდომა. გადაამოწმეთ ჟურნალის პანელი.</translation>
     </message>
 </context>
 <context>
@@ -5959,19 +5966,19 @@
     </message>
     <message>
         <source>Displays a window to select a different folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>ფანჯარა, რომელშიც სხვა საქაღალდის არჩევა შეგიძლიათ.</translation>
     </message>
     <message>
         <source>Resets the folder path to the default value.</source>
-        <translation type="unfinished"></translation>
+        <translation>საქაღალდის ბილიკის ნაგულისხმევი მნიშვნელობის დაყენება.</translation>
     </message>
     <message>
         <source>Displays a window to select a different file.</source>
-        <translation type="unfinished"></translation>
+        <translation>ფანჯარა, რომელშიც სხვა ფაილის არჩევა შეგიძლიათ.</translation>
     </message>
     <message>
         <source>Resets the file path to the default value.</source>
-        <translation type="unfinished"></translation>
+        <translation>ფაილის ბილიკის ნაგულისხმები მნიშვნელობის დაყენება.</translation>
     </message>
     <message>
         <source>&lt;reset to default&gt;</source>
@@ -6002,11 +6009,11 @@
     </message>
     <message>
         <source>Minimum possible scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">მინიმალური შესაძლებელი მასშტაბირების ფაქტორი.</translation>
     </message>
     <message>
         <source>Maximum possible scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">მაქსიმალური შესაძლებელი მასშტაბირების ფაქტორი.</translation>
     </message>
 </context>
 <context>
@@ -8634,7 +8641,7 @@
     </message>
     <message>
         <source>Failed to acquire cloud machine settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>ღრუბლოვანი მანქანის პარამეტრების მიღების შეცდომა.</translation>
     </message>
     <message>
         <source>Can&apos;t create medium ...</source>
@@ -8794,7 +8801,7 @@
     </message>
     <message>
         <source>Can&apos;t send ACPI shutdown ...</source>
-        <translation>ACPI-ით გამორთვის სიგნალის გაგზავნის შეცდომა</translation>
+        <translation>ACPI-ით გამორთვის სიგნალის გაგზავნის შეცდომა ...</translation>
     </message>
     <message>
         <source>Auto capture keyboard ...</source>
@@ -8826,7 +8833,7 @@
     </message>
     <message>
         <source>Appliance failure ...</source>
-        <translation>შეკუმშული ვირტუალური მანქანს შეცდომა</translation>
+        <translation>შეკუმშული ვირტუალური მანქანს შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to acquire appliance parameter.</source>
@@ -8938,7 +8945,7 @@
     </message>
     <message>
         <source>Graphics adapter failure ...</source>
-        <translation>გრაფიკული ბარათის შეცდომა</translation>
+        <translation>გრაფიკული ბარათის შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to change graphics adapter parameter.</source>
@@ -8954,35 +8961,35 @@
     </message>
     <message>
         <source>Network adapter failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>ქსელის ბარათის შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to change network adapter parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>ქსელის ბარათის პარამეტრის შეცვლის შეცდომა.</translation>
     </message>
     <message>
         <source>Failed to change DHCP server parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>DHCP სერვერის პარამეტრის შეცვლის შეცდომა.</translation>
     </message>
     <message>
         <source>Failed to change cloud network parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>ღრუბლოვანი ქსელის პარამეტრის შეცვლის შეცდომა.</translation>
     </message>
     <message>
         <source>Failed to change host network interface parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>ჰოსტის ქსელის ინტერფესისის პარამეტრის შეცვლის შეცდომა.</translation>
     </message>
     <message>
         <source>Failed to change host only network parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>მხოლოდ-ჰოსტის ქსელის პარამეტრის შეცლის შეცდომა.</translation>
     </message>
     <message>
         <source>Failed to change NAT network parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>NAT ქსელის პარამეტრის შევლის შეცდომა.</translation>
     </message>
     <message>
         <source>Failed to assign update agent parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>განახლების აგენტის პარამეტრის მინიჭების შეცდომა.</translation>
     </message>
     <message>
         <source>Can&apos;t enumerate USB devices ...</source>
@@ -8994,139 +9001,139 @@
     </message>
     <message>
         <source>Can&apos;t open medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მედიის გახსნის შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t pause machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის შეჩერების შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t resume machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის გაგრძელების შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t shutdown machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის გამორთვის შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t create appliance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>შეკუმშული მანქანის შექმნის შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to create appliance.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეკუმშული მანქანის შექმნა შეუძლებელია.</translation>
     </message>
     <message>
         <source>Can&apos;t register machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის რეგისტრაციის შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to register machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის რეგისტრაციის შეცდომა &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t create machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის შექმნა შეუძლებელია ...</translation>
     </message>
     <message>
         <source>Failed to create machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის შექმნის შეცდომა.</translation>
     </message>
     <message>
         <source>Can&apos;t find machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანა ვერ ვიპოვე ...</translation>
     </message>
     <message>
         <source>Failed to find the machine with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეცდომა მანქანის ძებნისას ID-ით: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t open machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის გახსნის შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t create medium storage ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მედიის საცავის შექმნის შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to acquire Extension Pack Manager.</source>
-        <translation type="unfinished"></translation>
+        <translation>გაფართოებების პაკეტების მმართველის მიღების შეცდომა.</translation>
     </message>
     <message>
         <source>Can&apos;t create VFS explorer ...</source>
-        <translation type="unfinished"></translation>
+        <translation>VFS ბრაუზერის შექმნის შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to create VFS explorer to check files.</source>
-        <translation type="unfinished"></translation>
+        <translation>ფაილების შესამოწმებლად VFS ბრაუზერის შექმნის შეცდომა.</translation>
     </message>
     <message>
         <source>Bad password ...</source>
-        <translation type="unfinished"></translation>
+        <translation>არასწორი პაროლი ...</translation>
     </message>
     <message>
         <source>Can&apos;t interpret appliance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>შეკუმშული მანქანის მიღების შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to interpret appliance being imported.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეკუმშულის მანქანის მიღების შეცდომა დამუშავებისას.</translation>
     </message>
     <message>
         <source>Can&apos;t create VSD ...</source>
-        <translation type="unfinished"></translation>
+        <translation>VSD-ის შექმნის შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t find cloud network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>ღრუბლოვანი ქსელი ვერ ვიპოვე ...</translation>
     </message>
     <message>
         <source>Unable to find the cloud network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>ღრუბლოვანი ქსელი ვერ ვიპოვე &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t find host network interface ...</source>
-        <translation type="unfinished"></translation>
+        <translation>ჰოსტის ქსელის ინტერფეისი ვერ ვიპოვე ...</translation>
     </message>
     <message>
         <source>Can&apos;t find host only network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მხოლოდ-ჰოსტის ქსელი ვერ ვიპოვე ...</translation>
     </message>
     <message>
         <source>Unable to find the host only network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეცდომა მხოლოდ-ჰოსტის ქსელის ძებნისას &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t find NAT network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>შეცდომა NAT ქსელის ძებნისას...</translation>
     </message>
     <message>
         <source>Unable to find the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეცდომა NAT ქსელის ძებნისას&lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t create DHCP server ...</source>
-        <translation type="unfinished"></translation>
+        <translation>შეცდომა DHCP სერვერის შექმნისას ...</translation>
     </message>
     <message>
         <source>Can&apos;t remove DHCP server ...</source>
-        <translation type="unfinished"></translation>
+        <translation>შეცდომა DHCP სერვერის წაშლისას ...</translation>
     </message>
     <message>
         <source>Can&apos;t create cloud network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>შეცდომა ღრუბლოვანი ქსელის შექმნისას ...</translation>
     </message>
     <message>
         <source>Failed to create a cloud network.</source>
-        <translation type="unfinished"></translation>
+        <translation>ღრუბლოვანი ქსელის შექმნა შეუძლებელია.</translation>
     </message>
     <message>
         <source>Can&apos;t remove cloud network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>ღრუბლოვანი ქსელის წაშლის შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to remove the cloud network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეცდომა ღრუბლოვანი ქსელის წაშლისას &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t create host only network ...</source>
@@ -9194,43 +9201,43 @@
     </message>
     <message>
         <source>Can&apos;t close medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მედის დახურვა შეუძლებელია ...</translation>
     </message>
     <message>
         <source>Can&apos;t discard saved state ...</source>
-        <translation type="unfinished"></translation>
+        <translation>შენახული მდგომარეობის მოცილების შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t remove machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის წაშლის შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t export machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის გატანის შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to export virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>ვირტუალური მანქანის &lt;b&gt;%1&lt;/b&gt; გატანის შეცდომა.</translation>
     </message>
     <message>
         <source>Can&apos;t attach device ...</source>
-        <translation type="unfinished"></translation>
+        <translation>მოწყობილობის მიმაგრების შეცდომა...</translation>
     </message>
     <message>
         <source>Can&apos;t find snapshot ...</source>
-        <translation type="unfinished"></translation>
+        <translation>სწრაფი ასლი ვერ ვიპოვე ...</translation>
     </message>
     <message>
         <source>Can&apos;t change snapshot ...</source>
-        <translation type="unfinished"></translation>
+        <translation>სრაფი ასლის შეცვლის შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t run guest install ...</source>
-        <translation type="unfinished"></translation>
+        <translation>სტუმრის დაყენების გაშვების შეცდომა ...</translation>
     </message>
     <message>
         <source>Failed to run unattended guest installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>სტუმრის ავტომატური დაყენების შეცდომა.</translation>
     </message>
     <message>
         <source>Can&apos;t attach USB device ...</source>
@@ -9266,11 +9273,11 @@
     </message>
     <message>
         <source>Can&apos;t toggle recording ...</source>
-        <translation type="unfinished"></translation>
+        <translation>ჩაწერის გადართვის შეცდომა ...</translation>
     </message>
     <message>
         <source>Can&apos;t toggle VRDE server ...</source>
-        <translation type="unfinished"></translation>
+        <translation>VRDE სერვერის გადართვის შეცდომა ...</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Error ID:&lt;/nobr&gt;</source>
@@ -9284,15 +9291,15 @@
     </message>
     <message>
         <source>Unable to validate guest additions image ...</source>
-        <translation type="unfinished"></translation>
+        <translation>სტუმრის დამატებების ასლის გადამოწმების შეცდომა ...</translation>
     </message>
     <message>
         <source>Unable to validate extension pack ...</source>
-        <translation type="unfinished"></translation>
+        <translation>დამატების პაკეტის გადამოწმების შეცდომა ...</translation>
     </message>
     <message>
         <source>Guest additions inactive ...</source>
-        <translation type="unfinished"></translation>
+        <translation>სტუმრის დამატებები აქტიური არაა ...</translation>
     </message>
     <message>
         <source>Extension Pack failure ...</source>
@@ -9775,11 +9782,11 @@
     </message>
     <message>
         <source>Reset changes in current network details</source>
-        <translation type="unfinished"></translation>
+        <translation>მიმდინარე ქსელის დეტალების საწყის მნიშვნელობებზე დაბრუნება</translation>
     </message>
     <message>
         <source>Apply changes in current network details</source>
-        <translation type="unfinished"></translation>
+        <translation>მიმდინარე ქსელის დეტალების ცვლილებების გატარება</translation>
     </message>
     <message>
         <source>Close dialog without saving</source>
@@ -9823,7 +9830,7 @@
     </message>
     <message>
         <source>Holds the cloud provider for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ღრუბლოვან მომწოდებელს ამ ქსელისთვის.</translation>
     </message>
     <message>
         <source>P&amp;rofile:</source>
@@ -9831,7 +9838,7 @@
     </message>
     <message>
         <source>Holds the cloud profile for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ღრუბლოვან პროფილს ამ ქსელისთვის.</translation>
     </message>
     <message>
         <source>&amp;Id:</source>
@@ -9839,11 +9846,11 @@
     </message>
     <message>
         <source>Holds the id for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ამ ქსელის ID-ს.</translation>
     </message>
     <message>
         <source>Selects the id for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ამ ქსელის ID-ს.</translation>
     </message>
     <message>
         <source>Reset changes in current interface details</source>
@@ -9863,7 +9870,7 @@
     </message>
     <message>
         <source>Holds the mask for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ამ ქსელის ნიღაბს.</translation>
     </message>
     <message>
         <source>&amp;Lower Bound:</source>
@@ -9871,7 +9878,7 @@
     </message>
     <message>
         <source>Holds the lower address bound for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ამ ქსელზე მიბმული მისამართების ქვედა ზღვარს.</translation>
     </message>
     <message>
         <source>&amp;Upper Bound:</source>
@@ -9879,7 +9886,7 @@
     </message>
     <message>
         <source>Holds the upper address bound for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ამ ქსელზე მიბმული მისამართების ზედა ზღვარს.</translation>
     </message>
     <message>
         <source>&amp;Adapter</source>
@@ -9991,7 +9998,7 @@
     </message>
     <message>
         <source>Holds the IPv4 prefix for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ამ ქსელის IPv4 პრეფიქსს.</translation>
     </message>
     <message>
         <source>IPv&amp;6 Prefix:</source>
@@ -9999,7 +10006,7 @@
     </message>
     <message>
         <source>Holds the IPv6 prefix for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ამ ქსელის IPv6 პრეფიქსს.</translation>
     </message>
     <message>
         <source>Enable &amp;DHCP</source>
@@ -10440,7 +10447,7 @@
     </message>
     <message>
         <source>&lt;b&gt;Cloud VM Name:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;ღრუბლოვანი ვმ-ის სახელი:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Applying cloud VM settings form ...</source>
@@ -10456,7 +10463,7 @@
     </message>
     <message>
         <source>Acquire cloud console log ...</source>
-        <translation type="unfinished"></translation>
+        <translation>ღრუბლოვანი კონსოლის ჟურნალის მიღება ...</translation>
     </message>
     <message>
         <source>Taking snapshot ...</source>
@@ -10733,7 +10740,7 @@
     </message>
     <message>
         <source>Holds the recording mode.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ჩაწერის რეჟიმს.</translation>
     </message>
     <message>
         <source>File &amp;Path:</source>
@@ -10855,15 +10862,15 @@
     </message>
     <message>
         <source>Holds the guest screen scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს სტუმრის ეკრანის მასშტაბის ფაქტორს.</translation>
     </message>
     <message>
         <source>Minimum possible scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation>მინიმალური შესაძლებელი მასშტაბირების ფაქტორი.</translation>
     </message>
     <message>
         <source>Maximum possible scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation>მაქსიმალური შესაძლებელი მასშტაბირების ფაქტორი.</translation>
     </message>
 </context>
 <context>
@@ -10886,7 +10893,7 @@
     <message>
         <source>%1 status-bar indicator</source>
         <comment>like &apos;hard-disk status-bar indicator&apos;</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1 სტატუსის-ზოლის ინდიკატორი</translation>
     </message>
 </context>
 <context>
@@ -11627,11 +11634,11 @@
     </message>
     <message>
         <source>The file %1 has been deleted</source>
-        <translation type="unfinished"></translation>
+        <translation>ფაილი %1 წაიშალა</translation>
     </message>
     <message>
         <source>Deleting the file %1 has failed</source>
-        <translation type="unfinished"></translation>
+        <translation>ფაილის %1 წაშლის შეცდომა</translation>
     </message>
 </context>
 <context>
@@ -12721,6 +12728,14 @@
         <source>&lt;p&gt;Turns off the virtual machine.&lt;/p&gt;&lt;p&gt;Note that this action will stop machine execution immediately so that the guest operating system running inside it will not be able to perform a clean shutdown procedure which may result in &lt;i&gt;data loss&lt;/i&gt; inside the virtual machine. Selecting this action is recommended only if the virtual machine does not respond to the &lt;b&gt;Send the shutdown signal&lt;/b&gt; action.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&amp;Restore current snapshot &apos;%1&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIVMInformationDialog</name>
@@ -13158,7 +13173,7 @@
     </message>
     <message>
         <source>Close this machine&apos;s logs</source>
-        <translation type="unfinished"></translation>
+        <translation>ამ მანქანის ჟურნალის დახურვა</translation>
     </message>
     <message>
         <source>Select machines to show their log</source>
@@ -13251,11 +13266,11 @@
     </message>
     <message>
         <source>Minimum possible video memory size.</source>
-        <translation type="unfinished"></translation>
+        <translation>მინიმალური შესაძლო ვიდეომეხსიერების ზომა.</translation>
     </message>
     <message>
         <source>Maximum possible video memory size.</source>
-        <translation type="unfinished"></translation>
+        <translation>მაქსიმალური შესაძლო ვიდეომეხსიერების ზომა.</translation>
     </message>
 </context>
 <context>
@@ -13299,7 +13314,7 @@
     </message>
     <message>
         <source>Minimum possible virtual CPU count.</source>
-        <translation type="unfinished"></translation>
+        <translation>მინიმალური შესაძლო ვირტუალური CPU-ების რაოდენობა.</translation>
     </message>
     <message>
         <source>%1 CPUs</source>
@@ -13353,7 +13368,7 @@
     <name>UIVisoCreatorWidget</name>
     <message>
         <source>Click to show/hide the tree view.</source>
-        <translation type="unfinished"></translation>
+        <translation>დააწკაპუნეთ ხის ხედის ჩასართ/გამოსართავად.</translation>
     </message>
     <message>
         <source>Shows the current location.</source>
@@ -13462,7 +13477,7 @@
     <name>UIWizardAddCloudVM</name>
     <message>
         <source>Add Cloud Virtual Machine</source>
-        <translation type="unfinished"></translation>
+        <translation>ღრუბლოვანი ვირტუალური მანქანის დამატება</translation>
     </message>
     <message>
         <source>Location</source>
@@ -13478,7 +13493,7 @@
     </message>
     <message>
         <source>Add VM from cloud service provider.</source>
-        <translation type="unfinished"></translation>
+        <translation>ღრუბლოვანი სერვისის მომწოდებლიდან ვმ-ის დამატება.</translation>
     </message>
     <message>
         <source>Source to add from</source>
@@ -13541,11 +13556,11 @@
     </message>
     <message>
         <source>Location and size of the disk image</source>
-        <translation type="unfinished"></translation>
+        <translation>მყარი დისკის ფაილის მდებარეობა და ზომა</translation>
     </message>
     <message>
         <source>Hard Disk File &amp;Type and Variant</source>
-        <translation type="unfinished"></translation>
+        <translation>მყარი დისკის ფაილის &amp;ტიპი და ვარიანტი</translation>
     </message>
     <message>
         <source>copy</source>
@@ -13612,7 +13627,7 @@
     </message>
     <message>
         <source>Clone name cannot be empty</source>
-        <translation type="unfinished"></translation>
+        <translation>კლონის სახელი ცარიელი არ შეიძლება იყოს</translation>
     </message>
     <message>
         <source>Path is invalid</source>
@@ -13636,7 +13651,7 @@
     </message>
     <message>
         <source>Holds a name for the new virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>შეიცავს ახალი ვირტუალური მანქანის სახელს.</translation>
     </message>
     <message>
         <source>Specifies The location of the new virtual machine in host&apos;s storage.</source>
@@ -13684,7 +13699,7 @@
     </message>
     <message>
         <source>Keep Hard&amp;ware UUIDs</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;აპარატურის UUID-ების დატოვება</translation>
     </message>
     <message>
         <source>&amp;Full clone</source>
@@ -13712,7 +13727,7 @@
     </message>
     <message>
         <source>Current &amp;snapshot tree branch</source>
-        <translation type="unfinished"></translation>
+        <translation>მიმდინარე სწრაფი ასლის ხის ბრენჩი</translation>
     </message>
     <message>
         <source>&amp;Everything</source>
@@ -14188,7 +14203,7 @@
     </message>
     <message>
         <source>Hard Disk File &amp;Type and Variant</source>
-        <translation type="unfinished"></translation>
+        <translation>მყარი დისკის ფაილის &amp;ტიპი და ვარიანტი</translation>
     </message>
 </context>
 <context>
@@ -14207,7 +14222,7 @@
     </message>
     <message>
         <source>Gu&amp;est Additions</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;სტუმრის დამატებები</translation>
     </message>
     <message>
         <source>Additional Options</source>
@@ -14219,15 +14234,15 @@
     </message>
     <message>
         <source>&amp;Install in Background</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;ფონურად დაყენება</translation>
     </message>
     <message>
         <source>&amp;Enable EFI (special OSes only)</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;EFI-ის ჩართვა (მხოლოდ სპეციალური ოს-ებისთვის)</translation>
     </message>
     <message>
         <source>Virtual machine Name and Operating System</source>
-        <translation type="unfinished"></translation>
+        <translation>ვირტუალური მანქანის სახელი და ოპერაციული სისტემა</translation>
     </message>
     <message>
         <source>Please choose a descriptive name and destination folder for the new virtual machine. The name you choose will be used throughout VirtualBox to identify this machine. Additionally, you can select an ISO image which may be used to install the guest operating system.</source>
@@ -14235,7 +14250,7 @@
     </message>
     <message>
         <source>&amp;Skip Unattended Installation</source>
-        <translation type="unfinished"></translation>
+        <translation>უყურადღებოდ დაყენების &amp;გამოტოვება</translation>
     </message>
     <message>
         <source>When checked, the unattended install is disabled and the selected ISO is mounted on the vm.</source>
@@ -14263,11 +14278,11 @@
     </message>
     <message>
         <source>Invalid file path or unreadable file</source>
-        <translation type="unfinished"></translation>
+        <translation>არასწორი ბილიკი ან ფაილი არ არსებობს</translation>
     </message>
     <message>
         <source>Unattended Guest OS Install Setup</source>
-        <translation type="unfinished"></translation>
+        <translation>სტუმრის ოს-ის უყურადღებოდ დაყენების მორგება</translation>
     </message>
     <message>
         <source>Hardware</source>
@@ -14279,19 +14294,19 @@
     </message>
     <message>
         <source>&amp;Do Not Add a Virtual Hard Disk</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;არ დაამატო ვირტუალური მყარი დისკი</translation>
     </message>
     <message>
         <source>&amp;Create a Virtual Hard Disk Now</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;ვირტუალური მყარი დისკის ახლა დამატება</translation>
     </message>
     <message>
         <source>U&amp;se an Existing Virtual Hard Disk File</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;არსებული ვირტუალური მყარი დისკის გამოყენება</translation>
     </message>
     <message>
         <source>Chooses a Virtual Hard Fisk File...</source>
-        <translation type="unfinished"></translation>
+        <translation>აირჩიეთ ვირტუალური მყარი დისკის ფაილი...</translation>
     </message>
     <message>
         <source>D&amp;isk Size:</source>
@@ -14319,11 +14334,11 @@
     </message>
     <message>
         <source>Name and &amp;Operating System</source>
-        <translation type="unfinished"></translation>
+        <translation>სახელი და &amp;ოპერაციული სისტემა</translation>
     </message>
     <message>
         <source>&amp;Unattended Install</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;უყურადღებოდ დაყენება</translation>
     </message>
     <message>
         <source>Hard Dis&amp;k</source>
@@ -14335,23 +14350,23 @@
     </message>
     <message>
         <source>Hard Disk File &amp;Type and Variant</source>
-        <translation type="unfinished"></translation>
+        <translation>მყარი დისკის ფაილის &amp;ტიპი და ვარიანტი</translation>
     </message>
     <message>
         <source>Invalid path or unreadable ISO file</source>
-        <translation type="unfinished"></translation>
+        <translation>არასწორი ბილიკი ან ISO ფაილი არ არსებობს</translation>
     </message>
     <message>
         <source>Invalid username and/or password</source>
-        <translation type="unfinished"></translation>
+        <translation>მომხმარებელი ან პაროლი არასწორია</translation>
     </message>
     <message>
         <source>Invalid hostname or domain name</source>
-        <translation type="unfinished"></translation>
+        <translation>არასწორი ჰოსტის ან დომენის სახელი</translation>
     </message>
     <message>
         <source>Virtual machine name is invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>ვირტუალური მანქანის სახელი არასწორია</translation>
     </message>
     <message>
         <source>Invalid ISO file</source>
@@ -14359,7 +14374,7 @@
     </message>
     <message>
         <source>No valid disk is selected</source>
-        <translation type="unfinished"></translation>
+        <translation>დისკი არჩეული არაა</translation>
     </message>
     <message>
         <source>Invalid disk size</source>
@@ -14367,7 +14382,7 @@
     </message>
     <message>
         <source>Machine Name and OS Type</source>
-        <translation type="unfinished"></translation>
+        <translation>მანქანის სახელი და ოს-ის ტიპი</translation>
     </message>
     <message>
         <source>Machine Name</source>
@@ -14387,11 +14402,11 @@
     </message>
     <message>
         <source>Skip Unattended Install</source>
-        <translation type="unfinished"></translation>
+        <translation>უყურადღებოდ დაყენების გამოტოვება</translation>
     </message>
     <message>
         <source>Unattended Install</source>
-        <translation type="unfinished"></translation>
+        <translation>უყურადღებოდ დაყენება</translation>
     </message>
     <message>
         <source>Username</source>
@@ -14403,19 +14418,19 @@
     </message>
     <message>
         <source>Hostname/Domain Name</source>
-        <translation type="unfinished"></translation>
+        <translation>ჰოსტის/დომენის სახელი</translation>
     </message>
     <message>
         <source>Install in Background</source>
-        <translation type="unfinished"></translation>
+        <translation>ფონურად დაყენება</translation>
     </message>
     <message>
         <source>Install Guest Additions</source>
-        <translation type="unfinished"></translation>
+        <translation>სტუმრის დამატებების დაყენება</translation>
     </message>
     <message>
         <source>Guest Additions ISO</source>
-        <translation type="unfinished"></translation>
+        <translation>სტუმრის დამატებების ISO</translation>
     </message>
     <message>
         <source>Base Memory</source>
@@ -14423,7 +14438,7 @@
     </message>
     <message>
         <source>Processor(s)</source>
-        <translation type="unfinished"></translation>
+        <translation>პროცესორები</translation>
     </message>
     <message>
         <source>EFI Enable</source>
@@ -14459,7 +14474,7 @@
     </message>
     <message>
         <source>Invalid Guest Additions installation media</source>
-        <translation type="unfinished"></translation>
+        <translation>სტუმრის დამატებების დაყენების არასწორი მედია</translation>
     </message>
     <message>
         <source>Holds the product key.</source>
@@ -14479,7 +14494,7 @@
     </message>
     <message>
         <source>Detected OS type: %1. %2</source>
-        <translation type="unfinished"></translation>
+        <translation>ნაპოვნი ოს-ის ტიპი: %1. %2</translation>
     </message>
     <message>
         <source>You can configure the unattended guest OS install by modifying username, password, and hostname. Additionally you can enable guest additions install. For Microsoft Windows guests it is possible to provide a product key.</source>

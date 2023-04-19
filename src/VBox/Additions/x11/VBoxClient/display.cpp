@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -31,6 +31,7 @@
 #include <iprt/file.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
+#include <iprt/asm.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
@@ -145,7 +146,7 @@ static void doResize(struct DISPLAYSTATE *pState)
 
 /** Main loop: handle display hot-plug events, property updates (which can
  *  signal VT switches hot-plug in old X servers). */
-static void runDisplay(struct DISPLAYSTATE *pState)
+static void runDisplay(struct DISPLAYSTATE *pState, bool volatile *pfShutdown)
 {
     Display *pDisplay = pState->pDisplay;
     long cValue = 1;
@@ -165,7 +166,7 @@ static void runDisplay(struct DISPLAYSTATE *pState)
     /* Interrupting this cleanly will be more work than making it robust
      * against spontaneous termination, especially as it will never get
      * properly tested, so I will go for the second. */
-    while (true)
+    while (!ASMAtomicReadBool(pfShutdown))
     {
         XEvent event;
         struct pollfd PollFd;
@@ -280,25 +281,35 @@ static DECLCALLBACK(int) init(void)
  */
 static DECLCALLBACK(int) run(bool volatile *pfShutdown)
 {
-    RT_NOREF(pfShutdown); /** @todo Probably very wrong not to check pfShutdown... Especially given no pfnStop implementation. */
     struct DISPLAYSTATE *pSelf = &g_DisplayState;
 
     if (!pSelf->mfInit)
         return VERR_WRONG_ORDER;
-    runDisplay(pSelf);
-    return VERR_INTERNAL_ERROR;  /* "Should never reach here." */
+
+    runDisplay(pSelf, pfShutdown);
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * @interface_method_impl{VBCLSERVICE,pfnStop}
+ */
+static DECLCALLBACK(void) stop(void)
+{
+    /* Nothing to do here. Implement empty callback, so
+     * main thread can set pfShutdown=true on process termination. */
 }
 
 VBCLSERVICE g_SvcDisplayLegacy =
 {
     "dp-legacy-x11",                    /* szName */
     "Legacy display assistant",         /* pszDescription */
-    ".vboxclient-display.pid",          /* pszPidFilePath (no pid file lock) */
+    ".vboxclient-display",              /* pszPidFilePathTemplate */
     NULL,                               /* pszUsage */
     NULL,                               /* pszOptions */
     NULL,                               /* pfnOption */
     init,                               /* pfnInit */
     run,                                /* pfnWorker */
-    NULL,                               /* pfnStop */
+    stop,                               /* pfnStop */
     NULL,                               /* pfnTerm */
 };

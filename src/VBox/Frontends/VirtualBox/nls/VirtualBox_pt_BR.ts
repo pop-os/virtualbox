@@ -313,6 +313,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;Copiar</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -3304,23 +3311,23 @@
     </message>
     <message>
         <source>&amp;Stop</source>
-        <translation type="unfinished"></translation>
+        <translation>Parar (&amp;S)</translation>
     </message>
     <message>
         <source>&amp;Upgrade Guest Additions...</source>
-        <translation type="unfinished"></translation>
+        <translation>At&amp;ualizar Adicionais para Convidado...</translation>
     </message>
     <message>
         <source>Upgrade Guest Additions</source>
-        <translation type="unfinished"></translation>
+        <translation>Atualizar Adicionais para Convidado</translation>
     </message>
     <message>
         <source>Virtual Screen %1</source>
-        <translation type="unfinished">Tela Virtual %1</translation>
+        <translation>Tela Virtual %1</translation>
     </message>
     <message>
         <source>Use Host Screen %1</source>
-        <translation type="unfinished">Utilizar Tela %1 do Hospedeiro</translation>
+        <translation>Utilizar Tela %1 do Hospedeiro</translation>
     </message>
 </context>
 <context>
@@ -9021,19 +9028,19 @@ p, li { white-space: pre-wrap; }
     <name>UIFontScaleEditor</name>
     <message>
         <source>F&amp;ont Scaling:</source>
-        <translation type="unfinished"></translation>
+        <translation>Escalonamento de F&amp;ontes:</translation>
     </message>
     <message>
         <source>Holds the scaling factor for the font size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Contém o fator de escala para o tamanho da fonte.</translation>
     </message>
     <message>
         <source>Minimum possible scale factor.</source>
-        <translation type="unfinished">Menor fator de escalonamento possível.</translation>
+        <translation>Menor fator de escalonamento possível.</translation>
     </message>
     <message>
         <source>Maximum possible scale factor.</source>
-        <translation type="unfinished">Maior fator de escalonamento possível.</translation>
+        <translation>Maior fator de escalonamento possível.</translation>
     </message>
 </context>
 <context>
@@ -25630,11 +25637,11 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Quando selecionado, o estado da máquina será restaurado a partir do estado armazenado no snapshot atual logo após o desligamento. Esta opção é útil se você tem certeza de que deseja descartar os resultados da última sessão e voltar para o snapshot atual.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Quando selecionado, o estado da máquina será restaurado a partir do estado armazenado no snapshot atual logo após o desligamento. Esta opção é útil se você tem certeza de que deseja descartar os resultados da última sessão e voltar para o snapshot atual.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">&amp;Restaurar o snapshot &apos;%1&apos;</translation>
+        <translation>&amp;Restaurar o snapshot &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

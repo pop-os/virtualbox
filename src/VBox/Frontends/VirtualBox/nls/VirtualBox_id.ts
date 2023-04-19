@@ -194,7 +194,7 @@
     <name>QIDialogContainer</name>
     <message>
         <source>Loading</source>
-        <translation type="unfinished"></translation>
+        <translation>Memuat</translation>
     </message>
 </context>
 <context>
@@ -244,7 +244,7 @@
     <name>QILineEdit</name>
     <message>
         <source>&amp;Copy</source>
-        <translation type="unfinished">&amp;Salin</translation>
+        <translation>&amp;Salin</translation>
     </message>
 </context>
 <context>
@@ -287,7 +287,7 @@
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
 </context>
 <context>
@@ -295,6 +295,13 @@
     <message>
         <source>Copy to clipboard</source>
         <translation type="obsolete">Salin ke clipboard</translation>
+    </message>
+</context>
+<context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;Salin</translation>
     </message>
 </context>
 <context>
@@ -382,46 +389,50 @@
     <name>UIAccelerationFeaturesEditor</name>
     <message>
         <source>Hardware Virtualization:</source>
-        <translation type="unfinished">Virtualisasi Perangkat Keras:</translation>
+        <translation>Virtualisasi Perangkat Keras:</translation>
+    </message>
+    <message>
+        <source>Enable &amp;VT-x/AMD-V</source>
+        <translation type="vanished">Fungsikan &amp;VT-x/AMD-V</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will try to make use of the host CPU&apos;s hardware virtualization extensions such as Intel VT-x and AMD-V.</source>
-        <translation type="obsolete">Bila ditandai, mesin virtual akan mencoba memakai ekstensi virtualisasi perangkat keras milik CPU host seperti misalnya Intel VT-x dan AMD-V.</translation>
+        <translation type="vanished">Bila dicentang, mesin virtual akan mencoba memakai ekstensi virtualisasi perangkat keras milik CPU host seperti misalnya Intel VT-x dan AMD-V.</translation>
     </message>
     <message>
         <source>Enable Nested Pa&amp;ging</source>
-        <translation type="unfinished">Fungsikan Pa&amp;ging Bertingkat</translation>
+        <translation>Fungsikan Pa&amp;ging Bertingkat</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will try to make use of the nested paging extension of Intel VT-x and AMD-V.</source>
-        <translation type="unfinished">Bila ditandai, mesin virtual akan mencoba memakai ekstensi paging bertingkat dari Intel VT-x dan AMD-V.</translation>
+        <translation>Bila dicentang, mesin virtual akan mencoba memakai ekstensi paging bertingkat dari Intel VT-x dan AMD-V.</translation>
     </message>
 </context>
 <context>
     <name>UIAcquirePublicKeyDialog</name>
     <message>
         <source>Choose a public key file</source>
-        <translation type="unfinished"></translation>
+        <translation>Pilih satu berkas kunci publik</translation>
     </message>
     <message>
         <source>Public key</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunci publik</translation>
     </message>
     <message>
         <source>We haven&apos;t found public key id_rsa[.pub] in suitable locations. If you have one, please put it under one of those folders OR copy content to the edit box below:&lt;br&gt;&lt;br&gt;%1&lt;br&gt;&lt;br&gt;If you don&apos;t have one, please consider using one of the following tools to generate it:&lt;br&gt;&lt;br&gt;%2</source>
-        <translation type="unfinished"></translation>
+        <translation>Kami belum menemukan kunci publik id_rsa[.pub] pada lokasi yang sesuai. Bila Anda punya, harap letakkan itu di bawah satu dari folder berikut ATAU salin isinya ke kotak sunting di bawah:&lt;br&gt;&lt;br&gt;%1&lt;br&gt;&lt;br&gt;Bila Anda tidak punya, harap pertimbangkan untuk memakai salah satu perkakas berikut untuk membuatnya:&lt;br&gt;&lt;br&gt;%2</translation>
     </message>
     <message>
         <source>We haven&apos;t found public key id_rsa[.pub] in suitable location. If you have one, please put it under specified folder OR copy content to the edit box below:&lt;br&gt;&lt;br&gt;%1&lt;br&gt;&lt;br&gt;If you don&apos;t have one, please consider using the following tool to generate it:&lt;br&gt;&lt;br&gt;%2</source>
-        <translation type="unfinished"></translation>
+        <translation>Kami belum menemukan kunci publik id_rsa[.pub] pada lokasi yang sesuai. Bila Anda punya, harap letakkan itu di bawah folder berikut ATAU salin isinya ke kotak sunting di bawah:&lt;br&gt;&lt;br&gt;%1&lt;br&gt;&lt;br&gt;Bila Anda tidak punya, harap pertimbangkan untuk memakai salah satu perkakas berikut untuk membuatnya:&lt;br&gt;&lt;br&gt;%2</translation>
     </message>
     <message>
         <source>Paste public key</source>
-        <translation type="unfinished"></translation>
+        <translation>Tempelkan kunci publik</translation>
     </message>
     <message>
         <source>Browse</source>
-        <translation type="unfinished"></translation>
+        <translation>Ramban</translation>
     </message>
 </context>
 <context>
@@ -2613,467 +2624,467 @@
     <message>
         <source>[Root]</source>
         <comment>group</comment>
-        <translation type="unfinished"></translation>
+        <translation>[Root]</translation>
     </message>
     <message>
         <source>Copy Key Fingerprint (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Salin Sidik Jari Kunci (%1)</translation>
     </message>
     <message>
         <source>Connect</source>
         <comment>to cloud VM</comment>
-        <translation type="unfinished"></translation>
+        <translation>Sambung</translation>
     </message>
     <message>
         <source>Connect with %1 (%2)</source>
         <comment>with terminal application (profile)</comment>
-        <translation type="unfinished"></translation>
+        <translation>Menyambung ke %1 (%2)</translation>
     </message>
     <message>
         <source>Connect with %1</source>
         <comment>with terminal application</comment>
-        <translation type="unfinished"></translation>
+        <translation>Menyambung ke %1</translation>
     </message>
     <message>
         <source>&amp;Online Documentation...</source>
-        <translation type="unfinished"></translation>
+        <translation>D&amp;okumentasi Daring...</translation>
     </message>
     <message>
         <source>Open the browser and go to the VirtualBox user manual</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka peramban dan pergilah ke panduan pengguna VirtualBox</translation>
     </message>
     <message>
         <source>Refresh the currently viewed log</source>
-        <translation type="unfinished"></translation>
+        <translation>Segarkan log yang saat ini dilihat</translation>
     </message>
     <message>
         <source>Refresh Viewed Log</source>
-        <translation type="unfinished"></translation>
+        <translation>Segarkan Log Yang Dilihat</translation>
     </message>
     <message>
         <source>&amp;Reload</source>
-        <translation type="unfinished"></translation>
+        <translation>Muat &amp;Ulang</translation>
     </message>
     <message>
         <source>Reread all the log files and refresh pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Baca ulang semua berkas log dan segarkan halaman</translation>
     </message>
     <message>
         <source>Reload Log Files</source>
-        <translation type="unfinished"></translation>
+        <translation>Muat Ulang Berkas Log</translation>
     </message>
     <message>
         <source>Toggle guest session panel of the file manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Jungkitkan panel sesi guest dari manajer berkas</translation>
     </message>
     <message>
         <source>Toggle Guest Session Panel</source>
-        <translation type="unfinished"></translation>
+        <translation>Jungkitkan Panel Sesi Guest</translation>
     </message>
     <message>
         <source>VISO Creator</source>
-        <translation type="unfinished">Pembuat VISO</translation>
+        <translation>Pembuat VISO</translation>
     </message>
     <message>
         <source>Configuration</source>
-        <translation type="unfinished">Konfigurasi</translation>
+        <translation>Konfigurasi</translation>
     </message>
     <message>
         <source>Open panel for VISO Creator configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka panel untuk konfigurasi Pembuat VISO</translation>
     </message>
     <message>
         <source>Open Configuration Panel</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Panel Konfigurasi</translation>
     </message>
     <message>
         <source>Open panel for VISO Creator options</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka panel bagi opsi Pembuat VISO</translation>
     </message>
     <message>
         <source>Open Options Panel</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Panel Opsi</translation>
     </message>
     <message>
         <source>&amp;Add</source>
-        <translation type="unfinished"></translation>
+        <translation>T&amp;ambah</translation>
     </message>
     <message>
         <source>Add selected item(s) to VISO</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambahkan butir yang dipilih ke VISO</translation>
     </message>
     <message>
         <source>Add Item(s) to VISO</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Butir ke VISO</translation>
     </message>
     <message>
         <source>&amp;Remove</source>
-        <translation type="unfinished">&amp;Hapus</translation>
+        <translation>&amp;Hapus</translation>
     </message>
     <message>
         <source>Remove selected item(s) from VISO</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus butir yang dipilih dari VISO</translation>
     </message>
     <message>
         <source>Remove Item(s) from VISO</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus Butir dari VISO</translation>
     </message>
     <message>
         <source>&amp;New Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Direktori &amp;Baru</translation>
     </message>
     <message>
         <source>Create a new directory under the current location</source>
-        <translation type="unfinished">Buat sebuah direktori baru di bawah lokasi saat ini</translation>
+        <translation>Buat sebuah direktori baru di bawah lokasi saat ini</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation type="unfinished"></translation>
+        <translation>Ubah &amp;Nama</translation>
     </message>
     <message>
         <source>Rename the selected object</source>
-        <translation type="unfinished">Ubah nama objek yang dipilih</translation>
+        <translation>Ubah nama objek yang dipilih</translation>
     </message>
     <message>
         <source>Rename Object</source>
-        <translation type="unfinished"></translation>
+        <translation>Ubah Nama Objek</translation>
     </message>
     <message>
         <source>R&amp;eset</source>
-        <translation type="unfinished"></translation>
+        <translation>R&amp;eset</translation>
     </message>
     <message>
         <source>Reset the VISO content.</source>
-        <translation type="unfinished"></translation>
+        <translation>Reset isi VISO.</translation>
     </message>
     <message>
         <source>&amp;Medium Selector</source>
-        <translation type="unfinished"></translation>
+        <translation>Pemilih &amp;Medium</translation>
     </message>
     <message>
         <source>Medium Selector</source>
-        <translation type="unfinished"></translation>
+        <translation>Pemilih Medium</translation>
     </message>
     <message>
         <source>Add existing disk image file</source>
-        <translation type="unfinished">Menambahkan berkas image disk yang ada</translation>
+        <translation>Tambahkan berkas image disk yang ada</translation>
     </message>
     <message>
         <source>Add Disk Image File</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Berkas Image Disk</translation>
     </message>
     <message>
         <source>Create a new disk image file</source>
-        <translation type="unfinished"></translation>
+        <translation>Buat baru suatu berkas image disk</translation>
     </message>
     <message>
         <source>Create Disk Image File</source>
-        <translation type="unfinished"></translation>
+        <translation>Buat Berkas Image Disk</translation>
     </message>
     <message>
         <source>&amp;Refresh...</source>
-        <translation type="unfinished">Sega&amp;rkan...</translation>
+        <translation>Sega&amp;rkan...</translation>
     </message>
     <message>
         <source>Refresh disk images</source>
-        <translation type="unfinished"></translation>
+        <translation>Segarkan image disk</translation>
     </message>
     <message>
         <source>&amp;Activity</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Aktivitas</translation>
     </message>
     <message>
         <source>&amp;Export...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Ekspor...</translation>
     </message>
     <message>
         <source>VM Activity Monitor</source>
-        <translation type="unfinished"></translation>
+        <translation>Pemantau Aktivitas VM</translation>
     </message>
     <message>
         <source>Export the chart data into a text file</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekspor data bagan ke sebuah berkas teks</translation>
     </message>
     <message>
         <source>Export Data to File</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekspor Data ke Berkas</translation>
     </message>
     <message>
         <source>&amp;Activity Overview...</source>
-        <translation type="unfinished"></translation>
+        <translation>Ringkasan &amp;Aktivitas...</translation>
     </message>
     <message>
         <source>Activity Monitor</source>
-        <translation type="unfinished"></translation>
+        <translation>Pemantau Aktivitas</translation>
     </message>
     <message>
         <source>Navigate to the vm activity overview</source>
-        <translation type="unfinished"></translation>
+        <translation>Navigasi ke ringkasan aktivitas</translation>
     </message>
     <message>
         <source>Navigate to VM Activity Overview</source>
-        <translation type="unfinished"></translation>
+        <translation>Navigasi ke Ringkasan Aktivitas VM</translation>
     </message>
     <message>
         <source>&amp;Welcome Screen</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Layar Selamat Datang</translation>
     </message>
     <message>
         <source>Open the Welcome Screen</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Layar Selamat Datang</translation>
     </message>
     <message>
         <source>&amp;Extension Pack Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Manajer &amp;Extension Pack</translation>
     </message>
     <message>
         <source>Open the Extension Pack Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Manajer Extension Pack</translation>
     </message>
     <message>
         <source>&amp;Network Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Ma&amp;najer Jaringan</translation>
     </message>
     <message>
         <source>Open the Network Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Manajer Jaringan</translation>
     </message>
     <message>
         <source>&amp;VM Activity Overview</source>
-        <translation type="unfinished"></translation>
+        <translation>Ringkasan Aktivitas &amp;VM</translation>
     </message>
     <message>
         <source>Open the VM Activity Overview</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Ringkasan Aktivitas VM</translation>
     </message>
     <message>
         <source>&amp;Quit</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Keluar</translation>
     </message>
     <message>
         <source>[New]</source>
         <comment>group</comment>
-        <translation type="unfinished"></translation>
+        <translation>[Baru]</translation>
     </message>
     <message>
         <source>Move to Gro&amp;up</source>
-        <translation type="unfinished"></translation>
+        <translation>Pindah ke Gr&amp;up</translation>
     </message>
     <message>
         <source>C&amp;onsole</source>
-        <translation type="unfinished"></translation>
+        <translation>K&amp;onsol</translation>
     </message>
     <message>
         <source>&amp;Create Connection</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Buat Koneksi</translation>
     </message>
     <message>
         <source>Create console connection to be able to use ssh/vnc clients</source>
-        <translation type="unfinished"></translation>
+        <translation>Buat koneksi konsol agar bisa memakai klien ssh/vnc</translation>
     </message>
     <message>
         <source>&amp;Delete Connection</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Hapus Koneksi</translation>
     </message>
     <message>
         <source>Delete console connection to disconnect ssh/vnc clients</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus koneksi konsole untuk memutus klien ssh/vnc</translation>
     </message>
     <message>
         <source>&amp;Configure Console Applications</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Konfigurasikan Aplikasi Konsol</translation>
     </message>
     <message>
         <source>Open configuration dialog to edit console application settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka dialog konfigurasi untuk menyunting pengaturan aplikasi konsol</translation>
     </message>
     <message>
         <source>&amp;Copy Command (serial) for Unix</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Salin Perintah (serial) untuk Unix</translation>
     </message>
     <message>
         <source>&amp;Copy Command (serial) for Windows</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Salin Perintah (serial) untuk Windows</translation>
     </message>
     <message>
         <source>Copy console command for serial connection</source>
-        <translation type="unfinished"></translation>
+        <translation>Salin perintah konsol untuk koneksi serial</translation>
     </message>
     <message>
         <source>&amp;Copy Command (VNC) for Unix</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Salin Perintah (VNC) untuk Unix</translation>
     </message>
     <message>
         <source>&amp;Copy Command (VNC) for Windows</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Salin Perintah (VNC) untuk Windows</translation>
     </message>
     <message>
         <source>Copy console command for VNC connection</source>
-        <translation type="unfinished"></translation>
+        <translation>Salin perintah konsol untuk koneksi VNC</translation>
     </message>
     <message>
         <source>Show &amp;Log</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan &amp;Log</translation>
     </message>
     <message>
         <source>Show cloud console log</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan log konsol cloud</translation>
     </message>
     <message>
         <source>Terminate</source>
-        <translation type="unfinished"></translation>
+        <translation>Akhiri</translation>
     </message>
     <message>
         <source>&amp;Terminate Cloud Instance...</source>
-        <translation type="unfinished"></translation>
+        <translation>Akhiri Ins&amp;tansi Cloud...</translation>
     </message>
     <message>
         <source>Terminate cloud instance of selected virtual machines</source>
-        <translation type="unfinished"></translation>
+        <translation>Akhiri instansi cloud dari mesin virtual yang dipilih</translation>
     </message>
     <message>
         <source>Open the machine activity monitor pane</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka panel pemantauan aktivitas mesin</translation>
     </message>
     <message>
         <source>&amp;File Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Manajer &amp;Berkas</translation>
     </message>
     <message>
         <source>Open the File Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Manajer Berkas</translation>
     </message>
     <message>
         <source>&amp;Extension</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Ekstensi</translation>
     </message>
     <message>
         <source>&amp;Install...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Pasang...</translation>
     </message>
     <message>
         <source>Extension Pack Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Manajer Extension Pack</translation>
     </message>
     <message>
         <source>Install extension pack</source>
-        <translation type="unfinished"></translation>
+        <translation>Pasang extension pack</translation>
     </message>
     <message>
         <source>Install Extension Pack</source>
-        <translation type="unfinished"></translation>
+        <translation>Pasang Extension Pack</translation>
     </message>
     <message>
         <source>&amp;Uninstall...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Bongkar Instalasi...</translation>
     </message>
     <message>
         <source>Uninstall selected extension pack</source>
-        <translation type="unfinished"></translation>
+        <translation>Bongkar instalasi extenstion pack yang dipilih</translation>
     </message>
     <message>
         <source>Uninstall Extension Pack</source>
-        <translation type="unfinished"></translation>
+        <translation>Bongkar Instalasi Extension Pack</translation>
     </message>
     <message>
         <source>&amp;Clear</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Bersihkan</translation>
     </message>
     <message>
         <source>Remove all inaccessible media</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus semua media yang tidak dapat diakses</translation>
     </message>
     <message>
         <source>Remove Inaccessible Media</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus Media Yang Tak Bisa Diakses</translation>
     </message>
     <message>
         <source>&amp;Console</source>
-        <translation type="unfinished"></translation>
+        <translation>K&amp;onsol</translation>
     </message>
     <message>
         <source>&amp;Add Application...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah &amp;Aplikasi</translation>
     </message>
     <message>
         <source>Cloud Console Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Manajer Konsol Cloud</translation>
     </message>
     <message>
         <source>Add new cloud console application</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambahkan aplikasi baru konsol cloud</translation>
     </message>
     <message>
         <source>Add Cloud Console Application</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Aplikasi Konsol Cloud</translation>
     </message>
     <message>
         <source>&amp;Remove Application...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Hapus Aplikasi...</translation>
     </message>
     <message>
         <source>Remove selected cloud console application</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus aplikasi konsol cloud yang dipilih</translation>
     </message>
     <message>
         <source>Remove Cloud Console Application</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus Aplikasi Konsol Cloud</translation>
     </message>
     <message>
         <source>Add new cloud console profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah profil baru konsol cloud</translation>
     </message>
     <message>
         <source>Add Cloud Console Profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Profil Konsol Cloud</translation>
     </message>
     <message>
         <source>Remove selected cloud console profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus profil konsol cloud yang dipilih</translation>
     </message>
     <message>
         <source>Remove Cloud Console Profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus Profil Konsol Cloud</translation>
     </message>
     <message>
         <source>Console &amp;Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Properti Konsol</translation>
     </message>
     <message>
         <source>Open pane with selected cloud console properties</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka panel dengan properti konsol cloud yang dipilih</translation>
     </message>
     <message>
         <source>Open Cloud Console Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Properti Konsol Cloud</translation>
     </message>
     <message>
         <source>&amp;Resources</source>
-        <translation type="unfinished"></translation>
+        <translation>Sumbe&amp;r Daya</translation>
     </message>
     <message>
         <source>Columns</source>
-        <translation type="unfinished"></translation>
+        <translation>Kolom</translation>
     </message>
     <message>
         <source>VM Activity Overview</source>
-        <translation type="unfinished"></translation>
+        <translation>Ringkasan Aktivitas VM</translation>
     </message>
     <message>
         <source>Show/Hide Columns</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan/Sembunyikan Kolom</translation>
     </message>
     <message>
         <source>VM Activity</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktivitas VM</translation>
     </message>
     <message>
         <source>Switch to selected virtual machine&apos;s activity monitor pane</source>
-        <translation type="unfinished"></translation>
+        <translation>Beralih ke panel pemantau aktivitas mesin virtual yang dipilih</translation>
     </message>
     <message>
         <source>Display the log viewer window</source>
-        <translation type="unfinished"></translation>
+        <translation>Menampilkan jendela pembaca log</translation>
     </message>
     <message>
         <source>&amp;Stop</source>
@@ -3289,7 +3300,7 @@
     </message>
     <message>
         <source>Storage Controller (VirtioSCSI)</source>
-        <translation type="unfinished"></translation>
+        <translation>Pengendali Penyimpanan (VirtioSCSI)</translation>
     </message>
 </context>
 <context>
@@ -3453,30 +3464,30 @@
     </message>
     <message>
         <source>Selects the type of the virtual sound card. Depending on this value, VirtualBox will provide different audio hardware to the virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih tipe kartu suara virtual. Bergantung pada nilai ini, VirtualBox akan menyediakan perangkat keras suara yang berbeda pada mesin virtual.</translation>
     </message>
 </context>
 <context>
     <name>UIAudioFeaturesEditor</name>
     <message>
         <source>Extended Features:</source>
-        <translation type="unfinished">Fitur Tambahan:</translation>
+        <translation>Fitur Tambahan:</translation>
     </message>
     <message>
         <source>Enable Audio &amp;Output</source>
-        <translation type="unfinished">Fungsikan Keluaran Audi&amp;o</translation>
+        <translation>Fungsikan Keluaran Audi&amp;o</translation>
     </message>
     <message>
         <source>When checked, output to the virtual audio device will reach the host. Otherwise the guest is muted.</source>
-        <translation type="unfinished">Bila dicentang, keluaran ke peranti audio virtual akan mencapai host. Bila tidak maka guest akan dibisukan.</translation>
+        <translation>Bila dicentang, keluaran ke peranti audio virtual akan mencapai host. Bila tidak maka guest akan dibisukan.</translation>
     </message>
     <message>
         <source>Enable Audio &amp;Input</source>
-        <translation type="unfinished">Fungsikan Masukan Aud&amp;io</translation>
+        <translation>Fungsikan Masukan Aud&amp;io</translation>
     </message>
     <message>
         <source>When checked, the guest will be able to capture audio input from the host. Otherwise the guest will capture only silence.</source>
-        <translation type="unfinished">Bila dicentang, guest akan dapat menangkap masukan audio dari host. Bila tidak maka guest hanya akan menangkap keheningan.</translation>
+        <translation>Bila dicentang, guest akan dapat menangkap masukan audio dari host. Bila tidak maka guest hanya akan menangkap keheningan.</translation>
     </message>
 </context>
 <context>
@@ -3487,33 +3498,33 @@
     </message>
     <message>
         <source>Selects the audio output driver. The Null Audio Driver makes the guest see an audio card, however every access to it will be ignored.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih driver keluaran suara. Null Audio Driver membuat guest dapat melihat sebuah kartu suara, namuan semua akses kepadanya akan diabaikan.</translation>
     </message>
 </context>
 <context>
     <name>UIAudioSettingsEditor</name>
     <message>
         <source>Enable &amp;Audio</source>
-        <translation type="unfinished">Fungsik&amp;an Suara</translation>
+        <translation>Fungsik&amp;an Suara</translation>
     </message>
     <message>
         <source>When checked, a virtual PCI audio card will be plugged into the virtual machine and will communicate with the host audio system using the specified driver.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, kartu suara PCI virtual akan ditancapkan ke mesin virtual dan akan berkomunikasi dengan sistem audio host menggunakan driver yang dinyatakan.</translation>
     </message>
 </context>
 <context>
     <name>UIAutoCaptureKeyboardEditor</name>
     <message>
         <source>Extended Features:</source>
-        <translation type="unfinished">Fitur Tambahan:</translation>
+        <translation>Fitur Tambahan:</translation>
     </message>
     <message>
         <source>&amp;Auto Capture Keyboard</source>
-        <translation type="unfinished">Otom&amp;atis Tangkap Papan Tik</translation>
+        <translation>Otom&amp;atis Tangkap Papan Tik</translation>
     </message>
     <message>
         <source>When checked, the keyboard is automatically captured every time the VM window is activated. When the keyboard is captured, all keystrokes (including system ones like Alt-Tab) are directed to the VM.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, papan tik secara otomatis ditangkap setiap kali jendela VM diaktifkan. Saat papan tik ditangkap, semua ketukan tombol (termasuk untuk sistem seperti Alt+Tab) diarahkan ke VM.</translation>
     </message>
 </context>
 <context>
@@ -3532,58 +3543,58 @@
     </message>
     <message>
         <source>Holds the amount of base memory the virtual machine will have.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan banyaknya memori dasar yang akan dimiliki oleh mesin virtual.</translation>
     </message>
     <message>
         <source>Minimum possible base memory size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukuran memori dasar minimum yang mungkin.</translation>
     </message>
     <message>
         <source>Maximum possible base memory size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukuran memori dasar maksimum yang mungkin.</translation>
     </message>
 </context>
 <context>
     <name>UIBootFailureDialog</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation type="unfinished">&amp;Batal</translation>
+        <translation>&amp;Batal</translation>
     </message>
     <message>
         <source>Closes this dialog without resetting the guest or mounting a medium</source>
-        <translation type="unfinished"></translation>
+        <translation>Menutup dialog ini tanpa me-reset guest atau mengait suatu medium</translation>
     </message>
     <message>
         <source>&amp;Mount and Retry Boot</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Kait dan Coba Ulang Boot</translation>
     </message>
     <message>
         <source>Mounts the selected ISO if any and reboots the vm</source>
-        <translation type="unfinished"></translation>
+        <translation>Kait ISO yang dipilih bila ada dan boot ulang vm</translation>
     </message>
     <message>
         <source>The virtual machine failed to boot. That might be caused by a missing operating system or misconfigured boot order. Mounting an operating system install DVD might solve this problem. Selecting an ISO file will attempt to mount it after the dialog is closed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Mesin virtual gagal boot. Itu mungkin disebabkan oleh sistem operasi yang hilang atau urutan boot yang salah konfigurasi. Mengait suatu DVD instalasi sistem operasi mungkin dapat memperbaiki masalah ini. Memilih suatu berkas ISO kaan mencoba mengaitnya setelah dialog ditutup.</translation>
     </message>
     <message>
         <source>DVD:</source>
-        <translation type="unfinished"></translation>
+        <translation>DVD:</translation>
     </message>
     <message>
         <source>Do not show this dialog again</source>
-        <translation type="unfinished"></translation>
+        <translation>Jangan tampilkan dialog ini lagi</translation>
     </message>
     <message>
         <source>When checked this dialog will not be shown again.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ketika dicentang dialog ini tidak akan ditampilkan lagi.</translation>
     </message>
     <message>
         <source>Holds the path of the ISO to be attached to machine as boot medium.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan path dari ISO yang akan dicantolkan ke mesin sebagai medium boot.</translation>
     </message>
     <message>
         <source>The selected path is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>Path yang dipilih tidak valid.</translation>
     </message>
 </context>
 <context>
@@ -3602,26 +3613,26 @@
     </message>
     <message>
         <source>Defines the boot device order. Use the checkboxes on the left to enable or disable individual boot devices.Move items up and down to change the device order.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menentukan urutan peranti boot. Gunakan kotak centang yang tersedia di sebelah kiri untuk menyalakan atau mematikan peranti boot secara individual. Naikkan atau turunkan butir untuk mengubah urutan peranti.</translation>
     </message>
     <message>
         <source>Moves selected boot item up.</source>
-        <translation type="unfinished"></translation>
+        <translation>Naikkan butir boot yang dipilih.</translation>
     </message>
     <message>
         <source>Moves selected boot item down.</source>
-        <translation type="unfinished"></translation>
+        <translation>Turunkan butir boot yang dipilih.</translation>
     </message>
 </context>
 <context>
     <name>UIChipsetEditor</name>
     <message>
         <source>&amp;Chipset:</source>
-        <translation type="unfinished">&amp;Chipset:</translation>
+        <translation>&amp;Chipset:</translation>
     </message>
     <message>
         <source>Selects the chipset to be emulated in this virtual machine. Note that the ICH9 chipset emulation is experimental and not recommended except for guest systems (such as Mac OS X) which require it.</source>
-        <translation type="unfinished">Memilih chipset yang akan diemulasi dalam mesin virtual ini. Perhatikan bahwa emulasi chipset ICH9 masih dalam percobaan dan tidak disarankan kecuali bagi sistem guest (seperti Mac OS X) yang memerlukannya.</translation>
+        <translation>Memilih chipset yang akan diemulasi dalam mesin virtual ini. Perhatikan bahwa emulasi chipset ICH9 masih dalam percobaan dan tidak disarankan kecuali bagi sistem guest (seperti Mac OS X) yang memerlukannya.</translation>
     </message>
 </context>
 <context>
@@ -3724,7 +3735,7 @@
     </message>
     <message>
         <source>Item</source>
-        <translation type="unfinished"></translation>
+        <translation>Butir</translation>
     </message>
 </context>
 <context>
@@ -3871,110 +3882,110 @@
     <name>UICloudConsoleManager</name>
     <message>
         <source>Name:</source>
-        <translation type="unfinished">Nama:</translation>
+        <translation>Nama:</translation>
     </message>
     <message>
         <source>Path:</source>
-        <translation type="unfinished">Path:</translation>
+        <translation>Path:</translation>
     </message>
     <message>
         <source>Argument:</source>
-        <translation type="unfinished"></translation>
+        <translation>Argumen:</translation>
     </message>
     <message>
         <source>Enter a name for this console application...</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukkan sebuah nama bagi aplikasi konsol ini...</translation>
     </message>
     <message>
         <source>Enter a path for this console application...</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukkan suatu path bagi aplikasi konsol ini...</translation>
     </message>
     <message>
         <source>Enter an argument for this console application...</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukkan suatu argumen bagi aplikasi konsol ini...</translation>
     </message>
     <message>
         <source>Enter a name for this console profile...</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukkan sebuah nama bagi profil konsol ini...</translation>
     </message>
     <message>
         <source>Enter an argument for this console profile...</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukkan suatu argumen bagi profil konsol ini...</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation type="unfinished">Reset</translation>
+        <translation>Reset</translation>
     </message>
     <message>
         <source>Reset changes in current console details</source>
-        <translation type="unfinished"></translation>
+        <translation>Reset perubahan dalam rincian konsol saat ini</translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="unfinished">Reset Perubahan (%1)</translation>
+        <translation>Reset Perubahan (%1)</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="unfinished">Terapkan</translation>
+        <translation>Terapkan</translation>
     </message>
     <message>
         <source>Apply changes in current console details</source>
-        <translation type="unfinished"></translation>
+        <translation>Terapkan perubahan dalam rincian konsol saat ini</translation>
     </message>
     <message>
         <source>Apply Changes (%1)</source>
-        <translation type="unfinished">Terapkan Perubahan (%1)</translation>
+        <translation>Terapkan Perubahan (%1)</translation>
     </message>
     <message>
         <source>Add Application</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Aplikasi</translation>
     </message>
     <message>
         <source>Add Profile</source>
-        <translation type="unfinished">Tambah Profil</translation>
+        <translation>Tambah Profil</translation>
     </message>
     <message>
         <source>Application</source>
-        <translation type="unfinished"></translation>
+        <translation>Aplikasi</translation>
     </message>
     <message>
         <source>List in Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>Daftarkan dalam Menu</translation>
     </message>
     <message>
         <source>Cloud Console Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Manajer Konsol Cloud</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Tutup</translation>
+        <translation>Tutup</translation>
     </message>
     <message>
         <source>Reset changes in current cloud console details</source>
-        <translation type="unfinished"></translation>
+        <translation>Reset perubahan dalam rincian konsol cloud saat ini</translation>
     </message>
     <message>
         <source>Apply changes in current cloud console details</source>
-        <translation type="unfinished"></translation>
+        <translation>Terapkan perubahan dalam rincian konsol cloud saat ini</translation>
     </message>
     <message>
         <source>Close dialog without saving</source>
-        <translation type="unfinished">Tutup dialog tanpa menyimpan</translation>
+        <translation>Tutup dialog tanpa menyimpan</translation>
     </message>
     <message>
         <source>Close Window (%1)</source>
-        <translation type="unfinished">Tutup Jendela (%1)</translation>
+        <translation>Tutup Jendela (%1)</translation>
     </message>
 </context>
 <context>
     <name>UICloudMachineSettingsDialog</name>
     <message>
         <source>Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Pengaturan</translation>
     </message>
     <message>
         <source>Contains a list of cloud machine settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memuat daftar dari pengaturan mesin cloud.</translation>
     </message>
 </context>
 <context>
@@ -4084,78 +4095,78 @@
     </message>
     <message>
         <source>Name:</source>
-        <translation type="unfinished">Nama:</translation>
+        <translation>Nama:</translation>
     </message>
     <message>
         <source>Properties:</source>
-        <translation type="unfinished">Properti:</translation>
+        <translation>Properti:</translation>
     </message>
     <message>
         <source>Contains cloud profile settings</source>
-        <translation type="unfinished">Memuat pengaturan profil cloud</translation>
+        <translation>Memuat pengaturan profil cloud</translation>
     </message>
     <message>
         <source>Enter a name for the new profile...</source>
-        <translation type="unfinished">Masukkan suatu nama bagi profil baru...</translation>
+        <translation>Masukkan suatu nama bagi profil baru...</translation>
     </message>
     <message>
         <source>Enter a name for this profile...</source>
-        <translation type="unfinished">Masukkan suatu nama bagi profil ini...</translation>
+        <translation>Masukkan suatu nama bagi profil ini...</translation>
     </message>
     <message>
         <source>Reset changes in current profile details</source>
-        <translation type="unfinished">Reset perubahan dalam rincian profil saat ini</translation>
+        <translation>Reset perubahan dalam rincian profil saat ini</translation>
     </message>
     <message>
         <source>Add</source>
-        <translation type="unfinished">Tambah</translation>
+        <translation>Tambah</translation>
     </message>
     <message>
         <source>Add a new profile with following name</source>
-        <translation type="unfinished">Tambahkan suatu profil baru dengan nama berikut</translation>
+        <translation>Tambahkan suatu profil baru dengan nama berikut</translation>
     </message>
     <message>
         <source>Add Profile (%1)</source>
-        <translation type="unfinished">Tambah Profil (%1)</translation>
+        <translation>Tambah Profil (%1)</translation>
     </message>
     <message>
         <source>Apply changes in current profile details</source>
-        <translation type="unfinished">Terapkan perubahan dalam rincian profil saat ini</translation>
+        <translation>Terapkan perubahan dalam rincian profil saat ini</translation>
     </message>
     <message>
         <source>Source</source>
-        <translation type="unfinished">Sumber</translation>
+        <translation>Sumber</translation>
     </message>
     <message>
         <source>List VMs</source>
-        <translation type="unfinished"></translation>
+        <translation>Daftar VM</translation>
     </message>
     <message>
         <source>Registered cloud providers and profiles</source>
-        <translation type="unfinished"></translation>
+        <translation>Profil dan penyedia cloud yang terdaftar</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
     <message>
         <source>Show dialog help</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan bantuan dialog</translation>
     </message>
     <message>
         <source>Show Help (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bantuan (%1)</translation>
     </message>
 </context>
 <context>
     <name>UIColorThemeEditor</name>
     <message>
         <source>Color &amp;Theme:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Tema Warna:</translation>
     </message>
     <message>
         <source>Selects the color theme. It can be Light, Dark or automatically detected (default).</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih tema warna. Ini bisa berupa Terang, Gelap, atau dideteksi secara otomatis (baku).</translation>
     </message>
 </context>
 <context>
@@ -4936,17 +4947,17 @@
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="unfinished">Memulai</translation>
+        <translation>Memulai</translation>
     </message>
     <message>
         <source>Starting</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished">Memulai</translation>
+        <translation>Memulai</translation>
     </message>
     <message>
         <source>Paused</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished">Diistirahatkan</translation>
+        <translation>Diistirahatkan</translation>
     </message>
     <message>
         <source>B</source>
@@ -5678,366 +5689,366 @@
     <message>
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan Cloud [EKSPERIMENTAL]</translation>
     </message>
     <message>
         <source>Undefined</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Tak ditentukan</translation>
     </message>
     <message>
         <source>Started</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Dimulai</translation>
     </message>
     <message>
         <source>Terminating</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Mengakhiri</translation>
     </message>
     <message>
         <source>Terminated</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Diakhiri</translation>
     </message>
     <message>
         <source>Timed Out (Killed)</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Habis Waktu (Dimatikan)</translation>
     </message>
     <message>
         <source>Timed Out (Abnormally)</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Habis Waktu (Secara tidak normal)</translation>
     </message>
     <message>
         <source>Down</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Mati</translation>
     </message>
     <message>
         <source>Error</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Kesalahan</translation>
     </message>
     <message>
         <source>IDE Primary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished"></translation>
+        <translation>IDE Primer Peranti 0</translation>
     </message>
     <message>
         <source>IDE Primary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished"></translation>
+        <translation>IDE Primer Peranti 1</translation>
     </message>
     <message>
         <source>IDE Secondary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished"></translation>
+        <translation>IDE Sekunder Peranti 0</translation>
     </message>
     <message>
         <source>IDE Secondary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished"></translation>
+        <translation>IDE Sekunder Peranti 1</translation>
     </message>
     <message>
         <source>Bridged Adapter</source>
-        <translation type="unfinished">Adaptor Ter-bridge</translation>
+        <translation>Adaptor Ter-bridge</translation>
     </message>
     <message>
         <source>Cloud Network</source>
-        <translation type="unfinished">Jaringan Cloud</translation>
+        <translation>Jaringan Cloud</translation>
     </message>
     <message>
         <source>Provisioning</source>
         <comment>CloudMachineState</comment>
-        <translation type="unfinished"></translation>
+        <translation>Provisioning</translation>
     </message>
     <message>
         <source>Running</source>
         <comment>CloudMachineState</comment>
-        <translation type="unfinished">Berjalan</translation>
+        <translation>Berjalan</translation>
     </message>
     <message>
         <source>Starting</source>
         <comment>CloudMachineState</comment>
-        <translation type="unfinished">Memulai</translation>
+        <translation>Memulai</translation>
     </message>
     <message>
         <source>Stopping</source>
         <comment>CloudMachineState</comment>
-        <translation type="unfinished">Menuju Berhenti</translation>
+        <translation>Menuju Berhenti</translation>
     </message>
     <message>
         <source>Stopped</source>
         <comment>CloudMachineState</comment>
-        <translation type="unfinished"></translation>
+        <translation>Dihentikan</translation>
     </message>
     <message>
         <source>Creating Image</source>
         <comment>CloudMachineState</comment>
-        <translation type="unfinished"></translation>
+        <translation>Membuat Image</translation>
     </message>
     <message>
         <source>Terminating</source>
         <comment>CloudMachineState</comment>
-        <translation type="unfinished"></translation>
+        <translation>Mengakhiri</translation>
     </message>
     <message>
         <source>Terminated</source>
         <comment>CloudMachineState</comment>
-        <translation type="unfinished"></translation>
+        <translation>Diakhiri</translation>
     </message>
     <message>
         <source>Aborted-Saved</source>
         <comment>MachineState</comment>
-        <translation type="unfinished"></translation>
+        <translation>Digugurkan-Disimpan</translation>
     </message>
     <message>
         <source>None</source>
         <comment>PointingHIDType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Nihil</translation>
     </message>
     <message>
         <source>USB MT TouchScreen and TouchPad</source>
         <comment>PointingHIDType</comment>
-        <translation type="unfinished"></translation>
+        <translation>USB MT TouchScreen dan TouchPad</translation>
     </message>
     <message>
         <source>Host-only Adapter [DEPRECATED]</source>
         <comment>NetworkAttachmentType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Adaptor Hanya-host [USANG]</translation>
     </message>
     <message>
         <source>Host-only Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan Hanya-host</translation>
     </message>
     <message>
         <source>Novell NE2000 (NE2000)</source>
         <comment>NetworkAdapterType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Novell NE2000 (NE2000)</translation>
     </message>
     <message>
         <source>Novell NE1000 (NE1000)</source>
         <comment>NetworkAdapterType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Novell NE1000 (NE1000)</translation>
     </message>
     <message>
         <source>WD EtherCard Plus 16 (WD8013EBT)</source>
         <comment>NetworkAdapterType</comment>
-        <translation type="unfinished"></translation>
+        <translation>WD EtherCard Plus 16 (WD8013EBT)</translation>
     </message>
     <message>
         <source>WD EtherCard Plus (WD8013E)</source>
         <comment>NetworkAdapterType</comment>
-        <translation type="unfinished"></translation>
+        <translation>WD EtherCard Plus (WD8013E)</translation>
     </message>
     <message>
         <source>3Com EtherLink II (3C503)</source>
         <comment>NetworkAdapterType</comment>
-        <translation type="unfinished"></translation>
+        <translation>3Com EtherLink II (3C503)</translation>
     </message>
     <message>
         <source>3Com EtherLink (3C501)</source>
         <comment>NetworkAdapterType</comment>
-        <translation type="unfinished"></translation>
+        <translation>3Com EtherLink (3C501)</translation>
     </message>
     <message>
         <source>Default</source>
         <comment>AudioDriverType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Baku</translation>
     </message>
     <message>
         <source>Null Audio</source>
         <comment>AudioDriverType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Audio Null</translation>
     </message>
     <message>
         <source>OSS Audio</source>
         <comment>AudioDriverType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Audio OSS</translation>
     </message>
     <message>
         <source>ALSA Audio</source>
         <comment>AudioDriverType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Audio ALSA</translation>
     </message>
     <message>
         <source>Windows Audio Session</source>
         <comment>AudioDriverType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Sesi Audio Windows</translation>
     </message>
     <message>
         <source>Core Audio</source>
         <comment>AudioDriverType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Core Audio</translation>
     </message>
     <message>
         <source>Undefined</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Tak ditentukan</translation>
     </message>
     <message>
         <source>Started</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Dimulai</translation>
     </message>
     <message>
         <source>Terminating</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Mengakhiri</translation>
     </message>
     <message>
         <source>Terminated (Normally)</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Diakhir (Secara normal)</translation>
     </message>
     <message>
         <source>Terminated (Signal)</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Diakhir (Sinyal)</translation>
     </message>
     <message>
         <source>Terminated (Abnormally)</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Diakhir (Secara tidak normal)</translation>
     </message>
     <message>
         <source>Timed Out (Killed)</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Habis Waktu (Dimatikan)</translation>
     </message>
     <message>
         <source>Timed Out (Abnormally)</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Habis Waktu (Secara tidak normal)</translation>
     </message>
     <message>
         <source>Down</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Mati</translation>
     </message>
     <message>
         <source>Error</source>
         <comment>ProcessStatus</comment>
-        <translation type="unfinished"></translation>
+        <translation>Kesalahan</translation>
     </message>
     <message>
         <source>Host Only Network</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan Hanya Host</translation>
     </message>
     <message>
         <source>Visual State</source>
-        <translation type="unfinished"></translation>
+        <translation>Keadaan Visual</translation>
     </message>
     <message>
         <source>Follow System Settings</source>
         <comment>color theme</comment>
-        <translation type="unfinished"></translation>
+        <translation>Mengikuti Pengaturan Sistem</translation>
     </message>
     <message>
         <source>Light</source>
         <comment>color theme</comment>
-        <translation type="unfinished"></translation>
+        <translation>Terang</translation>
     </message>
     <message>
         <source>Dark</source>
         <comment>color theme</comment>
-        <translation type="unfinished"></translation>
+        <translation>Gelap</translation>
     </message>
     <message>
         <source>Normal (window)</source>
         <comment>visual state</comment>
-        <translation type="unfinished"></translation>
+        <translation>Normal (jendela)</translation>
     </message>
     <message>
         <source>Full-screen</source>
         <comment>visual state</comment>
-        <translation type="unfinished"></translation>
+        <translation>Layar penuh</translation>
     </message>
     <message>
         <source>Seamless</source>
         <comment>visual state</comment>
-        <translation type="unfinished"></translation>
+        <translation>Seamless</translation>
     </message>
     <message>
         <source>Scaled</source>
         <comment>visual state</comment>
-        <translation type="unfinished"></translation>
+        <translation>Diskalakan</translation>
     </message>
     <message>
         <source>Leave Unchanged</source>
         <comment>cipher type</comment>
-        <translation type="unfinished">Biarkan Tak Berubah</translation>
+        <translation>Biarkan Tak Berubah</translation>
     </message>
     <message>
         <source>Any</source>
         <comment>USB filter remote</comment>
-        <translation type="unfinished">Apa saja</translation>
+        <translation>Apa saja</translation>
     </message>
     <message>
         <source>Yes</source>
         <comment>USB filter remote</comment>
-        <translation type="unfinished">Ya</translation>
+        <translation>Ya</translation>
     </message>
     <message>
         <source>No</source>
         <comment>USB filter remote</comment>
-        <translation type="unfinished">Tidak</translation>
+        <translation>Tidak</translation>
     </message>
     <message>
         <source>None</source>
         <comment>Maximum Guest Screen Size</comment>
-        <translation type="unfinished"></translation>
+        <translation>Nihil</translation>
     </message>
     <message>
         <source>Hint</source>
         <comment>Maximum Guest Screen Size</comment>
-        <translation type="unfinished">Arahan</translation>
+        <translation>Arahan</translation>
     </message>
     <message>
         <source>Automatic</source>
         <comment>Maximum Guest Screen Size</comment>
-        <translation type="unfinished">Otomatis</translation>
+        <translation>Otomatis</translation>
     </message>
     <message>
         <source>None</source>
         <comment>UISettingsDefs::RecordingMode</comment>
-        <translation type="unfinished"></translation>
+        <translation>Nihil</translation>
     </message>
     <message>
         <source>None</source>
         <comment>TpmType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Nihil</translation>
     </message>
     <message>
         <source>v1.2</source>
         <comment>TpmType</comment>
-        <translation type="unfinished"></translation>
+        <translation>v1.2</translation>
     </message>
     <message>
         <source>v2.0</source>
         <comment>TpmType</comment>
-        <translation type="unfinished"></translation>
+        <translation>v2.0</translation>
     </message>
     <message>
         <source>Host</source>
         <comment>TpmType</comment>
-        <translation type="unfinished">Host</translation>
+        <translation>Host</translation>
     </message>
     <message>
         <source>SWTPM</source>
         <comment>TpmType</comment>
-        <translation type="unfinished"></translation>
+        <translation>SWTPM</translation>
     </message>
     <message>
         <source>TPM Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipe TPM</translation>
     </message>
     <message>
         <source>Secure Boot</source>
-        <translation type="unfinished"></translation>
+        <translation>Boot Aman</translation>
     </message>
 </context>
 <context>
@@ -6083,18 +6094,18 @@
     <name>UIDefaultMachineFolderEditor</name>
     <message>
         <source>Default &amp;Machine Folder:</source>
-        <translation type="unfinished">Folder Baku &amp;Mesin:</translation>
+        <translation>Folder Baku &amp;Mesin:</translation>
     </message>
     <message>
         <source>Holds the path to the default virtual machine folder. This folder is used, if not explicitly specified otherwise, when creating new virtual machines.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan path ke folder mesin virtual baku. Folder ini dipakai, bila tidak dinyatakan lain secara eksplisit, ketika membuat mesin virtual baru.</translation>
     </message>
 </context>
 <context>
     <name>UIDescriptionEditor</name>
     <message>
         <source>Holds the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan deskripsi mesin virtual. Field deskripsi berguna untuk memberikan komentar pada detail konfigurasi dari OS guest yang terpasang.</translation>
     </message>
 </context>
 <context>
@@ -6535,37 +6546,37 @@
     <message>
         <source>Enabled</source>
         <comment>details (cloud value)</comment>
-        <translation type="unfinished"></translation>
+        <translation>Difungsikan</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (cloud value)</comment>
-        <translation type="unfinished"></translation>
+        <translation>Dinonaktifkan</translation>
     </message>
     <message>
         <source>Host-only Network, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan Hanya-host, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Visual State</source>
         <comment>details (user interface)</comment>
-        <translation type="unfinished"></translation>
+        <translation>Keadaan Visual</translation>
     </message>
     <message>
         <source>TPM Type</source>
         <comment>details (system)</comment>
-        <translation type="unfinished"></translation>
+        <translation>Tipe TPM</translation>
     </message>
     <message>
         <source>Secure Boot</source>
         <comment>details (system)</comment>
-        <translation type="unfinished"></translation>
+        <translation>Boot Aman</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (system/secure boot)</comment>
-        <translation type="unfinished"></translation>
+        <translation>Difungsikan</translation>
     </message>
 </context>
 <context>
@@ -6755,11 +6766,11 @@
     </message>
     <message>
         <source>Copy value (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Salin nilai (%1)</translation>
     </message>
     <message>
         <source>Edit value...</source>
-        <translation type="unfinished"></translation>
+        <translation>Sunting nilai...</translation>
     </message>
 </context>
 <context>
@@ -7068,111 +7079,111 @@
     </message>
     <message>
         <source>Contains a list of Virtual Machine details.</source>
-        <translation type="unfinished"></translation>
+        <translation>Berisi daftar rincian Mesin Virtual</translation>
     </message>
 </context>
 <context>
     <name>UIDialogPanel</name>
     <message>
         <source>Close the pane</source>
-        <translation type="unfinished">Tutup panel</translation>
+        <translation>Tutup panel</translation>
     </message>
 </context>
 <context>
     <name>UIDiskEncryptionSettingsEditor</name>
     <message>
         <source>En&amp;able Disk Encryption</source>
-        <translation type="unfinished">Fungsik&amp;an Enkripsi Disk</translation>
+        <translation>Fungsik&amp;an Enkripsi Disk</translation>
     </message>
     <message>
         <source>When checked, disks attached to this virtual machine will be encrypted.</source>
-        <translation type="unfinished">Saat dicentang, disk yang dicantolkan ke mesin virtual ini akan dienkripsi</translation>
+        <translation>Saat dicentang, disk yang dicantolkan ke mesin virtual ini akan dienkripsi.</translation>
     </message>
     <message>
         <source>Disk Encryption C&amp;ipher:</source>
-        <translation type="unfinished">C&amp;ipher Enkripsi Disk:</translation>
+        <translation>C&amp;ipher Enkripsi Disk:</translation>
     </message>
     <message>
         <source>Holds the cipher to be used for encrypting the virtual machine disks.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan cipher yang akan dipakai untuk mengenkripsi disk mesin virtual.</translation>
     </message>
     <message>
         <source>E&amp;nter New Password:</source>
-        <translation type="unfinished">Masukka&amp;n Password Baru:</translation>
+        <translation>Masukka&amp;n Kata Sandi Baru:</translation>
     </message>
     <message>
         <source>Holds the encryption password for disks attached to this virtual machine.</source>
-        <translation type="unfinished">Menyimpan password enkripsi untuk disk yang dicantolkan ke mesin virtual ini.</translation>
+        <translation>Menyimpan kata sandi enkripsi untuk disk yang dicantolkan ke mesin virtual ini.</translation>
     </message>
     <message>
         <source>C&amp;onfirm New Password:</source>
-        <translation type="unfinished">K&amp;onfirmasi Password Baru:</translation>
+        <translation>K&amp;onfirmasi Kata Sandi Baru:</translation>
     </message>
     <message>
         <source>Confirms the disk encryption password.</source>
-        <translation type="unfinished">Konfirmasikan password enkripsi disk.</translation>
+        <translation>Mengonfirmasi kata sandi enkripsi disk.</translation>
     </message>
     <message>
         <source>Leave Unchanged</source>
         <comment>cipher type</comment>
-        <translation type="unfinished">Biarkan Tak Berubah</translation>
+        <translation>Biarkan Tak Berubah</translation>
     </message>
 </context>
 <context>
     <name>UIDiskVariantWidget</name>
     <message>
         <source>Pre-allocate &amp;Full Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Pra-alokasikan Ukuran &amp;Penuh</translation>
     </message>
     <message>
         <source>When checked, the virtual disk image is allocated with its full size during VM creation time</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, image disk virtual dialokasikan dengan ukuran penuh saat pembuatan VM</translation>
     </message>
     <message>
         <source>&amp;Split into 2GB parts</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Pecah ke dalam bagian 2GB</translation>
     </message>
     <message>
         <source>When checked, the virtual hard disk file is split into 2GB parts.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, berkas hard disk virtual dipecah ke dalam bagian-bagian 2GB.</translation>
     </message>
 </context>
 <context>
     <name>UIDisplayFeaturesEditor</name>
     <message>
         <source>Extended Features:</source>
-        <translation type="unfinished">Fitur Tambahan:</translation>
+        <translation>Fitur Tambahan:</translation>
     </message>
     <message>
         <source>&amp;Raise Window Under Mouse Pointer</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Apungkan Jendela Di Bawah Penunjuk Tetikus</translation>
     </message>
     <message>
         <source>When checked, machine windows will be raised when the mouse pointer moves over them.</source>
-        <translation type="unfinished">Saat dicentang, jendela mesin akan diapungkan ketika penunjuk mouse bergerak di atas mereka.</translation>
+        <translation>Saat dicentang, jendela mesin akan diapungkan ketika penunjuk tetikus bergerak di atas mereka.</translation>
     </message>
     <message>
         <source>&amp;Disable Host Screen Saver</source>
-        <translation type="unfinished"></translation>
+        <translation>Matikan &amp;Screen Saver Host</translation>
     </message>
     <message>
         <source>When checked, screen saver of the host OS is disabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bila dicentang, screen saver dari OS host dimatikan.</translation>
     </message>
 </context>
 <context>
     <name>UIDisplayScreenFeaturesEditor</name>
     <message>
         <source>Extended Features:</source>
-        <translation type="unfinished">Fitur Tambahan:</translation>
+        <translation>Fitur Tambahan:</translation>
     </message>
     <message>
         <source>Enable &amp;3D Acceleration</source>
-        <translation type="unfinished">Fungsikan Akselerasi &amp;3D</translation>
+        <translation>Fungsikan Akselerasi &amp;3D</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will be given access to the 3D graphics capabilities available on the host.</source>
-        <translation type="unfinished">Bila ditandai, mesin virtual akan diberi akses ke kapabilitas grafis 3D yang tersedia di host.</translation>
+        <translation>Bila dicentang, mesin virtual akan diberi akses ke kapabilitas grafis 3D yang tersedia di host.</translation>
     </message>
 </context>
 <context>
@@ -7282,11 +7293,11 @@
     <name>UIDownloaderGuestAdditions</name>
     <message>
         <source>VirtualBox Guest Additions</source>
-        <translation type="unfinished">Guest Additions VirtualBox</translation>
+        <translation>Guest Addition VirtualBox</translation>
     </message>
     <message>
         <source>Select folder to save Guest Additions image to</source>
-        <translation type="unfinished">Pilih folder untuk menyimpan image Guest Additions</translation>
+        <translation>Pilih folder untuk menyimpan image Guest Addition</translation>
     </message>
 </context>
 <context>
@@ -7304,11 +7315,11 @@
     <name>UIDragAndDropEditor</name>
     <message>
         <source>D&amp;rag&apos;n&apos;Drop:</source>
-        <translation type="unfinished">Se&amp;ret-Jatuhkan:</translation>
+        <translation>Se&amp;ret-&amp;&amp; Jatuhkan:</translation>
     </message>
     <message>
         <source>Holds which data will be copied between the guest and the host OS by drag&apos;n&apos;drop. This feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan data mana yang akan disalin antar guest dan OS host dengan seret &amp;&amp; jatuhkan. Fitur ini memerlukan dipasangnya Guest Addition dalam OS guest.</translation>
     </message>
 </context>
 <context>
@@ -7355,46 +7366,46 @@
     <message>
         <source>Result&amp;nbsp;Code:</source>
         <comment>error info</comment>
-        <translation type="unfinished"></translation>
+        <translation>Kode&amp;nbsp;Hasil:</translation>
     </message>
     <message>
         <source>Component:</source>
         <comment>error info</comment>
-        <translation type="unfinished"></translation>
+        <translation>Komponen:</translation>
     </message>
     <message>
         <source>Interface:</source>
         <comment>error info</comment>
-        <translation type="unfinished"></translation>
+        <translation>Antar Muka:</translation>
     </message>
     <message>
         <source>Callee:</source>
         <comment>error info</comment>
-        <translation type="unfinished"></translation>
+        <translation>Yang Dipanggil:</translation>
     </message>
     <message>
         <source>Callee&amp;nbsp;RC:</source>
         <comment>error info</comment>
-        <translation type="unfinished"></translation>
+        <translation>RC&amp;nbsp;Yang Dipanggil:</translation>
     </message>
 </context>
 <context>
     <name>UIExecutionCapEditor</name>
     <message>
         <source>&amp;Execution Cap:</source>
-        <translation type="unfinished">Batas &amp;Eksekusi:</translation>
+        <translation>Batas &amp;Eksekusi:</translation>
     </message>
     <message>
         <source>Limits the amount of time that each virtual CPU is allowed to run for. Each virtual CPU will be allowed to use up to this percentage of the processing time available on one physical CPU.</source>
-        <translation type="unfinished"></translation>
+        <translation>Membatasi banyaknya waktu yang diizinkan bagi setiap CPU virtual berjalan. Setiap CPU virtual akan diizinkan memakai sampai dengan persentase ini dari waktu pemrosesan yang tersedia pada satu CPU fisik.</translation>
     </message>
     <message>
         <source>Minimum possible execution cap.</source>
-        <translation type="unfinished"></translation>
+        <translation>Batas eksekusi minimum yang mungkin.</translation>
     </message>
     <message>
         <source>Maximum possible virtual CPU count.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cacah CPU virtual maksimum yang mungkin.</translation>
     </message>
 </context>
 <context>
@@ -7549,55 +7560,55 @@
     <message>
         <source>Active</source>
         <comment>ext pack</comment>
-        <translation type="unfinished">Aktif</translation>
+        <translation>Aktif</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Nama</translation>
+        <translation>Nama</translation>
     </message>
     <message>
         <source>Version</source>
-        <translation type="unfinished">Versi</translation>
+        <translation>Versi</translation>
     </message>
     <message>
         <source>Registered extension packs</source>
-        <translation type="unfinished"></translation>
+        <translation>Extension pack yang terdaftar</translation>
     </message>
     <message>
         <source>Select an extension package file</source>
-        <translation type="unfinished">Pilih sebuah berkas paket ekstensi</translation>
+        <translation>Pilih sebuah berkas paket ekstensi</translation>
     </message>
     <message>
         <source>Extension package files (%1)</source>
-        <translation type="unfinished">Berkas paket ekstensi (%1)</translation>
+        <translation>Berkas paket ekstensi (%1)</translation>
     </message>
     <message>
         <source>Extension Pack Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Manajer Extension Pack</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Tutup</translation>
+        <translation>Tutup</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
     <message>
         <source>Close dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutup dialog</translation>
     </message>
     <message>
         <source>Show dialog help</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan bantuan dialog</translation>
     </message>
     <message>
         <source>Close Window (%1)</source>
-        <translation type="unfinished">Tutup Jendela (%1)</translation>
+        <translation>Tutup Jendela (%1)</translation>
     </message>
     <message>
         <source>Show Help (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bantuan (%1)</translation>
     </message>
 </context>
 <context>
@@ -7653,39 +7664,39 @@
     </message>
     <message>
         <source>File &amp;Path:</source>
-        <translation type="unfinished">&amp;Path Berkas:</translation>
+        <translation>&amp;Path Berkas:</translation>
     </message>
     <message>
         <source>&amp;Size:</source>
-        <translation type="unfinished">&amp;Ukuran:</translation>
+        <translation>&amp;Ukuran:</translation>
     </message>
     <message>
         <source>Sets the size of the floppy disk.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menata ukuran disk floppy.</translation>
     </message>
     <message>
         <source>&amp;Format disk as FAT12</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Format disk sebagai FAT12</translation>
     </message>
     <message>
         <source>Formats the floppy disk as FAT12.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memformat disk sebagai FAT12.</translation>
     </message>
     <message>
         <source>2.88M</source>
-        <translation type="unfinished">2.88M</translation>
+        <translation>2.88M</translation>
     </message>
     <message>
         <source>Create the disk and close this dialog.</source>
-        <translation type="unfinished"></translation>
+        <translation>Membuat disk dan menutup dialog ini.</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">Batal</translation>
+        <translation>Batal</translation>
     </message>
     <message>
         <source>File already exists</source>
-        <translation type="unfinished"></translation>
+        <translation>Berkas sudah ada</translation>
     </message>
 </context>
 <context>
@@ -7828,11 +7839,11 @@
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Nama</translation>
+        <translation>Nama</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished">Ukuran</translation>
+        <translation>Ukuran</translation>
     </message>
     <message>
         <source>No Guest Session</source>
@@ -8008,83 +8019,83 @@
     </message>
     <message>
         <source>Close dialog without saving</source>
-        <translation type="unfinished">Tutup dialog tanpa menyimpan</translation>
+        <translation>Tutup dialog tanpa menyimpan</translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="unfinished">Reset Perubahan (%1)</translation>
+        <translation>Reset Perubahan (%1)</translation>
     </message>
     <message>
         <source>File Manager</source>
-        <translation type="unfinished">Manajer Berkas</translation>
+        <translation>Manajer Berkas</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
     <message>
         <source>Show dialog help</source>
-        <translation type="unfinished"></translation>
+        <translation>Menampilkan bantuan dialog</translation>
     </message>
     <message>
         <source>Show Help (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bantuan (%1)</translation>
     </message>
     <message>
         <source>Open Session</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Sesi</translation>
     </message>
     <message>
         <source>Guest File System:</source>
-        <translation type="unfinished"></translation>
+        <translation>Sistem Berkas Guest:</translation>
     </message>
     <message>
         <source>Machine reference is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>Acuan mesin tidak valid.</translation>
     </message>
     <message>
         <source>File manager cannot work since the selected guest is not currently running.</source>
-        <translation type="unfinished"></translation>
+        <translation>Manajer berkas tidak dapat bekerja karena guest yang dipilih saat ini tidak sedang berjalan.</translation>
     </message>
     <message>
         <source>File manager cannot work since the guest is paused.</source>
-        <translation type="unfinished"></translation>
+        <translation>Manajer berkas tidak dapat bekerja karena guest diistirahatkan.</translation>
     </message>
     <message>
         <source>File manager cannot work since the selected guest does not have the guest additions.</source>
-        <translation type="unfinished"></translation>
+        <translation>Manajer berkas tidak dapat bekerja karena guest yang dipilih tidak memiliki guest addition.</translation>
     </message>
     <message>
         <source>Enter a valid user name and password to initiate the file manager.</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukkan sebuah nama pengguna dan kata sandi yang valid untuk mengawali manajer berkas.</translation>
     </message>
     <message>
         <source>Guest control session is running.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sesi kendali guest sedang berjalan.</translation>
     </message>
     <message>
         <source>Some error has occurred. Please check the log panel.</source>
-        <translation type="unfinished"></translation>
+        <translation>Beberapa kesalahan telah terjadi. Harap periksa panel log.</translation>
     </message>
     <message>
         <source>Host File System:</source>
-        <translation type="unfinished"></translation>
+        <translation>Sistem Berkas Host:</translation>
     </message>
     <message>
         <source>Host</source>
-        <translation type="unfinished">Host</translation>
+        <translation>Host</translation>
     </message>
     <message>
         <source>Change Time</source>
-        <translation type="unfinished">Waktu Berubah</translation>
+        <translation>Waktu Berubah</translation>
     </message>
     <message>
         <source>Owner</source>
-        <translation type="unfinished">Pemilik</translation>
+        <translation>Pemilik</translation>
     </message>
     <message>
         <source>Permissions</source>
-        <translation type="unfinished">Izin</translation>
+        <translation>Izin</translation>
     </message>
 </context>
 <context>
@@ -8336,11 +8347,11 @@
     </message>
     <message>
         <source>Minimum possible scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Faktor skala minimum yang mungkin.</translation>
     </message>
     <message>
         <source>Maximum possible scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Faktor skala maksimum yang mungkin.</translation>
     </message>
 </context>
 <context>
@@ -10247,7 +10258,7 @@
     </message>
     <message>
         <source>Selects the graphics adapter type the virtual machine will use.</source>
-        <translation type="unfinished">Pilih tipe adaptor grafis yang akan dipakai oleh mesin virtual.</translation>
+        <translation>Pilih tipe adaptor grafis yang akan dipakai oleh mesin virtual.</translation>
     </message>
 </context>
 <context>
@@ -10388,203 +10399,203 @@
     <name>UIHelpBrowserWidget</name>
     <message>
         <source>Oracle VM VirtualBox User Manual</source>
-        <translation type="unfinished"></translation>
+        <translation>Manual Pengguna Oracle VM VirtualBox</translation>
     </message>
     <message>
         <source>Return to Start Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Kembali ke Halaman Awal</translation>
     </message>
     <message>
         <source>Reload the Current Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Muat Ulang Halaman Ini</translation>
     </message>
     <message>
         <source>Go Forward to Next Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Maju Ke Halaman Selanjutnya</translation>
     </message>
     <message>
         <source>Go Back to Previous Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Kembali Ke Halaman Sebelumnya</translation>
     </message>
     <message>
         <source>Add a New Bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Markah Baru</translation>
     </message>
     <message>
         <source>&lt;div&gt;&lt;p&gt;&lt;h3&gt;404. Not found.&lt;/h3&gt;The page &lt;b&gt;%1&lt;/b&gt; could not be found.&lt;/p&gt;&lt;/div&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;div&gt;&lt;p&gt;&lt;h3&gt;404. Tidak ditemukan.&lt;/h3&gt;Halaman &lt;b&gt;%1&lt;/b&gt; tidak bisa ditemukan.&lt;/p&gt;&lt;/div&gt;</translation>
     </message>
     <message>
         <source>Copy Selected Text</source>
-        <translation type="unfinished"></translation>
+        <translation>Salin Teks Yang Dipilih</translation>
     </message>
     <message>
         <source>Open Link</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Tautan</translation>
     </message>
     <message>
         <source>Open Link in New Tab</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Tautan dalam Tab Baru</translation>
     </message>
     <message>
         <source>Copy Link</source>
-        <translation type="unfinished"></translation>
+        <translation>Salin Tautan</translation>
     </message>
     <message>
         <source>Find in Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Cari di Halaman</translation>
     </message>
     <message>
         <source>Zoom</source>
-        <translation type="unfinished"></translation>
+        <translation>Zum</translation>
     </message>
     <message>
         <source>Home</source>
-        <translation type="unfinished"></translation>
+        <translation>Beranda</translation>
     </message>
     <message>
         <source>Backward</source>
-        <translation type="unfinished"></translation>
+        <translation>Mundur</translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation type="unfinished">Enter</translation>
+        <translation>Maju</translation>
     </message>
     <message>
         <source>Add Bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Markah</translation>
     </message>
     <message>
         <source>Reload</source>
-        <translation type="unfinished"></translation>
+        <translation>Muat Ulang</translation>
     </message>
     <message>
         <source>Find a String in the Current Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Cari String dalam Halaman Ini</translation>
     </message>
     <message>
         <source>Close Other Tabs</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutup Tab Lain</translation>
     </message>
     <message>
         <source>Close Tab</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutup Tab</translation>
     </message>
     <message>
         <source>&amp;File</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Berkas</translation>
     </message>
     <message>
         <source>&amp;Edit</source>
-        <translation type="unfinished">&amp;Sunting</translation>
+        <translation>&amp;Sunting</translation>
     </message>
     <message>
         <source>&amp;Navigation</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Navigasi</translation>
     </message>
     <message>
         <source>&amp;View</source>
-        <translation type="unfinished">&amp;Tilik</translation>
+        <translation>&amp;Tilik</translation>
     </message>
     <message>
         <source>&amp;Tabs</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Tab</translation>
     </message>
     <message>
         <source>Contents</source>
-        <translation type="unfinished"></translation>
+        <translation>Isi</translation>
     </message>
     <message>
         <source>Index</source>
-        <translation type="unfinished"></translation>
+        <translation>Indeks</translation>
     </message>
     <message>
         <source>Search</source>
-        <translation type="unfinished"></translation>
+        <translation>Cari</translation>
     </message>
     <message>
         <source>Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>Markah</translation>
     </message>
     <message>
         <source>Show &amp;Side Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bilah &amp;Sisi</translation>
     </message>
     <message>
         <source>Show &amp;Tool Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bilah Ala&amp;t</translation>
     </message>
     <message>
         <source>Show St&amp;atus Bar</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bilah St&amp;atus</translation>
     </message>
     <message>
         <source>&amp;Print...</source>
-        <translation type="unfinished">&amp;Cetak...</translation>
+        <translation>&amp;Cetak...</translation>
     </message>
     <message>
         <source>&amp;Quit</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Keluar</translation>
     </message>
     <message>
         <source>&amp;Copy Selected Text</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Salin Teks Yang Dipilih</translation>
     </message>
     <message>
         <source>&amp;Find in Page</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Cari di Halaman</translation>
     </message>
     <message>
         <source>Find Ne&amp;xt</source>
-        <translation type="unfinished"></translation>
+        <translation>Cari Selanjutn&amp;ya</translation>
     </message>
     <message>
         <source>Find &amp;Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>Cari Se&amp;belumnya</translation>
     </message>
     <message>
         <source>Go Backward</source>
-        <translation type="unfinished"></translation>
+        <translation>Mundur</translation>
     </message>
     <message>
         <source>Go Forward</source>
-        <translation type="unfinished"></translation>
+        <translation>Maju</translation>
     </message>
     <message>
         <source>Go to Start Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Ke Halaman Awal</translation>
     </message>
     <message>
         <source>Reload Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Muat Ulang Halaman</translation>
     </message>
     <message>
         <source>Click to open this link in an external browser</source>
-        <translation type="unfinished"></translation>
+        <translation>Klik untuk membuka tautan ini dalam peramban eksternal</translation>
     </message>
     <message>
         <source>Click to enlarge the image</source>
-        <translation type="unfinished"></translation>
+        <translation>Klik untuk memperbesar gambar</translation>
     </message>
     <message>
         <source>Delete Bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus Markah</translation>
     </message>
     <message>
         <source>Delete All Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus Semua Markah</translation>
     </message>
     <message>
         <source>Bookmark added:</source>
-        <translation type="unfinished"></translation>
+        <translation>Markah ditambahkan:</translation>
     </message>
     <message>
         <source>Close T&amp;ab</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutup T&amp;ab</translation>
     </message>
     <message>
         <source>Close &amp;Other Tabs</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutup Tab &amp;Lain</translation>
     </message>
 </context>
 <context>
@@ -11055,27 +11066,27 @@
     <name>UIHostnameDomainNameEditor</name>
     <message>
         <source>Hostname should be at least 2 character long. Allowed characters are alphanumerics, &quot;-&quot; and &quot;.&quot;</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama host mesti paling tidak 2 karakter. Karakter yang diizinkan adalah alfanumerik, &quot;-&quot;, dan &quot;.&quot;</translation>
     </message>
     <message>
         <source>Domain name should be at least 2 character long. Allowed characters are alphanumerics, &quot;-&quot; and &quot;.&quot;</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama domain mesti paling tidak 2 karakter. Karakter yang diizinkan adalah alfanumerik, &quot;-&quot;, dan &quot;.&quot;</translation>
     </message>
     <message>
         <source>Hostna&amp;me:</source>
-        <translation type="unfinished"></translation>
+        <translation>Na&amp;ma host:</translation>
     </message>
     <message>
         <source>Holds the hostname.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama host.</translation>
     </message>
     <message>
         <source>&amp;Domain Name:</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama &amp;Domain:</translation>
     </message>
     <message>
         <source>Holds the domain name.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama domain.</translation>
     </message>
 </context>
 <context>
@@ -12311,35 +12322,35 @@
     <name>UILanguageSettingsEditor</name>
     <message>
         <source>&amp;Interface Languages</source>
-        <translation type="unfinished">Bahasa &amp;Antar Muka</translation>
+        <translation>Bahasa &amp;Antar Muka</translation>
     </message>
     <message>
         <source>Lists all available user interface languages. The effective language is written in bold. Select Default to reset to the system default language.</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencantumkan semua bahasa antar muka pengguna yang tersedia. Bahasa yang sedang diterapkan dicetak tebal. Pilih Baku untuk mereset ke bahasa baku sistem.</translation>
     </message>
     <message>
         <source>Author</source>
-        <translation type="unfinished">Penulis</translation>
+        <translation>Penulis</translation>
     </message>
     <message>
         <source>Language</source>
-        <translation type="unfinished">Bahasa</translation>
+        <translation>Bahasa</translation>
     </message>
     <message>
         <source>Id</source>
-        <translation type="unfinished">Id</translation>
+        <translation>Id</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Nama</translation>
+        <translation>Nama</translation>
     </message>
     <message>
         <source>Language:</source>
-        <translation type="unfinished">Bahasa:</translation>
+        <translation>Bahasa:</translation>
     </message>
     <message>
         <source>Author(s):</source>
-        <translation type="unfinished"></translation>
+        <translation>Penulis:</translation>
     </message>
 </context>
 <context>
@@ -12436,7 +12447,7 @@
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished">Tidak dapat diakses</translation>
+        <translation>Tidak dapat diakses</translation>
     </message>
 </context>
 <context>
@@ -13442,11 +13453,11 @@
     </message>
     <message>
         <source>Host-only adapters are no longer supported, use host-only networks instead.</source>
-        <translation type="unfinished"></translation>
+        <translation>Adaptor hanya-host tidak lagi didukung, gunakan jaringan hanya-host sebagai pengganti.</translation>
     </message>
     <message>
         <source>No host-only network name is currently specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada nama jaringan hanya-host yang saat ini dinyatakan.</translation>
     </message>
 </context>
 <context>
@@ -13904,23 +13915,23 @@
     </message>
     <message>
         <source>Selects the serial port number. You can choose one of the standard serial ports or select User-defined and specify port parameters manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih nomor port serial. Anda dapat memilih satu dari port serial standar atau memilih Tentuan-pengguna dan menyatakan parameter port secara manual.</translation>
     </message>
     <message>
         <source>Holds the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the I/O APIC setting is enabled for this virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nomor IRQ dari port serial ini. Ini mesti berupa bilangan bulat antara &lt;tt&gt;0&lt;/tt&gt; dan &lt;tt&gt;255&lt;/tt&gt;. Nilai lebih dari &lt;tt&gt;15&lt;/tt&gt; hanya bisa digunakan bila pengaturan I/O APIC dinyalakan untuk mesin virtual ini.</translation>
     </message>
     <message>
         <source>Selects the working mode of this serial port. If you select Disconnected, the guest OS will detect the serial port but will not be able to operate it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih mode kerja dari port serial ini. Bila Anda memilih Terputus, OS guest akan mendeteksi port serial tapi tidak akan dapat mengoperasikannya.</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will assume that the pipe or socket specified in the Path/Address field exists and try to use it. Otherwise, the pipe or socket will be created by the virtual machine when it starts.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bila dicentang, mesin virtual akan mengasumsikan bahwa pipa atau soket yang dinyatakan dalam ruas Path/Alamat ada dan mencoba memakainya. Bila tidak, pipa atau soket akan dibuat oleh mesin virtual ketika itu dimulai.</translation>
     </message>
     <message>
         <source>In Host Pipe mode: Holds the path to the serial port&apos;s pipe on the host. Examples: &quot;\\.\pipe\myvbox&quot; or &quot;/tmp/myvbox&quot;, for Windows and UNIX-like systems respectively. In Host Device mode: Holds the host serial device name. Examples: &quot;COM1&quot; or &quot;/dev/ttyS0&quot;. In Raw File mode: Holds the file-path on the host system, where the serial output will be dumped. In TCP mode: Holds the TCP &quot;port&quot; when in server mode, or &quot;hostname:port&quot; when in client mode.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dalam mode Pipa Host: Menyimpan path ke pipa port serial pada host. Contoh: &quot;\\.\pipe\myvbox&quot; atau &quot;/tmp/myvbox&quot;, masing-masing untuk sistem Windows dan keluarga UNIX.Dalam mode Peranti Host: Menyimpan nama peranti serial host. Contoh: &quot;COM1&quot; atau &quot;/dev/ttyS0&quot;.Dalam mode Berkas Mentah: Menyimpan path berkas pada sistem host, dimana keluaran serial akan dicurahkan.Dalam mode TCP: Menyimpan &quot;port&quot; TCP ketika dalam mode server, atau &quot;nama_host:port&quot; ketika dalam mode klien.</translation>
     </message>
 </context>
 <context>
@@ -15240,27 +15251,27 @@
     <name>UIMaximumGuestScreenSizeEditor</name>
     <message>
         <source>Maximum Guest Screen &amp;Size:</source>
-        <translation type="unfinished">Ukuran Layar Guest Mak&amp;simum:</translation>
+        <translation>Ukuran Layar Guest Mak&amp;simum:</translation>
     </message>
     <message>
         <source>&amp;Width:</source>
-        <translation type="unfinished">&amp;Lebar:</translation>
+        <translation>&amp;Lebar:</translation>
     </message>
     <message>
         <source>Holds the maximum width which we would like the guest to use.</source>
-        <translation type="unfinished">Menyimpan lebar maksimum yang kita inginkan untuk dipakai oleh guest.</translation>
+        <translation>Menyimpan lebar maksimum yang kita inginkan untuk dipakai oleh guest.</translation>
     </message>
     <message>
         <source>&amp;Height:</source>
-        <translation type="unfinished">&amp;Tinggi:</translation>
+        <translation>&amp;Tinggi:</translation>
     </message>
     <message>
         <source>Holds the maximum height which we would like the guest to use.</source>
-        <translation type="unfinished">Menyimpan tinggi maksimum yang kita inginkan untuk dipakai oleh guest.</translation>
+        <translation>Menyimpan tinggi maksimum yang kita inginkan untuk dipakai oleh guest.</translation>
     </message>
     <message>
         <source>Selects maximum guest screen size policy.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih kebijakan ukuran layar guest maksimum.</translation>
     </message>
 </context>
 <context>
@@ -15685,103 +15696,103 @@
     </message>
     <message>
         <source>&amp;Attributes</source>
-        <translation type="unfinished">&amp;Atribut</translation>
+        <translation>&amp;Atribut</translation>
     </message>
     <message>
         <source>&amp;Information</source>
-        <translation type="unfinished">&amp;Informasi</translation>
+        <translation>&amp;Informasi</translation>
     </message>
     <message>
         <source>&amp;Type:</source>
-        <translation type="unfinished">&amp;Tipe:</translation>
+        <translation>&amp;Tipe:</translation>
     </message>
     <message>
         <source>&amp;Location:</source>
-        <translation type="unfinished">&amp;Lokasi:</translation>
+        <translation>&amp;Lokasi:</translation>
     </message>
     <message>
         <source>&amp;Description:</source>
-        <translation type="unfinished">&amp;Deskripsi:</translation>
+        <translation>&amp;Deskripsi:</translation>
     </message>
     <message>
         <source>&amp;Size:</source>
-        <translation type="unfinished">&amp;Ukuran:</translation>
+        <translation>&amp;Ukuran:</translation>
     </message>
     <message>
         <source>Holds the type of this medium.</source>
-        <translation type="unfinished">Menyimpan tipe medium ini.</translation>
+        <translation>Menyimpan tipe medium ini.</translation>
     </message>
     <message>
         <source>Holds the location of this medium.</source>
-        <translation type="unfinished">Menyimpan lokasi medium ini.</translation>
+        <translation>Menyimpan lokasi medium ini.</translation>
     </message>
     <message>
         <source>Choose Medium Location</source>
-        <translation type="unfinished">Pilih Lokasi Medium</translation>
+        <translation>Pilih Lokasi Medium</translation>
     </message>
     <message>
         <source>Holds the description of this medium.</source>
-        <translation type="unfinished">Menyimpan deskripsi medium ini.</translation>
+        <translation>Menyimpan deskripsi medium ini.</translation>
     </message>
     <message>
         <source>Holds the size of this medium.</source>
-        <translation type="unfinished">Menyimpan ukuran medium ini.</translation>
+        <translation>Menyimpan ukuran medium ini.</translation>
     </message>
     <message>
         <source>Location cannot be empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Lokasi tidak boleh kosong.</translation>
     </message>
     <message>
         <source>Cannot change medium size from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt; as storage shrinking is currently not implemented.</source>
-        <translation type="unfinished">Tidak bisa mengubah ukuran medium dari &lt;b&gt;%1&lt;/b&gt; menjadi &lt;b&gt;%2&lt;/b&gt; karena penyusutan penyimpanan saat in belum diimplementasi.</translation>
+        <translation>Tidak bisa mengubah ukuran medium dari &lt;b&gt;%1&lt;/b&gt; menjadi &lt;b&gt;%2&lt;/b&gt; karena penyusutan penyimpanan saat in belum diimplementasi.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly or indirectly, preserved when taking snapshots.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara langsung atau tak langsung, dilestarikan ketika mengambil snapshot.</translation>
+        <translation>Tipe medium ini dicantol secara langsung atau tak langsung, dilestarikan ketika mengambil snapshot.</translation>
     </message>
     <message>
         <source>This type of medium is attached indirectly, changes are wiped out the next time the virtual machine is started.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara tak langsung, perubahan disapu habis saat mesin virtual dijalankan berikutnya.</translation>
+        <translation>Tipe medium ini dicantol secara tak langsung, perubahan disapu habis saat mesin virtual dijalankan berikutnya.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly, ignored when taking snapshots.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara langsung, diabaikan ketika mengambil snapshot.</translation>
+        <translation>Tipe medium ini dicantol secara langsung, diabaikan ketika mengambil snapshot.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly, allowed to be used concurrently by several machines.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipe medium ini dicantol secara langsung, diizinkan untuk dipakai bersamaan oleh beberapa mesin.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly, and can be used by several machines.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara langsung, dan dapat dipakai oleh beberapa mesin.</translation>
+        <translation>Tipe medium ini dicantol secara langsung, dan dapat dipakai oleh beberapa mesin.</translation>
     </message>
     <message>
         <source>This type of medium is attached indirectly, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara tak langsung, sehingga satu medium basis dapat dipakai bagi beberapa VM yang memiliki medium pembeda masing-masing untuk menyimpan perubahan mereka.</translation>
+        <translation>Tipe medium ini dicantol secara tak langsung, sehingga satu medium basis dapat dipakai bagi beberapa VM yang memiliki medium pembeda masing-masing untuk menyimpan perubahan mereka.</translation>
     </message>
     <message>
         <source>Registered hard drives</source>
-        <translation type="unfinished"></translation>
+        <translation>Hard disk yang terdaftar</translation>
     </message>
     <message>
         <source>Registered optical disks</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk optik yang terdaftar</translation>
     </message>
     <message>
         <source>Registered floppy disks</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk floppy yang terdaftar</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
     <message>
         <source>Show dialog help</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan bantuan dialog</translation>
     </message>
     <message>
         <source>Show Help (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bantuan (%1)</translation>
     </message>
 </context>
 <context>
@@ -15823,15 +15834,15 @@
     </message>
     <message>
         <source>Enter the search term and press Enter/Return</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukkan istilah yang dicari dan tekan Enter/Return</translation>
     </message>
     <message>
         <source>Show the previous item matching the search term</source>
-        <translation type="unfinished"></translation>
+        <translation>Menampilkan butir sebelumnya yang cocok dengan pencarian</translation>
     </message>
     <message>
         <source>Show the next item matching the search term</source>
-        <translation type="unfinished"></translation>
+        <translation>Menampilkan butir setelahnya yang cocok dengan pencarian</translation>
     </message>
 </context>
 <context>
@@ -15926,54 +15937,54 @@
     </message>
     <message>
         <source>&amp;Cancel</source>
-        <translation type="unfinished">&amp;Batal</translation>
+        <translation>&amp;Batal</translation>
     </message>
     <message>
         <source>Leave &amp;Empty</source>
-        <translation type="unfinished"></translation>
+        <translation>Biarkan &amp;Kosong</translation>
     </message>
     <message>
         <source>Leave the drive empty</source>
-        <translation type="unfinished"></translation>
+        <translation>Biarkan drive kosong</translation>
     </message>
     <message>
         <source>C&amp;hoose</source>
-        <translation type="unfinished"></translation>
+        <translation>Pili&amp;h</translation>
     </message>
     <message>
         <source>Attach the selected medium to the drive</source>
-        <translation type="unfinished"></translation>
+        <translation>Cantolkan medium yang dipilih ke drive</translation>
     </message>
 </context>
 <context>
     <name>UIMediumSizeAndPathGroupBox</name>
     <message>
         <source>Disk file name is not unique</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama berkas disk tidak unik</translation>
     </message>
     <message>
         <source>Holds the location of the virtual disk file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan lokasi dari berkas disk virtual.</translation>
     </message>
     <message>
         <source>Opens file selection dialog so that a location for the disk file can be selected.</source>
-        <translation type="unfinished"></translation>
+        <translation>Membuka dialog pemilihan berkas sehingga suatu lokasi bagi berkas disk dapat dipilih.</translation>
     </message>
     <message>
         <source>Hard Disk File Location and Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Lokasi dan Ukuran Berkas Hard Disk</translation>
     </message>
     <message>
         <source>Specify a location for new virtual hard disk file...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyatakan suatu lokasi bagi berkas hard disk virtual baru...</translation>
     </message>
     <message>
         <source>Please type the name of the new virtual hard disk file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation type="unfinished">Silakan ketik nama berkas hard disk virtual baru ke kotak di bawah atau klik pada ikon folder untuk memilih folder lain tempat mencipta berkas.</translation>
+        <translation>Silakan ketik nama berkas hard disk virtual baru ke kotak di bawah atau klik pada ikon folder untuk memilih folder lain tempat mencipta berkas.</translation>
     </message>
     <message>
         <source>Select the size of the virtual hard disk in megabytes. This size is the limit on the amount of file data that a virtual machine will be able to store on the hard disk.</source>
-        <translation type="unfinished">Pilih ukuran image hard disk virtual dalam megabyte. Ukuran ini adalah batas banyaknya data berkas yang dapat disimpan oleh mesin virtual pada hard disk.</translation>
+        <translation>Pilih ukuran image hard disk virtual dalam megabyte. Ukuran ini adalah batas banyaknya data berkas yang dapat disimpan oleh mesin virtual pada hard disk.</translation>
     </message>
 </context>
 <context>
@@ -15988,11 +15999,11 @@
     </message>
     <message>
         <source>Minimum size for this medium.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukuran minimum bagi medium ini.</translation>
     </message>
     <message>
         <source>Maximum size for this medium.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukuran maksimum bagi medium ini.</translation>
     </message>
 </context>
 <context>
@@ -16076,7 +16087,7 @@
     </message>
     <message>
         <source>Allows to modify VM menu-bar contents.</source>
-        <translation type="unfinished">Mengijinkan mengubah isi bilah menu VM.</translation>
+        <translation>Mengizinkan mengubah isi bilah menu VM.</translation>
     </message>
 </context>
 <context>
@@ -16885,7 +16896,7 @@
     </message>
     <message>
         <source>Failed to create appliance.</source>
-        <translation type="unfinished">Gagal menciptakan appliance.</translation>
+        <translation>Gagal menciptakan appliance.</translation>
     </message>
     <message>
         <source>Failed to prepare the export of the appliance &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -18171,880 +18182,880 @@
     </message>
     <message>
         <source>Failed to set global host settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menata pengaturan host global.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to terminate the cloud instance of the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Anda yakin ingin mengakhiri instansi clod dari mesin virtual berikut?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Terminate</source>
         <comment>cloud instance</comment>
-        <translation type="unfinished"></translation>
+        <translation>Akhiri</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove following cloud virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the instances and boot volumes of these machines as well?&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Anda akan menghapus mesin virtual cloud berikut dari daftar mesin:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Apakah Anda juga hendak menghapus instansi dan volume boot dari mesin ini juga?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Delete everything</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus segalanya</translation>
     </message>
     <message>
         <source>&lt;p&gt;As this hard disk is inaccessible its image file cannot be deleted.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Karena hard disk ini tidak dapat diakses, berkas image-nya tidak dapat dihapus.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>The list of inaccessible DVDs is as follows:</source>
-        <translation type="unfinished"></translation>
+        <translation>Daftar DVD yang tidak dapat diakses adalah yang berikut:</translation>
     </message>
     <message>
         <source>The list of inaccessible floppy disks is as follows:</source>
-        <translation type="unfinished"></translation>
+        <translation>Daftar disk floppy yang tidak dapat diakses adalah yang berikut:</translation>
     </message>
     <message>
         <source>&lt;p&gt;This will clear the optical disk list by releasing inaccessible DVDs from the virtual machines they are attached to and removing them from the list of registered media.&lt;p&gt;Are you sure?</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Ini akan membersihkan daftar disk optik dengan merilis DVD yang tidak bisa diakses dari mesin virtual tempat mereka tercantol dan menghapus mereka dari daftar media yang terdaftar.&lt;p&gt;Anda yakin?</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation type="unfinished">Bersih</translation>
+        <translation>Bersihkan</translation>
     </message>
     <message>
         <source>&lt;p&gt;This will clear the floppy disk list by releasing inaccessible disks from the virtual machines they are attached to and removing them from the list of registered media.&lt;p&gt;Are you sure?</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Ini akan membersihkan daftar disk floppy dengan merilis disk yang tidak bisa diakses dari mesin virtual tempat mereka tercantol dan menghapus mereka dari daftar media yang terdaftar.&lt;p&gt;Anda yakin?</translation>
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the cloud network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;If this network is in use by one or more virtual machine network adapters these adapters will no longer be usable until you correct their settings by either choosing a different network name or a different adapter attachment type.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Apakah Anda hendak menghapus jaringan cloud &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Bila jaringan ini sedang dipakai oleh adaptor jaringan satu mesin virtual atau lebih, adaptor tersebut tidak akan dapat dipakai lagi sampai Anda memperbaiki pengaturan mereka dengan memilih nama jaringan lain atau tipe pencantolan adaptor yang berbeda.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the host-only network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;If this network is in use by one or more virtual machine network adapters these adapters will no longer be usable until you correct their settings by either choosing a different network name or a different adapter attachment type.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Apakah Anda hendak menghapus jaringan hanya-host &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Bila jaringan ini sedang dipakai oleh adaptor jaringan satu mesin virtual atau lebih, adaptor tersebut tidak akan dapat dipakai lagi sampai Anda memperbaiki pengaturan mereka dengan memilih nama jaringan lain atau tipe pencantolan adaptor yang berbeda.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Do you want to close the Cloud Profile Manager?&lt;/p&gt;&lt;p&gt;There seems to be an unsaved changes. You can choose to &lt;b&gt;Accept&lt;/b&gt; or &lt;b&gt;Reject&lt;/b&gt; them automatically or cancel to keep the dialog opened.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Apakah Anda hendak menutup Manajer Profil Cloud?&lt;/p&gt;&lt;p&gt;Sepertinya ada perubahan yang belum disimpan. Anda dapat memilih &lt;b&gt;Terima&lt;/b&gt; atau &lt;b&gt;Tolak&lt;/b&gt; mereka secara otomatis atau membatalkan agar dialog tetap terbuka.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Accept</source>
         <comment>cloud profile manager changes</comment>
-        <translation type="unfinished"></translation>
+        <translation>Terima</translation>
     </message>
     <message>
         <source>Reject</source>
         <comment>cloud profile manager changes</comment>
-        <translation type="unfinished"></translation>
+        <translation>Tolak</translation>
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the cloud console application &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Apakah Anda ingin menghapus aplikasi konsol cloud &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the cloud console profile &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Apakah Anda ingin menghapus profil konsol cloud &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Error ID:&lt;/nobr&gt;</source>
         <comment>runtime error info</comment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;nobr&gt;ID Kesalahan:&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Severity:</source>
         <comment>runtime error info</comment>
-        <translation type="unfinished"></translation>
+        <translation>Keparahan:</translation>
     </message>
     <message>
         <source>Can&apos;t find help file ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa temukan berkas bantuan ...</translation>
     </message>
     <message>
         <source>Failed to find the following help file: &lt;b&gt;%1&lt;/b&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menemukan berkas bantuan berikut: &lt;b&gt;%1&lt;/b&gt;</translation>
     </message>
     <message>
         <source>Can&apos;t open URL ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa membuka URL ...</translation>
     </message>
     <message>
         <source>BETA build warning!</source>
-        <translation type="unfinished"></translation>
+        <translation>Peringatan build BETA!</translation>
     </message>
     <message>
         <source>Experimental build warning!</source>
-        <translation type="unfinished"></translation>
+        <translation>Peringatan build eksperimental!</translation>
     </message>
     <message>
         <source>Invalid Password ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kata Sandi Tidak Valid ...</translation>
     </message>
     <message>
         <source>Nothing to update ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada pembaruan ...</translation>
     </message>
     <message>
         <source>New version found ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Ditemukan versi baru ...</translation>
     </message>
     <message>
         <source>Update is required ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Pembaruan diperlukan ...</translation>
     </message>
     <message>
         <source>Unable to validate guest additions image ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak bisa memvalidasi image guest addition ...</translation>
     </message>
     <message>
         <source>User manual downloaded ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Manual pengguna diunduh ...</translation>
     </message>
     <message>
         <source>Unable to validate extension pack ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak bisa memvalidasi extension pack ...</translation>
     </message>
     <message>
         <source>Can&apos;t create machine folder ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa membuat folder mesin ...</translation>
     </message>
     <message>
         <source>Failed to create machine folder at &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal membuat folder mesin pada &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t overwrite machine folder ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menimpa folder mesin ...</translation>
     </message>
     <message>
         <source>Failed to overwrite machine folder at &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menimpa folder mesin pada &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t remove machine folder ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menghapus folder mesin ...</translation>
     </message>
     <message>
         <source>Failed to remove machine folder at &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menghapus folder mesin pada &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t add machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menambah mesin ...</translation>
     </message>
     <message>
         <source>Can&apos;t resolve collision ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mengurai tabrakan ...</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are trying to move machine &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to group &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; which already have another item with the same name.&lt;/p&gt;&lt;p&gt;Please resolve this name conflict and try again.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Anda mencoba memindah mesin &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; ke grup &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; yang telah memiliki butir lain dengan nama sama.&lt;/p&gt;&lt;p&gt;Harap selesaikan konflik nama ini dan coba lagi.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Cloud failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan cloud ...</translation>
     </message>
     <message>
         <source>Failed to acquire cloud machine settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal memperoleh pengaturan mesin cloud.</translation>
     </message>
     <message>
         <source>Can&apos;t create medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta medium ...</translation>
     </message>
     <message>
         <source>Failed to create medium storage at &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mencipta penyimpanan medium pada &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t overwrite medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menimpa medium ...</translation>
     </message>
     <message>
         <source>Failed to overwrite medium storage at &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menimpa penyimpanan medium pada &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t open license file ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa membuka berkas lisensi ...</translation>
     </message>
     <message>
         <source>Public key missing ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunci publik hilang ...</translation>
     </message>
     <message>
         <source>Public key file path is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Path berkas kunci publik kosong.</translation>
     </message>
     <message>
         <source>Failed to open the public key file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. File doesn&apos;t exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal membuka berkas kunci publik &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Berkas tidak ada.</translation>
     </message>
     <message>
         <source>Public key too large ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunci publik terlalu besar ...</translation>
     </message>
     <message>
         <source>Failed to open the public key file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. File is too large for the key.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal membuka berkas kunci publik &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Berkas terlalu besar untuk kunci.</translation>
     </message>
     <message>
         <source>Public key isn&apos;t readable ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunci publik tak bisa dibaca ...</translation>
     </message>
     <message>
         <source>Failed to open the public key file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Check file permissions.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal membuka kunci publik &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Periksa izin berkas.</translation>
     </message>
     <message>
         <source>DHCP server isn&apos;t enabled ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Server DHCP tak difungsikan ...</translation>
     </message>
     <message>
         <source>Network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; is set to obtain the address automatically but the corresponding DHCP server is not enabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; ditata untuk memperoleh alamat secara otomatis tapi server DHCP yang terkait tidak difungsikan.</translation>
     </message>
     <message>
         <source>Invalid IPv4 address ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Alamat IPv4 tidak valid ...</translation>
     </message>
     <message>
         <source>Network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv4 address.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; saat ini tidak memiliki alamat IPv4 yang valid.</translation>
     </message>
     <message>
         <source>Invalid IPv4 mask ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mask IPv4 tidak valid ...</translation>
     </message>
     <message>
         <source>Network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv4 mask.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; saat ini tidak memiliki mask IPv4 yang valid.</translation>
     </message>
     <message>
         <source>Invalid IPv6 address ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Alamat IPv6 tidak valid ...</translation>
     </message>
     <message>
         <source>Network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv6 address.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; saat ini tidak memiliki alamat IPv6 yang valid.</translation>
     </message>
     <message>
         <source>Invalid IPv6 prefix length ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Panjang prefiks IPv6 tidak valid ...</translation>
     </message>
     <message>
         <source>Network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv6 prefix length.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; saat ini tidak memiliki panjang prefiks IPv6 yang valid.</translation>
     </message>
     <message>
         <source>Invalid DHCP server address ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Alamat server DHCP tidak valid ...</translation>
     </message>
     <message>
         <source>Network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server address.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; saat ini tidak memiliki alamat server DHCP yang valid.</translation>
     </message>
     <message>
         <source>Invalid DHCP server mask ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mask server DHCP tidak valid ...</translation>
     </message>
     <message>
         <source>Network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server mask.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; saat ini tidak memiliki mask server DHCP yang valid.</translation>
     </message>
     <message>
         <source>Invalid DHCP lower address ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Alamat bawah DHCP tidak valid ...</translation>
     </message>
     <message>
         <source>Network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server lower address bound.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; saat ini tidak memiliki batas bawah alamat server DHCP yang valid.</translation>
     </message>
     <message>
         <source>Invalid DHCP upper address ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Alamat atas DHCP tidak valid ...</translation>
     </message>
     <message>
         <source>Network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server upper address bound.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; saat ini tidak memiliki batas atas alamat server DHCP yang valid.</translation>
     </message>
     <message>
         <source>No name specified ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada nama yang dinyatakan ...</translation>
     </message>
     <message>
         <source>No new name specified for the network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada nama baru yang dinyatakan bagi jaringan yang sebelumnya bernama &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Name already busy ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama sudah sibuk ...</translation>
     </message>
     <message>
         <source>The name &lt;b&gt;%1&lt;/b&gt; is being used for several networks.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama &lt;b&gt;%1&lt;/b&gt; sedang dipakai oleh beberapa jaringan.</translation>
     </message>
     <message>
         <source>No IPv4 prefix specified ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada prefiks IPv4 yang dinyatakan ...</translation>
     </message>
     <message>
         <source>No IPv4 prefix specified for the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada prefiks IPv4 yang dinyatakan bagi jaringan NAT &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>No IPv6 prefix specified ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada prefiks IPv6 yang dinyatakan ...</translation>
     </message>
     <message>
         <source>No IPv6 prefix specified for the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada prefiks IPv6 yang dinyatakan bagi jaringan NAT &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t mount image ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mengait image ...</translation>
     </message>
     <message>
         <source>Can&apos;t send ACPI shutdown ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mengirim shutdown ACPI ...</translation>
     </message>
     <message>
         <source>Auto capture keyboard ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Otomatis tangkap papan ketik ...</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have the &lt;b&gt;Auto capture keyboard&lt;/b&gt; option turned on. This will cause the Virtual Machine to automatically &lt;b&gt;capture&lt;/b&gt; the keyboard every time the VM window is activated and make it unavailable to other applications running on your host machine: when the keyboard is captured, all keystrokes (including system ones like Alt-Tab) will be directed to the VM.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Anda telah mengaktifkan pilihan &lt;b&gt;Tangkap otomatis papan ketik&lt;/b&gt;. Hal ini akan menyebabkan Mesin Virtual secara otomatis &lt;b&gt;menangkap&lt;/b&gt; papan ketik setiap kali jendela VM diaktifkan dan membuatnya tidak tersedia bagi aplikasi lain yang berjalan pada mesin host Anda: Saat papan ketik ditangkap, semua tombol yang ditekan (termasuk sistem seperti Alt+Tab) akan diarahkan ke VM.&lt;/p&gt;&lt;p&gt;Anda dapat menekan &lt;b&gt;tombol host&lt;/b&gt; kapan saja untuk &lt;b&gt;membebaskan&lt;/b&gt; papan ketik dan tetikus (bila mereka tertangkap) dan mengembalikan mereka pada operasi normal. Tombol host yang sedang ditugaskan saat ini ditunjukkan pada bilah status di bawah jendela Mesin Virtual. Ikon ini, bersama dengan ikon tetikus yang terletak di dekatnya, menunjukkan keadaan penangkapan papan ketik dan tetikus saat ini.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Guest additions inactive ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Guest addition tidak aktif ...</translation>
     </message>
     <message>
         <source>Mouse integration ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Integrasi tetikus ...</translation>
     </message>
     <message>
         <source>Paused VM input ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukan VM diistirahatkan ...</translation>
     </message>
     <message>
         <source>Wrong color depth ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kedalaman warna salah ...</translation>
     </message>
     <message>
         <source>VirtualBox failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan VirtualBox ...</translation>
     </message>
     <message>
         <source>Failed to acquire VirtualBox parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter VirtualBox.</translation>
     </message>
     <message>
         <source>Appliance failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan appliance ...</translation>
     </message>
     <message>
         <source>Failed to acquire appliance parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal memperoleh parameter appliance.</translation>
     </message>
     <message>
         <source>Extension Pack failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan Extension Pack ...</translation>
     </message>
     <message>
         <source>Failed to acquire Extension Pack Manager parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter Manajer Extension Pack.</translation>
     </message>
     <message>
         <source>Failed to acquire Extension Pack parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter Extension Pack.</translation>
     </message>
     <message>
         <source>Host failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan host ...</translation>
     </message>
     <message>
         <source>Failed to acquire host parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter host.</translation>
     </message>
     <message>
         <source>Medium failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan medium ...</translation>
     </message>
     <message>
         <source>Failed to acquire medium parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter medium.</translation>
     </message>
     <message>
         <source>Session failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan sesi ...</translation>
     </message>
     <message>
         <source>Failed to acquire session parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter sesi.</translation>
     </message>
     <message>
         <source>Machine failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan mesin ...</translation>
     </message>
     <message>
         <source>Snapshot failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan snapshot ...</translation>
     </message>
     <message>
         <source>Failed to acquire snapshot parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter snapshot.</translation>
     </message>
     <message>
         <source>DHCP server failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan server DHCP ...</translation>
     </message>
     <message>
         <source>Failed to acquire cloud network parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter jaringan cloud.</translation>
     </message>
     <message>
         <source>Host network interface failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan antar muka jaringan ...</translation>
     </message>
     <message>
         <source>Host only network failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan jaringan hanya-host ...</translation>
     </message>
     <message>
         <source>Failed to acquire host only network parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter jaringan hanya-host.</translation>
     </message>
     <message>
         <source>NAT network failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan jaringan NAT ...</translation>
     </message>
     <message>
         <source>Failed to acquire NAT network parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter jaringan NAT.</translation>
     </message>
     <message>
         <source>Display failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan tampilan ...</translation>
     </message>
     <message>
         <source>Failed to acquire display parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter tampilan.</translation>
     </message>
     <message>
         <source>Update failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan pembaruan ...</translation>
     </message>
     <message>
         <source>Failed to acquire update agent parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter agen pembaruan.</translation>
     </message>
     <message>
         <source>VSD failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan VSD ...</translation>
     </message>
     <message>
         <source>Failed to acquire VSD parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter VSD.</translation>
     </message>
     <message>
         <source>VSD form failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan form VSD ...</translation>
     </message>
     <message>
         <source>Failed to acquire VSD form parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter form VSD.</translation>
     </message>
     <message>
         <source>Failed to acquire cloud machine parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan parameter mesin cloud.</translation>
     </message>
     <message>
         <source>Failed to change the parameter of the medium &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter dari mediaum &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to change the parameter of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter dari mesin virtual &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Graphics adapter failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan adaptop grafis ...</translation>
     </message>
     <message>
         <source>Failed to change graphics adapter parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter adaptor grafis.</translation>
     </message>
     <message>
         <source>Audio adapter failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan adaptor audio ...</translation>
     </message>
     <message>
         <source>Failed to change audio adapter parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter adaptor audio.</translation>
     </message>
     <message>
         <source>Network adapter failure ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kegagalan adaptor jaringan ...</translation>
     </message>
     <message>
         <source>Failed to change network adapter parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter adaptor jaringan.</translation>
     </message>
     <message>
         <source>Failed to change DHCP server parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter server DHCP.</translation>
     </message>
     <message>
         <source>Failed to change cloud network parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter jaringan cloud.</translation>
     </message>
     <message>
         <source>Failed to change host network interface parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter antar muka jaringan host.</translation>
     </message>
     <message>
         <source>Failed to change host only network parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter jaringan hanya-host.</translation>
     </message>
     <message>
         <source>Failed to change NAT network parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah parameter jaringan NAT.</translation>
     </message>
     <message>
         <source>Failed to assign update agent parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menugaskan parameter agen pembaruan.</translation>
     </message>
     <message>
         <source>Failed to assign VSD parameter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menugaskan parameter VSD.</translation>
     </message>
     <message>
         <source>Can&apos;t enumerate USB devices ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mengenumerasi perangkat USB ...</translation>
     </message>
     <message>
         <source>Failed to enumerate host USB devices.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengenumerasi perangkat USB host.</translation>
     </message>
     <message>
         <source>Can&apos;t open medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa membuka medium ...</translation>
     </message>
     <message>
         <source>Can&apos;t pause machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mengistirahatkan mesin ...</translation>
     </message>
     <message>
         <source>Can&apos;t resume machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa melanjutkan mesin ...</translation>
     </message>
     <message>
         <source>Can&apos;t shutdown machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mematikan mesin ...</translation>
     </message>
     <message>
         <source>Can&apos;t create appliance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta appliance ...</translation>
     </message>
     <message>
         <source>Can&apos;t register machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mendaftarkan mesin ...</translation>
     </message>
     <message>
         <source>Failed to register machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendaftarkan mesin &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t create machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta mesin ...</translation>
     </message>
     <message>
         <source>Failed to create machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mencipta mesin.</translation>
     </message>
     <message>
         <source>Can&apos;t find machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa temukan mesin ...</translation>
     </message>
     <message>
         <source>Failed to find the machine with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menemukan mesin dengan ID berikut: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t open machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa membuka mesin ...</translation>
     </message>
     <message>
         <source>Can&apos;t create medium storage ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta penyimpanan medium ...</translation>
     </message>
     <message>
         <source>Can&apos;t get Extension Pack Manager ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mendapatkan Manajer Extension Pack ...</translation>
     </message>
     <message>
         <source>Failed to acquire Extension Pack Manager.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mendapatkan Manajer Extension Pack.</translation>
     </message>
     <message>
         <source>Can&apos;t create VFS explorer ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta explorer VFS ...</translation>
     </message>
     <message>
         <source>Failed to create VFS explorer to check files.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mencipta explorer VFS untuk memeriksa berkas.</translation>
     </message>
     <message>
         <source>Bad password ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Kata sandi buruk ...</translation>
     </message>
     <message>
         <source>Can&apos;t interpret appliance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menginterpretasi appliance ...</translation>
     </message>
     <message>
         <source>Failed to interpret appliance being imported.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menginterpretasi appliance yang sedang diimpor.</translation>
     </message>
     <message>
         <source>Can&apos;t create VSD ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta VSD ...</translation>
     </message>
     <message>
         <source>Failed to create VSD.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mencipta VSD.</translation>
     </message>
     <message>
         <source>Can&apos;t open extension pack ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa membuka extension pack ...</translation>
     </message>
     <message>
         <source>Can&apos;t read extension pack ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa membaca extension pack ...</translation>
     </message>
     <message>
         <source>Failed to read the Extension Pack &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal membaca Extension Pack &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t find cloud network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa temukan jaringan cloud ...</translation>
     </message>
     <message>
         <source>Unable to find the cloud network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak bisa menemukan jaringan cloud &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t find host network interface ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa temukan antar muka jaringan host ...</translation>
     </message>
     <message>
         <source>Can&apos;t find host only network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa temukan jaringan hanya-host ...</translation>
     </message>
     <message>
         <source>Unable to find the host only network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak bisa menemukan jaringan hanya-host &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t find NAT network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa temukan jaringan NAT ...</translation>
     </message>
     <message>
         <source>Unable to find the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak bisa menemukan jaringan NAT &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t create DHCP server ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta server DHCP ...</translation>
     </message>
     <message>
         <source>Can&apos;t remove DHCP server ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menghapus server DHCP ...</translation>
     </message>
     <message>
         <source>Can&apos;t create cloud network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta jaringan cloud ...</translation>
     </message>
     <message>
         <source>Failed to create a cloud network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menciptakan jaringan cloud.</translation>
     </message>
     <message>
         <source>Can&apos;t remove cloud network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menghapus jaringan cloud ...</translation>
     </message>
     <message>
         <source>Failed to remove the cloud network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menghapus jaringan cloud &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t create host only network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta jaringan hanya-host ...</translation>
     </message>
     <message>
         <source>Failed to create a host only network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menciptakan jaringan hanya-host.</translation>
     </message>
     <message>
         <source>Can&apos;t remove host only network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menghapus jaringan hanya-host ...</translation>
     </message>
     <message>
         <source>Failed to remove the host only network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menghapus jaringan hanya-host &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t create NAT network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta jaringan NAT ...</translation>
     </message>
     <message>
         <source>Failed to create a NAT network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menciptakan jaringan NAT.</translation>
     </message>
     <message>
         <source>Can&apos;t remove NAT network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menghapus jaringan NAT ...</translation>
     </message>
     <message>
         <source>Failed to remove the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menghapus jaringan NAT &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t create cloud profile ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta profil cloud ...</translation>
     </message>
     <message>
         <source>Can&apos;t remove cloud profile ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menghapus profil cloud ...</translation>
     </message>
     <message>
         <source>Failed to remove cloud profile.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menghapus profil cloud.</translation>
     </message>
     <message>
         <source>Can&apos;t save cloud profiles ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menyimpan profil cloud ...</translation>
     </message>
     <message>
         <source>Can&apos;t import cloud profiles ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mengimpor profil cloud ...</translation>
     </message>
     <message>
         <source>Can&apos;t refresh cloud machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menyegarkan mesin cloud ...</translation>
     </message>
     <message>
         <source>Failed to refresh cloud machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menyegarkan mesin cloud.</translation>
     </message>
     <message>
         <source>Can&apos;t create cloud client ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencipta klien cloud ...</translation>
     </message>
     <message>
         <source>Can&apos;t close medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menutup medium ...</translation>
     </message>
     <message>
         <source>Can&apos;t discard saved state ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa membuang keadaan yang disimpan ...</translation>
     </message>
     <message>
         <source>Can&apos;t remove machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menghapus mesin ...</translation>
     </message>
     <message>
         <source>Can&apos;t export machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mengekspor mesin ...</translation>
     </message>
     <message>
         <source>Failed to export virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengekspor mesin virtual &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t attach device ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencantolkan perangkat ...</translation>
     </message>
     <message>
         <source>Can&apos;t find snapshot ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa temukan snapshot ...</translation>
     </message>
     <message>
         <source>Failed to find snapshot with ID=&lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menemukan snapshot dengan ID=&lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to find snapshot with name=&lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menemukan snapshot nama=&lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t change snapshot ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mengubah snapshot ...</translation>
     </message>
     <message>
         <source>Can&apos;t run guest install ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menjalankan instalasi guest ...</translation>
     </message>
     <message>
         <source>Failed to run unattended guest installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menjalankan instalasi guest tak terdampingi.</translation>
     </message>
     <message>
         <source>Can&apos;t attach USB device ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencantol perangkat USB ...</translation>
     </message>
     <message>
         <source>Can&apos;t detach USB device ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa melepas cantolan perangkat USB ...</translation>
     </message>
     <message>
         <source>Can&apos;t attach webcam ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa mencantolkan webcam ...</translation>
     </message>
     <message>
         <source>Can&apos;t detach webcam ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa melepas cantolan webcam ...</translation>
     </message>
     <message>
         <source>Can&apos;t save machine settings ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menyimpan pengaturan mesin ...</translation>
     </message>
     <message>
         <source>Can&apos;t toggle audio input ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menjungkitkan masukan audio ...</translation>
     </message>
     <message>
         <source>Can&apos;t toggle audio output ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menjungkitkan keluaran audio ...</translation>
     </message>
     <message>
         <source>Can&apos;t toggle network cable ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menjungkitkan kabel jaringan ...</translation>
     </message>
     <message>
         <source>Can&apos;t toggle recording ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menjungkitkan perekaman ...</translation>
     </message>
     <message>
         <source>Can&apos;t toggle VRDE server ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Tak bisa menjungkitkan server VRDE ...</translation>
     </message>
     <message>
         <source>&lt;p&gt;The machine settings were changed.&lt;/p&gt;&lt;p&gt;Would you like to discard the changed settings or to keep editing them?&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Pengaturan mesin diubah.&lt;/p&gt;&lt;p&gt;Anda hendak membuang pengaturan yang berubah atau meneruskan menyunting mereka?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Discard changes</source>
-        <translation type="unfinished"></translation>
+        <translation>Buang perubahan</translation>
     </message>
     <message>
         <source>Keep editing</source>
-        <translation type="unfinished"></translation>
+        <translation>Tetap menyunting</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you going to restore default secure boot keys.&lt;/p&gt;&lt;p&gt;If you proceed your current keys will be rewritten. You may not be able to boot affected VM anymore.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Anda hendak memulihkan kunci boot aman baku.&lt;/p&gt;&lt;/p&gt;Bila Anda melanjutkan kunci Anda saat ini akan ditimpa. Anda mungkin tidak bisa lagi mem-boot VM yang terpengaruh.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -19126,65 +19137,65 @@
     <name>UIMiniToolbarSettingsEditor</name>
     <message>
         <source>Mini ToolBar:</source>
-        <translation type="unfinished">Bilah Alat Mini:</translation>
+        <translation>Bilah Alat Mini:</translation>
     </message>
     <message>
         <source>Show in &amp;Full-screen/Seamless</source>
-        <translation type="unfinished">Tampilkan Dalam Layar &amp;Penuh/Seamless</translation>
+        <translation>Tampilkan Dalam Layar &amp;Penuh/Seamless</translation>
     </message>
     <message>
         <source>When checked, show the Mini ToolBar in full-screen and seamless modes.</source>
-        <translation type="unfinished">Bila dicentang, menampilkan Bilah Alat Mini dalam mode layar penuh dan seamless.</translation>
+        <translation>Bila dicentang, menampilkan Bilah Alat Mini dalam mode layar penuh dan seamless.</translation>
     </message>
     <message>
         <source>Show at &amp;Top of Screen</source>
-        <translation type="unfinished">&amp;Tampilkan Di Puncak Layar</translation>
+        <translation>&amp;Tampilkan Di Puncak Layar</translation>
     </message>
     <message>
         <source>When checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
-        <translation type="unfinished">Bila dicentang, menampilkan Bilah Alat Mini di puncak layar, bukan pada posisi baku di dasar layar.</translation>
+        <translation>Bila dicentang, menampilkan Bilah Alat Mini di puncak layar, bukan pada posisi baku di dasar layar.</translation>
     </message>
 </context>
 <context>
     <name>UIMonitorCountEditor</name>
     <message>
         <source>Mo&amp;nitor Count:</source>
-        <translation type="unfinished">Cacah Mo&amp;nitor:</translation>
+        <translation>Cacah Mo&amp;nitor:</translation>
     </message>
     <message>
         <source>Holds the amount of virtual monitors provided to the virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan banyaknya monitor virtual yang disediakan bagi mesin virtual.</translation>
     </message>
     <message>
         <source>Minimum possible monitor count.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cacah monitor minimum yang mungkin.</translation>
     </message>
     <message>
         <source>Maximum possible monitor count.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cacah monitor maksimum yang mungkin.</translation>
     </message>
 </context>
 <context>
     <name>UIMotherboardFeaturesEditor</name>
     <message>
         <source>Extended Features:</source>
-        <translation type="unfinished">Fitur Tambahan:</translation>
+        <translation>Fitur Tambahan:</translation>
     </message>
     <message>
         <source>Enable &amp;I/O APIC</source>
-        <translation type="unfinished">Fungsikan &amp;I/O APIC</translation>
+        <translation>Fungsikan &amp;I/O APIC</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will support the Input Output APIC (I/O APIC), which may slightly decrease performance. Note: don&apos;t disable this feature after having installed a Windows guest operating system!</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, mesin virtual akan mendukung Input Output APIC (I/O APIC), yang mungkin sedikit menurunkan kinerja mesin. Catatan: jangan nonaktifkan fitur ini setelah memasang sebuah sistem operasi guest Windows!</translation>
     </message>
     <message>
         <source>Enable &amp;EFI (special OSes only)</source>
-        <translation type="unfinished">Fungsikan &amp;EFI (hanya OS khusus)</translation>
+        <translation>Fungsikan &amp;EFI (hanya OS khusus)</translation>
     </message>
     <message>
         <source>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</source>
-        <translation type="unfinished">Bila ditandai, guest akan mendukung Extended Firmware Interface (EFI), yang diperlukan untuk mem-boot beberapa OS guest. OS yang tak kenal EFI tak akan bisa di-boot bila opsi ini diaktifkan.</translation>
+        <translation>Bila dicentang, guest akan mendukung Extended Firmware Interface (EFI), yang diperlukan untuk mem-boot beberapa OS guest. OS yang tak kenal EFI tak akan bisa di-boot bila opsi ini diaktifkan.</translation>
     </message>
     <message>
         <source>Hardware Clock in &amp;UTC Time</source>
@@ -19192,27 +19203,27 @@
     </message>
     <message>
         <source>When checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
-        <translation type="unfinished">Bila dicentang, peranti RTC akan melaporkan waktu dalam UTC, bila tidak, dalam waktu lokal (host). Unix biasanya mengharapkan jam perangkat keras ditata ke UTC.</translation>
+        <translation>Bila dicentang, peranti RTC akan melaporkan waktu dalam UTC, bila tidak, dalam waktu lokal (host). Unix biasanya mengharapkan jam perangkat keras ditata ke UTC.</translation>
     </message>
     <message>
         <source>Enable Hardware Clock in &amp;UTC Time</source>
-        <translation type="unfinished"></translation>
+        <translation>Fungsikan Jam Perangkat Keras dalam Waktu &amp;UTC</translation>
     </message>
     <message>
         <source>Enable &amp;Secure Boot</source>
-        <translation type="unfinished"></translation>
+        <translation>Fungsikan Boot &amp;Aman</translation>
     </message>
     <message>
         <source>When checked, the secure boot emulation will be enabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bila dicentang, emulasi boot aman (secure boot) akan difungsikan.</translation>
     </message>
     <message>
         <source>&amp;Reset Keys to Default</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Reset Kunci ke Baku</translation>
     </message>
     <message>
         <source>Resets secure boot keys to default.</source>
-        <translation type="unfinished"></translation>
+        <translation>Reset kunci boot aman (secure boot) ke nilai baku.</translation>
     </message>
 </context>
 <context>
@@ -19230,7 +19241,7 @@
     <name>UINameAndSystemEditor</name>
     <message>
         <source>&amp;Name:</source>
-        <translation type="unfinished">&amp;Nama:</translation>
+        <translation>&amp;Nama:</translation>
     </message>
     <message>
         <source>Holds the name of the virtual machine.</source>
@@ -19270,90 +19281,90 @@
     </message>
     <message>
         <source>Invalid name</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama tidak valid</translation>
     </message>
     <message>
         <source>&amp;Folder:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Folder:</translation>
     </message>
     <message>
         <source>&amp;ISO Image:</source>
-        <translation type="unfinished"></translation>
+        <translation>Image &amp;ISO:</translation>
     </message>
     <message>
         <source>&amp;Edition:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Edisi:</translation>
     </message>
     <message>
         <source>Holds the name for virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama bagi mesin virtual.</translation>
     </message>
     <message>
         <source>Selects the folder hosting virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih folder yang mewadahi mesin virtual.</translation>
     </message>
     <message>
         <source>Selects an ISO image to be attached to the virtual machine or used in unattended install.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih sebuah image ISO untuk dicantolkan ke mesin virtual atau dipakai dalam instalasi tak terkawal.</translation>
     </message>
 </context>
 <context>
     <name>UINativeWizard</name>
     <message>
         <source>&amp;Help</source>
-        <translation type="unfinished">&amp;Bantuan</translation>
+        <translation>&amp;Bantuan</translation>
     </message>
     <message>
         <source>Open corresponding Help topic.</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka topik Bantuan yang terkait.</translation>
     </message>
     <message>
         <source>&amp;Expert Mode</source>
-        <translation type="unfinished">Mode &amp;Pakar</translation>
+        <translation>Mode &amp;Pakar</translation>
     </message>
     <message>
         <source>Switch to the Expert Mode, a one-page dialog for experienced users.</source>
-        <translation type="unfinished"></translation>
+        <translation>Beralih ke Mode Pakar, sebuah dialog satu halaman untuk para pengguna yang berpengalaman.</translation>
     </message>
     <message>
         <source>&amp;Guided Mode</source>
-        <translation type="unfinished">Mode &amp;Terpandu</translation>
+        <translation>Mode &amp;Terpandu</translation>
     </message>
     <message>
         <source>Switch to the Guided Mode, a step-by-step dialog with detailed explanations.</source>
-        <translation type="unfinished"></translation>
+        <translation>Beralih ke Mode Terpandu, sebuah dialog langkah demi langkah dengan penjelasan terrinci.</translation>
     </message>
     <message>
         <source>&amp;Back</source>
-        <translation type="unfinished">Kem&amp;bali</translation>
+        <translation>Kem&amp;bali</translation>
     </message>
     <message>
         <source>Go to previous wizard page.</source>
-        <translation type="unfinished"></translation>
+        <translation>Pergi ke halaman wahana pandu sebelumnya.</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation type="unfinished"></translation>
+        <translation>La&amp;njut</translation>
     </message>
     <message>
         <source>Go to next wizard page.</source>
-        <translation type="unfinished"></translation>
+        <translation>Pergi ke halaman wahana pandu berikutnya.</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Selesai</translation>
     </message>
     <message>
         <source>Commit all wizard data.</source>
-        <translation type="unfinished"></translation>
+        <translation>Komit semua data wahana pandu.</translation>
     </message>
     <message>
         <source>&amp;Cancel</source>
-        <translation type="unfinished">&amp;Batal</translation>
+        <translation>&amp;Batal</translation>
     </message>
     <message>
         <source>Cancel wizard execution.</source>
-        <translation type="unfinished"></translation>
+        <translation>Membatalkan eksekusi wahana pandu.</translation>
     </message>
 </context>
 <context>
@@ -19397,547 +19408,547 @@
     </message>
     <message>
         <source>Holds how this virtual adapter is attached to the real network of the Host OS.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan bagaimana adaptor virtual ini dicantolkan ke jaringan nyata dari OS Host.</translation>
     </message>
     <message>
         <source>Holds the network adapter on the host system that traffic to and from this network card will go through.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan adaptor jaringan pada sistem host dimana lalu lintas ke dan dari kartu jaringan ini akan melintas.</translation>
     </message>
     <message>
         <source>Holds the virtual network adapter on the host system that traffic to and from this network card will go through. You can create and remove adapters using the Network Manager tool in the virtual machine manager window.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan adaptor jaringan virtual pada sistem host dimana lalu lintas ke dan dari kartu jaringan ini akan melintas. Anda dapat membuat dan menghapus adaptor memakai alat Manajer Jaringan dalam jendela manajer mesin virtual.</translation>
     </message>
     <message>
         <source>Holds the driver to be used with this network card.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan driver yang akan dipakai dengan kartu jaringan ini.</translation>
     </message>
     <message>
         <source>Holds the name of the NAT network that this network card will be connected to. You can create and remove networks using the Network Manager tool in the virtual machine manager window.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama jaringan NAT tempat kartu jaringan ini akan disambungkan. Anda dapat membuat dan menghapus jaringan memakai alat Manajer Jaringan dalam jendela manajer mesin virtual.</translation>
     </message>
     <message>
         <source>(experimental) Holds the name of the cloud network that this network card will be connected to. You can add and remove networks using the Network Manager tool in the virtual machine manager window.</source>
-        <translation type="unfinished"></translation>
+        <translation>(eksperimen) Menyimpan nama jaringan cloud tempat kartu jaringan ini akan disambungkan. Anda dapat membuat dan menghapus jaringan memakai alat Manajer Jaringan dalam jendela manajer mesin virtual.</translation>
     </message>
     <message>
         <source>Holds the name of the host-only network that this network card will be connected to. You can add and remove networks using the Network Manager tool in the virtual machine manager window.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama jaringan hanya-host tempat kartu jaringan ini akan disambungkan. Anda dapat membuat dan menghapus jaringan memakai alat Manajer Jaringan dalam jendela manajer mesin virtual.</translation>
     </message>
 </context>
 <context>
     <name>UINetworkFeaturesEditor</name>
     <message>
         <source>A&amp;dvanced</source>
-        <translation type="unfinished">Tingkat L&amp;anjut</translation>
+        <translation>Tingkat L&amp;anjut</translation>
     </message>
     <message>
         <source>Shows additional network adapter options.</source>
-        <translation type="unfinished">Tampilkan opsi adaptor jaringan tambahan.</translation>
+        <translation>Tampilkan opsi adaptor jaringan tambahan.</translation>
     </message>
     <message>
         <source>Adapter &amp;Type:</source>
-        <translation type="unfinished">&amp;Tipe Adaptor:</translation>
+        <translation>&amp;Tipe Adaptor:</translation>
     </message>
     <message>
         <source>Holds the type of the virtual network adapter. Depending on this value, VirtualBox will provide different network hardware to the virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan tipe adaptor jaringan virtual. Bergantung kepada nilai ini, VirtualBox akan menyediakan perangkat keras jaringan yang berbeda ke mesin virtual.</translation>
     </message>
     <message>
         <source>&amp;Promiscuous Mode:</source>
-        <translation type="unfinished">Mode &amp;Promiscuous:</translation>
+        <translation>Mode &amp;Promiscuous:</translation>
     </message>
     <message>
         <source>Holds the promiscuous mode policy of the network adapter when attached to an internal network, host only network or a bridge.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan kebijakan mode promiscuous dari adaptor jaringan ketika dicantolkan ke suatu jaringan internal, jaringan hanya host, atau suatu bridge.</translation>
     </message>
     <message>
         <source>&amp;MAC Address:</source>
-        <translation type="unfinished">Alamat &amp;MAC:</translation>
+        <translation>Alamat &amp;MAC:</translation>
     </message>
     <message>
         <source>Holds the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan alamat MAC dari adaptor ini. Itu memuat persis 12 karakter yang dipilih dari {0-9,A-F}. Perhatikan bahwa karakter ke dua harus berupa digit genap.</translation>
     </message>
     <message>
         <source>Generates a new random MAC address.</source>
-        <translation type="unfinished">Hasilkan alamat MAC baru secara acak.</translation>
+        <translation>Menghasilkan alamat MAC baru secara acak.</translation>
     </message>
     <message>
         <source>Generic Properties:</source>
-        <translation type="unfinished">Properti Generik:</translation>
+        <translation>Properti Generik:</translation>
     </message>
     <message>
         <source>Holds the configuration settings for the network attachment driver. The settings should be of the form name=value and will depend on the driver. Use shift-enter to add a new entry.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan pengaturan konfigurasi bagi driver cantolan jaringan. Pengaturan mesti dalam bentuk nama=nilai dan akan bergantung pada driver. Gunakan shift-enter untuk menambah sebuah entri baru.</translation>
     </message>
     <message>
         <source>&amp;Cable Connected</source>
-        <translation type="unfinished">Ka&amp;bel Tersambung</translation>
+        <translation>Ka&amp;bel Tersambung</translation>
     </message>
     <message>
         <source>When checked, the virtual network cable is plugged in.</source>
-        <translation type="unfinished">Bila dicentang, kabel jaringan virtual akan ditancapkan.</translation>
+        <translation>Bila dicentang, kabel jaringan virtual akan ditancapkan.</translation>
     </message>
     <message>
         <source>&amp;Port Forwarding</source>
-        <translation type="unfinished">Penerusan &amp;Port</translation>
+        <translation>Penerusan &amp;Port</translation>
     </message>
     <message>
         <source>Displays a window to configure port forwarding rules.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menampilkan sebuah jendela untuk mengonfigurasi aturan penerusan port.</translation>
     </message>
 </context>
 <context>
     <name>UINetworkManager</name>
     <message>
         <source>Select Subnet</source>
-        <translation type="unfinished"></translation>
+        <translation>Pilih Subnet</translation>
     </message>
     <message>
         <source>N&amp;ame:</source>
-        <translation type="unfinished">N&amp;ama:</translation>
+        <translation>N&amp;ama:</translation>
     </message>
     <message>
         <source>Holds the name for this network.</source>
-        <translation type="unfinished">Menyimpan nama bagi jaringan ini.</translation>
+        <translation>Menyimpan nama bagi jaringan ini.</translation>
     </message>
     <message>
         <source>&amp;Provider:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Penyedia:</translation>
     </message>
     <message>
         <source>Holds the cloud provider for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan penyedia cloud bagi jaringan ini.</translation>
     </message>
     <message>
         <source>P&amp;rofile:</source>
-        <translation type="unfinished"></translation>
+        <translation>P&amp;rofil:</translation>
     </message>
     <message>
         <source>Holds the cloud profile for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan profil cloud bagi jaringan ini.</translation>
     </message>
     <message>
         <source>&amp;Id:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Id:</translation>
     </message>
     <message>
         <source>Holds the id for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan id untuk jaringan ini.</translation>
     </message>
     <message>
         <source>Selects the id for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih id untuk jaringan ini.</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation type="unfinished">Reset</translation>
+        <translation>Reset</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="unfinished">Terapkan</translation>
+        <translation>Terapkan</translation>
     </message>
     <message>
         <source>Reset changes in current interface details</source>
-        <translation type="unfinished">Reset perubahan dalam rincian antar muka saat ini</translation>
+        <translation>Reset perubahan dalam rincian antar muka saat ini</translation>
     </message>
     <message>
         <source>Apply changes in current interface details</source>
-        <translation type="unfinished">Terapkan perubahan dalam rincian antar muka saat ini</translation>
+        <translation>Terapkan perubahan dalam rincian antar muka saat ini</translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="unfinished">Reset Perubahan (%1)</translation>
+        <translation>Reset Perubahan (%1)</translation>
     </message>
     <message>
         <source>Apply Changes (%1)</source>
-        <translation type="unfinished">Terapkan Perubahan (%1)</translation>
+        <translation>Terapkan Perubahan (%1)</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation type="unfinished">&amp;Nama:</translation>
+        <translation>&amp;Nama:</translation>
     </message>
     <message>
         <source>&amp;Mask:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Mask:</translation>
     </message>
     <message>
         <source>Holds the mask for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memuat mask untuk jaringan ini.</translation>
     </message>
     <message>
         <source>&amp;Lower Bound:</source>
-        <translation type="unfinished"></translation>
+        <translation>Batas &amp;Bawah:</translation>
     </message>
     <message>
         <source>Holds the lower address bound for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan batas bawah alamat untuk jaringan ini.</translation>
     </message>
     <message>
         <source>&amp;Upper Bound:</source>
-        <translation type="unfinished"></translation>
+        <translation>Batas &amp;Atas:</translation>
     </message>
     <message>
         <source>Holds the upper address bound for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan batas atas alamat untuk jaringan ini.</translation>
     </message>
     <message>
         <source>Reset changes in current network details</source>
-        <translation type="unfinished"></translation>
+        <translation>Reset perubahan dalam rincian jaringan saat ini</translation>
     </message>
     <message>
         <source>Apply changes in current network details</source>
-        <translation type="unfinished"></translation>
+        <translation>Terapkan perubahan dalam rincian jaringan saat ini</translation>
     </message>
     <message>
         <source>&amp;Adapter</source>
-        <translation type="unfinished">&amp;Adaptor</translation>
+        <translation>&amp;Adaptor</translation>
     </message>
     <message>
         <source>&amp;DHCP Server</source>
-        <translation type="unfinished">Server &amp;DHCP</translation>
+        <translation>Server &amp;DHCP</translation>
     </message>
     <message>
         <source>Configure Adapter &amp;Automatically</source>
-        <translation type="unfinished">Konfigurasi Adaptor Secara Otom&amp;atis</translation>
+        <translation>Konfigurasi Adaptor Secara Otom&amp;atis</translation>
     </message>
     <message>
         <source>Configure Adapter &amp;Manually</source>
-        <translation type="unfinished">Konfigurasi Adaptor Secara &amp;Manual</translation>
+        <translation>Konfigurasi Adaptor Secara &amp;Manual</translation>
     </message>
     <message>
         <source>&amp;IPv4 Address:</source>
-        <translation type="unfinished">Alamat &amp;IPv4:</translation>
+        <translation>Alamat &amp;IPv4:</translation>
     </message>
     <message>
         <source>Holds the host IPv4 address for this adapter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan alamat IPv4 host bagi adaptor ini.</translation>
     </message>
     <message>
         <source>IPv4 Network &amp;Mask:</source>
-        <translation type="unfinished">&amp;Mask Jaringan IPv4:</translation>
+        <translation>&amp;Mask Jaringan IPv4:</translation>
     </message>
     <message>
         <source>Holds the host IPv4 network mask for this adapter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan mask jaringan IPv4 host bagi adaptor ini.</translation>
     </message>
     <message>
         <source>I&amp;Pv6 Address:</source>
-        <translation type="unfinished">Alamat I&amp;Pv6:</translation>
+        <translation>Alamat I&amp;Pv6:</translation>
     </message>
     <message>
         <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan alamat IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>
         <source>IPv6 Prefix &amp;Length:</source>
-        <translation type="unfinished">&amp;Panjang Prefiks IPv6:</translation>
+        <translation>&amp;Panjang Prefiks IPv6:</translation>
     </message>
     <message>
         <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
-        <translation type="unfinished">Menyimpan panjang prefiks IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
+        <translation>Menyimpan panjang prefiks IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>
         <source>&amp;Enable Server</source>
-        <translation type="unfinished"></translation>
+        <translation>Fungsikan S&amp;erver</translation>
     </message>
     <message>
         <source>When checked, the DHCP Server will be enabled for this network on machine start-up.</source>
-        <translation type="unfinished">Saat dicentang, Server DHCP akan difungsikan bagi jaringan ini saat startup mesin.</translation>
+        <translation>Saat dicentang, Server DHCP akan difungsikan bagi jaringan ini saat startup mesin.</translation>
     </message>
     <message>
         <source>Server Add&amp;ress:</source>
-        <translation type="unfinished">Alamat Se&amp;rver:</translation>
+        <translation>Alamat Se&amp;rver:</translation>
     </message>
     <message>
         <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan alamat server DHCP yang melayani jaringan yang diasosiasikan dengan adaptor hanya-host ini.</translation>
     </message>
     <message>
         <source>Server &amp;Mask:</source>
-        <translation type="unfinished">&amp;Mask Server:</translation>
+        <translation>&amp;Mask Server:</translation>
     </message>
     <message>
         <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan mask jaringan dari server DHCP yang melayani jaringan yang diasosiasikan dengan adaptor hanya-host ini.</translation>
     </message>
     <message>
         <source>&amp;Lower Address Bound:</source>
-        <translation type="unfinished">Batas Bawah A&amp;lamat:</translation>
+        <translation>Batas Bawah A&amp;lamat:</translation>
     </message>
     <message>
         <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan batas bawah alamat yang ditawarkan oleh server DHCP yang melayani jaringan yang diasosiasikan dengan adaptor hanya-host ini.</translation>
     </message>
     <message>
         <source>&amp;Upper Address Bound:</source>
-        <translation type="unfinished">Batas &amp;Atas Alamat:</translation>
+        <translation>Batas &amp;Atas Alamat:</translation>
     </message>
     <message>
         <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan batas atas alamat yang ditawarkan oleh server DHCP yang melayani jaringan yang diasosiasikan dengan adaptor hanya-host ini.</translation>
     </message>
     <message>
         <source>Reset changes in current DHCP server details</source>
-        <translation type="unfinished">Reset perubahan dalam rincian server DHCP saat ini</translation>
+        <translation>Reset perubahan dalam rincian server DHCP saat ini</translation>
     </message>
     <message>
         <source>Apply changes in current DHCP server details</source>
-        <translation type="unfinished">Terapkan perubahan dalam rincian server DHCP saat ini</translation>
+        <translation>Terapkan perubahan dalam rincian server DHCP saat ini</translation>
     </message>
     <message>
         <source>&amp;General Options</source>
-        <translation type="unfinished"></translation>
+        <translation>Opsi U&amp;mum</translation>
     </message>
     <message>
         <source>&amp;Port Forwarding</source>
-        <translation type="unfinished">Penerusan &amp;Port</translation>
+        <translation>Penerusan &amp;Port</translation>
     </message>
     <message>
         <source>IPv&amp;4 Prefix:</source>
-        <translation type="unfinished"></translation>
+        <translation>Prefiks IPv&amp;4:</translation>
     </message>
     <message>
         <source>Holds the IPv4 prefix for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan prefiks IPv4 bagi jaringan ini.</translation>
     </message>
     <message>
         <source>IPv&amp;6 Prefix:</source>
-        <translation type="unfinished"></translation>
+        <translation>Prefiks IPv&amp;6:</translation>
     </message>
     <message>
         <source>Holds the IPv6 prefix for this network.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan prefiks IPv6 bagi jaringan ini.</translation>
     </message>
     <message>
         <source>Enable &amp;DHCP</source>
-        <translation type="unfinished"></translation>
+        <translation>Fungsikan &amp;DHCP</translation>
     </message>
     <message>
         <source>When checked, this network will support DHCP.</source>
-        <translation type="unfinished">Bila dicentang, jaringan ini akan mendukung DHCP.</translation>
+        <translation>Bila dicentang, jaringan ini akan mendukung DHCP.</translation>
     </message>
     <message>
         <source>&amp;Enable IPv6</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Fungsikan IPv6</translation>
     </message>
     <message>
         <source>When checked, this network will support IPv6.</source>
-        <translation type="unfinished">Bila dicentang, jaringan ini akan mendukung IPv6.</translation>
+        <translation>Bila dicentang, jaringan ini akan mendukung IPv6.</translation>
     </message>
     <message>
         <source>Advertise Default IPv6 &amp;Route</source>
-        <translation type="unfinished">Umumkan &amp;Rute IPv6 Baku</translation>
+        <translation>Umumkan &amp;Rute IPv6 Baku</translation>
     </message>
     <message>
         <source>When checked, this network will be advertised as the default IPv6 route.</source>
-        <translation type="unfinished">Bila dicentang, jaringan ini akan diumumkan sebagai rute baku IPv6.</translation>
+        <translation>Bila dicentang, jaringan ini akan diumumkan sebagai rute baku IPv6.</translation>
     </message>
     <message>
         <source>IPv&amp;4</source>
-        <translation type="unfinished"></translation>
+        <translation>IPv&amp;4</translation>
     </message>
     <message>
         <source>IPv&amp;6</source>
-        <translation type="unfinished"></translation>
+        <translation>IPv&amp;6</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Nama</translation>
+        <translation>Nama</translation>
     </message>
     <message>
         <source>Mask</source>
-        <translation type="unfinished"></translation>
+        <translation>Mask</translation>
     </message>
     <message>
         <source>Lower Bound</source>
-        <translation type="unfinished">Batas Bawah</translation>
+        <translation>Batas Bawah</translation>
     </message>
     <message>
         <source>Upper Bound</source>
-        <translation type="unfinished">Batas Atas</translation>
+        <translation>Batas Atas</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>DHCP Server</comment>
-        <translation type="unfinished"></translation>
+        <translation>Difungsikan</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>DHCP Server</comment>
-        <translation type="unfinished"></translation>
+        <translation>Dinonaktifkan</translation>
     </message>
     <message>
         <source>Adapter</source>
-        <translation type="unfinished"></translation>
+        <translation>Adaptor</translation>
     </message>
     <message>
         <source>Automatically configured</source>
         <comment>interface</comment>
-        <translation type="unfinished">Otomatis dikonfigurasi</translation>
+        <translation>Dikonfigurasi secara otomatis</translation>
     </message>
     <message>
         <source>Manually configured</source>
         <comment>interface</comment>
-        <translation type="unfinished">Dikonfigurasi secara manual</translation>
+        <translation>Dikonfigurasi secara manual</translation>
     </message>
     <message>
         <source>IPv4 Address</source>
-        <translation type="unfinished">Alamat IPv4</translation>
+        <translation>Alamat IPv4</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>address</comment>
-        <translation type="unfinished">Tak ditata</translation>
+        <translation>Tak ditata</translation>
     </message>
     <message>
         <source>IPv4 Network Mask</source>
-        <translation type="unfinished">Mask Jaringan IPv4</translation>
+        <translation>Mask Jaringan IPv4</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>mask</comment>
-        <translation type="unfinished">Tak ditata</translation>
+        <translation>Tak ditata</translation>
     </message>
     <message>
         <source>IPv6 Address</source>
-        <translation type="unfinished">Alamat IPv6</translation>
+        <translation>Alamat IPv6</translation>
     </message>
     <message>
         <source>IPv6 Prefix Length</source>
-        <translation type="unfinished">Panjang Prefiks IPv6</translation>
+        <translation>Panjang Prefiks IPv6</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>length</comment>
-        <translation type="unfinished">Tak ditata</translation>
+        <translation>Tak ditata</translation>
     </message>
     <message>
         <source>DHCP Server</source>
-        <translation type="unfinished">Server DHCP</translation>
+        <translation>Server DHCP</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>server</comment>
-        <translation type="unfinished"></translation>
+        <translation>Difungsikan</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>server</comment>
-        <translation type="unfinished"></translation>
+        <translation>Dinonaktifkan</translation>
     </message>
     <message>
         <source>Address</source>
-        <translation type="unfinished">Alamat</translation>
+        <translation>Alamat</translation>
     </message>
     <message>
         <source>Network Mask</source>
-        <translation type="unfinished">Mask Jaringan</translation>
+        <translation>Mask Jaringan</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>bound</comment>
-        <translation type="unfinished">Tak ditata</translation>
+        <translation>Tak ditata</translation>
     </message>
     <message>
         <source>Network Name</source>
-        <translation type="unfinished">Nama Jaringan</translation>
+        <translation>Nama Jaringan</translation>
     </message>
     <message>
         <source>Network IPv4 Prefix</source>
-        <translation type="unfinished"></translation>
+        <translation>Prefix Jaringan IPv4</translation>
     </message>
     <message>
         <source>Network IPv6 Prefix</source>
-        <translation type="unfinished"></translation>
+        <translation>Prefiks Jaringan IPv6</translation>
     </message>
     <message>
         <source>Supports DHCP</source>
-        <translation type="unfinished">Mendukung DHCP</translation>
+        <translation>Mendukung DHCP</translation>
     </message>
     <message>
         <source>yes</source>
-        <translation type="unfinished">ya</translation>
+        <translation>ya</translation>
     </message>
     <message>
         <source>no</source>
-        <translation type="unfinished">tidak</translation>
+        <translation>tidak</translation>
     </message>
     <message>
         <source>Supports IPv6</source>
-        <translation type="unfinished">Mendukung IPv6</translation>
+        <translation>Mendukung IPv6</translation>
     </message>
     <message>
         <source>Default IPv6 route</source>
-        <translation type="unfinished">Rute IPv6 baku</translation>
+        <translation>Rute IPv6 baku</translation>
     </message>
     <message>
         <source>Provider</source>
-        <translation type="unfinished"></translation>
+        <translation>Penyedia</translation>
     </message>
     <message>
         <source>Profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Profil</translation>
     </message>
     <message>
         <source>Host-only Networks</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan Hanya-host</translation>
     </message>
     <message>
         <source>NAT Networks</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan NAT</translation>
     </message>
     <message>
         <source>Cloud Networks</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan Cloud</translation>
     </message>
     <message>
         <source>IPv4 Prefix</source>
-        <translation type="unfinished"></translation>
+        <translation>Prefiks IPv4</translation>
     </message>
     <message>
         <source>IPv6 Prefix</source>
-        <translation type="unfinished"></translation>
+        <translation>Prefiks IPv6</translation>
     </message>
     <message>
         <source>Registered host-only networks</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan hanya-host yang terdaftar</translation>
     </message>
     <message>
         <source>Registered NAT networks</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan NAT yang terdaftar</translation>
     </message>
     <message>
         <source>Registered cloud networks</source>
-        <translation type="unfinished"></translation>
+        <translation>Jaringan cloud yang terdaftar</translation>
     </message>
     <message>
         <source>Network Manager</source>
-        <translation type="unfinished">Manajer Jaringan</translation>
+        <translation>Manajer Jaringan</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Tutup</translation>
+        <translation>Tutup</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
     <message>
         <source>Close dialog without saving</source>
-        <translation type="unfinished">Tutup dialog tanpa menyimpan</translation>
+        <translation>Tutup dialog tanpa menyimpan</translation>
     </message>
     <message>
         <source>Show dialog help</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan bantuan dialog</translation>
     </message>
     <message>
         <source>Close Window (%1)</source>
-        <translation type="unfinished">Tutup Jendela (%1)</translation>
+        <translation>Tutup Jendela (%1)</translation>
     </message>
     <message>
         <source>Show Help (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bantuan (%1)</translation>
     </message>
 </context>
 <context>
@@ -20066,11 +20077,11 @@
     <name>UINetworkSettingsEditor</name>
     <message>
         <source>&amp;Enable Network Adapter</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Fungsikan Adaptor Jaringan</translation>
     </message>
     <message>
         <source>When checked, plugs this virtual network adapter into the virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, menancapkan adaptor jaringan virtual ini ke mesin virtual.</translation>
     </message>
 </context>
 <context>
@@ -20772,323 +20783,323 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UINotificationCenter</name>
     <message>
         <source>Open notification center</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka pusat pemberitahuan</translation>
     </message>
     <message>
         <source>Toggle ascending/descending order</source>
-        <translation type="unfinished"></translation>
+        <translation>Menjungkitkan urutan naik/turun</translation>
     </message>
     <message>
         <source>Keep finished progresses</source>
-        <translation type="unfinished"></translation>
+        <translation>Pertahankan kemajuan yang telah selesai</translation>
     </message>
     <message>
         <source>Delete finished notifications</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus pemberitahan yang telah selesai</translation>
     </message>
     <message>
         <source>Align Bottom</source>
-        <translation type="unfinished"></translation>
+        <translation>Rata Dasar</translation>
     </message>
     <message>
         <source>Align Top</source>
-        <translation type="unfinished"></translation>
+        <translation>Rata Puncak</translation>
     </message>
 </context>
 <context>
     <name>UINotificationDownloader</name>
     <message>
         <source>Downloading Extension Pack ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mengunduh Extension Pack ...</translation>
     </message>
     <message>
         <source>Downloading Guest Additions ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mengunduh Guest Addition ...</translation>
     </message>
     <message>
         <source>Downloading User Manual ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mengunduh Manual Pengguna ...</translation>
     </message>
 </context>
 <context>
     <name>UINotificationProgress</name>
     <message>
         <source>Creating medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencipta medium...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Location:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Size:&lt;/b&gt; %2</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Lokasi:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Ukuran:&lt;/b&gt; %2</translation>
     </message>
     <message>
         <source>Copying medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyalin medium ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;From:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;To:&lt;/b&gt; %2</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Dari:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Ke:&lt;/b&gt; %2</translation>
     </message>
     <message>
         <source>Moving medium ...</source>
-        <translation type="unfinished">Memindah medium ...</translation>
+        <translation>Memindah medium ...</translation>
     </message>
     <message>
         <source>Resizing medium ...</source>
-        <translation type="unfinished">Mengubah ukuran medium ...</translation>
+        <translation>Mengubah ukuran medium ...</translation>
     </message>
     <message>
         <source>Deleting medium storage ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menghapus penyimpanan medium ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Location:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Lokasi:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Copying machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyalin mesin ...</translation>
     </message>
     <message>
         <source>Powering VM up ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menghidupkan VM ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;VM Name:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Nama VM:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Moving machine ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memindah mesin ...</translation>
     </message>
     <message>
         <source>Saving VM state ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan keadaan VM ...</translation>
     </message>
     <message>
         <source>Powering VM off ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mematikan VM ...</translation>
     </message>
     <message>
         <source>Removing machine media ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencabut media mesin ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Machine Name:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Nama Mesin:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Updating VFS explorer ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memperbarui peramban VFS ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Path:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Path:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Removing VFS explorer files ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menghapus berkas explorer VFS ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Path:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Files:&lt;/b&gt; %2</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Path:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Berkas:&lt;/b&gt; %2</translation>
     </message>
     <message>
         <source>Creating subnet selection VSD form ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencipta form VSD pemilihan subnet ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Provider:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Profile:&lt;/b&gt; %2</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Penyedia:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Profil:&lt;/b&gt; %2</translation>
     </message>
     <message>
         <source>Creating launch VSD form ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencipta form VSD peluncuran ...</translation>
     </message>
     <message>
         <source>Creating export VSD form ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencipta form VSD ekspor ...</translation>
     </message>
     <message>
         <source>Creating import VSD form ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencipta form VSD impor ...</translation>
     </message>
     <message>
         <source>Listing cloud images ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencantumkan daftar image cloud ...</translation>
     </message>
     <message>
         <source>Listing cloud source boot volumes ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencantumkan daftar volume boot sumber cloud ...</translation>
     </message>
     <message>
         <source>Listing cloud instances ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencantumkan daftar instansi cloud ...</translation>
     </message>
     <message>
         <source>Listing cloud source instances ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencantumkan daftar instansi sumber cloud ...</translation>
     </message>
     <message>
         <source>Adding cloud VM ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menambahkan VM cloud ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Provider:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Profile:&lt;/b&gt; %2&lt;br&gt;&lt;b&gt;Instance Name:&lt;/b&gt; %3</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Penyedia:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Profil:&lt;/b&gt; %2&lt;br&gt;&lt;b&gt;Nama Instansi:&lt;/b&gt; %3</translation>
     </message>
     <message>
         <source>Creating cloud VM ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencipta VM cloud ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Provider:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Profile:&lt;/b&gt; %2&lt;br&gt;&lt;b&gt;VM Name:&lt;/b&gt; %3</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Penyedia:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Profil:&lt;/b&gt; %2&lt;br&gt;&lt;b&gt;Nama VM:&lt;/b&gt; %3</translation>
     </message>
     <message>
         <source>Deleting cloud VM files ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menghapus berkas VM cloud ...</translation>
     </message>
     <message>
         <source>Removing cloud VM ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menghapus VM cloud ...</translation>
     </message>
     <message>
         <source>Powering cloud VM up ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyalakan daya VM cloud ...</translation>
     </message>
     <message>
         <source>Powering cloud VM off ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mematikan daya VM cloud ...</translation>
     </message>
     <message>
         <source>Shutting cloud VM down ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mematikan VM cloud ...</translation>
     </message>
     <message>
         <source>Terminating cloud VM ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mengakhiri VM cloud ...</translation>
     </message>
     <message>
         <source>Creating cloud VM settings form ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencipta form pengaturan VM cloud ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Cloud VM Name:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Nama VM Cloud:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Applying cloud VM settings form ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menerapkan form pengaturan VM cloud ...</translation>
     </message>
     <message>
         <source>Creating cloud console connection ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Membuat koneksi konsol cloud ...</translation>
     </message>
     <message>
         <source>Deleting cloud console connection ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menghapus koneksi konsol cloud ...</translation>
     </message>
     <message>
         <source>Acquire cloud console log ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mendapatkan log konsol cloud ...</translation>
     </message>
     <message>
         <source>Taking snapshot ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mengambil snapshot ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;VM Name:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Snapshot Name:&lt;/b&gt; %2</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Nama VM:&lt;/b&gt; %1&lt;br&gt;&lt;b&gt;Nama Snapshot:&lt;/b&gt; %2</translation>
     </message>
     <message>
         <source>Restoring snapshot ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memulihkan snapshot ...</translation>
     </message>
     <message>
         <source>Deleting snapshot ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menghapus snapshot ...</translation>
     </message>
     <message>
         <source>Writing appliance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menulis appliance ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;To:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Ke:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Reading appliance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Membaca appliance ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;From:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Dari:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Importing appliance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mengimpor appliance ...</translation>
     </message>
     <message>
         <source>Installing package ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memasang paket ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Name:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Nama:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Uninstalling package ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Membongkar instalasi paket ...</translation>
     </message>
     <message>
         <source>Installing image ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memasang image ...</translation>
     </message>
     <message>
         <source>Creating Host-only Network Interface ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Membuat Antar Muka Jaringan Hanya-Host ...</translation>
     </message>
     <message>
         <source>Removing Host-only Network Interface ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menghapus Antar Muka Jaringan Hanya-Host ...</translation>
     </message>
     <message>
         <source>Set VSD form value ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menata nilai form VSD ...</translation>
     </message>
     <message>
         <source>&lt;b&gt;Value:&lt;/b&gt; %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Nilai:&lt;/b&gt; %1</translation>
     </message>
     <message>
         <source>Checking for new version of %1 ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memeriksa versi baru %1 ...</translation>
     </message>
     <message>
         <source>Checking for new version ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memeriksa versi baru ...</translation>
     </message>
 </context>
 <context>
     <name>UIParavirtProviderEditor</name>
     <message>
         <source>&amp;Paravirtualization Interface:</source>
-        <translation type="unfinished">Antarmuka &amp;Paravirtualisasi:</translation>
+        <translation>Antarmuka &amp;Paravirtualisasi:</translation>
     </message>
     <message>
         <source>Selects the paravirtualization guest interface provider to be used by this virtual machine.</source>
-        <translation type="unfinished">Memilih paravirtualisasi penyedia antar muka guest yang akan dipakai oleh mesin virtual ini.</translation>
+        <translation>Memilih penyedia antar muka paravirtualisasi guest yang akan dipakai oleh mesin virtual ini.</translation>
     </message>
 </context>
 <context>
     <name>UIPointingHIDEditor</name>
     <message>
         <source>&amp;Pointing Device:</source>
-        <translation type="unfinished">Peranti &amp;Penunjuk:</translation>
+        <translation>Peranti &amp;Penunjuk:</translation>
     </message>
     <message>
         <source>Determines whether the emulated pointing device is a standard PS/2 mouse, a USB tablet or a USB multi-touch tablet.</source>
-        <translation type="unfinished">Menentukan apakah peranti penunjuk yang diemulasi adalah tetikus PS/2 standar, tablet USB, atau tablet multi-sentuh USB.</translation>
+        <translation>Menentukan apakah peranti penunjuk yang diemulasi adalah tetikus PS/2 standar, tablet USB, atau tablet multi-sentuh USB.</translation>
     </message>
 </context>
 <context>
@@ -21195,23 +21206,23 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIProcessorFeaturesEditor</name>
     <message>
         <source>Extended Features:</source>
-        <translation type="unfinished">Fitur Tambahan:</translation>
+        <translation>Fitur Tambahan:</translation>
     </message>
     <message>
         <source>Enable PA&amp;E/NX</source>
-        <translation type="unfinished"></translation>
+        <translation>Fungsikan PA&amp;E/NX</translation>
     </message>
     <message>
         <source>When checked, the Physical Address Extension (PAE) feature of the host CPU will be exposed to the virtual machine.</source>
-        <translation type="unfinished">Bila ditandai, fitur Physical Address Extension (PAE) dari CPU host akan dipaparkan ke mesin virtual.</translation>
+        <translation>Bila dicentang, fitur Physical Address Extension (PAE) dari CPU host akan dipaparkan ke mesin virtual.</translation>
     </message>
     <message>
         <source>Enable Nested &amp;VT-x/AMD-V</source>
-        <translation type="unfinished">Fungsikan &amp;VT-x/AMD-V Bersarang</translation>
+        <translation>Fungsikan &amp;VT-x/AMD-V Bersarang</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
-        <translation type="unfinished">Saat dicentang, fitur CPU virtualisasi perangkat keras bersarang akan dipaparkan ke mesin virtual.</translation>
+        <translation>Saat dicentang, fitur CPU virtualisasi perangkat keras bersarang akan dipaparkan ke mesin virtual.</translation>
     </message>
 </context>
 <context>
@@ -21247,153 +21258,153 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIProxyFeaturesEditor</name>
     <message>
         <source>&amp;Auto-detect Host Proxy Settings</source>
-        <translation type="unfinished">Deteksi Otom&amp;atis Pengaturan Proksi Host</translation>
+        <translation>Deteksi Otom&amp;atis Pengaturan Proksi Host</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished">Ketika dipilih, VirtualBox akan mencoba mendeteksi otomatis pengaturan proksi untuk tugas seperti mengunduh Guest Addition dari jaringan atau memeriksa pemutakhiran.</translation>
+        <translation>Ketika dipilih, VirtualBox akan mencoba mendeteksi otomatis pengaturan proksi untuk tugas seperti mengunduh Guest Addition dari jaringan atau memeriksa pemutakhiran.</translation>
     </message>
     <message>
         <source>&amp;Direct Connection to the Internet</source>
-        <translation type="unfinished">Koneksi &amp;Langsung ke Internet</translation>
+        <translation>Koneksi &amp;Langsung ke Internet</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished">Ketika dipilih, VirtualBox akan memakai koneksi Internet langsung untuk tugas seperti mengunduh Guest Addition dari jaringan atau memeriksa pemutakhiran.</translation>
+        <translation>Ketika dipilih, VirtualBox akan memakai koneksi Internet langsung untuk tugas seperti mengunduh Guest Addition dari jaringan atau memeriksa pemutakhiran.</translation>
     </message>
     <message>
         <source>&amp;Manual Proxy Configuration</source>
-        <translation type="unfinished">Konfigurasi Proksi &amp;Manual</translation>
+        <translation>Konfigurasi Proksi &amp;Manual</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished">Ketika dipilih, VirtualBox akan memakai pengaturan proksi yang diberikan untuk tugas seperti mengunduh Guest Addition dari jaringan atau memeriksa pemutakhiran.</translation>
+        <translation>Ketika dipilih, VirtualBox akan memakai pengaturan proksi yang diberikan untuk tugas seperti mengunduh Guest Addition dari jaringan atau memeriksa pemutakhiran.</translation>
     </message>
     <message>
         <source>&amp;URL:</source>
-        <translation type="unfinished">&amp;URL:</translation>
+        <translation>&amp;URL:</translation>
     </message>
     <message>
         <source>Holds the proxy URL. The format is: &lt;table cellspacing=0 style=&apos;white-space:pre&apos;&gt;&lt;tr&gt;&lt;td&gt;[{type}://][{userid}[:{password}]@]{server}[:{port}]&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;http://username:password@proxy.host.com:port&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</source>
-        <translation type="unfinished">Menyimpan URL proksi. Formatnya adalah: &lt;table cellspacing=0 style=&apos;white-space:pre&apos;&gt;&lt;tr&gt;&lt;td&gt;[{tipe}://][{idpengguna}[:{password}]@]{server}[:{port}]&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;http://namapengguna:password@proxy.host.com:port&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</translation>
+        <translation>Menyimpan URL proksi. Formatnya adalah: &lt;table cellspacing=0 style=&apos;white-space:pre&apos;&gt;&lt;tr&gt;&lt;td&gt;[{tipe}://][{idpengguna}[:{password}]@]{server}[:{port}]&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;http://namapengguna:password@proxy.host.com:port&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</translation>
     </message>
 </context>
 <context>
     <name>UIRecordingSettingsEditor</name>
     <message>
         <source>&amp;Enable Recording</source>
-        <translation type="unfinished">Fungsikan P&amp;erekaman</translation>
+        <translation>Fungsikan P&amp;erekaman</translation>
     </message>
     <message>
         <source>When checked, VirtualBox will record the virtual machine session as a video file.</source>
-        <translation type="unfinished">Saat tertandai, VirtualBox akan merekam sesi mesin virtual sebagai suatu berkas video.</translation>
+        <translation>Saat dicentang, VirtualBox akan merekam sesi mesin virtual sebagai suatu berkas video.</translation>
     </message>
     <message>
         <source>Recording &amp;Mode:</source>
-        <translation type="unfinished">&amp;Mode Perekaman:</translation>
+        <translation>&amp;Mode Perekaman:</translation>
     </message>
     <message>
         <source>Holds the recording mode.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan mode perekaman.</translation>
     </message>
     <message>
         <source>File &amp;Path:</source>
-        <translation type="unfinished">&amp;Path Berkas:</translation>
+        <translation>&amp;Path Berkas:</translation>
     </message>
     <message>
         <source>Holds the filename VirtualBox uses to save the recorded content.</source>
-        <translation type="unfinished">Menyimpan nama berkas yang dipakai oleh VirtualBox untuk menyimpan isi rekaman.</translation>
+        <translation>Menyimpan nama berkas yang dipakai oleh VirtualBox untuk menyimpan isi rekaman.</translation>
     </message>
     <message>
         <source>Frame Si&amp;ze:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Ukuran Bingkai:</translation>
     </message>
     <message>
         <source>User Defined</source>
-        <translation type="unfinished">Didefinisikan Oleh Pengguna</translation>
+        <translation>Didefinisikan Oleh Pengguna</translation>
     </message>
     <message>
         <source>Holds the resolution (frame size) of the recorded video.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan resolusi (ukuran bingkai) dari video yang direkam.</translation>
     </message>
     <message>
         <source>Holds the horizontal resolution (frame width) of the recorded video.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan resolusi horizontal (lebar bingkai) dari video yang direkam.</translation>
     </message>
     <message>
         <source>Holds the vertical resolution (frame height) of the recorded video.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan resolusi vertikal (tinggi bingkai) dari video yang direkam.</translation>
     </message>
     <message>
         <source>Frame R&amp;ate:</source>
-        <translation type="unfinished"></translation>
+        <translation>Laju Bingk&amp;ai:</translation>
     </message>
     <message>
         <source>Holds the maximum number of frames per second. Additional frames will be skipped. Reducing this value will increase the number of skipped frames and reduce the file size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan banyaknya maksimum bingkai per detik. Bingkai tambahan akan dilewati. Mengurangi nilai ini akan menaikkan banyaknya bingkai yang dilewati dan mengurangi ukuran berkas.</translation>
     </message>
     <message>
         <source>fps</source>
-        <translation type="unfinished">fps</translation>
+        <translation>fps</translation>
     </message>
     <message>
         <source>%1 fps</source>
-        <translation type="unfinished">%1 fps</translation>
+        <translation>%1 fps</translation>
     </message>
     <message>
         <source>Minimum possible frame rate.</source>
-        <translation type="unfinished"></translation>
+        <translation>Laju bingkai minimum yang mungkin.</translation>
     </message>
     <message>
         <source>Maximum possible frame rate.</source>
-        <translation type="unfinished"></translation>
+        <translation>Laju bingkai maksimum yang mungkin.</translation>
     </message>
     <message>
         <source>&amp;Video Quality:</source>
-        <translation type="unfinished">Kualitas &amp;Video:</translation>
+        <translation>Kualitas &amp;Video:</translation>
     </message>
     <message>
         <source>Holds the quality. Increasing this value will make the video look better at the cost of an increased file size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan kualitas. Menaikkan nilai ini akan membuat video tampak lebih baik tapi mesti dibayar dengan ukuran berkas yang membesar.</translation>
     </message>
     <message>
         <source>kbps</source>
-        <translation type="unfinished">kbps</translation>
+        <translation>kbps</translation>
     </message>
     <message>
         <source>Holds the bitrate in kilobits per second. Increasing this value will make the video look better at the cost of an increased file size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan laju bit dalam kilo bit per detik. Menaikkan nilai ini akan membuat video tampak lebih baik tapi mesti dibayar dengan ukuran berkas yang membesar.</translation>
     </message>
     <message>
         <source>low</source>
         <comment>quality</comment>
-        <translation type="unfinished">rendah</translation>
+        <translation>rendah</translation>
     </message>
     <message>
         <source>medium</source>
         <comment>quality</comment>
-        <translation type="unfinished">sedang</translation>
+        <translation>sedang</translation>
     </message>
     <message>
         <source>high</source>
         <comment>quality</comment>
-        <translation type="unfinished">tinggi</translation>
+        <translation>tinggi</translation>
     </message>
     <message>
         <source>&amp;Audio Quality:</source>
-        <translation type="unfinished">Kualitas &amp;Audio:</translation>
+        <translation>Kualitas &amp;Audio:</translation>
     </message>
     <message>
         <source>Holds the quality. Increasing this value will make the audio sound better at the cost of an increased file size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan kualitas. Menaikkan nilai ini akan membuat suara lebih baik tapi mesti dibayar dengan ukuran berkas yang membesar.</translation>
     </message>
     <message>
         <source>Scree&amp;ns:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Layar:</translation>
     </message>
     <message>
         <source>&lt;i&gt;About %1MB per 5 minute video&lt;/i&gt;</source>
-        <translation type="unfinished">&lt;i&gt;Sekitar %1MB per 5 menit video&lt;/i&gt;</translation>
+        <translation>&lt;i&gt;Sekitar %1MB per 5 menit video&lt;/i&gt;</translation>
     </message>
 </context>
 <context>
@@ -21420,23 +21431,23 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Scale &amp;Factor:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Faktor Skala:</translation>
     </message>
     <message>
         <source>Selects the index of monitor guest screen scale factor being defined for.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih indeks untuk faktor skala layar monitor guest yang sedang didefinisikan.</translation>
     </message>
     <message>
         <source>Holds the guest screen scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan faktor skala layar guest.</translation>
     </message>
     <message>
         <source>Minimum possible scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation>Faktor skala minimum yang mungkin.</translation>
     </message>
     <message>
         <source>Maximum possible scale factor.</source>
-        <translation type="unfinished"></translation>
+        <translation>Faktor skala maksimum yang mungkin.</translation>
     </message>
 </context>
 <context>
@@ -21588,7 +21599,7 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Interface</source>
-        <translation type="unfinished"></translation>
+        <translation>Antar Muka</translation>
     </message>
 </context>
 <context>
@@ -21669,168 +21680,168 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UISharedClipboardEditor</name>
     <message>
         <source>&amp;Shared Clipboard:</source>
-        <translation type="unfinished">Papan Klip Ber&amp;sama:</translation>
+        <translation>Papan Klip Ber&amp;sama:</translation>
     </message>
     <message>
         <source>Holds which clipboard data will be copied between the guest and the host OS. This feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan data papan klip mana yang akan disalin antara guest dan OS host. Fitur ini memerlukan dipasangnya Guest Addition dalam OS guest.</translation>
     </message>
 </context>
 <context>
     <name>UISharedFolderDetailsEditor</name>
     <message>
         <source>Add Share</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Share</translation>
     </message>
     <message>
         <source>Edit Share</source>
-        <translation type="unfinished"></translation>
+        <translation>Sunting Share</translation>
     </message>
     <message>
         <source>Folder Path:</source>
-        <translation type="unfinished">Path Folder:</translation>
+        <translation>Path Folder:</translation>
     </message>
     <message>
         <source>Folder Name:</source>
-        <translation type="unfinished">Nama Folder:</translation>
+        <translation>Nama Folder:</translation>
     </message>
     <message>
         <source>Holds the name of the shared folder (as it will be seen by the guest OS).</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama folder bersama (sebagaimana akan terlihat oleh OS guest).</translation>
     </message>
     <message>
         <source>Holds the path of the shared folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan path folder bersama</translation>
     </message>
     <message>
         <source>Apply the changes and close this dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>Menerapkan perubahan dan menutup dialog ini</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">Batal</translation>
+        <translation>Batal</translation>
     </message>
     <message>
         <source>&amp;Read-only</source>
-        <translation type="unfinished">Baca sa&amp;ja</translation>
+        <translation>Baca sa&amp;ja</translation>
     </message>
     <message>
         <source>When checked, the guest OS will not be able to write to the specified shared folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ketika dicentang, OS guest tidak akan bisa menulis ke folder bersama yang dinyatakan.</translation>
     </message>
     <message>
         <source>&amp;Auto-mount</source>
-        <translation type="unfinished">Kaitkan otom&amp;atis</translation>
+        <translation>Kaitkan otom&amp;atis</translation>
     </message>
     <message>
         <source>When checked, the guest OS will try to automatically mount the shared folder on startup.</source>
-        <translation type="unfinished">Saat ditandai, OS guest akan mencoba mengait secara otomatis folder bersama saat awal mula.</translation>
+        <translation>Saat dicentang, OS guest akan mencoba mengait secara otomatis folder bersama saat awal mula.</translation>
     </message>
     <message>
         <source>Mount point:</source>
-        <translation type="unfinished">Titik kait:</translation>
+        <translation>Titik kait:</translation>
     </message>
     <message>
         <source>Where to automatically mount the folder in the guest.  A drive letter (e.g. &apos;G:&apos;) for Windows and OS/2 guests, path for the others.  If left empty the guest will pick something fitting.</source>
-        <translation type="unfinished">Di mana tempat mengait secara otomatis folder dalam guest. Sebuah huruf drive (mis. &apos;G:&apos;) untuk guest Windows dan OS/2, path untuk yang lain. Bila dibiarkan kosong guest akan memilih sesuatu yang pas.</translation>
+        <translation>Di mana tempat mengait secara otomatis folder dalam guest.  Sebuah huruf drive (mis. &apos;G:&apos;) untuk guest Windows dan OS/2, path untuk yang lain.  Bila dibiarkan kosong guest akan memilih sesuatu yang pas.</translation>
     </message>
     <message>
         <source>&amp;Make Permanent</source>
-        <translation type="unfinished">Jadikan Per&amp;manen</translation>
+        <translation>Jadikan Per&amp;manen</translation>
     </message>
     <message>
         <source>When checked, this shared folder will be permanent.</source>
-        <translation type="unfinished">Bila ditandai, folder bersama ini akan permanen.</translation>
+        <translation>Bila dicentang, folder bersama ini akan permanen.</translation>
     </message>
 </context>
 <context>
     <name>UISharedFoldersEditor</name>
     <message>
         <source>Shared &amp;Folders</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Folder Bersama</translation>
     </message>
     <message>
         <source>Lists all shared folders accessible to this machine. Use &apos;net use x: \\vboxsvr\share&apos; to access a shared folder named &apos;share&apos; from a DOS-like OS, or &apos;mount -t vboxsf share mount_point&apos; to access it from a Linux OS. This feature requires Guest Additions.</source>
-        <translation type="unfinished"></translation>
+        <translation>Mencantumkan daftar semua folder bersama yang dapat diakses mesin ini. Gunakan &apos;net use x: \\vboxsvr\share&apos; untuk mengakses folder bersama bernama &apos;share&apos; dari suatu OS mirip DOS, atau &apos;mount -t vboxsf share mount_point&apos; mengaksesnya dari suatu OS Linux. Fitur ini memerlukan Guest Addition.</translation>
     </message>
     <message>
         <source>At</source>
-        <translation type="unfinished">Pada</translation>
+        <translation>Pada</translation>
     </message>
     <message>
         <source>Auto Mount</source>
-        <translation type="unfinished">Kaitkan Otomatis</translation>
+        <translation>Kaitkan Otomatis</translation>
     </message>
     <message>
         <source>Access</source>
-        <translation type="unfinished">Akses</translation>
+        <translation>Akses</translation>
     </message>
     <message>
         <source>Path</source>
-        <translation type="unfinished">Path</translation>
+        <translation>Path</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Nama</translation>
+        <translation>Nama</translation>
     </message>
     <message>
         <source>Add Shared Folder</source>
-        <translation type="unfinished">Tambah Folder Bersama</translation>
+        <translation>Tambah Folder Bersama</translation>
     </message>
     <message>
         <source>Adds new shared folder.</source>
-        <translation type="unfinished">Menambah folder bersama yang baru.</translation>
+        <translation>Menambah folder bersama yang baru.</translation>
     </message>
     <message>
         <source>Edit Shared Folder</source>
-        <translation type="unfinished">Sunting Folder Bersama</translation>
+        <translation>Sunting Folder Bersama</translation>
     </message>
     <message>
         <source>Edits selected shared folder.</source>
-        <translation type="unfinished">Menyunting folder bersama yang dipilih.</translation>
+        <translation>Menyunting folder bersama yang dipilih.</translation>
     </message>
     <message>
         <source>Remove Shared Folder</source>
-        <translation type="unfinished">Hapus Folder Bersama</translation>
+        <translation>Hapus Folder Bersama</translation>
     </message>
     <message>
         <source>Removes selected shared folder.</source>
-        <translation type="unfinished">Menghapus folder bersama yang dipilih.</translation>
+        <translation>Menghapus folder bersama yang dipilih.</translation>
     </message>
     <message>
         <source> Machine Folders</source>
-        <translation type="unfinished"> Folder Mesin</translation>
+        <translation> Folder Mesin</translation>
     </message>
     <message>
         <source> Transient Folders</source>
-        <translation type="unfinished"></translation>
+        <translation> Folder Transien</translation>
     </message>
 </context>
 <context>
     <name>UIShortcutConfigurationEditor</name>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Nama</translation>
+        <translation>Nama</translation>
     </message>
     <message>
         <source>Shortcut</source>
-        <translation type="unfinished">Pintasan</translation>
+        <translation>Pintasan</translation>
     </message>
     <message>
         <source>&amp;VirtualBox Manager</source>
-        <translation type="unfinished">Manajer &amp;VirtualBox</translation>
+        <translation>Manajer &amp;VirtualBox</translation>
     </message>
     <message>
         <source>Virtual &amp;Machine</source>
-        <translation type="unfinished">&amp;Mesin Virtual</translation>
+        <translation>&amp;Mesin Virtual</translation>
     </message>
     <message>
         <source>Lists all available shortcuts which can be configured.</source>
-        <translation type="unfinished">Menampilkan daftar semua pintasan yang tersedia, yang dapat ditata.</translation>
+        <translation>Menampilkan daftar semua pintasan yang tersedia yang dapat ditata.</translation>
     </message>
     <message>
         <source>Holds a sequence to filter the shortcut list.</source>
-        <translation type="unfinished">Masukkan suatu urutan untuk menyaring daftar pintasan.</translation>
+        <translation>Menyimpan suatu urutan untuk menyaring daftar pintasan.</translation>
     </message>
 </context>
 <context>
@@ -21920,11 +21931,11 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UISnapshotFolderEditor</name>
     <message>
         <source>S&amp;napshot Folder:</source>
-        <translation type="unfinished">Folder S&amp;napshot:</translation>
+        <translation>Folder S&amp;napshot:</translation>
     </message>
     <message>
         <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of storage space.</source>
-        <translation type="unfinished">Menyimpan path dimana snapshot dari mesin virtual ini akan disimpan. Sadarilah bahwa snapshot itu bisa menghabiskan cukup banyak ruang penyimpanan.</translation>
+        <translation>Menyimpan path dimana snapshot dari mesin virtual ini akan disimpan. Sadarilah bahwa snapshot itu bisa menghabiskan cukup banyak ruang penyimpanan.</translation>
     </message>
 </context>
 <context>
@@ -22401,19 +22412,19 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Power off</source>
-        <translation type="unfinished"></translation>
+        <translation>Matikan daya</translation>
     </message>
     <message>
         <source>The file %1 has been deleted</source>
-        <translation type="unfinished"></translation>
+        <translation>Berkas %1  telah dihapus</translation>
     </message>
     <message>
         <source>Deleting the file %1 has failed</source>
-        <translation type="unfinished"></translation>
+        <translation>Penghapusan berkas %1 gagal</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
 </context>
 <context>
@@ -22432,299 +22443,299 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Allows to modify VM status-bar contents.</source>
-        <translation type="unfinished">Mengijinkan mengubah isi bilah status VM.</translation>
+        <translation>Mengizinkan mengubah isi bilah status VM.</translation>
     </message>
 </context>
 <context>
     <name>UIStorageSettingsEditor</name>
     <message>
         <source>Controller: %1</source>
-        <translation type="unfinished">Pengendali: %1</translation>
+        <translation>Pengendali: %1</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Bus:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Type:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</source>
-        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Bus:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Tipe:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Bus:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Tipe:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Host Drive</source>
-        <translation type="unfinished">Drive Host</translation>
+        <translation>Drive Host</translation>
     </message>
     <message>
         <source>Image</source>
         <comment>storage image</comment>
-        <translation type="unfinished">Image</translation>
+        <translation>Image</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Expands/Collapses&amp;nbsp;item.&lt;/nobr&gt;</source>
-        <translation type="unfinished">&lt;nobr&gt;Kembangkan/ringkaskan&amp;nbsp;butir.&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;Kembangkan/kuncupkan&amp;nbsp;butir.&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Adds&amp;nbsp;hard&amp;nbsp;disk.&lt;/nobr&gt;</source>
-        <translation type="unfinished">&lt;nobr&gt;Tambah&amp;nbsp;hard&amp;nbsp;disk.&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;Tambah&amp;nbsp;hard&amp;nbsp;disk.&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Adds&amp;nbsp;optical&amp;nbsp;drive.&lt;/nobr&gt;</source>
-        <translation type="unfinished">&lt;nobr&gt;Tambah&amp;nbsp;drive&amp;nbsp;optik.&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;Tambah&amp;nbsp;drive&amp;nbsp;optik.&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Adds&amp;nbsp;floppy&amp;nbsp;drive.&lt;/nobr&gt;</source>
-        <translation type="unfinished">&lt;nobr&gt;Tambah&amp;nbsp;drive&amp;nbsp;floppy.&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;Tambah&amp;nbsp;drive&amp;nbsp;floppy.&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&amp;Storage Devices</source>
-        <translation type="unfinished">Peranti &amp;Penyimpanan</translation>
+        <translation>Peranti &amp;Penyimpanan</translation>
     </message>
     <message>
         <source>Information</source>
-        <translation type="unfinished">Informasi</translation>
+        <translation>Informasi</translation>
     </message>
     <message>
         <source>The Storage Tree can contain several controllers of different types. This machine currently has no controllers.</source>
-        <translation type="unfinished">Pohon Penyimpanan dapat memuat beberapa pengendali dengan tipe berbeda. Mesin ini kini tak memiliki pengendali.</translation>
+        <translation>Pohon Penyimpanan dapat memuat beberapa pengendali dengan tipe berbeda. Mesin ini kini tak memiliki pengendali.</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation type="unfinished">Atribut</translation>
+        <translation>Atribut</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation type="unfinished">&amp;Nama:</translation>
+        <translation>&amp;Nama:</translation>
     </message>
     <message>
         <source>Holds the name of the storage controller currently selected in the Storage Tree.</source>
-        <translation type="unfinished">Menyimpan nama pengendali penyimpanan yang kini dipilih pada Pohon Penyimpanan.</translation>
+        <translation>Menyimpan nama pengendali penyimpanan yang kini dipilih pada Pohon Penyimpanan.</translation>
     </message>
     <message>
         <source>&amp;Type:</source>
-        <translation type="unfinished">&amp;Tipe:</translation>
+        <translation>&amp;Tipe:</translation>
     </message>
     <message>
         <source>Selects the sub-type of the storage controller currently selected in the Storage Tree.</source>
-        <translation type="unfinished">Pilih sub-tipe pengendali penyimpanan yang kini dipilih pada Pohon Penyimpanan.</translation>
+        <translation>Memilih sub-tipe pengendali penyimpanan yang kini dipilih pada Pohon Penyimpanan.</translation>
     </message>
     <message>
         <source>&amp;Port Count:</source>
-        <translation type="unfinished">Cacah &amp;Port:</translation>
+        <translation>Cacah &amp;Port:</translation>
     </message>
     <message>
         <source>Selects the port count of the SATA storage controller currently selected in the Storage Tree. This must be at least one more than the highest port number you need to use.</source>
-        <translation type="unfinished">Pilih cacah port dari pengendali penyimpanan SATA yang kini dipilih dalam Pohon Penyimpanan. Ini mesti paling tidak lebih satu daripada nomor port tertinggi yang Anda perlu pergunakan.</translation>
+        <translation>Memilih cacah port dari pengendali penyimpanan SATA yang kini dipilih dalam Pohon Penyimpanan. Ini mesti paling tidak lebih satu daripada nomor port tertinggi yang Anda perlu pergunakan.</translation>
     </message>
     <message>
         <source>When checked, allows to use host I/O caching capabilities.</source>
-        <translation type="unfinished">Bila dicentang, mengijinkan pemakaian kapabilitas caching I/O host.</translation>
+        <translation>Bila dicentang, mengizinkan pemakaian kapabilitas caching I/O host.</translation>
     </message>
     <message>
         <source>Use Host I/O Cache</source>
-        <translation type="unfinished">Gunakan cache I/O host</translation>
+        <translation>Gunakan Cache I/O host</translation>
     </message>
     <message>
         <source>Selects the slot on the storage controller used by this attachment. The available slots depend on the type of the controller and other attachments on it.</source>
-        <translation type="unfinished">Pilih slot pada pengendali penyimpanan yang dipakai oleh cantolan ini. Slot yang tersedia bergantung kepada tipe pengendali dan cantolan lain padanya.</translation>
+        <translation>Memilih slot pada pengendali penyimpanan yang dipakai oleh cantolan ini. Slot yang tersedia bergantung kepada tipe pengendali dan cantolan lain padanya.</translation>
     </message>
     <message>
         <source>When checked, allows the guest to send ATAPI commands directly to the host-drive which makes it possible to use CD/DVD writers connected to the host inside the VM. Note that writing audio CD inside the VM is not yet supported.</source>
-        <translation type="unfinished">Bila ditandai, mengijinkan guest untuk mengirim perintah ATAPI secara langsung ke drive-host yang memungkinkannya untuk memakai pembakar CD/DVD yang tersambung ke host di dalam VM. Perhatikan bahwa menulis CD audio di dalam VM belum didukung.</translation>
+        <translation>Bila dicentang, mengizinkan guest untuk mengirim perintah ATAPI secara langsung ke drive-host yang memungkinkannya untuk memakai pembakar CD/DVD yang tersambung ke host di dalam VM. Perhatikan bahwa menulis CD audio di dalam VM belum didukung.</translation>
     </message>
     <message>
         <source>&amp;Passthrough</source>
-        <translation type="unfinished">&amp;Passthrough</translation>
+        <translation>&amp;Passthrough</translation>
     </message>
     <message>
         <source>When checked, the virtual disk will not be removed when the guest system ejects it.</source>
-        <translation type="unfinished">Saat dicentang, disk virtual tidak akan dihapus ketika sistem guest mengeluarkannya.</translation>
+        <translation>Saat dicentang, disk virtual tidak akan dihapus ketika sistem guest mengeluarkannya.</translation>
     </message>
     <message>
         <source>&amp;Live CD/DVD</source>
-        <translation type="unfinished">CD/DVD &amp;Live</translation>
+        <translation>CD/DVD &amp;Live</translation>
     </message>
     <message>
         <source>When checked, the guest system will see the virtual disk as a solid-state device.</source>
-        <translation type="unfinished">Saat dicentang, sistem guest akan melihat disk virtual sebagai peranti solid state.</translation>
+        <translation>Saat dicentang, sistem guest akan melihat disk virtual sebagai peranti solid state.</translation>
     </message>
     <message>
         <source>&amp;Solid-state Drive</source>
-        <translation type="unfinished">Drive &amp;Solid-state</translation>
+        <translation>Drive &amp;Solid-state</translation>
     </message>
     <message>
         <source>When checked, the guest system will see the virtual disk as a hot-pluggable device.</source>
-        <translation type="unfinished">Saat dicentang, sistem guest akan melihat disk virtual sebagai peranti yang bisa di-hot-plug.</translation>
+        <translation>Saat dicentang, sistem guest akan melihat disk virtual sebagai peranti yang bisa di-hot-plug.</translation>
     </message>
     <message>
         <source>&amp;Hot-pluggable</source>
-        <translation type="unfinished">Dapat di&amp;hot-plug</translation>
+        <translation>Dapat di&amp;hot-plug</translation>
     </message>
     <message>
         <source>Type (Format):</source>
-        <translation type="unfinished">Tipe (Format):</translation>
+        <translation>Tipe (Format):</translation>
     </message>
     <message>
         <source>Type:</source>
-        <translation type="unfinished">Tipe:</translation>
+        <translation>Tipe:</translation>
     </message>
     <message>
         <source>Virtual Size:</source>
-        <translation type="unfinished">Ukuran Virtual:</translation>
+        <translation>Ukuran Virtual:</translation>
     </message>
     <message>
         <source>Actual Size:</source>
-        <translation type="unfinished">Ukuran Aktual:</translation>
+        <translation>Ukuran Aktual:</translation>
     </message>
     <message>
         <source>Size:</source>
-        <translation type="unfinished">Ukuran:</translation>
+        <translation>Ukuran:</translation>
     </message>
     <message>
         <source>Details:</source>
-        <translation type="unfinished">Rincian:</translation>
+        <translation>Rincian:</translation>
     </message>
     <message>
         <source>Location:</source>
-        <translation type="unfinished">Lokasi:</translation>
+        <translation>Lokasi:</translation>
     </message>
     <message>
         <source>Attached to:</source>
-        <translation type="unfinished"></translation>
+        <translation>Dicantol ke:</translation>
     </message>
     <message>
         <source>Encrypted with key:</source>
-        <translation type="unfinished">Terenkripsi dengan kunci:</translation>
+        <translation>Terenkripsi dengan kunci:</translation>
     </message>
     <message>
         <source>Lists all storage controllers for this machine and the virtual images and host drives attached to them.</source>
-        <translation type="unfinished">Menampilkan daftar semua pengendali penyimpanan bagi mesin ini dan image virtual serta drive host yang ditancapkan ke mereka.</translation>
+        <translation>Menampilkan daftar semua pengendali penyimpanan bagi mesin ini dan image virtual serta drive host yang ditancapkan ke mereka.</translation>
     </message>
     <message>
         <source>Add Controller</source>
-        <translation type="unfinished">Tambah Pengendali</translation>
+        <translation>Tambah Pengendali</translation>
     </message>
     <message>
         <source>PIIX3 (IDE)</source>
-        <translation type="unfinished">PIIX3 (IDE)</translation>
+        <translation>PIIX3 (IDE)</translation>
     </message>
     <message>
         <source>PIIX4 (Default IDE)</source>
-        <translation type="unfinished">PIIX4 (IDE baku)</translation>
+        <translation>PIIX4 (IDE baku)</translation>
     </message>
     <message>
         <source>ICH6 (IDE)</source>
-        <translation type="unfinished">ICH6 (IDE)</translation>
+        <translation>ICH6 (IDE)</translation>
     </message>
     <message>
         <source>AHCI (SATA)</source>
-        <translation type="unfinished">AHCI (SATA)</translation>
+        <translation>AHCI (SATA)</translation>
     </message>
     <message>
         <source>LsiLogic (Default SCSI)</source>
-        <translation type="unfinished">LsiLogic (SCSI baku)</translation>
+        <translation>LsiLogic (SCSI baku)</translation>
     </message>
     <message>
         <source>BusLogic (SCSI)</source>
-        <translation type="unfinished">BusLogic (SCSI)</translation>
+        <translation>BusLogic (SCSI)</translation>
     </message>
     <message>
         <source>LsiLogic SAS (SAS)</source>
-        <translation type="unfinished">LsiLogic SAS (SAS)</translation>
+        <translation>LsiLogic SAS (SAS)</translation>
     </message>
     <message>
         <source>I82078 (Floppy)</source>
-        <translation type="unfinished">I82078 (Floppy)</translation>
+        <translation>I82078 (Floppy)</translation>
     </message>
     <message>
         <source>USB</source>
-        <translation type="unfinished">USB</translation>
+        <translation>USB</translation>
     </message>
     <message>
         <source>NVMe (PCIe)</source>
-        <translation type="unfinished">NVMe (PCIe)</translation>
+        <translation>NVMe (PCIe)</translation>
     </message>
     <message>
         <source>virtio-scsi</source>
-        <translation type="unfinished">virtio-scsi</translation>
+        <translation>virtio-scsi</translation>
     </message>
     <message>
         <source>Remove Controller</source>
-        <translation type="unfinished">Hapus Pengendali</translation>
+        <translation>Hapus Pengendali</translation>
     </message>
     <message>
         <source>Add Attachment</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Cantolan</translation>
     </message>
     <message>
         <source>Hard Disk</source>
-        <translation type="unfinished">Hard Disk</translation>
+        <translation>Hard Disk</translation>
     </message>
     <message>
         <source>Optical Drive</source>
-        <translation type="unfinished">Drive Optik</translation>
+        <translation>Drive Optik</translation>
     </message>
     <message>
         <source>Floppy Drive</source>
-        <translation type="unfinished">Drive Floppy</translation>
+        <translation>Drive Floppy</translation>
     </message>
     <message>
         <source>Remove Attachment</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus Cantolan</translation>
     </message>
     <message>
         <source>Adds new storage controller.</source>
-        <translation type="unfinished">Menambah pengendali penyimpanan baru.</translation>
+        <translation>Menambah pengendali penyimpanan baru.</translation>
     </message>
     <message>
         <source>Removes selected storage controller.</source>
-        <translation type="unfinished">Menghapus pengendali penyimpanan yang dipilih.</translation>
+        <translation>Menghapus pengendali penyimpanan yang dipilih.</translation>
     </message>
     <message>
         <source>Adds new storage attachment.</source>
-        <translation type="unfinished">Menambah cantolan penyimpanan baru.</translation>
+        <translation>Menambah cantolan penyimpanan baru.</translation>
     </message>
     <message>
         <source>Removes selected storage attachment.</source>
-        <translation type="unfinished">Menghapus cantolan penyimpanan yang dipilih.</translation>
+        <translation>Menghapus cantolan penyimpanan yang dipilih.</translation>
     </message>
     <message>
         <source>Hard &amp;Disk:</source>
-        <translation type="unfinished">Hard &amp;Disk:</translation>
+        <translation>Hard &amp;Disk:</translation>
     </message>
     <message>
         <source>Choose or create a virtual hard disk file. The virtual machine will see the data in the file as the contents of the virtual hard disk.</source>
-        <translation type="unfinished">Pilih atau ciptakan berkas hard disk virtual. Mesin virtual akan melihat data dalam berkas sebagai isi hard disk virtual.</translation>
+        <translation>Pilih atau ciptakan berkas hard disk virtual. Mesin virtual akan melihat data dalam berkas sebagai isi hard disk virtual.</translation>
     </message>
     <message>
         <source>Optical &amp;Drive:</source>
-        <translation type="unfinished">&amp;Drive Optik:</translation>
+        <translation>&amp;Drive Optik:</translation>
     </message>
     <message>
         <source>Choose a virtual optical disk or a physical drive to use with the virtual drive. The virtual machine will see a disk inserted into the drive with the data in the file or on the disk in the physical drive as its contents.</source>
-        <translation type="unfinished">Pilih disk optik virtual atau drive fisik untuk dipakai dengan drive virtual. Mesin virtual akan melihat suatu disk disisipkan ke dalam drive dengan data dalam berkas atau pada disk dalam drive fisik sebagai isinya.</translation>
+        <translation>Pilih disk optik virtual atau drive fisik untuk dipakai dengan drive virtual. Mesin virtual akan melihat suatu disk disisipkan ke dalam drive dengan data dalam berkas atau pada disk dalam drive fisik sebagai isinya.</translation>
     </message>
     <message>
         <source>Floppy &amp;Drive:</source>
-        <translation type="unfinished">&amp;Drive Floppy:</translation>
+        <translation>&amp;Drive Floppy:</translation>
     </message>
     <message>
         <source>Choose a virtual floppy disk or a physical drive to use with the virtual drive. The virtual machine will see a disk inserted into the drive with the data in the file or on the disk in the physical drive as its contents.</source>
-        <translation type="unfinished">Pilih disk floppy virtual atau drive fisik untuk dipakai dengan drive virtual. Mesin virtual akan melihat suatu disk disisipkan ke dalam drive dengan data dalam berkas atau pada disk dalam drive fisik sebagai isinya.</translation>
+        <translation>Pilih disk floppy virtual atau drive fisik untuk dipakai dengan drive virtual. Mesin virtual akan melihat suatu disk disisipkan ke dalam drive dengan data dalam berkas atau pada disk dalam drive fisik sebagai isinya.</translation>
     </message>
     <message>
         <source>Choose/Create a Virtual Hard Disk...</source>
-        <translation type="unfinished">Pilih/buat sebuah Hard Disk Virtual...</translation>
+        <translation>Pilih/buat sebuah Hard Disk Virtual...</translation>
     </message>
     <message>
         <source>Choose a disk file...</source>
-        <translation type="unfinished">Pilih sebuah berkas disk...</translation>
+        <translation>Pilih sebuah berkas disk...</translation>
     </message>
     <message>
         <source>Choose/Create a Virtual Optical Disk...</source>
-        <translation type="unfinished">Pilih/Buat sebuah Disk Optik Virtual...</translation>
+        <translation>Pilih/Buat sebuah Disk Optik Virtual...</translation>
     </message>
     <message>
         <source>Remove Disk from Virtual Drive</source>
-        <translation type="unfinished">Singkirkan Disk dari Drive Virtual</translation>
+        <translation>Singkirkan Disk dari Drive Virtual</translation>
     </message>
     <message>
         <source>Choose/Create a Virtual Floppy Disk...</source>
-        <translation type="unfinished">Pilih/Buat sebuah Disk Floppy Virtual...</translation>
+        <translation>Pilih/Buat sebuah Disk Floppy Virtual...</translation>
     </message>
 </context>
 <context>
@@ -22753,55 +22764,55 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Holds the snapshot name</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama snapshot</translation>
     </message>
     <message>
         <source>Holds the snapshot description</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan deskripsi snapshot</translation>
     </message>
     <message>
         <source>Ok</source>
-        <translation type="unfinished">Ok</translation>
+        <translation>Ok</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">Batal</translation>
+        <translation>Batal</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
     <message>
         <source>Take Snapshot and close the dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>Membuat Snapshot dan menutup dialog</translation>
     </message>
     <message>
         <source>Close dialog without taking a snapshot</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutup dialog tanpa mengambil snapshot</translation>
     </message>
     <message>
         <source>Show dialog help</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan bantuan dialog</translation>
     </message>
     <message>
         <source>Accept</source>
-        <translation type="unfinished"></translation>
+        <translation>Terima</translation>
     </message>
     <message>
         <source>Accept (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Terima (%1)</translation>
     </message>
     <message>
         <source>Cancel (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Batal (%1)</translation>
     </message>
     <message>
         <source>Show Help</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bantuan</translation>
     </message>
     <message>
         <source>Show Help (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bantuan (%1)</translation>
     </message>
 </context>
 <context>
@@ -22831,7 +22842,7 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIToolBox</name>
     <message>
         <source>Expands the page &quot;%1&quot;</source>
-        <translation type="unfinished"></translation>
+        <translation>Kembangkan halamana &quot;%1&quot;</translation>
     </message>
 </context>
 <context>
@@ -22866,19 +22877,19 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Extensions</source>
-        <translation type="unfinished">Ekstensi</translation>
+        <translation>Ekstensi</translation>
     </message>
     <message>
         <source>Activities</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktivitas</translation>
     </message>
     <message>
         <source>Activity</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktivitas</translation>
     </message>
     <message>
         <source>File Manager</source>
-        <translation type="unfinished">Manajer Berkas</translation>
+        <translation>Manajer Berkas</translation>
     </message>
 </context>
 <context>
@@ -22923,127 +22934,127 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Contains a list of VirtualBox tools.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memuat suatu daftar dari perkakas VirtualBox</translation>
     </message>
 </context>
 <context>
     <name>UITpmEditor</name>
     <message>
         <source>&amp;TPM:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;TPM:</translation>
     </message>
     <message>
         <source>Selects the TPM type to be emulated in this virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih tipe TPM yang akan diemulasi dalam mesin virtual ini.</translation>
     </message>
 </context>
 <context>
     <name>UITranslator</name>
     <message numerus="yes">
         <source>%n year(s)</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform>%n tahun</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n month(s)</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform>%n bulan</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n day(s)</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform>%n hari</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n hour(s)</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform>%n jam</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n minute(s)</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform>%n menit</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n second(s)</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform>%n detik</numerusform>
         </translation>
     </message>
     <message>
         <source>B</source>
         <comment>size suffix Bytes</comment>
-        <translation type="unfinished">B</translation>
+        <translation>B</translation>
     </message>
     <message>
         <source>KB</source>
         <comment>size suffix KBytes=1024 Bytes</comment>
-        <translation type="unfinished">KB</translation>
+        <translation>KB</translation>
     </message>
     <message>
         <source>MB</source>
         <comment>size suffix MBytes=1024 KBytes</comment>
-        <translation type="unfinished">MB</translation>
+        <translation>MB</translation>
     </message>
     <message>
         <source>GB</source>
         <comment>size suffix GBytes=1024 MBytes</comment>
-        <translation type="unfinished">GB</translation>
+        <translation>GB</translation>
     </message>
     <message>
         <source>TB</source>
         <comment>size suffix TBytes=1024 GBytes</comment>
-        <translation type="unfinished">TB</translation>
+        <translation>TB</translation>
     </message>
     <message>
         <source>PB</source>
         <comment>size suffix PBytes=1024 TBytes</comment>
-        <translation type="unfinished">PB</translation>
+        <translation>PB</translation>
     </message>
     <message>
         <source>User-defined</source>
         <comment>serial port</comment>
-        <translation type="unfinished">Didefinisikan oleh pengguna</translation>
+        <translation>Didefinisikan oleh pengguna</translation>
     </message>
     <message numerus="yes">
         <source>%n year(s) ago</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n tahun yang lalu</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n month(s) ago</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n bulan yang lalu</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n day(s) ago</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n hari yang lalu</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n hour(s) ago</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n jam yang lalu</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n minute(s) ago</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n menit yang lalu</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n second(s) ago</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n detik yang lalu</numerusform>
         </translation>
     </message>
 </context>
@@ -23051,106 +23062,106 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIUSBControllerEditor</name>
     <message>
         <source>USB &amp;1.1 (OHCI) Controller</source>
-        <translation type="unfinished">Pengendali USB &amp;1.1 (OHCI)</translation>
+        <translation>Pengendali USB &amp;1.1 (OHCI)</translation>
     </message>
     <message>
         <source>When chosen, enables the virtual USB OHCI controller of this machine. The USB OHCI controller provides USB 1.0 support.</source>
-        <translation type="unfinished">Saat dipilih, memfungsikan pengendali OHCI USB virtual pada mesin ini. Pengendali OHCI USB menyediakan dukungan USB 1.0.</translation>
+        <translation>Saat dipilih, memfungsikan pengendali OHCI USB virtual pada mesin ini. Pengendali OHCI USB menyediakan dukungan USB 1.0.</translation>
     </message>
     <message>
         <source>USB &amp;2.0 (OHCI + EHCI) Controller</source>
-        <translation type="unfinished">Pengendali USB &amp;2.0 (OHCI + EHCI)</translation>
+        <translation>Pengendali USB &amp;2.0 (OHCI + EHCI)</translation>
     </message>
     <message>
         <source>When chosen, enables the virtual USB OHCI and EHCI controllers of this machine. Together they provide USB 2.0 support.</source>
-        <translation type="unfinished">Ketika dipilih, memfungsikan pengendali USB OHCI dan EHCI virtual dari mesin ini. Bersama-sama mereka menyediakan dukungan USB 2.0.</translation>
+        <translation>Ketika dipilih, memfungsikan pengendali USB OHCI dan EHCI virtual dari mesin ini. Bersama-sama mereka menyediakan dukungan USB 2.0.</translation>
     </message>
     <message>
         <source>USB &amp;3.0 (xHCI) Controller</source>
-        <translation type="unfinished">Pengendali USB &amp;3.0 (xHCI)</translation>
+        <translation>Pengendali USB &amp;3.0 (xHCI)</translation>
     </message>
     <message>
         <source>When chosen, enables the virtual USB xHCI controller of this machine. The USB xHCI controller provides USB 3.0 support.</source>
-        <translation type="unfinished">Saat dipilih, memfungsikan pengendali xHCI USB virtual pada mesin ini. Pengendali xHCI USB menyediakan dukungan USB 3.0.</translation>
+        <translation>Saat dipilih, memfungsikan pengendali xHCI USB virtual pada mesin ini. Pengendali xHCI USB menyediakan dukungan USB 3.0.</translation>
     </message>
 </context>
 <context>
     <name>UIUSBFilterDetailsEditor</name>
     <message>
         <source>USB Filter Details</source>
-        <translation type="unfinished">Rincian Penyaring USB</translation>
+        <translation>Rincian Penyaring USB</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation type="unfinished">&amp;Nama:</translation>
+        <translation>&amp;Nama:</translation>
     </message>
     <message>
         <source>Holds the filter name.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama penyaring.</translation>
     </message>
     <message>
         <source>&amp;Vendor ID:</source>
-        <translation type="unfinished">ID &amp;Vendor:</translation>
+        <translation>ID &amp;Vendor:</translation>
     </message>
     <message>
         <source>Holds the vendor ID filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;XXXX&lt;/tt&gt; where &lt;tt&gt;X&lt;/tt&gt; is a hexadecimal digit. An empty string will match any value.</source>
-        <translation type="unfinished">Menyimpan penyaring ID vendor. Format string &lt;i&gt;cocok eksak&lt;/i&gt; adalah &lt;tt&gt;XXXX&lt;/tt&gt; dimana &lt;tt&gt;X&lt;/tt&gt; adalah suatu digit heksadesimal. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
+        <translation>Menyimpan penyaring ID vendor. Format string &lt;i&gt;cocok eksak&lt;/i&gt; adalah &lt;tt&gt;XXXX&lt;/tt&gt; dimana &lt;tt&gt;X&lt;/tt&gt; adalah suatu digit heksadesimal. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
     </message>
     <message>
         <source>&amp;Product ID:</source>
-        <translation type="unfinished">ID &amp;Produk:</translation>
+        <translation>ID &amp;Produk:</translation>
     </message>
     <message>
         <source>Holds the product ID filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;XXXX&lt;/tt&gt; where &lt;tt&gt;X&lt;/tt&gt; is a hexadecimal digit. An empty string will match any value.</source>
-        <translation type="unfinished">Menyimpan penyaring ID produk. Format string &lt;i&gt;cocok eksak&lt;/i&gt; adalah &lt;tt&gt;XXXX&lt;/tt&gt; dimana &lt;tt&gt;X&lt;/tt&gt; adalah suatu digit heksadesimal. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
+        <translation>Menyimpan penyaring ID produk. Format string &lt;i&gt;cocok eksak&lt;/i&gt; adalah &lt;tt&gt;XXXX&lt;/tt&gt; dimana &lt;tt&gt;X&lt;/tt&gt; adalah suatu digit heksadesimal. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
     </message>
     <message>
         <source>&amp;Revision:</source>
-        <translation type="unfinished">&amp;Revisi:</translation>
+        <translation>&amp;Revisi:</translation>
     </message>
     <message>
         <source>Holds the revision number filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;IIFF&lt;/tt&gt; where &lt;tt&gt;I&lt;/tt&gt; is a decimal digit of the integer part and &lt;tt&gt;F&lt;/tt&gt; is a decimal digit of the fractional part. An empty string will match any value.</source>
-        <translation type="unfinished">Menyimpan penyaring nomor revisi. Format string &lt;i&gt;cocok eksak&lt;/i&gt; adalah &lt;tt&gt;IIFF&lt;/tt&gt; dimana &lt;tt&gt;I&lt;/tt&gt; adalah suatu digit desimal dari bagian bilangan bulat dan &lt;tt&gt;F&lt;/tt&gt; adalah suatu digit desimal dari bagian pecahan. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
+        <translation>Menyimpan penyaring nomor revisi. Format string &lt;i&gt;cocok eksak&lt;/i&gt; adalah &lt;tt&gt;IIFF&lt;/tt&gt; dimana &lt;tt&gt;I&lt;/tt&gt; adalah suatu digit desimal dari bagian bilangan bulat dan &lt;tt&gt;F&lt;/tt&gt; adalah suatu digit desimal dari bagian pecahan. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
     </message>
     <message>
         <source>&amp;Manufacturer:</source>
-        <translation type="unfinished">Pabrika&amp;n:</translation>
+        <translation>Pabrika&amp;n:</translation>
     </message>
     <message>
         <source>Holds the manufacturer filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
-        <translation type="unfinished">Memuat penyaring pabrikan sebagai suatu string &lt;i&gt;cocok eksak&lt;/i&gt;. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
+        <translation>Memuat penyaring pabrikan sebagai suatu string &lt;i&gt;cocok eksak&lt;/i&gt;. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
     </message>
     <message>
         <source>Pro&amp;duct:</source>
-        <translation type="unfinished">Pro&amp;duk:</translation>
+        <translation>Pro&amp;duk:</translation>
     </message>
     <message>
         <source>Holds the product name filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
-        <translation type="unfinished">Memuat penyaring nama produk sebagai suatu string &lt;i&gt;cocok eksak&lt;/i&gt;. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
+        <translation>Memuat penyaring nama produk sebagai suatu string &lt;i&gt;cocok eksak&lt;/i&gt;. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
     </message>
     <message>
         <source>&amp;Serial No.:</source>
-        <translation type="unfinished">No. &amp;Seri:</translation>
+        <translation>No. &amp;Seri:</translation>
     </message>
     <message>
         <source>Holds the serial number filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
-        <translation type="unfinished">Memuat penyaring nomor seri sebagai suatu string &lt;i&gt;cocok eksak&lt;/i&gt;. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
+        <translation>Memuat penyaring nomor seri sebagai suatu string &lt;i&gt;cocok eksak&lt;/i&gt;. Suatu string kosong akan cocok dengan sebarang nilai.</translation>
     </message>
     <message>
         <source>Por&amp;t:</source>
-        <translation type="unfinished">Por&amp;t:</translation>
+        <translation>Por&amp;t:</translation>
     </message>
     <message>
         <source>Holds the host USB port filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
-        <translation type="unfinished">Memuat penyaring port USB sebagai suatu string &lt;i&gt;cocok eksak&lt;/i&gt;. String kosong akan cocok dengan sebarang nilai.</translation>
+        <translation>Memuat penyaring port USB sebagai suatu string &lt;i&gt;cocok eksak&lt;/i&gt;. String kosong akan cocok dengan sebarang nilai.</translation>
     </message>
     <message>
         <source>R&amp;emote:</source>
-        <translation type="unfinished">R&amp;emote:</translation>
+        <translation>R&amp;emote:</translation>
     </message>
     <message>
         <source>Holds whether this filter applies to USB devices attached locally to the host computer (No), to a VRDP client&apos;s computer (Yes), or both (Any).</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan apakah penyaring ini berlaku ke perangkat USB yang dicantolkan secara lokal ke komputer host (Tidak), ke VRDP komputer klien (Ya), atau keduanya (Sebarang).</translation>
     </message>
 </context>
 <context>
@@ -23211,68 +23222,68 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <message>
         <source>%1, Active</source>
         <comment>col.1 text, col.1 state</comment>
-        <translation type="unfinished">%1, Aktif</translation>
+        <translation>%1, Aktif</translation>
     </message>
     <message>
         <source>New Filter %1</source>
         <comment>usb</comment>
-        <translation type="unfinished"></translation>
+        <translation>Penyaring Baru %1</translation>
     </message>
     <message>
         <source>USB Device &amp;Filters</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Penyaring Peranti USB</translation>
     </message>
     <message>
         <source>Lists all USB filters of this machine. The checkbox to the left defines whether the particular filter is enabled or not. Use the context menu or buttons to the right to add or remove USB filters.</source>
-        <translation type="unfinished">Menampilkan semua penyaring USB dari mesin ini. Kotak centang di kiri menentukan apakah penyaring tertentu difungsikan atau tidak. Gunakan menu konteks atau tombol di kanan untuk menambah atau menghapus penyaring USB.</translation>
+        <translation>Menampilkan semua penyaring USB dari mesin ini. Kotak centang di kiri menentukan apakah penyaring tertentu difungsikan atau tidak. Gunakan menu konteks atau tombol di kanan untuk menambah atau menghapus penyaring USB.</translation>
     </message>
     <message>
         <source>Add Empty Filter</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambahkan Penyaring Kosong</translation>
     </message>
     <message>
         <source>Adds new USB filter with all fields initially set to empty strings. Note that such a filter will match any attached USB device.</source>
-        <translation type="unfinished">Menambahkan sebuah penyaring USB baru dengan semua field awal ditata sebagai string kosong. Perhatikan bahwa penyaring seperti itu akan cocok dengan peranti USB apapun yang terpasang.</translation>
+        <translation>Menambahkan sebuah penyaring USB baru dengan semua ruas awal ditata sebagai string kosong. Perhatikan bahwa penyaring seperti itu akan cocok dengan peranti USB apapun yang terpasang.</translation>
     </message>
     <message>
         <source>Add Filter From Device</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambahkan Penyaring dari Peranti</translation>
     </message>
     <message>
         <source>Adds new USB filter with all fields set to the values of the selected USB device attached to the host PC.</source>
-        <translation type="unfinished">Menambahkan sebuah penyaring USB baru dengan semua field ditata sebagai nilai dari peranti USB terpilih terpasang pada PC host.</translation>
+        <translation>Menambahkan sebuah penyaring USB baru dengan semua ruas ditata sebagai nilai dari peranti USB terpilih terpasang pada PC host.</translation>
     </message>
     <message>
         <source>Edit Filter</source>
-        <translation type="unfinished">Sunting Penyaring</translation>
+        <translation>Sunting Penyaring</translation>
     </message>
     <message>
         <source>Edits selected USB filter.</source>
-        <translation type="unfinished">Sunting penyaring USB yang dipilih.</translation>
+        <translation>Menyunting penyaring USB yang dipilih.</translation>
     </message>
     <message>
         <source>Remove Filter</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus Penyaring</translation>
     </message>
     <message>
         <source>Removes selected USB filter.</source>
-        <translation type="unfinished">Hapus penyaring USB yang dipilih.</translation>
+        <translation>Menghapus penyaring USB yang dipilih.</translation>
     </message>
     <message>
         <source>Move Filter Up</source>
-        <translation type="unfinished"></translation>
+        <translation>Naikkan Penyaring</translation>
     </message>
     <message>
         <source>Moves selected USB filter up.</source>
-        <translation type="unfinished">Pindahkan penyaring USB yang dipilih ke atas.</translation>
+        <translation>Pindahkan penyaring USB yang dipilih ke atas.</translation>
     </message>
     <message>
         <source>Move Filter Down</source>
-        <translation type="unfinished"></translation>
+        <translation>Turunkan Penyaring</translation>
     </message>
     <message>
         <source>Moves selected USB filter down.</source>
-        <translation type="unfinished">Pindahkan penyaring USB yang dipilih ke bawah.</translation>
+        <translation>Pindahkan penyaring USB yang dipilih ke bawah.</translation>
     </message>
 </context>
 <context>
@@ -23280,23 +23291,23 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <message>
         <source>&lt;no devices available&gt;</source>
         <comment>USB devices</comment>
-        <translation type="unfinished">&lt;tidak ada peranti yang tersedia&gt;</translation>
+        <translation>&lt;tidak ada peranti yang tersedia&gt;</translation>
     </message>
     <message>
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada peranti yang didukung yang terhubung ke PC host</translation>
     </message>
 </context>
 <context>
     <name>UIUSBSettingsEditor</name>
     <message>
         <source>Enable &amp;USB Controller</source>
-        <translation type="unfinished"></translation>
+        <translation>Fungsikan Pengendali &amp;USB</translation>
     </message>
     <message>
         <source>When checked, enables the virtual USB controller of this machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, mengaktifkan pengendali USB virtual dari mesin ini.</translation>
     </message>
 </context>
 <context>
@@ -23366,59 +23377,59 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIUpdateSettingsEditor</name>
     <message>
         <source>When checked, the application will periodically connect to the VirtualBox website and check whether a new VirtualBox version is available.</source>
-        <translation type="unfinished">Bila ditandai, aplikasi akan menyambung secara periodik ke situs web VirtualBox dan memeriksa apakah sebuah versi baru VirtualBox telah tersedia.</translation>
+        <translation>Bila dicentang, aplikasi akan menyambung secara periodik ke situs web VirtualBox dan memeriksa apakah sebuah versi baru VirtualBox telah tersedia.</translation>
     </message>
     <message>
         <source>&amp;Check for Updates</source>
-        <translation type="unfinished">&amp;Periksa Pemutakhiran</translation>
+        <translation>&amp;Periksa Pemutakhiran</translation>
     </message>
     <message>
         <source>&amp;Once per:</source>
-        <translation type="unfinished">&amp;Sekali setiap:</translation>
+        <translation>&amp;Sekali setiap:</translation>
     </message>
     <message>
         <source>Selects how often the new version check should be performed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih seberapa sering pemeriksaan versi baru mesti dilakukan.</translation>
     </message>
     <message>
         <source>Next Check:</source>
-        <translation type="unfinished">Pemeriksaan Berikutnya:</translation>
+        <translation>Pemeriksaan Berikutnya:</translation>
     </message>
     <message>
         <source>Check for:</source>
-        <translation type="unfinished">Memeriksa keberadaan:</translation>
+        <translation>Memeriksa keberadaan:</translation>
     </message>
     <message>
         <source>&amp;Stable Release Versions</source>
-        <translation type="unfinished">Versi Rilis &amp;Stabil</translation>
+        <translation>Versi Rilis &amp;Stabil</translation>
     </message>
     <message>
         <source>When chosen, you will be notified about stable updates to VirtualBox.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dipilih, Anda akan diberitahu tentang pembaruan stabil ke VirtualBox.</translation>
     </message>
     <message>
         <source>&amp;All New Releases</source>
-        <translation type="unfinished">Semu&amp;a Rilis Baru</translation>
+        <translation>Semu&amp;a Rilis Baru</translation>
     </message>
     <message>
         <source>When chosen, you will be notified about all new VirtualBox releases.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dipilih, Anda akan diberitahu tentang semua rilis VirtualBox baru.</translation>
     </message>
     <message>
         <source>All New Releases and &amp;Pre-Releases</source>
-        <translation type="unfinished">Semua Rilis Baru dan &amp;Prarilis</translation>
+        <translation>Semua Rilis Baru dan &amp;Prarilis</translation>
     </message>
     <message>
         <source>When chosen, you will be notified about all new VirtualBox releases and pre-release versions of VirtualBox.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dipilih, Anda akan diberitahu tentang semua versi rilis VirtualBox baru dan versi prarilis VirtualBox.</translation>
     </message>
     <message>
         <source>All New Releases, &amp;Pre-Releases and Testing Builds</source>
-        <translation type="unfinished"></translation>
+        <translation>Semua Rilis Baru, &amp;Prarilis, dan Build Uji</translation>
     </message>
     <message>
         <source>When chosen, you will be notified about all new VirtualBox releases, pre-release versions and testing builds of VirtualBox.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dipilih, Anda akan diberitahu tentang semua versi rilis VirtualBox baru, versi prarilis dan build uji VirtualBox.</translation>
     </message>
 </context>
 <context>
@@ -23432,134 +23443,134 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIUserNamePasswordEditor</name>
     <message>
         <source>Invalid username</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama pengguna tidak valid</translation>
     </message>
     <message>
         <source>Pass&amp;word</source>
-        <translation type="unfinished"></translation>
+        <translation>Kata &amp;Sandi</translation>
     </message>
     <message>
         <source>&amp;Repeat Password</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Ulangi Kata Sandi</translation>
     </message>
     <message>
         <source>U&amp;sername</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama &amp;Pengguna</translation>
     </message>
     <message>
         <source>Holds username.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama pengguna.</translation>
     </message>
     <message>
         <source>Holds password.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan kata sandi.</translation>
     </message>
     <message>
         <source>Holds the repeated password.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan pengulangan kata sandi.</translation>
     </message>
     <message>
         <source>Invalid password pair</source>
-        <translation type="unfinished"></translation>
+        <translation>Pasangan kata sandi yang tidak valid</translation>
     </message>
 </context>
 <context>
     <name>UIVMActivityOverviewWidget</name>
     <message>
         <source>Used</source>
-        <translation type="unfinished">Terpakai</translation>
+        <translation>Terpakai</translation>
     </message>
     <message>
         <source>Host CPU Load</source>
-        <translation type="unfinished"></translation>
+        <translation>Beban CPU Host</translation>
     </message>
     <message>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation>Pengguna</translation>
     </message>
     <message>
         <source>Kernel</source>
-        <translation type="unfinished"></translation>
+        <translation>Kernel</translation>
     </message>
     <message>
         <source>Total</source>
-        <translation type="unfinished">Total</translation>
+        <translation>Total</translation>
     </message>
     <message>
         <source>Host RAM Usage</source>
-        <translation type="unfinished"></translation>
+        <translation>Penggunaan RAM Host</translation>
     </message>
     <message>
         <source>Free</source>
-        <translation type="unfinished">Bebas</translation>
+        <translation>Bebas</translation>
     </message>
     <message>
         <source>Host File System</source>
-        <translation type="unfinished">Sistem Berkas Host</translation>
+        <translation>Sistem Berkas Host</translation>
     </message>
     <message>
         <source>N/A</source>
-        <translation type="unfinished"></translation>
+        <translation>T/T</translation>
     </message>
     <message>
         <source>VM Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama VM</translation>
     </message>
     <message>
         <source>CPU Guest</source>
-        <translation type="unfinished"></translation>
+        <translation>Guest CPU</translation>
     </message>
     <message>
         <source>CPU VMM</source>
-        <translation type="unfinished"></translation>
+        <translation>VMM CPU</translation>
     </message>
     <message>
         <source>RAM Used/Total</source>
-        <translation type="unfinished"></translation>
+        <translation>RAM Terpakai/Total</translation>
     </message>
     <message>
         <source>RAM %</source>
-        <translation type="unfinished"></translation>
+        <translation>RAM %</translation>
     </message>
     <message>
         <source>Network Up Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>Laju Jaringan Keluar</translation>
     </message>
     <message>
         <source>Network Down Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>Laju Jaringan Masuk</translation>
     </message>
     <message>
         <source>Network Up Total</source>
-        <translation type="unfinished"></translation>
+        <translation>Total Jaringan Keluar</translation>
     </message>
     <message>
         <source>Network Down Total</source>
-        <translation type="unfinished"></translation>
+        <translation>Total Jaringan Masuk</translation>
     </message>
     <message>
         <source>Disk Read Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>Laju Baca Disk</translation>
     </message>
     <message>
         <source>Disk Write Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>Laju Tulis Disk</translation>
     </message>
     <message>
         <source>Disk Read Total</source>
-        <translation type="unfinished"></translation>
+        <translation>Total Baca Disk</translation>
     </message>
     <message>
         <source>Disk Write Total</source>
-        <translation type="unfinished"></translation>
+        <translation>Total Tulis Disk</translation>
     </message>
     <message>
         <source>VM Exits</source>
-        <translation type="unfinished">Keluar VM</translation>
+        <translation>Keluar VM</translation>
     </message>
     <message>
         <source>List all virtual machines</source>
-        <translation type="unfinished"></translation>
+        <translation>Cantumkan semua mesin virtual</translation>
     </message>
 </context>
 <context>
@@ -23602,11 +23613,11 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Saat ditandai, keadaan mesin akan dikembalikan dari keadaan yang tersimpan dalam snapshot saat ini segera setelah dimatikan. Hal ini berguna bila Anda yakin bahwa Anda ingin mengabaikan hasil dari sesi terakhir dan kembali pada snapshot saat ini.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Saat ditandai, keadaan mesin akan dikembalikan dari keadaan yang tersimpan dalam snapshot saat ini segera setelah dimatikan. Hal ini berguna bila Anda yakin bahwa Anda ingin mengabaikan hasil dari sesi terakhir dan kembali pada snapshot saat ini.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">&amp;Pulihkan snapshot saat ini &apos;%1&apos;</translation>
+        <translation>&amp;Pulihkan snapshot saat ini &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>
@@ -23995,51 +24006,51 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Copy All</source>
-        <translation type="unfinished"></translation>
+        <translation>Salin Semua</translation>
     </message>
     <message>
         <source>VM &amp;Activity</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Aktivitas VM</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Tutup</translation>
+        <translation>Tutup</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
     <message>
         <source>Close dialog without saving</source>
-        <translation type="unfinished">Tutup dialog tanpa menyimpan</translation>
+        <translation>Tutup dialog tanpa menyimpan</translation>
     </message>
     <message>
         <source>Show dialog help</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan bantuan dialog</translation>
     </message>
     <message>
         <source>Close this dialog (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutup dialog ini (%1)</translation>
     </message>
     <message>
         <source>Show Help (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bantuan (%1)</translation>
     </message>
     <message>
         <source>This metric requires guest additions to work.</source>
-        <translation type="unfinished"></translation>
+        <translation>Metrik ini memerlukan Guest Addition agar bekerja.</translation>
     </message>
     <message>
         <source>Export</source>
-        <translation type="unfinished">Ekspor</translation>
+        <translation>Ekspor</translation>
     </message>
     <message>
         <source>Sec.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sec.</translation>
     </message>
     <message>
         <source>Export activity data of the machine &quot;%1&quot;</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekspor data aktivitas dari mesin &quot;%1&quot;</translation>
     </message>
 </context>
 <context>
@@ -24345,39 +24356,39 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>%1 - Log Viewer</source>
-        <translation type="unfinished">%1 - Penampil Log</translation>
+        <translation>%1 - Penampil Log</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Bantuan</translation>
+        <translation>Bantuan</translation>
     </message>
     <message>
         <source>Close dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutup dialog</translation>
     </message>
     <message>
         <source>Show dialog help</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan bantuan dialog</translation>
     </message>
     <message>
         <source>Close Window (%1)</source>
-        <translation type="unfinished">Tutup Jendela (%1)</translation>
+        <translation>Tutup Jendela (%1)</translation>
     </message>
     <message>
         <source>Show Help (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tampilkan Bantuan (%1)</translation>
     </message>
     <message>
         <source>Close this machine&apos;s logs</source>
-        <translation type="unfinished"></translation>
+        <translation>Menutup log mesin ini</translation>
     </message>
     <message>
         <source>Select machines to show their log</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih mesin yang akan ditunjukkan lognya</translation>
     </message>
     <message>
         <source>&lt;p&gt;No log files for the machine %1 found. Press the &lt;b&gt;Reload&lt;/b&gt; button to reload the log folder &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Tidak ada file log yang ditemukan untuk mesin %1. Tekan tombol &lt;b&gt;Segarkan&lt;/b&gt; untuk memuat ulang folder log &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -24415,58 +24426,58 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIVRDEAuthLibraryEditor</name>
     <message>
         <source>V&amp;RDP Authentication Library:</source>
-        <translation type="unfinished">Pustaka Otentikasi V&amp;RDP:</translation>
+        <translation>Pustaka Otentikasi V&amp;RDP:</translation>
     </message>
     <message>
         <source>Holds the path to the library that provides authentication for Remote Display (VRDP) clients.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan path ke pustaka yang menyediakan otentikasi untuk klien Tampilan Jarak Jauh (VRDP).</translation>
     </message>
 </context>
 <context>
     <name>UIVRDESettingsEditor</name>
     <message>
         <source>&amp;Enable Server</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktifkan S&amp;erver</translation>
     </message>
     <message>
         <source>When checked, the VM will act as a Remote Desktop Protocol (RDP) server, allowing remote clients to connect and operate the VM (when it is running) using a standard RDP client.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bila dicentang, VM akan beraksi sebagai sebuah server Remote Desktop Protocol (RDP), mengizinkan klien jarak jauh menyambung dan mengoperasikan VM (ketika itu sedang berjalan) memakai sebuah klien RDP standar.</translation>
     </message>
     <message>
         <source>Server &amp;Port:</source>
-        <translation type="unfinished">&amp;Port Server:</translation>
+        <translation>&amp;Port Server:</translation>
     </message>
     <message>
         <source>Holds the VRDP Server port number. You may specify 0 (zero), to select port 3389, the standard port for RDP.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nomor port Server VRDP. Anda dapat menyatakan 0 (nol), untuk memilih port 3389, port standar untuk RDP.</translation>
     </message>
     <message>
         <source>Authentication &amp;Method:</source>
-        <translation type="unfinished">&amp;Metode Otentikasi:</translation>
+        <translation>&amp;Metode Otentikasi:</translation>
     </message>
     <message>
         <source>Selects the VRDP authentication method.</source>
-        <translation type="unfinished">Memilih metode otentikasi VRDP.</translation>
+        <translation>Memilih metode otentikasi VRDP.</translation>
     </message>
     <message>
         <source>Authentication &amp;Timeout:</source>
-        <translation type="unfinished">&amp;Tenggat Waktu Otentikasi:</translation>
+        <translation>&amp;Tenggat Waktu Otentikasi:</translation>
     </message>
     <message>
         <source>Holds the timeout for guest authentication, in milliseconds.</source>
-        <translation type="unfinished">Menyimpan tenggat waktu untuk otentikasi guest, dalam milidetik.</translation>
+        <translation>Menyimpan tenggat waktu untuk otentikasi guest, dalam milidetik.</translation>
     </message>
     <message>
         <source>Extended Features:</source>
-        <translation type="unfinished">Fitur Tambahan:</translation>
+        <translation>Fitur Tambahan:</translation>
     </message>
     <message>
         <source>&amp;Allow Multiple Connections</source>
-        <translation type="unfinished">Ijink&amp;an Koneksi Berganda</translation>
+        <translation>Izink&amp;an Koneksi Berganda</translation>
     </message>
     <message>
         <source>When checked, multiple simultaneous connections to the VM are permitted.</source>
-        <translation type="unfinished">Bila dicentang, beberapa koneksi simultan ke VM diijinkan.</translation>
+        <translation>Bila dicentang, beberapa koneksi simultan ke VM diizinkan.</translation>
     </message>
 </context>
 <context>
@@ -24485,15 +24496,15 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Holds the amount of video memory provided to the virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan banyaknya memori video yang disedikan ke mesin virtual.</translation>
     </message>
     <message>
         <source>Minimum possible video memory size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukuran memori video minimum yang mungkin.</translation>
     </message>
     <message>
         <source>Maximum possible video memory size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukuran memori video maksimum yang mungkin.</translation>
     </message>
 </context>
 <context>
@@ -24531,41 +24542,41 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIVirtualCPUEditor</name>
     <message>
         <source>&amp;Processors:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Prosesor:</translation>
     </message>
     <message>
         <source>Holds the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan banyaknya CPU virtual dalam mesin virtual. Anda perlu dukungan virtualisasi perangkat keras pada sistem host Anda untuk memakai lebih dari satu CPU virtual.</translation>
     </message>
     <message>
         <source>%1 CPU</source>
         <comment>%1 is 1 for now</comment>
-        <translation type="unfinished">%1 CPU</translation>
+        <translation>%1 CPU</translation>
     </message>
     <message>
         <source>Minimum possible virtual CPU count.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cacah CPU virtual minimum yang mungkin.</translation>
     </message>
     <message>
         <source>%1 CPUs</source>
         <comment>%1 is host cpu count * 2 for now</comment>
-        <translation type="unfinished">%1 CPU</translation>
+        <translation>%1 CPU</translation>
     </message>
     <message>
         <source>Maximum possible virtual CPU count.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cacah CPU virtual maksimum yang mungkin.</translation>
     </message>
 </context>
 <context>
     <name>UIVirtualMachineItemCloud</name>
     <message>
         <source>Loading ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memuat ...</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name)</comment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Tidak dapat diakses&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
@@ -24573,12 +24584,12 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Empty</source>
-        <translation type="unfinished">Kosong</translation>
+        <translation>Kosong</translation>
     </message>
     <message>
         <source>Inaccessible</source>
         <comment>VM</comment>
-        <translation type="unfinished">Tidak dapat diakses</translation>
+        <translation>Tidak dapat diakses</translation>
     </message>
 </context>
 <context>
@@ -24586,16 +24597,16 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
         <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation type="unfinished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 sejak %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sesi %4&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 sejak %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sesi %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Tidak dapat diakses sejak %2&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Tidak dapat diakses sejak %2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished">Tidak dapat diakses</translation>
+        <translation>Tidak dapat diakses</translation>
     </message>
 </context>
 <context>
@@ -24749,102 +24760,102 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIVisoCreatorWidget</name>
     <message>
         <source>Click to show/hide the tree view.</source>
-        <translation type="unfinished"></translation>
+        <translation>Klik untuk menampilkan/menyembunyikan tilikan pohon.</translation>
     </message>
     <message>
         <source>Shows the current location.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menunjukkan lokasi saat ini.</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Nama</translation>
+        <translation>Nama</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished">Ukuran</translation>
+        <translation>Ukuran</translation>
     </message>
     <message>
         <source>Change Time</source>
-        <translation type="unfinished">Waktu Berubah</translation>
+        <translation>Waktu Berubah</translation>
     </message>
     <message>
         <source>Owner</source>
-        <translation type="unfinished">Pemilik</translation>
+        <translation>Pemilik</translation>
     </message>
     <message>
         <source>Permissions</source>
-        <translation type="unfinished">Izin</translation>
+        <translation>Izin</translation>
     </message>
     <message>
         <source>Local Path</source>
-        <translation type="unfinished">Path Lokal</translation>
+        <translation>Path Lokal</translation>
     </message>
     <message>
         <source>ISO Path</source>
-        <translation type="unfinished">Path ISO</translation>
+        <translation>Path ISO</translation>
     </message>
     <message>
         <source>Host File System</source>
-        <translation type="unfinished">Sistem Berkas Host</translation>
+        <translation>Sistem Berkas Host</translation>
     </message>
     <message>
         <source>VISO Content</source>
-        <translation type="unfinished"></translation>
+        <translation>Isi VISO</translation>
     </message>
     <message>
         <source>C&amp;reate</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Buat</translation>
     </message>
     <message>
         <source>Creates VISO file with the selected content</source>
-        <translation type="unfinished"></translation>
+        <translation>Membuat berkas VISO dengan isi yang dipilih</translation>
     </message>
     <message>
         <source>Opens the help browser and navigates to the related section</source>
-        <translation type="unfinished"></translation>
+        <translation>Membuka peramban bantuan dan menavigasi ke bagian terkait</translation>
     </message>
     <message>
         <source>VISO Creator</source>
-        <translation type="unfinished">Pembuat VISO</translation>
+        <translation>Pembuat VISO</translation>
     </message>
     <message>
         <source>VISO Name:</source>
-        <translation type="unfinished">Nama VISO:</translation>
+        <translation>Nama VISO:</translation>
     </message>
     <message>
         <source>Custom VISO options:</source>
-        <translation type="unfinished">Opsi VISO ubahan:</translation>
+        <translation>Opsi VISO ubahan:</translation>
     </message>
     <message>
         <source>Remove current option.</source>
-        <translation type="unfinished">Hapus opsi saat ini.</translation>
+        <translation>Hapus opsi saat ini.</translation>
     </message>
     <message>
         <source>Holds the name of the VISO medium.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama medium VISO ini.</translation>
     </message>
     <message>
         <source>Holds options for VISO creation.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan opsi bagi penciptaan VISO.</translation>
     </message>
     <message>
         <source>Show Hidden Objects</source>
-        <translation type="unfinished">Tampilkan Objek Tersembunyi</translation>
+        <translation>Tampilkan Objek Tersembunyi</translation>
     </message>
     <message>
         <source>When checked, multiple hidden objects are shown in the file browser</source>
-        <translation type="unfinished"></translation>
+        <translation>Bila dicentang, beberapa objek tersembunyi ditunjukkan dalam peramban berkas</translation>
     </message>
 </context>
 <context>
     <name>UIVisualStateEditor</name>
     <message>
         <source>Visual &amp;State:</source>
-        <translation type="unfinished"></translation>
+        <translation>Keadaan Vi&amp;sual:</translation>
     </message>
     <message>
         <source>Selects the visual state. If machine is running it will be applied as soon as possible, otherwise desired one will be defined.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih keadaan visual. Bila mesin sedang berjalan itu akan diterapkan sesegera mungkin, bila tidak, akan didefinisikan yang diinginkan.</translation>
     </message>
 </context>
 <context>
@@ -24885,47 +24896,47 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIWizardAddCloudVM</name>
     <message>
         <source>Add Cloud Virtual Machine</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah Mesin Virtual Cloud</translation>
     </message>
     <message>
         <source>Location</source>
-        <translation type="unfinished">Lokasi</translation>
+        <translation>Lokasi</translation>
     </message>
     <message>
         <source>Source</source>
-        <translation type="unfinished">Sumber</translation>
+        <translation>Sumber</translation>
     </message>
     <message>
         <source>Open Cloud Profile Manager...</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Manajer Profil Cloud...</translation>
     </message>
     <message>
         <source>Add VM from cloud service provider.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tambah VM dari penyedia layanan cloud.</translation>
     </message>
     <message>
         <source>Source to add from</source>
-        <translation type="unfinished"></translation>
+        <translation>Sumber untuk ditambahkan</translation>
     </message>
     <message>
         <source>Please choose the source to add cloud virtual machine from.  This can be one of known cloud service providers below.</source>
-        <translation type="unfinished"></translation>
+        <translation>Harap pilih sumber untuk menambahkan mesin virtual cloud.  Ini bisa berupa satu dari penyedia layanan cloud yang dikenal di bawah.</translation>
     </message>
     <message>
         <source>&amp;Source:</source>
-        <translation type="unfinished">&amp;Sumber:</translation>
+        <translation>&amp;Sumber:</translation>
     </message>
     <message>
         <source>Please choose one of cloud service profiles you have registered to add virtual machine from.  Existing instance list will be updated.  To continue, select at least one instance to add virtual machine on the basis of it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Harap pilih satu profil layanan cloud yang Anda telah terdaftar untuk menambah sumber mesin virtual.  Daftar instansi yang telah ada akan diperbarui.  Untuk melanjutkan, pilih paling tidak satu instansi untuk menambah mesin virtual berbasis padanya.</translation>
     </message>
     <message>
         <source>&amp;Profile:</source>
-        <translation type="unfinished"></translation>
+        <translation>P&amp;rofil:</translation>
     </message>
     <message>
         <source>&amp;Instances:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Instansi:</translation>
     </message>
 </context>
 <context>
@@ -25170,27 +25181,27 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Copy Virtual Disk</source>
-        <translation type="unfinished">Salin Disk Virtual</translation>
+        <translation>Salin Disk Virtual</translation>
     </message>
     <message>
         <source>Virtual Hard disk file type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipe berkas hard disk virtual</translation>
     </message>
     <message>
         <source>Please choose the type of file that you would like to use for the destination virtual disk image. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>Silakan pilih tipe berkas yang ingin Anda pakai untuk image disk virtual tujuan. Bila Anda tak perlu memakainya dengan perangkat lunak virtualisasi lain Anda dapat membiarkan pengaturan ini tak diubah.</translation>
     </message>
     <message>
         <source>Location and size of the disk image</source>
-        <translation type="unfinished"></translation>
+        <translation>Lokasi dan ukuran image disk</translation>
     </message>
     <message>
         <source>copy</source>
-        <translation type="unfinished"></translation>
+        <translation>salin</translation>
     </message>
     <message>
         <source>Hard Disk File &amp;Type and Variant</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Tipe dan Varian Berkas Hard Disk</translation>
     </message>
 </context>
 <context>
@@ -25369,67 +25380,67 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Clone name cannot be empty</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama klon tidak boleh kosong</translation>
     </message>
     <message>
         <source>Path is invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>Path tidak valid</translation>
     </message>
     <message>
         <source>The clone name is not unique</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama klon tidak unik</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation type="unfinished">&amp;Nama:</translation>
+        <translation>&amp;Nama:</translation>
     </message>
     <message>
         <source>&amp;Path:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Path:</translation>
     </message>
     <message>
         <source>Holds a name for the new virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan nama bagi mesin virtual baru.</translation>
     </message>
     <message>
         <source>Specifies The location of the new virtual machine in host&apos;s storage.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menentukan lokasi dari mesin virtual baru dalam penyimpanan host.</translation>
     </message>
     <message>
         <source>MAC Address P&amp;olicy:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Kebijakan Alamat MAC:</translation>
     </message>
     <message>
         <source>Determines MAC address policy for clonning:</source>
-        <translation type="unfinished"></translation>
+        <translation>Menentukan kebijakan alamat MAC untuk pembuatan klon:</translation>
     </message>
     <message>
         <source>When checked, disk names will be preserved during cloning.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, nama disk akan dipertahankan selama pembuatan klon.</translation>
     </message>
     <message>
         <source>When checked, hardware UUIDs will be preserved during cloning.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, UUID perangkat keras akan dipertahankan selama pembuatan klon.</translation>
     </message>
     <message>
         <source>Keep Hard&amp;ware UUIDs</source>
-        <translation type="unfinished"></translation>
+        <translation>Perta&amp;hankan UUID Perangkat Keras</translation>
     </message>
     <message>
         <source>When chosen, all the virtual disks of the source vm are also cloned.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dipilih, semua disk virtual dari vm sumber juga di-klon.</translation>
     </message>
     <message>
         <source>When chosen, the cloned vm will save space by sharing the source VM&apos;s disk images.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dipilih, vm yang di-klon akan menghemat ruang dengan memakai bersama image disk VM sumber.</translation>
     </message>
     <message>
         <source>When chosen, only the current state of the source vm is cloned.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dipilih, hanya keadaan saat ini dari vm sumber yang di-klon.</translation>
     </message>
     <message>
         <source>When chosen, all the saved states of the source vm are also cloned.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dipilih, semua keadaan yang disimpan dari vm sumber juga di-klon.</translation>
     </message>
 </context>
 <context>
@@ -25728,47 +25739,47 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Virtual &amp;machines</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Mesin virtual</translation>
     </message>
     <message>
         <source>Format &amp;settings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Pengaturan format</translation>
     </message>
     <message>
         <source>&amp;Appliance settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Pengaturan &amp;appliance</translation>
     </message>
     <message>
         <source>&amp;Profile:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Profil:</translation>
     </message>
     <message>
         <source>Open Cloud Profile Manager...</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Manajer Profil Cloud...</translation>
     </message>
     <message>
         <source>Do not ask me about it, leave custom &amp;image for future usage</source>
-        <translation type="unfinished"></translation>
+        <translation>Jangan bertanya, biarkan &amp;image ubahan untuk penggunaan di masa depan</translation>
     </message>
     <message>
         <source>Holds the path of the file selected for export.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan path dari berkas yang dipilih untuk diekspor.</translation>
     </message>
     <message>
         <source>Format settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Pengaturan format</translation>
     </message>
     <message>
         <source>Please choose one of cloud service profiles you have registered to export virtual machines to. It will be used to establish network connection required to upload your virtual machine files to a remote cloud facility.</source>
-        <translation type="unfinished"></translation>
+        <translation>Harap pilih satu profil layanan cloud yang Anda telah terdaftar untuk tempat mengekspor mesin virtual. Itu akan dipakai untuk menjalin koneksi jaringan yang diperlukan untuk mengunggah berkas mesin virtual Anda ke suatu fasilitas cloud remote.</translation>
     </message>
     <message>
         <source>Please choose a filename to export the virtual appliance to. Besides that you can specify a certain amount of options which affects the size and content of resulting archive.</source>
-        <translation type="unfinished"></translation>
+        <translation>Silakan pilih suatu nama berkas tujuan ekspor appliance virtual. Selain itu Anda juga dapat menyatakan sejumlah opsi tertentu yang memengaruhi ukuran dan isi dari arsip yang dihasilkan.</translation>
     </message>
     <message>
         <source>Virtual machines</source>
-        <translation type="unfinished"></translation>
+        <translation>Mesin virtual</translation>
     </message>
 </context>
 <context>
@@ -25972,67 +25983,67 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Open Cloud Profile Manager...</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Manajer Profil Cloud...</translation>
     </message>
     <message>
         <source>&amp;Machine Base Folder:</source>
-        <translation type="unfinished">Folder Dasar &amp;Mesin:</translation>
+        <translation>Folder Dasar &amp;Mesin:</translation>
     </message>
     <message>
         <source>MAC Address &amp;Policy:</source>
-        <translation type="unfinished">&amp;Kebijakan Alamat MAC:</translation>
+        <translation>&amp;Kebijakan Alamat MAC:</translation>
     </message>
     <message>
         <source>Additional Options:</source>
-        <translation type="unfinished">Opsi Tambahan:</translation>
+        <translation>Opsi Tambahan:</translation>
     </message>
     <message>
         <source>&amp;Import hard drives as VDI</source>
-        <translation type="unfinished">&amp;Impor hard disk sebagai VDI</translation>
+        <translation>&amp;Impor hard disk sebagai VDI</translation>
     </message>
     <message>
         <source>When checked, all the hard drives that belong to this appliance will be imported in VDI format.</source>
-        <translation type="unfinished">Saat dicentang, semua hard disk milik appliance ini akan diimpor dalam format VDI.</translation>
+        <translation>Saat dicentang, semua hard disk milik appliance ini akan diimpor dalam format VDI.</translation>
     </message>
     <message>
         <source>Holds the path of the file selected for import.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan path dari berkas yang dipilih untuk diimpor.</translation>
     </message>
     <message>
         <source>Include all network adapter MAC addresses</source>
-        <translation type="unfinished">Sertakan semua alamat MAC kartu jaringan</translation>
+        <translation>Sertakan semua alamat MAC kartu jaringan</translation>
     </message>
     <message>
         <source>Include all network adapter MAC addresses during importing.</source>
-        <translation type="unfinished">Sertakan semua alamat MAC kartu jaringan selama impor.</translation>
+        <translation>Sertakan semua alamat MAC kartu jaringan selama impor.</translation>
     </message>
     <message>
         <source>Include only NAT network adapter MAC addresses</source>
-        <translation type="unfinished">Hanya sertakan alamat MAC kartu jaringan NAT</translation>
+        <translation>Hanya sertakan alamat MAC kartu jaringan NAT</translation>
     </message>
     <message>
         <source>Include only NAT network adapter MAC addresses during importing.</source>
-        <translation type="unfinished">Hanya sertakan alamat MAC kartu jaringan NAT selama impor.</translation>
+        <translation>Hanya sertakan alamat MAC kartu jaringan NAT selama impor.</translation>
     </message>
     <message>
         <source>Generate new MAC addresses for all network adapters</source>
-        <translation type="unfinished">Buat alamat MAC baru untuk semua kartu jaringan</translation>
+        <translation>Buat alamat MAC baru untuk semua kartu jaringan</translation>
     </message>
     <message>
         <source>Generate new MAC addresses for all network adapters during importing.</source>
-        <translation type="unfinished">Buat alamat MAC baru untuk semua kartu jaringan selama impor.</translation>
+        <translation>Buat alamat MAC baru untuk semua kartu jaringan selama impor.</translation>
     </message>
     <message>
         <source>Please choose one of cloud service profiles you have registered to import virtual machine from.  Corresponding machines list will be updated.  To continue, select one of machines to import below.</source>
-        <translation type="unfinished"></translation>
+        <translation>Harap pilih satu akun layanan cloud yang Anda telah terdaftar untuk mengimpor mesin virtual.  Daftar mesin yang terkait akan diperbarui.  Untuk melanjutkan, pilih satu dari mesin yang akan diimpor di bawah.</translation>
     </message>
     <message>
         <source>Please choose a file to import the virtual appliance from.  VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF).  To continue, select the file to import below.</source>
-        <translation type="unfinished"></translation>
+        <translation>Harap pilih sebuah berkas sumber impor appliance virtual.  VirtualBox saat ini mendukung mengimpor appliance yang disimpan dalam Open Virtualization Format (OVF).  Untuk melanjutkan, pilih berkas yang akan diimpor di bawah.</translation>
     </message>
     <message>
         <source>&amp;Profile:</source>
-        <translation type="unfinished"></translation>
+        <translation>P&amp;rofil:</translation>
     </message>
 </context>
 <context>
@@ -26103,47 +26114,47 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Location</source>
-        <translation type="unfinished">Lokasi</translation>
+        <translation>Lokasi</translation>
     </message>
     <message>
         <source>Source</source>
-        <translation type="unfinished">Sumber</translation>
+        <translation>Sumber</translation>
     </message>
     <message>
         <source>&amp;Images</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Image</translation>
     </message>
     <message>
         <source>&amp;Boot Volumes</source>
-        <translation type="unfinished"></translation>
+        <translation>Volume &amp;Boot</translation>
     </message>
     <message>
         <source>Open Cloud Profile Manager...</source>
-        <translation type="unfinished"></translation>
+        <translation>Buka Manajer Profil Cloud...</translation>
     </message>
     <message>
         <source>Location to create</source>
-        <translation type="unfinished"></translation>
+        <translation>Lokasi yang akan dibuat</translation>
     </message>
     <message>
         <source>Please choose the location to create cloud virtual machine in.  This can be one of known cloud service providers below.</source>
-        <translation type="unfinished"></translation>
+        <translation>Harap pilih lokasi tempat mencipta mesin virtual cloud.  Ini bisa salah satu dari penyedia layanan cloud yang dikenal di bawah.</translation>
     </message>
     <message>
         <source>&amp;Location:</source>
-        <translation type="unfinished">&amp;Lokasi:</translation>
+        <translation>&amp;Lokasi:</translation>
     </message>
     <message>
         <source>Please choose one of cloud service profiles you have registered to create virtual machine for.  Existing images list will be updated.  To continue, select one of images to create virtual machine on the basis of it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Harap pilih satu profil layanan cloud yang Anda telah terdaftar tempat membuat mesin virtual.  Daftar image yang telah ada akan diperbarui.  Untuk melanjutkan, pilih satu image untuk mencipta mesin virtual berbasis padanya.</translation>
     </message>
     <message>
         <source>&amp;Profile:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Profil:</translation>
     </message>
     <message>
         <source>&amp;Source:</source>
-        <translation type="unfinished">&amp;Sumber:</translation>
+        <translation>&amp;Sumber:</translation>
     </message>
 </context>
 <context>
@@ -26278,11 +26289,11 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Virtual Hard disk file type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipe berkas hard disk virtual</translation>
     </message>
     <message>
         <source>Hard Disk File &amp;Type and Variant</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Tipe dan Varian Berkas Hard Disk Virtual</translation>
     </message>
 </context>
 <context>
@@ -26397,303 +26408,303 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Username and Password</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama Pengguna dan Kata Sandi</translation>
     </message>
     <message>
         <source>Selects an installation medium (ISO file) for the Guest Additions.</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih sebuah medium instalasi (berkas ISO) bagi Guest Addition.</translation>
     </message>
     <message>
         <source>Guest &amp;Additions ISO:</source>
-        <translation type="unfinished"></translation>
+        <translation>ISO Guest &amp;Addition:</translation>
     </message>
     <message>
         <source>Gu&amp;est Additions</source>
-        <translation type="unfinished"></translation>
+        <translation>Gu&amp;est Addition</translation>
     </message>
     <message>
         <source>When checked, the guest additions will be installed after the guest OS install.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ketika dicentang, guest addition akan dipasang setelah instalasi OS guest.</translation>
     </message>
     <message>
         <source>Invalid Guest Additions installation media</source>
-        <translation type="unfinished"></translation>
+        <translation>Media instalasi Guest Addition tidak valid</translation>
     </message>
     <message>
         <source>Additional Options</source>
-        <translation type="unfinished"></translation>
+        <translation>Opsi Tambahan</translation>
     </message>
     <message>
         <source>&amp;Product Key:</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunci &amp;Produk:</translation>
     </message>
     <message>
         <source>&amp;Install in Background</source>
-        <translation type="unfinished"></translation>
+        <translation>Pasang d&amp;i Latar Belakang</translation>
     </message>
     <message>
         <source>When checked, headless boot (with no GUI) will be enabled for unattended guest OS installation of newly created virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, boot headless (tanpa GUI) akan difungsikan bai instalasi OS guest tak terdampingi dari mesin virtual yang baru dibuat.</translation>
     </message>
     <message>
         <source>Holds the product key.</source>
-        <translation type="unfinished"></translation>
+        <translation>Menyimpan kunci produk.</translation>
     </message>
     <message>
         <source>&amp;Enable EFI (special OSes only)</source>
-        <translation type="unfinished"></translation>
+        <translation>Fungsikan &amp;EFI (hanya OS tertentu)</translation>
     </message>
     <message>
         <source>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</source>
-        <translation type="unfinished">Bila ditandai, guest akan mendukung Extended Firmware Interface (EFI), yang diperlukan untuk mem-boot beberapa OS guest. OS yang tak kenal EFI tak akan bisa di-boot bila opsi ini diaktifkan.</translation>
+        <translation>Bila dicentang, guest akan mendukung Extended Firmware Interface (EFI), yang diperlukan untuk mem-boot beberapa OS guest. OS yang tak kenal EFI tak akan bisa di-boot bila opsi ini diaktifkan.</translation>
     </message>
     <message>
         <source>Virtual machine Name and Operating System</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama dan Sistem Operasi mesin virtual</translation>
     </message>
     <message>
         <source>Please choose a descriptive name and destination folder for the new virtual machine. The name you choose will be used throughout VirtualBox to identify this machine. Additionally, you can select an ISO image which may be used to install the guest operating system.</source>
-        <translation type="unfinished"></translation>
+        <translation>Harap pilih suatu nama yang deskriptif dan folder tujuan bagi mesin virtual baru. Nama yang Anda pilih akan dipakai di seluruh VirtualBox untuk mengidentifikasi mesin ini. Sebagai tambahan, Anda dapat memilih sebuah image ISO yang mungkin dipakai untuk memasang sistem operasi guest.</translation>
     </message>
     <message>
         <source>&amp;Skip Unattended Installation</source>
-        <translation type="unfinished"></translation>
+        <translation>Lewati In&amp;stalasi Tak Terdampingi</translation>
     </message>
     <message>
         <source>When checked, the unattended install is disabled and the selected ISO is mounted on the vm.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ketika dicentang, pemasangan otomatis tanpa pendampingan dimatikan dan ISO yang dipilih dikait pada vm.</translation>
     </message>
     <message>
         <source>No ISO image is selected, the guest OS will need to be installed manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada image ISO yang dipilih, OS guest akan perlu dipasang secara manual.</translation>
     </message>
     <message>
         <source>OS type cannot be determined from the selected ISO, the guest OS will need to be installed manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipe OS tidak dapat ditentukan dari ISO yang dipilih, OS guest akan perlu dipasang secara manual.</translation>
     </message>
     <message>
         <source>Detected OS type: %1. %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipe OS yang Terdeteksi:  %1. %2</translation>
     </message>
     <message>
         <source>This OS type cannot be installed unattendedly. The install needs to be started manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipe OS ini tidak dapat dipasang tanpa pendampingan. Instalasi perlu dimulai secara manual.</translation>
     </message>
     <message>
         <source>You have selected to skip unattended guest OS install, the guest OS will need to be installed manually.</source>
-        <translation type="unfinished"></translation>
+        <translation>Anda telah memilih untuk melewati pemasangan OS guest tanpa pendampingan, OS guest akan perlu dipasang secara manual.</translation>
     </message>
     <message>
         <source>This OS type can be installed unattendedly. The install will start after this wizard is closed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipe OS ini dapat dipasang tanpa pendampingan. Instalasi akan dimulai setelah wahana pandu ini ditutup.</translation>
     </message>
     <message>
         <source>Invalid file path or unreadable file</source>
-        <translation type="unfinished"></translation>
+        <translation>Path berkas tidak valid atau berkas tidak dapat dibaca</translation>
     </message>
     <message>
         <source>Unattended Guest OS Install Setup</source>
-        <translation type="unfinished"></translation>
+        <translation>Penyiapan Pemasangan OS Guest Tanpa Pendampingan</translation>
     </message>
     <message>
         <source>You can configure the unattended guest OS install by modifying username, password, and hostname. Additionally you can enable guest additions install. For Microsoft Windows guests it is possible to provide a product key.</source>
-        <translation type="unfinished"></translation>
+        <translation>Anda dapat mengonfigurasi pemasangan OS guest tanpa pendampingan dengan mengubah nama pengguna, kata sandi, dan nama host. Sebagai tambahan Anda dapat memfungsikan instalasi guest addition. Untuk guest Microsoft Windows mungkin untuk menyediakan kunci produk.</translation>
     </message>
     <message>
         <source>Hardware</source>
-        <translation type="unfinished"></translation>
+        <translation>Perangkat Keras</translation>
     </message>
     <message>
         <source>You can modify virtual machine&apos;s hardware by changing amount of RAM and virtual CPU count. Enabling EFI is also possible.</source>
-        <translation type="unfinished"></translation>
+        <translation>Anda dapat mengubah perangkat keras mesin virtual dengan mengubah banyaknya RAM dan cacah CPU virtual. Memfungsikan EFI juga mungkin.</translation>
     </message>
     <message>
         <source>Virtual Hard disk</source>
-        <translation type="unfinished"></translation>
+        <translation>Hard disk virtual</translation>
     </message>
     <message>
         <source>If you wish you can add a virtual hard disk to the new machine. You can either create a new hard disk file or select an existing one. Alternatively you can create a virtual machine without a virtual hard disk.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bila Anda mau Anda dapat menambahkan sebuah hard disk virtual ke mesin baru. Anda dapat membuat berkas hard disk baru atau memilih yang sudah ada. Atau Anda dapat membuat suatu mesin virtual tanpa hard disk virtual.</translation>
     </message>
     <message>
         <source>&amp;Do Not Add a Virtual Hard Disk</source>
-        <translation type="unfinished"></translation>
+        <translation>Jangan Tambahkan sebuah Hard &amp;Disk Virtual</translation>
     </message>
     <message>
         <source>&amp;Create a Virtual Hard Disk Now</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Buat sebuah Hard Disk Virtual Sekarang</translation>
     </message>
     <message>
         <source>U&amp;se an Existing Virtual Hard Disk File</source>
-        <translation type="unfinished"></translation>
+        <translation>Gunakan Berkas Disk Hard Disk Virtual yang &amp;Sudah Ada</translation>
     </message>
     <message>
         <source>Chooses a Virtual Hard Fisk File...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memilih sebuah Berkas Hard Disk Virtual...</translation>
     </message>
     <message>
         <source>D&amp;isk Size:</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukuran D&amp;isk:</translation>
     </message>
     <message>
         <source>Pre-allocate &amp;Full Size</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Pra-alokasi Ukuran Penuh</translation>
     </message>
     <message>
         <source>When checked, the virtual disk image is allocated with its full size during VM creation time</source>
-        <translation type="unfinished"></translation>
+        <translation>Ketika dicentang, image disk virtual dialokasikan dengan ukuran penuh selama waktu pembuatan VM</translation>
     </message>
     <message>
         <source>Please choose whether the new virtual hard disk file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
-        <translation type="unfinished">Silakan pilih apakah berkas hard disk virtual baru mesti tumbuh ketika dipakai (dialokasikan secara dinamik) atau mesti diciptakan pada ukuran maksimumnya (ukuran tetap).</translation>
+        <translation>Silakan pilih apakah berkas hard disk virtual baru mesti mengembang ketika dipakai (dialokasikan secara dinamik) atau mesti diciptakan pada ukuran maksimumnya (ukuran tetap).</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard disk file will only use space on your physical hard disk as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;Berkas hard disk virtual &lt;b&gt;yang dialokasikan secara dinamik&lt;/b&gt; hanya akan memakai ruang pada hard disk fisik Anda ketika terisi (sampai dengan suatu &lt;b&gt;ukuran tetap&lt;/b&gt; maksimum), walaupun mereka tak akan mengecil lagi secara otomatis ketika ruang di dalamnya dibebaskan.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Berkas hard disk virtual &lt;b&gt;yang dialokasikan secara dinamik&lt;/b&gt; hanya akan memakai ruang pada hard disk fisik Anda ketika terisi (sampai dengan suatu &lt;b&gt;ukuran tetap&lt;/b&gt; maksimum), walaupun mereka tak akan mengecil lagi secara otomatis ketika ruang di dalamnya dibebaskan.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard disk file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;Berkas hard disk virtual &lt;b&gt;ukuran tetap&lt;/b&gt; mungkin makan waktu lebih lama untuk diciptakan pada beberapa sistem tapi seringkali lebih cepat dipakainya.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Berkas hard disk virtual &lt;b&gt;ukuran tetap&lt;/b&gt; mungkin makan waktu lebih lama untuk diciptakan pada beberapa sistem tapi seringkali lebih cepat saat dipakai.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Name and &amp;Operating System</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama dan Sistem &amp;Operasi</translation>
     </message>
     <message>
         <source>&amp;Unattended Install</source>
-        <translation type="unfinished"></translation>
+        <translation>Instalasi &amp;Tak Terdampingi</translation>
     </message>
     <message>
         <source>Hard Dis&amp;k</source>
-        <translation type="unfinished"></translation>
+        <translation>Hard Dis&amp;k</translation>
     </message>
     <message>
         <source>H&amp;ardware</source>
-        <translation type="unfinished"></translation>
+        <translation>Per&amp;angkat Keras</translation>
     </message>
     <message>
         <source>Hard Disk File &amp;Type and Variant</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Tipe dan Varian Berkas Hard Disk</translation>
     </message>
     <message>
         <source>Invalid path or unreadable ISO file</source>
-        <translation type="unfinished"></translation>
+        <translation>Path tidak valid atau berkas ISO tidak dapat dibaca</translation>
     </message>
     <message>
         <source>Invalid username and/or password</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama pengguna dan/atau kata sandi tidak valid</translation>
     </message>
     <message>
         <source>Invalid hostname or domain name</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama host atau nama domain tidak valid</translation>
     </message>
     <message>
         <source>Virtual machine name is invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama mesin virtual tidak valid</translation>
     </message>
     <message>
         <source>Invalid ISO file</source>
-        <translation type="unfinished"></translation>
+        <translation>Berkas ISO tidak valid</translation>
     </message>
     <message>
         <source>No valid disk is selected</source>
-        <translation type="unfinished"></translation>
+        <translation>Tidak ada disk valid yang dipilih</translation>
     </message>
     <message>
         <source>Invalid disk size</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukuran disk tidak valid</translation>
     </message>
     <message>
         <source>Machine Name and OS Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama Mesin dan Tipe OS</translation>
     </message>
     <message>
         <source>Machine Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama Mesin</translation>
     </message>
     <message>
         <source>Machine Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Folder Mesin</translation>
     </message>
     <message>
         <source>ISO Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Image ISO</translation>
     </message>
     <message>
         <source>Guest OS Type</source>
-        <translation type="unfinished">Tipe OS Guest</translation>
+        <translation>Tipe OS Guest</translation>
     </message>
     <message>
         <source>Skip Unattended Install</source>
-        <translation type="unfinished"></translation>
+        <translation>Lewati Instalasi Tak Terdampingi</translation>
     </message>
     <message>
         <source>Unattended Install</source>
-        <translation type="unfinished"></translation>
+        <translation>Instalasi Tak Terdampingi</translation>
     </message>
     <message>
         <source>Username</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama Pengguna</translation>
     </message>
     <message>
         <source>Product Key</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunci Produk</translation>
     </message>
     <message>
         <source>Hostname/Domain Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Nama Host/Nama Domain</translation>
     </message>
     <message>
         <source>Install in Background</source>
-        <translation type="unfinished"></translation>
+        <translation>Pasang di Latar Belakang</translation>
     </message>
     <message>
         <source>Install Guest Additions</source>
-        <translation type="unfinished"></translation>
+        <translation>Pasang Guest Addition</translation>
     </message>
     <message>
         <source>Guest Additions ISO</source>
-        <translation type="unfinished"></translation>
+        <translation>ISO Guest Addition</translation>
     </message>
     <message>
         <source>Base Memory</source>
-        <translation type="unfinished">Memori Dasar</translation>
+        <translation>Memori Dasar</translation>
     </message>
     <message>
         <source>Processor(s)</source>
-        <translation type="unfinished">Prosesor</translation>
+        <translation>Prosesor</translation>
     </message>
     <message>
         <source>EFI Enable</source>
-        <translation type="unfinished"></translation>
+        <translation>EFI Difungsikan</translation>
     </message>
     <message>
         <source>Disk</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk</translation>
     </message>
     <message>
         <source>Disk Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukuran Disk</translation>
     </message>
     <message>
         <source>Pre-allocate Full Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Pra-alokasikan Ukuran Penuh</translation>
     </message>
     <message>
         <source>Attached Disk</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk yang Tercantol</translation>
     </message>
     <message>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Nihil</translation>
     </message>
     <message>
         <source>Summary</source>
-        <translation type="unfinished"></translation>
+        <translation>Ringkasan</translation>
     </message>
     <message>
         <source>The following table summarizes the configuration you have chosen for the new virtual machine. When you are happy with the configuration press Finish to create the virtual machine. Alternatively you can go back and modify the configuration.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tabel berikut meringkas konfigurasi yang telah Anda pilih bagi mesin virtual baru. Ketika Anda sudah puas dengan konfigurasi tekan Selesai untuk membuat mesin virtual. Sebagai alternatif Anda dapat kembali dan mengubah konfigurasi.</translation>
     </message>
 </context>
 <context>

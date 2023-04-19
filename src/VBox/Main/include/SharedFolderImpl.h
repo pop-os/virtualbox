@@ -50,8 +50,8 @@ public:
     HRESULT init(Machine *aMachine, const com::Utf8Str &aName, const com::Utf8Str &aHostPath,
                  bool aWritable, bool aAutoMount, const com::Utf8Str &aAutoMountPoint, bool fFailOnError);
     HRESULT initCopy(Machine *aMachine, SharedFolder *aThat);
-    HRESULT init(Console *aConsole, const com::Utf8Str &aName, const com::Utf8Str &aHostPath,
-                 bool aWritable, bool aAutoMount, const com::Utf8Str &aAutoMountPoint, bool fFailOnError);
+//    HRESULT init(Console *aConsole, const com::Utf8Str &aName, const com::Utf8Str &aHostPath,
+//                 bool aWritable, bool aAutoMount, const com::Utf8Str &aAutoMountPoint, bool fFailOnError);
 //     HRESULT init(VirtualBox *aVirtualBox, const Utf8Str &aName, const Utf8Str &aHostPath,
 //                  bool aWritable, const com::Utf8Str &aAutoMountPoint, bool aAutoMount, bool fFailOnError);
     void uninit();
@@ -114,14 +114,10 @@ private:
     VirtualBoxBase * const mParent;
 
     /* weak parents (only one of them is not null) */
-#if !defined(VBOX_COM_INPROC)
     Machine        * const mMachine;
     VirtualBox     * const mVirtualBox;
-#else
-    Console        * const mConsole;
-#endif
 
-    struct Data;            // opaque data struct, defined in SharedFolderImpl.cpp
+    struct Data;            // opaque data struct, defined in MachineSharedFolderImpl.cpp
     Data *m;
 };
 

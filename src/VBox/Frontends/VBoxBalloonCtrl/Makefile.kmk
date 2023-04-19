@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2011-2022 Oracle and/or its affiliates.
+# Copyright (C) 2011-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -29,7 +29,7 @@ SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 PROGRAMS += VBoxBalloonCtrl
-VBoxBalloonCtrl_TEMPLATE   = VBOXMAINCLIENTEXE
+VBoxBalloonCtrl_TEMPLATE   = VBoxMainClientExe
 VBoxBalloonCtrl_DEFS       = VBOX_WATCHDOG_GLOBAL_PERFCOL
 ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
  VBoxBalloonCtrl_DEFS     += VBOX_BUILD_TARGET="$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)"
@@ -38,7 +38,7 @@ else
 endif
 VBoxBalloonCtrl_DEFS.win   = _WIN32_WINNT=0x0500
 VBoxBalloonCtrl_SOURCES    = \
-	VBoxWatchdog.cpp      \
+	VBoxWatchdog.cpp \
 	VBoxWatchdogUtils.cpp \
 	VBoxModAPIMonitor.cpp \
 	VBoxModBallooning.cpp

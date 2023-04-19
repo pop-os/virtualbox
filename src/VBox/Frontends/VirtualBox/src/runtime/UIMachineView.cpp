@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -843,14 +843,14 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
         if (fSendHint && (int)frameBuffer()->width() == size.width() && (int)frameBuffer()->height() == size.height())
         {
             LogRel(("GUI: UIMachineView::sltPerformGuestResize: Omitting to send size-hint %dx%d to guest-screen %d "
-                    "because frame-buffer is already of the same size.\n", (int)screenId(), size.width(), size.height()));
+                    "because frame-buffer is already of the same size.\n", size.width(), size.height(), (int)screenId()));
             fSendHint = false;
         }
         /* Do not send a hint if GA supports graphics and we have sent that hint already: */
         if (fSendHint && uisession()->isGuestSupportsGraphics() && m_lastSizeHint == size)
         {
             LogRel(("GUI: UIMachineView::sltPerformGuestResize: Omitting to send size-hint %dx%d to guest-screen %d "
-                    "because this hint was previously sent.\n", (int)screenId(), size.width(), size.height()));
+                    "because this hint was previously sent.\n", size.width(), size.height(), (int)screenId()));
             fSendHint = false;
         }
         if (fSendHint)

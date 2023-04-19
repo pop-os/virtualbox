@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -67,15 +67,15 @@ public:
 public:
     /** @name Public internal methods.
      * @{ */
-    int            i_closeInternal(int *pGuestRc);
-    int            i_read(ComObjPtr<GuestFsObjInfo> &fsObjInfo, int *pGuestRc);
+    int            i_closeInternal(int *pvrcGuest);
+    int            i_read(ComObjPtr<GuestFsObjInfo> &fsObjInfo, int *pvrcGuest);
     int            i_readInternal(GuestFsObjData &objData, int *prcGuest);
     /** @}  */
 
 public:
     /** @name Public static internal methods.
      * @{ */
-    static Utf8Str i_guestErrorToString(int rcGuest, const char *pcszWhat);
+    static Utf8Str i_guestErrorToString(int vrcGuest, const char *pcszWhat);
     /** @}  */
 
 private:

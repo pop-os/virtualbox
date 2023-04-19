@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -94,12 +94,12 @@ void UpdateAgentTask::handler(void)
 
     /** @todo Differentiate tasks once we have more stuff to do (downloading, installing, ++). */
 
-    HRESULT rc = pUpdateAgent->i_checkForUpdateTask(this);
+    HRESULT hrc = pUpdateAgent->i_checkForUpdateTask(this);
 
     if (!m_pProgress.isNull())
-        m_pProgress->i_notifyComplete(rc);
+        m_pProgress->i_notifyComplete(hrc);
 
-    LogFlowFunc(("rc=%Rhrc\n", rc)); RT_NOREF(rc);
+    LogFlowFunc(("hrc=%Rhrc\n", hrc)); RT_NOREF(hrc);
 }
 
 
@@ -340,11 +340,11 @@ HRESULT UpdateAgent::init(VirtualBox *aVirtualBox)
     /* Weak reference to a VirtualBox object */
     unconst(m_VirtualBox) = aVirtualBox;
 
-    HRESULT hr = unconst(m_EventSource).createObject();
-    if (SUCCEEDED(hr))
-        hr = m_EventSource->init();
+    HRESULT hrc = unconst(m_EventSource).createObject();
+    if (SUCCEEDED(hrc))
+        hrc = m_EventSource->init();
 
-    return hr;
+    return hrc;
 }
 
 void UpdateAgent::uninit(void)
@@ -656,7 +656,7 @@ HRESULT UpdateAgent::getSupportedChannels(std::vector<UpdateChannel_T> &aSupport
 HRESULT UpdateAgent::i_loadSettings(const settings::UpdateAgent &data)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -684,7 +684,7 @@ HRESULT UpdateAgent::i_loadSettings(const settings::UpdateAgent &data)
 HRESULT UpdateAgent::i_saveSettings(settings::UpdateAgent &data)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -702,7 +702,7 @@ HRESULT UpdateAgent::i_saveSettings(settings::UpdateAgent &data)
 HRESULT UpdateAgent::i_setCheckCount(ULONG aCount)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -721,7 +721,7 @@ HRESULT UpdateAgent::i_setCheckCount(ULONG aCount)
 HRESULT UpdateAgent::i_setLastCheckDate(const com::Utf8Str &aDate)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -791,14 +791,13 @@ HRESULT UpdateAgent::i_getProxyURL(com::Utf8Str &aUrl)
  */
 HRESULT UpdateAgent::i_configureProxy(RTHTTP hHttp)
 {
-    HRESULT rc;
-
     ProxyMode_T enmProxyMode;
-    rc = i_getProxyMode(&enmProxyMode);
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = i_getProxyMode(&enmProxyMode);
+    ComAssertComRCRetRC(hrc);
+
     Utf8Str strProxyUrl;
-    rc = i_getProxyURL(strProxyUrl);
-    ComAssertComRCRetRC(rc);
+    hrc = i_getProxyURL(strProxyUrl);
+    ComAssertComRCRetRC(hrc);
 
     if (enmProxyMode == ProxyMode_Manual)
     {
@@ -902,11 +901,11 @@ HRESULT HostUpdateAgent::init(VirtualBox *aVirtualBox)
     /* Set default repository. */
     m->strRepoUrl = "https://update.virtualbox.org";
 
-    HRESULT hr = UpdateAgent::init(aVirtualBox);
-    if (SUCCEEDED(hr))
+    HRESULT hrc = UpdateAgent::init(aVirtualBox);
+    if (SUCCEEDED(hrc))
         autoInitSpan.setSucceeded();
 
-    return hr;
+    return hrc;
 }
 
 void HostUpdateAgent::uninit(void)
@@ -922,23 +921,23 @@ HRESULT HostUpdateAgent::checkFor(ComPtr<IProgress> &aProgress)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     ComObjPtr<Progress> pProgress;
-    HRESULT rc = pProgress.createObject();
-    if (FAILED(rc))
-        return rc;
+    HRESULT hrc = pProgress.createObject();
+    if (FAILED(hrc))
+        return hrc;
 
-    rc = pProgress->init(m_VirtualBox,
-                         static_cast<IUpdateAgent*>(this),
-                         tr("Checking for update for %s ...", this->mData.m_strName.c_str()),
-                         TRUE /* aCancelable */);
-    if (FAILED(rc))
-        return rc;
+    hrc = pProgress->init(m_VirtualBox,
+                          static_cast<IUpdateAgent*>(this),
+                          tr("Checking for update for %s ...", this->mData.m_strName.c_str()),
+                          TRUE /* aCancelable */);
+    if (FAILED(hrc))
+        return hrc;
 
     /* initialize the worker task */
     UpdateAgentTask *pTask = new UpdateAgentTask(this, pProgress);
-    rc = pTask->createThread();
+    hrc = pTask->createThread();
     pTask = NULL;
-    if (FAILED(rc))
-        return rc;
+    if (FAILED(hrc))
+        return hrc;
 
     return pProgress.queryInterfaceTo(aProgress.asOutParam());
 }
@@ -967,22 +966,22 @@ DECLCALLBACK(HRESULT) HostUpdateAgent::i_checkForUpdateTask(UpdateAgentTask *pTa
 
     // Add platform ID.
     Bstr platform;
-    HRESULT rc = m_VirtualBox->COMGETTER(PackageType)(platform.asOutParam());
-    AssertComRCReturn(rc, rc);
+    HRESULT hrc = m_VirtualBox->COMGETTER(PackageType)(platform.asOutParam());
+    AssertComRCReturn(hrc, hrc);
     strUrl.appendPrintf("platform=%ls", platform.raw()); // e.g. SOLARIS_64BITS_GENERIC
 
     // Get the complete current version string for the query URL
     Bstr versionNormalized;
-    rc = m_VirtualBox->COMGETTER(VersionNormalized)(versionNormalized.asOutParam());
-    AssertComRCReturn(rc, rc);
+    hrc = m_VirtualBox->COMGETTER(VersionNormalized)(versionNormalized.asOutParam());
+    AssertComRCReturn(hrc, hrc);
     strUrl.appendPrintf("&version=%ls", versionNormalized.raw()); // e.g. 6.1.1
 #ifdef DEBUG // Comment out previous line and uncomment this one for testing.
 //  strUrl.appendPrintf("&version=6.0.12");
 #endif
 
     ULONG revision = 0;
-    rc = m_VirtualBox->COMGETTER(Revision)(&revision);
-    AssertComRCReturn(rc, rc);
+    hrc = m_VirtualBox->COMGETTER(Revision)(&revision);
+    AssertComRCReturn(hrc, hrc);
     strUrl.appendPrintf("_%u", revision); // e.g. 135618
 
     // Update the last update check timestamp.
@@ -997,8 +996,8 @@ DECLCALLBACK(HRESULT) HostUpdateAgent::i_checkForUpdateTask(UpdateAgentTask *pTa
     m->strLastCheckDate = szTimeStr;
     m->uCheckCount++;
 
-    rc = i_commitSettings(alock);
-    AssertComRCReturn(rc, rc);
+    hrc = i_commitSettings(alock);
+    AssertComRCReturn(hrc, hrc);
 
     strUrl.appendPrintf("&count=%RU32", m->uCheckCount);
 
@@ -1025,8 +1024,8 @@ DECLCALLBACK(HRESULT) HostUpdateAgent::i_checkForUpdateTask(UpdateAgentTask *pTa
      * Compose the User-Agent header for the GET request.
      */
     Bstr version;
-    rc = m_VirtualBox->COMGETTER(Version)(version.asOutParam()); // e.g. 6.1.0_RC1
-    AssertComRCReturn(rc, rc);
+    hrc = m_VirtualBox->COMGETTER(Version)(version.asOutParam()); // e.g. 6.1.0_RC1
+    AssertComRCReturn(hrc, hrc);
 
     Utf8StrFmt const strUserAgent("VirtualBox %ls <%s>", version.raw(), UpdateAgent::i_getPlatformInfo().c_str());
     LogRel2(("Update agent (%s): Using user agent '%s'\n",  mData.m_strName.c_str(), strUserAgent.c_str()));
@@ -1041,19 +1040,19 @@ DECLCALLBACK(HRESULT) HostUpdateAgent::i_checkForUpdateTask(UpdateAgentTask *pTa
     {
         try
         {
-            rc = i_checkForUpdateInner(hHttp, strUrl, strUserAgent);
+            hrc = i_checkForUpdateInner(hHttp, strUrl, strUserAgent);
         }
         catch (...)
         {
             AssertFailed();
-            rc = E_UNEXPECTED;
+            hrc = E_UNEXPECTED;
         }
         RTHttpDestroy(hHttp);
     }
     else
-        rc = i_reportError(vrc, tr("RTHttpCreate() failed: %Rrc"), vrc);
+        hrc = i_reportError(vrc, tr("RTHttpCreate() failed: %Rrc"), vrc);
 
-    return rc;
+    return hrc;
 }
 
 /**
@@ -1069,9 +1068,9 @@ HRESULT HostUpdateAgent::i_checkForUpdateInner(RTHTTP hHttp, Utf8Str const &strU
     /*
      * Configure the proxy (if any).
      */
-    HRESULT rc = i_configureProxy(hHttp);
-    if (FAILED(rc))
-        return rc;
+    HRESULT hrc = i_configureProxy(hHttp);
+    if (FAILED(hrc))
+        return hrc;
 
     /** @todo Are there any other headers needed to be added first via RTHttpSetHeaders()? */
     int vrc = RTHttpAddHeader(hHttp, "User-Agent", strUserAgent.c_str(), strUserAgent.length(), RTHTTPADDHDR_F_BACK);
@@ -1120,7 +1119,7 @@ HRESULT HostUpdateAgent::i_checkForUpdateInner(RTHTTP hHttp, Utf8Str const &strU
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
         mData.m_enmState = UpdateState_NotAvailable;
-        rc = S_OK;
+        hrc = S_OK;
 
         alock.release(); /* Release lock before firing off event. */
 
@@ -1136,11 +1135,11 @@ HRESULT HostUpdateAgent::i_checkForUpdateInner(RTHTTP hHttp, Utf8Str const &strU
         if (RT_SUCCESS(vrc))
         {
             /** @todo Any additional sanity checks we could perform here? */
-            rc = mData.m_lastResult.strVer.assignEx(pchWord0, cchWord0);
-            if (SUCCEEDED(rc))
-                rc = mData.m_lastResult.strDownloadUrl.assignEx(pchWord1, cchWord1);
+            hrc = mData.m_lastResult.strVer.assignEx(pchWord0, cchWord0);
+            if (SUCCEEDED(hrc))
+                hrc = mData.m_lastResult.strDownloadUrl.assignEx(pchWord1, cchWord1);
 
-            if (SUCCEEDED(rc))
+            if (SUCCEEDED(hrc))
             {
                 AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1157,20 +1156,20 @@ HRESULT HostUpdateAgent::i_checkForUpdateInner(RTHTTP hHttp, Utf8Str const &strU
                                                        mData.m_lastResult.strWebUrl, mData.m_lastResult.strReleaseNotes);
             }
             else
-                rc = i_reportError(VERR_GENERAL_FAILURE /** @todo Use a better rc */,
-                                   tr("Invalid server response [1]: %Rhrc (%.*Rhxs -- %.*Rhxs)"),
-                                   rc, cchWord0, pchWord0, cchWord1, pchWord1);
+                hrc = i_reportError(VERR_GENERAL_FAILURE /** @todo Use a better hrc */,
+                                    tr("Invalid server response [1]: %Rhrc (%.*Rhxs -- %.*Rhxs)"),
+                                    hrc, cchWord0, pchWord0, cchWord1, pchWord1);
 
             LogRel2(("Update agent (%s): HTTP server replied: %.*s %.*s\n",
                      mData.m_strName.c_str(), cchWord0, pchWord0, cchWord1, pchWord1));
         }
         else
-            rc = i_reportError(vrc, tr("Invalid server response [2]: %Rrc (%.*Rhxs -- %.*Rhxs)"),
-                               vrc, cchWord0, pchWord0, cchWord1, pchWord1);
+            hrc = i_reportError(vrc, tr("Invalid server response [2]: %Rrc (%.*Rhxs -- %.*Rhxs)"),
+                                vrc, cchWord0, pchWord0, cchWord1, pchWord1);
     }
 
     RTHttpFreeResponse(pvResponse);
 
-    return rc;
+    return hrc;
 }
 

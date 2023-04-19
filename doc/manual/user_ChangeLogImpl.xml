@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-    Copyright (C) 2006-2022 Oracle and/or its affiliates.
+    Copyright (C) 2006-2023 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -71,6 +71,119 @@ Rules for adding a changelog entry to make them look more uniform:
 
 <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
+  <sect1>
+
+    <title>Version 7.0.8 (2023-04-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+       <para>VMM: Fixed EFLAGS.TF handling for CPUID instructions when Hyper-V is used (bug #17961)</para>
+      </listitem>
+
+      <listitem>
+       <para>VMM: Fixed MONITOR/MWAIT crash with Solaris guests when Hyper-V is used on Windows 11</para>
+      </listitem>
+
+      <listitem>
+       <para>VMM: Introduced general improvements in nested visualization area</para>
+      </listitem>
+
+      <listitem>
+       <para>VMM: Fixed triple fault related guru meditations for UEFI guests starting with
+         macOS Ventura 13.3 (bug #21563)</para>
+      </listitem>
+
+      <listitem>
+       <para>GUI: Brought back Restore current snapshot checkbox of Close VM dialog (bugs #21189, #21491)</para>
+      </listitem>
+
+      <listitem>
+       <para>GUI: Fixes and validation for VM settings USB filters editor, filter port value is now properly
+         saved/restored</para>
+      </listitem>
+
+      <listitem>
+       <para>GUI: Fixes for VM name and OS type embedded editors of Details pane</para>
+      </listitem>
+
+      <listitem>
+       <para>GUI: Cloud related wizards should now propose enabled profiles before disabled</para>
+      </listitem>
+
+      <listitem>
+       <para>Oracle VM VirtualBox Extension Pack: Fixed shipping the cryptographic support module for full VM encryption</para>
+      </listitem>
+
+      <listitem>
+       <para>E1000: Fixed possible guru meditation when changing network attachments (bug #21488)</para>
+      </listitem>
+
+      <listitem>
+       <para>virtio-net: Follow up fixes for FreeBSD 12.3 and pfSense 2.6.0 (bug #21201)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: Fixed various graphics issues with Windows 7 guests
+          (bugs #21129, #21196, #21208, #21521)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main/UefiVariableStore: Added API to add signatures to the MOK
+          list (Machine Owner Key)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Introduced modifynvram enrollmok sub-command to enroll Machine
+          Owner Key into NVRAM, so Linux guest kernel can pick it up in order to verify
+          signature of modules signed with this key</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control/Main: Fixed deleting files via built-in toolbox</para>
+      </listitem>
+
+      <listitem>
+       <para>Linux host: Added possibility to bypass kernel modules signature verification
+         once VBOX_BYPASS_MODULES_SIGNATURE_CHECK="1" is specified in /etc/vbox/vbox.cfg,
+         useful in case if Linux distribution does not provide necessary tools to verify
+         kernel module signature</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions and host Installer: Improved detection if system is
+          running systemd as the init process</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions and host drivers: Introduce initial support for kernel 6.3</para>
+      </listitem>
+
+      <listitem>
+       <para>Linux Guest Additions: Added possibility to bypass kernel modules signature
+         verification once VBOX_BYPASS_MODULES_SIGNATURE_CHECK="1" is specified
+         in /etc/virtualbox-guest-additions.conf, useful in case if Linux distribution
+         does not provide necessary tools to verify kernel module signature</para>
+      </listitem>
+
+      <listitem>
+       <para>Linux Guest Additions: Added experimental support for kernel modules and
+         user services reloading in the end of installation process, thus guest system
+         reboot after Guest Additions (7.0.8 and newer) upgrade is no longer required
+         in general case</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed vboxvideo build issue
+          with RHEL 8.7, 9.1 and 9.2 kernels (bugs #21446 and #21450)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
   <sect1>
 
     <title>Version 7.0.6 (2023-01-17)</title>

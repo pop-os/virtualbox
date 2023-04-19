@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -72,12 +72,12 @@ RT_C_DECLS_BEGIN
  * @param   pUVM            The user mode VM handle.  Can be NULL if an error
  *                          occurred before successfully creating a VM.
  * @param   pvUser          The user argument.
- * @param   rc              VBox status code.
+ * @param   vrc             VBox status code.
  * @param   SRC_POS         The source position arguments. See RT_SRC_POS and RT_SRC_POS_ARGS.
  * @param   pszFormat       Error message format string.
  * @param   args            Error message arguments.
  */
-typedef DECLCALLBACKTYPE(void, FNVMATERROR,(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL,
+typedef DECLCALLBACKTYPE(void, FNVMATERROR,(PUVM pUVM, void *pvUser, int vrc, RT_SRC_POS_DECL,
                                             const char *pszFormat, va_list args));
 /** Pointer to a VM error callback. */
 typedef FNVMATERROR *PFNVMATERROR;
@@ -383,10 +383,15 @@ typedef DECLCALLBACKTYPE(int, FNVMPROGRESS,(PUVM pUVM, unsigned uPercent, void *
 typedef FNVMPROGRESS *PFNVMPROGRESS;
 
 
-VMMR3DECL(int)          VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVm2UserCbs,
+VMMR3DECL(int)          VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVm2UserCbs, uint64_t fFlags,
                                    PFNVMATERROR pfnVMAtError, void *pvUserVM,
                                    PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUserCFGM,
                                    PVM *ppVM, PUVM *ppUVM);
+/** @name VMCREATE_F_XXX - VMR3Create flags.
+ * @{ */
+/** Create the VM with SUPLib in driverless mode. */
+#define VMCREATE_F_DRIVERLESS       RT_BIT_64(0)
+/** @} */
 VMMR3DECL(int)          VMR3PowerOn(PUVM pUVM);
 VMMR3DECL(int)          VMR3Suspend(PUVM pUVM, VMSUSPENDREASON enmReason);
 VMMR3DECL(VMSUSPENDREASON) VMR3GetSuspendReason(PUVM);

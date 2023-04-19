@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -959,6 +959,7 @@ QWidget *UIWizardNewVMExpertPage::createNameOSTypeWidgets()
                                                        true /* fChooseName? */,
                                                        true /* fChoosePath? */,
                                                        true /* fChooseImage? */,
+                                                       true /* fChoseEdition? */,
                                                        true /* fChooseType? */);
     if (m_pNameAndSystemEditor)
         m_pNameAndSystemLayout->addWidget(m_pNameAndSystemEditor, 0, 0, 1, 2);

@@ -9,7 +9,7 @@
 '
 
 '
-' Copyright (C) 2006-2022 Oracle and/or its affiliates.
+' Copyright (C) 2006-2023 Oracle and/or its affiliates.
 '
 ' This file is part of VirtualBox base platform packages, as
 ' available from https://www.virtualbox.org.
@@ -1580,9 +1580,9 @@ sub CheckForXml2(strOptXml2)
    end if
 
    strPathXml2 = UnixSlashes(PathAbs(strPathXml2))
-   CfgPrintAssign "SDK_VBOX_LIBXML2_DEFS", "_REENTRANT"
-   CfgPrintAssign "SDK_VBOX_LIBXML2_INCS", strPathXml2 & "/include"
-   CfgPrintAssign "SDK_VBOX_LIBXML2_LIBS", strPathXml2 & "/lib/libxml2.lib"
+   CfgPrintAssign "SDK_VBoxLibXml2_DEFS", "_REENTRANT"
+   CfgPrintAssign "SDK_VBoxLibXml2_INCS", strPathXml2 & "/include"
+   CfgPrintAssign "SDK_VBoxLibXml2_LIBS", strPathXml2 & "/lib/libxml2.lib"
 
    PrintResult "libxml2", strPathXml2
 end sub
@@ -1655,13 +1655,13 @@ sub CheckForSsl(strOptSsl, bln32Bit)
 
    strPathSsl = UnixSlashes(PathAbs(strPathSsl))
    if bln32Bit = True then
-      CfgPrintAssign "SDK_VBOX_OPENSSL-x86_INCS",     strPathSsl & "/include"
-      CfgPrintAssign "SDK_VBOX_OPENSSL-x86_LIBS",     strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
-      CfgPrintAssign "SDK_VBOX_BLD_OPENSSL-x86_LIBS", strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
+      CfgPrintAssign "SDK_VBoxOpenSslStatic-x86_INCS",     strPathSsl & "/include"
+      CfgPrintAssign "SDK_VBoxOpenSslStatic-x86_LIBS",     strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
+      CfgPrintAssign "SDK_VBoxOpenSslBldProg-x86_LIBS", strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
    else
-      CfgPrintAssign "SDK_VBOX_OPENSSL_INCS",         strPathSsl & "/include"
-      CfgPrintAssign "SDK_VBOX_OPENSSL_LIBS",         strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
-      CfgPrintAssign "SDK_VBOX_BLD_OPENSSL_LIBS",     strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
+      CfgPrintAssign "SDK_VBoxOpenSslStatic_INCS",         strPathSsl & "/include"
+      CfgPrintAssign "SDK_VBoxOpenSslStatic_LIBS",         strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
+      CfgPrintAssign "SDK_VBoxOpenSslBldProg_LIBS",     strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
    end if
 
    PrintResult strOpenssl, strPathSsl
@@ -1731,11 +1731,11 @@ sub CheckForCurl(strOptCurl, bln32Bit)
 
    strPathCurl = UnixSlashes(PathAbs(strPathCurl))
    if bln32Bit = True then
-      CfgPrintAssign "SDK_VBOX_LIBCURL-x86_INCS",     strPathCurl & "/include"
-      CfgPrintAssign "SDK_VBOX_LIBCURL-x86_LIBS.x86", strPathCurl & "/libcurl.lib"
+      CfgPrintAssign "SDK_VBoxLibCurl-x86_INCS",     strPathCurl & "/include"
+      CfgPrintAssign "SDK_VBoxLibCurl-x86_LIBS.x86", strPathCurl & "/libcurl.lib"
    else
-      CfgPrintAssign "SDK_VBOX_LIBCURL_INCS", strPathCurl & "/include"
-      CfgPrintAssign "SDK_VBOX_LIBCURL_LIBS", strPathCurl & "/libcurl.lib"
+      CfgPrintAssign "SDK_VBoxLibCurl_INCS", strPathCurl & "/include"
+      CfgPrintAssign "SDK_VBoxLibCurl_LIBS", strPathCurl & "/libcurl.lib"
    end if
 
    PrintResult strCurl, strPathCurl

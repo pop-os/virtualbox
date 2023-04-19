@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -172,8 +172,8 @@
 
 /* These two are freuqently used internal headers. */
 #include "UILibraryDefs.h"
-#include "QIWithRestorableGeometry.h"
-#include "QIWithRetranslateUI.h"
+/*#include "QIWithRestorableGeometry.h" - broken as it includes iprt/log.h thru UIDefs.h via UICommon.h. */
+/*#include "QIWithRetranslateUI.h"      - broken as it includes iprt/log.h thru UIDefs.h via UITranslator.h. */
 
 #if defined(Log) || defined(LogIsEnabled)
 # error "Log() from iprt/log.h cannot be defined in the precompiled header!"
