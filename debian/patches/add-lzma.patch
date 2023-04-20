@@ -60,7 +60,7 @@ Author: Gianfranco Costamagna <locutusofborg@debian.org>
  [ $WITH_LIBVORBIS -eq 0 ] && echo "  --enable-libvorbis       enable system libvorbis"
  [ $WITH_LIBOGG -eq 0 ]  && echo "  --enable-libogg          enable system libogg"
  [ $WITH_LIBTPMS -eq 1 ] && echo "  --disable-libtpms        don't use libtpms for TPM emulation"
-+[ $WITH_LIBKZMA -eq 1 ] && echo "  --disable-liblzma        don't use liblzma"
++[ $WITH_LIBLZMA -eq 1 ] && echo "  --disable-liblzma        don't use liblzma"
  [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
  cat << EOF
    --disable-udptunnel      disable UDP tunnel networking

@@ -1,3 +1,9 @@
+virtualbox (7.0.8-dfsg-2) unstable; urgency=medium
+
+  * Fixup typo in patch.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 20 Apr 2023 23:11:50 +0200
+
 virtualbox (7.0.8-dfsg-1) unstable; urgency=medium
 
   * New upstream version 7.0.8-dfsg
