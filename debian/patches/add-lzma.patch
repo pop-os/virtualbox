@@ -1,21 +1,28 @@
 Description: Check for system lzma library
 Author: Gianfranco Costamagna <locutusofborg@debian.org>
 
---- virtualbox-7.0.8-dfsg.orig/configure
-+++ virtualbox-7.0.8-dfsg/configure
-@@ -110,6 +110,7 @@ WITH_DOCS=1
- WITH_LIBVPX=1
+Index: virtualbox/configure
+===================================================================
+--- virtualbox.orig/configure
++++ virtualbox/configure
+@@ -111,11 +111,13 @@
  WITH_LIBOGG=0
  WITH_LIBVORBIS=0
-+WITH_LIBLZMA=1
  WITH_LIBTPMS=1
++WITH_LIBLZMA=1
  BUILD_LIBXML2=
  BUILD_LIBCURL=
-@@ -1805,6 +1810,44 @@ EOF
-   fi
- }
+ BUILD_LIBSSL=
+ BUILD_LIBVPX=
+ BUILD_LIBTPMS=
++BUILD_LIBLZMA=
+ PASSIVE_MESA=0
+ CC="gcc"
+ CC32=""
+@@ -1807,6 +1809,45 @@
  
-+#
+ 
+ #
 +# Check for liblzma
 +#
 +check_liblzma()
@@ -23,7 +30,7 @@ Author: Gianfranco Costamagna <locutusofborg@debian.org>
 +  if [ -z "$BUILD_LIBLZMA" ]; then
 +    test_header liblzma
 +    if which_wrapper pkg-config > /dev/null; then
-+      libtpms_ver=`pkg-config liblzma --modversion 2>> $LOG`
++      liblzma_ver=`pkg-config liblzma --modversion 2>> $LOG`
 +      if [ $? -eq 0 ]; then
 +        FLGLZMA=`pkg-config liblzma --cflags`
 +        INCLZMA=`strip_I "$FLGLZMA"`
@@ -53,10 +60,12 @@ Author: Gianfranco Costamagna <locutusofborg@debian.org>
 +  fi
 +}
 +
- 
- #
++
++#
  # Check for libvorbis
-@@ -2473,6 +2516,7 @@ EOF
+ #
+ check_libvorbis()
+@@ -2473,6 +2514,7 @@
  [ $WITH_LIBVORBIS -eq 0 ] && echo "  --enable-libvorbis       enable system libvorbis"
  [ $WITH_LIBOGG -eq 0 ]  && echo "  --enable-libogg          enable system libogg"
  [ $WITH_LIBTPMS -eq 1 ] && echo "  --disable-libtpms        don't use libtpms for TPM emulation"
@@ -64,7 +73,7 @@ Author: Gianfranco Costamagna <locutusofborg@debian.org>
  [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
  cat << EOF
    --disable-udptunnel      disable UDP tunnel networking
-@@ -2481,6 +2525,7 @@ cat << EOF
+@@ -2481,6 +2523,7 @@
    --build-libxml2          build libxml2 from sources
    --build-libssl           build openssl from sources
    --build-libtpms          build libtpms from sources
@@ -72,7 +81,7 @@ Author: Gianfranco Costamagna <locutusofborg@debian.org>
  EOF
  [ $OSE -eq 0 ] && cat << EOF
    --build-libcurl          build libcurl from sources
-@@ -2720,6 +2765,9 @@ for option in "$@"; do
+@@ -2720,6 +2763,9 @@
      --disable-libtpms)
        WITH_LIBTPMS=0
        ;;
@@ -82,7 +91,28 @@ Author: Gianfranco Costamagna <locutusofborg@debian.org>
      --enable-libogg)
        WITH_LIBOGG=1
        ;;
-@@ -2949,6 +2997,7 @@ if [ $ONLY_ADDITIONS -eq 0 ]; then
+@@ -2747,6 +2793,12 @@
+     --build-libvpx)
+       BUILD_LIBVPX=1
+       ;;
++    --build-libtpms)
++      BUILD_LIBTPMS=1
++      ;;
++    --build-liblzma)
++      BUILD_LIBLZMA=1
++      ;;
+     --build-headless)
+       HEADLESS=1
+       WITH_SDL=0
+@@ -2914,6 +2966,7 @@
+ [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
+ [ $WITH_VMMRAW    -eq 0 ] && cnf_append "VBOX_WITH_RAW_MODE" ""
+ [ $WITH_LIBTPMS   -eq 0 ] && cnf_append "VBOX_WITH_LIBTPMS" ""
++[ $WITH_LIBLZMA   -eq 0 ] && cnf_append "VBOX_WITH_LIBLZMA" ""
+ if [ $WITH_LIBVPX -eq 0 ]; then
+   cnf_append "VBOX_WITH_LIBVPX" ""
+   cnf_append "VBOX_WITH_RECORDING" ""
+@@ -2949,6 +3002,7 @@
    [ $WITH_LIBOGG -eq 1 ] && check_libogg
    [ $WITH_LIBVORBIS -eq 1 ] && check_libvorbis
    [ $WITH_LIBTPMS -eq 1 ] && check_libtpms
