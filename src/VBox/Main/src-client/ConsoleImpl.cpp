@@ -10731,6 +10731,66 @@ void Console::i_detachAllUSBDevices(bool aDone)
     mControl->DetachAllUSBDevices(aDone);
 }
 
+/* Make sure that the string is null-terminated and its size is less than cchMax bytes.
+ * Replace invalid UTF8 bytes with '?'.
+ */
+static int validateUtf8String(char *psz, size_t cchMax)
+{
+    for (;;)
+    {
+        RTUNICP Cp;
+        int vrc = RTStrGetCpNEx((const char **)&psz, &cchMax, &Cp);
+        if (RT_SUCCESS(vrc))
+        {
+            if (!Cp)
+                break;
+        }
+        else
+        {
+            if (!cchMax)
+                return VERR_END_OF_STRING;
+
+            psz[-1] = '?';
+        }
+    }
+    return VINF_SUCCESS;
+}
+
+static int validateRemoteUSBDeviceDesc(VRDEUSBDEVICEDESC const *e, uint32_t cbRemaining, bool fDescExt)
+{
+    uint32_t const cbDesc = fDescExt ? sizeof(VRDEUSBDEVICEDESCEXT) : sizeof(VRDEUSBDEVICEDESC);
+    if (cbDesc > cbRemaining)
+        return VERR_INVALID_PARAMETER;
+
+    if (   e->oNext         >  cbRemaining /* It is OK for oNext to point to the end of buffer. */
+        || e->oManufacturer >= cbRemaining
+        || e->oProduct      >= cbRemaining
+        || e->oSerialNumber >= cbRemaining)
+        return VERR_INVALID_PARAMETER;
+
+    int vrc;
+    if (e->oManufacturer)
+    {
+        vrc = validateUtf8String((char *)e + e->oManufacturer, cbRemaining - e->oManufacturer);
+        if (RT_FAILURE(vrc))
+            return VERR_INVALID_PARAMETER;
+    }
+    if (e->oProduct)
+    {
+        vrc = validateUtf8String((char *)e + e->oProduct, cbRemaining - e->oProduct);
+        if (RT_FAILURE(vrc))
+            return VERR_INVALID_PARAMETER;
+    }
+    if (e->oSerialNumber)
+    {
+        vrc = validateUtf8String((char *)e + e->oSerialNumber, cbRemaining - e->oSerialNumber);
+        if (RT_FAILURE(vrc))
+            return VERR_INVALID_PARAMETER;
+    }
+
+    return VINF_SUCCESS;
+}
+
 /**
  * @note Locks this object for writing.
  */
@@ -10765,21 +10825,17 @@ void Console::i_processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC 
     /*
      * Process the pDevList and add devices those are not already in the mRemoteUSBDevices list.
      */
-    /** @todo (sunlover) REMOTE_USB Strict validation of the pDevList. */
     VRDEUSBDEVICEDESC *e = pDevList;
+    uint32_t cbRemaining = cbDevList;
 
-    /* The cbDevList condition must be checked first, because the function can
+    /* The cbRemaining condition must be checked first, because the function can
      * receive pDevList = NULL and cbDevList = 0 on client disconnect.
      */
-    while (cbDevList >= 2 && e->oNext)
+    while (cbRemaining >= sizeof(e->oNext) && e->oNext)
     {
-        /* Sanitize incoming strings in case they aren't valid UTF-8. */
-        if (e->oManufacturer)
-            RTStrPurgeEncoding((char *)e + e->oManufacturer);
-        if (e->oProduct)
-            RTStrPurgeEncoding((char *)e + e->oProduct);
-        if (e->oSerialNumber)
-            RTStrPurgeEncoding((char *)e + e->oSerialNumber);
+        int const vrc = validateRemoteUSBDeviceDesc(e, cbRemaining, fDescExt);
+        if (RT_FAILURE(vrc))
+            break; /* Consider the rest of the list invalid too. */
 
         LogFlowThisFunc(("vendor %04x, product %04x, name = %s\n",
                          e->idVendor, e->idProduct, e->oProduct ? (char *)e + e->oProduct : ""));
@@ -10837,13 +10893,8 @@ void Console::i_processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC 
             }
         }
 
-        if (cbDevList < e->oNext)
-        {
-            Log1WarningThisFunc(("cbDevList %d > oNext %d\n", cbDevList, e->oNext));
-            break;
-        }
-
-        cbDevList -= e->oNext;
+        AssertBreak(cbRemaining >= e->oNext); /* validateRemoteUSBDeviceDesc ensures this. */
+        cbRemaining -= e->oNext;
 
         e = (VRDEUSBDEVICEDESC *)((uint8_t *)e + e->oNext);
     }
@@ -11870,7 +11921,6 @@ DECLCALLBACK(void *)  Console::i_drvStatus_QueryInterface(PPDMIBASE pInterface, 
 /**
  * Destruct a status driver instance.
  *
- * @returns VBox status code.
  * @param   pDrvIns     The driver instance data.
  */
 DECLCALLBACK(void) Console::i_drvStatus_Destruct(PPDMDRVINS pDrvIns)

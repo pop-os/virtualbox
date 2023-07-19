@@ -4968,7 +4968,13 @@ void MachineConfigFile::readAudioAdapter(const xml::ElementNode &elmAudioAdapter
         else if (strTemp == "MMPM") /* Deprecated; only kept for backwards compatibility. */
             aa.driverType = AudioDriverType_MMPM;
         else
-            throw ConfigFileError(this, &elmAudioAdapter, N_("Invalid value '%s' in AudioAdapter/@driver attribute"), strTemp.c_str());
+        {
+            /* Be nice when loading the settings on downgraded versions: In case the selected backend isn't available / known
+             * to this version, fall back to the default backend, telling the user in the release log. See @bugref{10051c7}. */
+            LogRel(("WARNING: Invalid value '%s' in AudioAdapter/@driver attribute found; falling back to default audio backend\n",
+                    strTemp.c_str()));
+            aa.driverType = AudioDriverType_Default;
+        }
 
         /* When loading settings >= 1.19 (VBox 7.0), the attribute "useDefault" will determine if the VM should use
          * the OS' default audio driver or not. This additional attribute is necessary in order to be backwards compatible
@@ -8933,8 +8939,11 @@ AudioDriverType_T MachineConfigFile::getHostDefaultAudioDriver()
     if (s_enmLinuxDriver == AudioDriverType_Null) /* Already determined from a former run? */
     {
 # ifdef VBOX_WITH_AUDIO_PULSE
-        /* Check for the pulse library & that the pulse audio daemon is running. */
-        if (   RTProcIsRunningByName("pulseaudio")
+        /* Check for the pulse library & that the PulseAudio daemon is running. */
+        if (   (   RTProcIsRunningByName("pulseaudio")
+                /* We also use the PulseAudio backend when we find pipewire-pulse running, which
+                 * acts as a PulseAudio-compatible daemon for Pipewire-enabled applications. See @ticketref{21575} */
+                || RTProcIsRunningByName("pipewire-pulse"))
             && RTLdrIsLoadable("libpulse.so.0"))
         {
             s_enmLinuxDriver = AudioDriverType_Pulse;

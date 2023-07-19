@@ -77,6 +77,7 @@ typedef struct VUSBROOTHUB *PVUSBROOTHUB;
  * @{ */
 #define VUSB_DEFAULT_ADDRESS        0
 #define VUSB_INVALID_ADDRESS        UINT8_C(0xff)
+#define VUSB_ADDRESS_MASK           UINT8_C(0x7f)
 /** @} */
 
 /** @name Feature bits (1<<FEATURE for the u16Status bit)
@@ -522,7 +523,6 @@ DECLHIDDEN(int) vusbUrbPoolInit(PVUSBURBPOOL pUrbPool);
 /**
  * Destroy a given URB pool freeing all ressources.
  *
- * @returns nothing.
  * @param   pUrbPool    The URB pool to destroy.
  */
 DECLHIDDEN(void) vusbUrbPoolDestroy(PVUSBURBPOOL pUrbPool);
@@ -546,17 +546,16 @@ DECLHIDDEN(PVUSBURB) vusbUrbPoolAlloc(PVUSBURBPOOL pUrbPool, VUSBXFERTYPE enmTyp
 /**
  * Frees a given URB.
  *
- * @returns nothing.
  * @param   pUrbPool    The URB pool the URB was allocated from.
  * @param   pUrb        The URB to free.
  */
 DECLHIDDEN(void) vusbUrbPoolFree(PVUSBURBPOOL pUrbPool, PVUSBURB pUrb);
 
 #ifdef LOG_ENABLED
+
 /**
  * Logs an URB in the debug log.
  *
- * @returns nothing.
  * @param   pUrb        The URB to log.
  * @param   pszMsg      Additional message to log.
  * @param   fComplete   Flag whther the URB is completing.
@@ -577,7 +576,8 @@ DECLHIDDEN(const char *) vusbUrbTypeName(VUSBXFERTYPE enmType);
  * Return the URB status as string from the given enum.
  */
 DECLHIDDEN(const char *) vusbUrbStatusName(VUSBSTATUS enmStatus);
-#endif
+
+#endif /* LOG_ENABLED*/
 
 DECLINLINE(void) vusbUrbUnlink(PVUSBURB pUrb)
 {

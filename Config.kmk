@@ -265,6 +265,8 @@ VBOX_FULL_VERSION_MAKE = $(expr ($1 << 24) | ($2 << 16) | $3)
 VBOX_VERSION_PREREQ = $(expr $(call VBOX_FULL_VERSION_MAKE,$(VBOX_VERSION_MAJOR),$(VBOX_VERSION_MINOR),$(VBOX_VERSION_BUILD)) \
 	>= $(call VBOX_FULL_VERSION_MAKE,$1,$2,$3))
 
+# Enable host screen saver toggle by default
+VBOX_WITH_SCREENSAVER_CONTROL = 1
 
 # Force the additions.sh script to get an exact additions build when we're doing the release.
 if $(VBOX_VERSION_BUILD) % 2 == 0
@@ -535,6 +537,13 @@ if1of ($(KBUILD_TARGET), darwin)
 endif
 # Enables the new breakpoint handling code, see @bugref{8650}
 VBOX_WITH_DBGF_FLOW_TRACING = 1
+if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), linux.amd64)
+ ifdef VBOX_WITH_R0_MODULES
+  # Enable IBT branch protection for the R0 modules.
+  # (A make warning will be shown if gcc is too old.)
+  VBOX_WITH_R0_MOD_IBT_BRANCH_PROTECTION = 1
+ endif
+endif
 ## @}
 
 
@@ -2354,12 +2363,12 @@ VBOX_PYLINT_FLAGS = $(if-expr $(VBOX_PYLINT_VERSION) >= 10500,--reports=n,--repo
 
 
 # Define the macro for win path conversion.
-ifndef VBOX_ONLY_SDK
+if !defined(VBOX_ONLY_SDK) || defined(VBOX_ONLY_SDK_ON_HOST) || defined(VBOX_ONLY_SDK_IN_VM)
  VBOX_FN_MAKE_WIN_PATH = "$(quote-sh-dq $(subst /,\,$(requote unq, $(1))))"
 else
  # Z: is always FS root for Wine.
  VBOX_FN_MAKE_WIN_PATH  = $(subst /,\\,$(patsubst /%,Z:/%,$(1)))
-endif #!VBOX_ONLY_SDK
+endif
 
 # The kprofile build automagically links with kProfile.
 ifeq ($(KBUILD_TYPE),kprofile)
@@ -2406,6 +2415,11 @@ ifeq ($(VBOX_XSLTPROC),)
  else
   VBOX_XSLTPROC  := xsltproc$(HOSTSUFF_EXE)
  endif
+endif
+
+# Doxygen
+ifeq ($(VBOX_DOXYGEN),)
+ VBOX_DOXYGEN   := $(firstfile $(rversortfiles $(qwildcard , $(KBUILD_DEVTOOLS_HST)/doxygen/v*/doxygen$(HOSTSUFF_EXE))) doxygen$(HOSTSUFF_EXE))
 endif
 
 # bin2c (convert binary files into C arrays)
@@ -3376,6 +3390,10 @@ ifndef VBOX_NOINC_DYNAMIC_CONFIG_KMK
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-undefined-var-template ?= $(call VBOX_GCC_CHECK_CXX,-Wno-undefined-var-template,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-c11-extensions ?= $(call VBOX_GCC_CHECK_CXX,-Wno-c11-extensions,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-tautological-pointer-compare ?= $(call VBOX_GCC_CHECK_CC,-Wno-tautological-pointer-compare,)'
+ ifdef VBOX_WITH_R0_MOD_IBT_BRANCH_PROTECTION
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fcf-protection_branch ?= $(call VBOX_GCC_CHECK_CXX,-fcf-protection=branch,)'
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fcf-protection_check  ?= $(call VBOX_GCC_CHECK_CXX,-fcf-protection=check)'
+ endif
  ifeq ($(KBUILD_TARGET),solaris)
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_msave-args            ?= $(call VBOX_GCC_CHECK_CXX,-msave-args,)'
   # Detect the solaris assembler. It is used by the the 4.x gcc compilers,
@@ -4913,7 +4931,7 @@ endif
 
 # openssl
 SDK_VBoxOpenSslStatic                        := OpenSSL - Only for VBoxRT and/or statically linked programs.
-SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS      := $(PATH_OUT)/obj/crypto-3.0.7-headers/include
+SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS      := $(PATH_OUT)/obj/crypto-3.0.9-headers/include
 SDK_VBoxOpenSslStatic_INCS                   ?= $(SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS)
 SDK_VBoxOpenSslStatic_ORDERDEPS              ?= $(crypto-headers_1_TARGET)
 if   !defined(VBOX_ONLY_SDK) \
@@ -4927,7 +4945,7 @@ SDK_VBoxOpenSslStatic_LIBS                   ?= \
 	$(PATH_STAGE_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB)
 
 SDK_VBoxOpenSslStatic-x86                    := OpenSSL/x86 - Only for VBoxRT and/or statically linked programs.
-SDK_VBoxOpenSslStatic-x86_VBOX_DEFAULT_INCS  := $(PATH_OUT)/obj/crypto-3.0.7-headers/include
+SDK_VBoxOpenSslStatic-x86_VBOX_DEFAULT_INCS  := $(PATH_OUT)/obj/crypto-3.0.9-headers/include
 SDK_VBoxOpenSslStatic-x86_INCS               ?= $(SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS)
 SDK_VBoxOpenSslStatic-x86_ORDERDEPS          ?= $(crypto-headers_1_TARGET)
 if ("$(SDK_VBoxOpenSslStatic_INCS)" == "$(SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS)")
@@ -5362,6 +5380,9 @@ ifdef VBOX_WITH_DTRACE_R0
 else
  TEMPLATE_VBoxR0_DTRACETOOL         = VBoxTpG-Disabled
 endif
+ifdef VBOX_WITH_R0_MOD_IBT_BRANCH_PROTECTION
+ TEMPLATE_VBoxR0_DEFS              += RT_WITH_IBT_BRANCH_PROTECTION RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+endif
 
 ifeq ($(VBOX_LDR_FMT),pe)
  TEMPLATE_VBoxR0_TOOL               = $(VBOX_VCC_TOOL)
@@ -5463,6 +5484,14 @@ ifeq ($(VBOX_LDR_FMT),elf)
   TEMPLATE_VBoxR0_LNK_DEPS.linux   += $(PATH_ROOT)/src/VBox/HostDrivers/Support/linux/VBoxR0-wrapped.lds
   TEMPLATE_VBoxR0_CFLAGS.linux     += -g1
   TEMPLATE_VBoxR0_CXXFLAGS.linux   += -g1
+ endif
+ ifdef VBOX_WITH_R0_MOD_IBT_BRANCH_PROTECTION
+  TEMPLATE_VBoxR0_CFLAGS          += $(VBOX_GCC_fcf-protection_branch) -fno-jump-tables
+  TEMPLATE_VBoxR0_CXXFLAGS        += $(VBOX_GCC_fcf-protection_branch) -fno-jump-tables
+  TEMPLATE_VBoxR0_LDFLAGS         += $(VBOX_GCC_fcf-protection_branch) $(VBOX_GCC_fcf-protection_check)
+  ifeq ($(VBOX_GCC_fcf-protection_branch),)
+   $(warning VBox: VBOX_WITH_R0_MOD_IBT_BRANCH_PROTECTION is set but gcc doesn't support branch protection)
+  endif
  endif
  ifn1of ($(KBUILD_TARGET), solaris freebsd)
   TEMPLATE_VBoxR0_LIBS              = \
@@ -8978,7 +9007,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 156792 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 158256 $  )
  VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)

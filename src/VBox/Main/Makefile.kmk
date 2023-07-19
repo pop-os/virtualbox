@@ -44,12 +44,12 @@ ifndef VBOX_ONLY_EXTPACKS
  endif
  include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
  include $(PATH_SUB_CURRENT)/cbinding/Makefile.kmk
- include $(PATH_SUB_CURRENT)/UnattendedTemplates/Makefile.kmk
  ifndef VBOX_ONLY_SDK
+  include $(PATH_SUB_CURRENT)/UnattendedTemplates/Makefile.kmk
   include $(PATH_SUB_CURRENT)/src-helper-apps/OpenGLTest/Makefile.kmk
- endif
- if defined(VBOX_WITH_OPEN_WATCOM) && defined(VBOX_WITH_UNATTENDED)
-  include $(PATH_SUB_CURRENT)/src-helper-apps/os2/Makefile.kmk
+  if defined(VBOX_WITH_OPEN_WATCOM) && defined(VBOX_WITH_UNATTENDED)
+   include $(PATH_SUB_CURRENT)/src-helper-apps/os2/Makefile.kmk
+  endif
  endif
 endif
 
@@ -59,10 +59,7 @@ endif
 #
 VBOX_PATH_MAIN_SRC := $(PATH_SUB_CURRENT)
 
-ifdef VBOX_ONLY_SDK
- # HACK ALERT! VBoxCOM is skipped, but its output dir is referenced a lot. So, define it.
- VBoxCOM_0_OUTDIR := $(call TARGET_PATH,VBoxCOM)
- BLDDIRS += $(VBoxCOM_0_OUTDIR) $(PATH_STAGE_BIN)/components
+if defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_SDK_ON_HOST) && !defined(VBOX_ONLY_SDK_IN_VM) # Hacks for building SDK using wine.
  ifndef TOOL_$(VBOX_VCC_TOOL)
   include $(KBUILD_PATH)/tools/$(VBOX_VCC_TOOL).kmk # For the idl /cpp statement.
  endif
@@ -211,7 +208,7 @@ VBOX_IDL_TYPELIB.XPCOM = $(PATH_STAGE_BIN)/components/VirtualBox_XPCOM.xpt
 VBOX_IDL_HEADER.XPCOM  = $(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
 
 # The MS COM specific stuff.
-if defined(VBOX_ONLY_SDK) || "$(KBUILD_TARGET)" == "win"
+if "$(KBUILD_TARGET)" == "win" || (defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_SDK_ON_HOST) && !defined(VBOX_ONLY_SDK_IN_VM))
  OTHERS         += \
  	$(VBOX_IDL_FILE.MSCOM)
  OTHER_CLEAN    += \
@@ -280,17 +277,27 @@ OTHER_CLEAN += $(VBOX_XIDL_FILE) $(VBOX_XIDL_FILE).ts
 VBOX_MAIN_DOC_DIR = $(VBOX_PATH_SDK)/docs
 BLDDIRS += $(VBOX_MAIN_DOC_DIR)
 
+$(PATH_TARGET)/VirtualBox.idl: \
+		$(VBOX_XIDL_FILE_SRC) \
+		$(VBOX_PATH_MAIN_SRC)/idl/doxygen.xsl \
+		| $(PATH_TARGET)/
+	$(call MSG_TOOL,xsltproc,,$<,$@)
+	$(QUIET)$(VBOX_XSLTPROC) --path ".:$(PATH_ROOT)/doc/manual" \
+		-o "$@.tmp" $(VBOX_PATH_MAIN_SRC)/idl/doxygen.xsl $(VBOX_XIDL_FILE_SRC)
+	$(QUIET)$(SED) \
+		-e 's,@SLASH-ASTERISK@,<b></b>*,g' \
+		-e 's,@ASTERISK-SLASH@,*<b></b>,g' \
+		--output "$@" "$@.tmp"
+
 $(PATH_TARGET)/docs.Main: \
 		$(VBOX_PATH_MAIN_SRC)/Doxyfile.Main \
-		$(VBOX_PATH_MAIN_SRC)/idl/doxygen.xsl \
+		$(PATH_TARGET)/VirtualBox.idl \
 		$(VBOX_XIDL_FILE_SRC) \
-		| $(PATH_TARGET)/ \
-		$(VBOX_MAIN_DOC_DIR)/
-	$(call MSG_TOOL,xsltproc,doxygen input,$<,$@)
-	$(QUIET)$(RM) -f $(wildcard $(VBOX_MAIN_DOC_DIR)/html/*) $(PATH_TARGET)/docs.Main
-	$(QUIET)$(VBOX_XSLTPROC) --path ".:$(PATH_ROOT)/doc/manual" -o $(PATH_TARGET)/VirtualBox.idl $(VBOX_PATH_MAIN_SRC)/idl/doxygen.xsl $(VBOX_XIDL_FILE_SRC)
+		| $(VBOX_MAIN_DOC_DIR)/
+	$(call MSG_TOOL,doxygen,,$<,$@)
+	$(QUIET)$(RM) -f -- $(wildcard $(VBOX_MAIN_DOC_DIR)/html/*) $(PATH_TARGET)/docs.Main
 	$(QUIET)$(REDIRECT) -E 'DOCDIR=$(VBOX_MAIN_DOC_DIR)' -E 'PATH_TARGET=$(PATH_TARGET)' \
-		-- doxygen $(VBOX_PATH_MAIN_SRC)/Doxyfile.Main
+		-- $(VBOX_DOXYGEN) $(VBOX_PATH_MAIN_SRC)/Doxyfile.Main
 	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) ">>>>>>>>>>>>>>>>>>>> Main.err: >>>>>>>>>>>>>>>>>>>>>>>>"
 	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(CAT) "$(PATH_TARGET)/Main.err"
 	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) "<<<<<<<<<<<<<<<<<<<< Main.err <<<<<<<<<<<<<<<<<<<<<<<<<"
@@ -299,6 +306,11 @@ $(PATH_TARGET)/docs.Main: \
 	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) "===> $(PATH_TARGET)/Main.err"
 	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) "===> **************************************************"
 	$(APPEND) $(PATH_TARGET)/docs.Main
+
+if (defined(VBOX_ONLY_SDK) || defined(VBOX_WITH_SDK)) && !defined(VBOX_ONLY_SDK_IN_VM)
+ OTHERS += $(PATH_TARGET)/docs.Main
+endif
+
 # aliases
 docs.main docs.Main: $(PATH_TARGET)/docs.Main
 if !defined(VBOX_ONLY_DOCS) && defined(VBOX_WITH_ALL_DOXYGEN_TARGETS)
@@ -1361,65 +1373,73 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
 
 
 endif # !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) (the ifndef is far above)
+
+
+#
+# VBoxCOM - COM Abstraction Layer library
+#
 ifndef VBOX_ONLY_SDK
-
-
- #
- # VBoxCOM - COM Abstraction Layer library
- #
  LIBRARIES += VBoxCOM
- VBoxCOM_TEMPLATE       = VBoxMainLib
- VBoxCOM_INTERMEDIATES  = $(VBOX_MAIN_PREREQS) \
- 	$(VBOX_MAIN_APIWRAPPER_GEN_HDRS)
- VBoxCOM_SOURCES        = \
- 	glue/com.cpp \
- 	glue/VBoxLogRelCreate.cpp \
- 	glue/GetVBoxUserHomeDirectory.cpp \
- 	glue/initterm.cpp \
- 	glue/string.cpp \
- 	glue/string-base64.cpp \
- 	glue/AutoLock.cpp \
- 	glue/EventQueue.cpp \
- 	glue/NativeEventQueue.cpp \
- 	glue/ErrorInfo.cpp \
- 	glue/errorprint.cpp
- VBoxCOM_INCS         += $(VBOX_MAIN_APIWRAPPER_INCS) \
- 	include
- ifeq ($(KBUILD_TARGET),win)
-  ifdef VBOX_WITH_MIDL_PROXY_STUB
-   VBoxCOM_DEFS.win     = VBOX_WITH_AUTO_COM_REG_UPDATE
-  endif
-  ifdef VBOX_WITH_SDS
-   VBoxCOM_DEFS.win    += VBOX_WITH_SDS
-  endif
-  VBoxCOM_DEFS.x86      = _WIN32_WINNT=0x0500
-  VBoxCOM_DEFS.amd64    = _WIN32_WINNT=0x0510
-  VBoxCOM_SOURCES      += \
-  	$(VBoxCOM_0_OUTDIR)/VirtualBox_i.c
-  VBoxCOM_CLEAN         = \
-  	$(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
-  	$(VBoxCOM_0_OUTDIR)/VirtualBox_p.c \
-  	$(VBoxCOM_0_OUTDIR)/dlldata.c \
-  	$(VBoxCOM_0_OUTDIR)/VirtualBox.h \
-  	$(VBoxCOM_0_OUTDIR)/VirtualBox.tlb
-  VBoxCOM_CLEAN       += \
-  	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_i.c \
-  	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_p.c \
-  	$(VBoxCOM_0_OUTDIR)/legacy/dlldata.c \
-  	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.h \
-  	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.tlb
-  VBoxCOM_BLDDIRS     = $(VBoxCOM_0_OUTDIR)/legacy/
- else # !win
-  VBoxCOM_SOURCES      += \
-  	$(VBoxCOM_0_OUTDIR)/VirtualBox_XPCOM_i.c \
-  	glue/xpcom/helpers.cpp
- endif # !win
-
- ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
-  glue/VBoxLogRelCreate.cpp_DEFS = KBUILD_TYPE="$(KBUILD_TYPE)"
- else
-  glue/VBoxLogRelCreate.cpp_DEFS = KBUILD_TYPE=\"$(KBUILD_TYPE)\"
+endif
+VBoxCOM_TEMPLATE       = VBoxMainLib
+VBoxCOM_INTERMEDIATES  = $(VBOX_MAIN_PREREQS) \
+	$(VBOX_MAIN_APIWRAPPER_GEN_HDRS)
+VBoxCOM_SOURCES        = \
+	glue/com.cpp \
+	glue/VBoxLogRelCreate.cpp \
+	glue/GetVBoxUserHomeDirectory.cpp \
+	glue/initterm.cpp \
+	glue/string.cpp \
+	glue/string-base64.cpp \
+	glue/AutoLock.cpp \
+	glue/EventQueue.cpp \
+	glue/NativeEventQueue.cpp \
+	glue/ErrorInfo.cpp \
+	glue/errorprint.cpp
+VBoxCOM_INCS         += $(VBOX_MAIN_APIWRAPPER_INCS) \
+	include
+ifeq ($(KBUILD_TARGET),win)
+ ifdef VBOX_WITH_MIDL_PROXY_STUB
+  VBoxCOM_DEFS.win     = VBOX_WITH_AUTO_COM_REG_UPDATE
  endif
+ ifdef VBOX_WITH_SDS
+  VBoxCOM_DEFS.win    += VBOX_WITH_SDS
+ endif
+ VBoxCOM_DEFS.x86      = _WIN32_WINNT=0x0500
+ VBoxCOM_DEFS.amd64    = _WIN32_WINNT=0x0510
+ VBoxCOM_SOURCES      += \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox_i.c
+ VBoxCOM_CLEAN         = \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox_p.c \
+ 	$(VBoxCOM_0_OUTDIR)/dlldata.c \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox.h \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox.tlb
+ VBoxCOM_CLEAN       += \
+ 	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_i.c \
+ 	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_p.c \
+ 	$(VBoxCOM_0_OUTDIR)/legacy/dlldata.c \
+ 	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.h \
+ 	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.tlb
+ VBoxCOM_BLDDIRS     = $(VBoxCOM_0_OUTDIR)/legacy/
+else # !win
+ VBoxCOM_SOURCES      += \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox_XPCOM_i.c \
+ 	glue/xpcom/helpers.cpp
+endif # !win
+
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ glue/VBoxLogRelCreate.cpp_DEFS = KBUILD_TYPE="$(KBUILD_TYPE)"
+else
+ glue/VBoxLogRelCreate.cpp_DEFS = KBUILD_TYPE=\"$(KBUILD_TYPE)\"
+endif
+
+# A couple of tricks to define VBoxCOM_0_OUTDIR for SDK builds and mkdir rule.
+$(call KB_FN_DO_PASS0_ON_TARGET,VBoxCOM)
+BLDDIRS += $(VBoxCOM_0_OUTDIR)
+
+
+ifndef VBOX_ONLY_SDK
 
  # 32-bit version of VBoxCOM.
  if defined(VBOX_WITH_32_ON_64_MAIN_API) && !defined(VBOX_ONLY_EXTPACKS)
@@ -1451,7 +1471,6 @@ ifndef VBOX_ONLY_SDK
   USES += qt5
  endif
 
-
 endif # !VBOX_ONLY_SDK
 
 
@@ -1478,7 +1497,7 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "linux" && !defined(VBO
 endif
 
 
-if defined(VBOX_WITH_MIDL_PROXY_STUB) && "$(KBUILD_TARGET)" == "win" && !defined(VBOX_ONLY_EXTPACKS)
+if defined(VBOX_WITH_MIDL_PROXY_STUB) && "$(KBUILD_TARGET)" == "win" && !defined(VBOX_ONLY_EXTPACKS) && !defined(VBOX_ONLY_SDK)
  #
  # Experimental COM proxy + stub DLL w/ automatic registration updating.
  #
@@ -1658,7 +1677,7 @@ $(VBoxCOM_0_OUTDIR)/VirtualBox_XPCOM_i.c: $(VBOX_PATH_MAIN_SRC)/idl/xpidl_iid.xs
 	$(call MSG_TOOL,xsltproc,VBoxSVC,$<,$@)
 	$(QUIET)$(VBOX_XSLTPROC) -o $@ $< $(VBOX_XIDL_FILE)
 
-if defined(VBOX_ONLY_SDK) || "$(KBUILD_TARGET)" == "win"
+if "$(KBUILD_TARGET)" == "win" || (defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_SDK_ON_HOST) && !defined(VBOX_ONLY_SDK_IN_VM))
 
  # Note! Because we've got a different proxy stub DLL for pre windows 7 64-bit hosts, we target windows 7 for AMD64.
  #       The output is different and hopefully more efficient, at least memory wise (using more helpers in OLE32).
@@ -1730,7 +1749,7 @@ if defined(VBOX_ONLY_SDK) || "$(KBUILD_TARGET)" == "win"
 	$(call def_VBoxMidlOutputDisableMscWarnings,$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c)
  endif
 
-endif # defined(VBOX_ONLY_SDK) || "$(KBUILD_TARGET)" == "win"
+endif # "$(KBUILD_TARGET)" == "win" || (defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_SDK_ON_HOST) && !defined(VBOX_ONLY_SDK_IN_VM))
 
 #
 # Translation stuff

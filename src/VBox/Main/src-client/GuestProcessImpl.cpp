@@ -2335,12 +2335,13 @@ void GuestProcessTool::uninit(void)
  * Gets the current guest process stream block.
  *
  * @returns VBox status code.
+ * @retval  VINF_EOF if the stream reached its end.
  * @param   uHandle             Guest process file handle to get current block for.
  * @param   strmBlock           Where to return the stream block on success.
  */
 int GuestProcessTool::getCurrentBlock(uint32_t uHandle, GuestProcessStreamBlock &strmBlock)
 {
-    const GuestProcessStream *pStream = NULL;
+    GuestProcessStream *pStream = NULL;
     if (uHandle == GUEST_PROC_OUT_H_STDOUT)
         pStream = &mStdOut;
     else if (uHandle == GUEST_PROC_OUT_H_STDERR)
@@ -2349,18 +2350,9 @@ int GuestProcessTool::getCurrentBlock(uint32_t uHandle, GuestProcessStreamBlock 
     if (!pStream)
         return VERR_INVALID_PARAMETER;
 
-    /** @todo Why not using pStream down below and hardcode to mStdOut? */
+    int vrc = pStream->ParseBlock(strmBlock);
 
-    int vrc;
-    do
-    {
-        /* Try parsing the data to see if the current block is complete. */
-        vrc = mStdOut.ParseBlock(strmBlock);
-        if (strmBlock.GetCount())
-            break;
-    } while (RT_SUCCESS(vrc));
-
-    LogFlowThisFunc(("vrc=%Rrc, %RU64 pairs\n", vrc, strmBlock.GetCount()));
+    LogFlowThisFunc(("vrc=%Rrc, currently %RU64 pairs\n", vrc, strmBlock.GetCount()));
     return vrc;
 }
 
@@ -2639,13 +2631,15 @@ int GuestProcessTool::waitEx(uint32_t fToolWaitFlags, GuestProcessStreamBlock *p
 {
     LogFlowThisFunc(("fToolWaitFlags=0x%x, pStreamBlock=%p, pvrcGuest=%p\n", fToolWaitFlags, pStrmBlkOut, pvrcGuest));
 
-    /* Can we parse the next block without waiting? */
     int vrc;
+
+    /* Is the next block complete without waiting for new data from the guest? */
     if (fToolWaitFlags & GUESTPROCESSTOOL_WAIT_FLAG_STDOUT_BLOCK)
     {
         AssertPtr(pStrmBlkOut);
         vrc = getCurrentBlock(GUEST_PROC_OUT_H_STDOUT, *pStrmBlkOut);
-        if (RT_SUCCESS(vrc))
+        if (   RT_SUCCESS(vrc)
+            && pStrmBlkOut->IsComplete())
             return vrc;
         /* else do the waiting below. */
     }

@@ -1104,6 +1104,10 @@ void UIVirtualBoxManagerWidget::recacheCurrentItemInformation(bool fDontRaiseErr
     /* Update machine tools availability: */
     m_pPaneTools->setToolClassEnabled(UIToolClass_Machine, fCurrentItemIsOk);
 
+    /* Take restrictions into account, closing all restricted tools: */
+    foreach (const UIToolType &enmRestrictedType, retrictedTypes)
+        m_pPaneToolsMachine->closeTool(enmRestrictedType);
+
     /* Propagate current item anyway: */
     m_pPaneToolsMachine->setCurrentItem(pItem);
 

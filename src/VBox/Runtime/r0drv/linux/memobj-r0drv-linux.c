@@ -1216,7 +1216,9 @@ RTDECL(struct page *) rtR0MemObjLinuxVirtToPage(void *pv)
     }
 #endif
 
-#if RTLNX_VER_MIN(2,5,5) || defined(pte_offset_map) /* As usual, RHEL 3 had pte_offset_map earlier. */
+#if RTLNX_VER_MIN(6,5,0)
+    pEntry = __pte_map(&u.Middle, ulAddr);
+#elif RTLNX_VER_MIN(2,5,5) || defined(pte_offset_map) /* As usual, RHEL 3 had pte_offset_map earlier. */
     pEntry = pte_offset_map(&u.Middle, ulAddr);
 #else
     pEntry = pte_offset(&u.Middle, ulAddr);
@@ -1290,7 +1292,9 @@ DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3P
     IPRT_LINUX_SAVE_EFL_AC();
     const int cPages = cb >> PAGE_SHIFT;
     struct task_struct *pTask = rtR0ProcessToLinuxTask(R0Process);
+# if GET_USER_PAGES_API < KERNEL_VERSION(6, 5, 0)
     struct vm_area_struct **papVMAs;
+# endif
     PRTR0MEMOBJLNX  pMemLnx;
     int             rc      = VERR_NO_MEMORY;
     int  const      fWrite  = fAccess & RTMEM_PROT_WRITE ? 1 : 0;
@@ -1314,9 +1318,11 @@ DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3P
         return VERR_NO_MEMORY;
     }
 
+# if GET_USER_PAGES_API < KERNEL_VERSION(6, 5, 0)
     papVMAs = (struct vm_area_struct **)RTMemAlloc(sizeof(*papVMAs) * cPages);
     if (papVMAs)
     {
+# endif
         LNX_MM_DOWN_READ(pTask->mm);
 
         /*
@@ -1335,8 +1341,11 @@ DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3P
                                 fWrite,                 /* Write to memory. */
                                 fWrite,                 /* force write access. */
 # endif
-                                &pMemLnx->apPages[0],   /* Page array. */
-                                papVMAs);               /* vmas */
+                                &pMemLnx->apPages[0]    /* Page array. */
+# if GET_USER_PAGES_API < KERNEL_VERSION(6, 5, 0)
+                                , papVMAs               /* vmas */
+# endif
+                                );
         /*
          * Actually this should not happen at the moment as call this function
          * only for our own process.
@@ -1357,8 +1366,10 @@ DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3P
                                 fWrite,                 /* Write to memory. */
                                 fWrite,                 /* force write access. */
 # endif
-                                &pMemLnx->apPages[0],   /* Page array. */
-                                papVMAs                 /* vmas */
+                                &pMemLnx->apPages[0]    /* Page array. */
+# if GET_USER_PAGES_API < KERNEL_VERSION(6, 5, 0)
+                                , papVMAs               /* vmas */
+# endif
 # if GET_USER_PAGES_API >= KERNEL_VERSION(4, 10, 0)
                                 , NULL                  /* locked */
 # endif
@@ -1377,8 +1388,11 @@ DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3P
                                 fWrite,                 /* Write to memory. */
                                 fWrite,                 /* force write access. */
 # endif
-                                &pMemLnx->apPages[0],   /* Page array. */
-                                papVMAs);               /* vmas */
+                                &pMemLnx->apPages[0]    /* Page array. */
+# if GET_USER_PAGES_API < KERNEL_VERSION(6, 5, 0)
+                                , papVMAs               /* vmas */
+# endif
+                                );
 #endif /* GET_USER_PAGES_API < KERNEL_VERSION(4, 6, 0) */
         if (rc == cPages)
         {
@@ -1401,16 +1415,20 @@ DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3P
             while (rc-- > 0)
             {
                 flush_dcache_page(pMemLnx->apPages[rc]);
-#if RTLNX_VER_MIN(6,3,0)
+# if GET_USER_PAGES_API < KERNEL_VERSION(6, 5, 0)
+#  if RTLNX_VER_MIN(6,3,0)
                 vm_flags_set(papVMAs[rc], VM_DONTCOPY | VM_LOCKED);
-#else
+#  else
                 papVMAs[rc]->vm_flags |= VM_DONTCOPY | VM_LOCKED;
-#endif
+#  endif
+# endif
             }
 
             LNX_MM_UP_READ(pTask->mm);
 
+# if GET_USER_PAGES_API < KERNEL_VERSION(6, 5, 0)
             RTMemFree(papVMAs);
+# endif
 
             pMemLnx->Core.u.Lock.R0Process = R0Process;
             pMemLnx->cPages = cPages;
@@ -1437,9 +1455,12 @@ DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3P
 
         LNX_MM_UP_READ(pTask->mm);
 
-        RTMemFree(papVMAs);
         rc = VERR_LOCK_FAILED;
+
+# if GET_USER_PAGES_API < KERNEL_VERSION(6, 5, 0)
+        RTMemFree(papVMAs);
     }
+# endif
 
     rtR0MemObjDelete(&pMemLnx->Core);
     IPRT_LINUX_RESTORE_EFL_AC();

@@ -143,6 +143,8 @@ int main(int argc, char **argv)
         }
 
 
+/* Support for allocating Ring-0 executable memory with contiguous physical backing isn't implemented on Solaris. */
+#if !defined(RT_OS_SOLARIS)
         /*
          * Allocate a bit of contiguous memory.
          */
@@ -171,6 +173,7 @@ int main(int argc, char **argv)
         }
         else
             RTPrintf("SUPR3ContAlloc failed!\n");
+#endif
 
         /*
          * Allocate a big chunk of virtual memory and then lock it.

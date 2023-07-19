@@ -251,8 +251,11 @@ private:
                 strFullData += s_strTableRow1.arg(controller.GetName()) + strAttData;
         }
 
-        /* Hide indicator if there are no attachments: */
-        setVisible(fAttachmentsPresent);
+        /* Show/hide indicator if there are no attachments
+         * and parent is visible already: */
+        if (   parentWidget()
+            && parentWidget()->isVisible())
+            setVisible(fAttachmentsPresent);
 
         /* Update tool-tip: */
         setToolTip(s_strTable.arg(strFullData));

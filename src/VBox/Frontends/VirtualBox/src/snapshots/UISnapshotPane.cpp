@@ -176,10 +176,37 @@ private:
 };
 
 
+/** QScrollBar subclass for snapshots widget. */
+class UISnapshotScrollBar : public QScrollBar
+{
+    Q_OBJECT;
+
+signals:
+
+    /** Notify listeners about our visibility changed. */
+    void sigNotifyAboutVisibilityChange();
+
+public:
+
+    /** Constructs scroll-bar passing @a enmOrientation and @a pParent to the base-class. */
+    UISnapshotScrollBar(Qt::Orientation enmOrientation, QWidget *pParent = 0);
+
+protected:
+
+    /** Handles show @a pEvent. */
+    virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
+};
+
+
 /** QITreeWidget subclass for snapshots items. */
 class UISnapshotTree : public QITreeWidget
 {
     Q_OBJECT;
+
+signals:
+
+    /** Notify listeners about one of scroll-bars visibility changed. */
+    void sigNotifyAboutScrollBarVisibilityChange();
 
 public:
 
@@ -503,6 +530,21 @@ void UISnapshotItem::recacheToolTip()
 
 
 /*********************************************************************************************************************************
+*   Class UISnapshotScrollBar implementation.                                                                                    *
+*********************************************************************************************************************************/
+UISnapshotScrollBar::UISnapshotScrollBar(Qt::Orientation enmOrientation, QWidget *pParent /* = 0 */)
+    : QScrollBar(enmOrientation, pParent)
+{
+}
+
+void UISnapshotScrollBar::showEvent(QShowEvent *pEvent)
+{
+    QScrollBar::showEvent(pEvent);
+    emit sigNotifyAboutVisibilityChange();
+}
+
+
+/*********************************************************************************************************************************
 *   Class UISnapshotTree implementation.                                                                                         *
 *********************************************************************************************************************************/
 
@@ -510,6 +552,7 @@ UISnapshotTree::UISnapshotTree(QWidget *pParent)
     : QITreeWidget(pParent)
 {
     /* Configure snapshot tree: */
+    setAutoScroll(false);
     setColumnCount(Column_Max);
     setAllColumnsShowFocus(true);
     setAlternatingRowColors(true);
@@ -517,6 +560,22 @@ UISnapshotTree::UISnapshotTree(QWidget *pParent)
     setContextMenuPolicy(Qt::CustomContextMenu);
     setEditTriggers(  QAbstractItemView::SelectedClicked
                     | QAbstractItemView::EditKeyPressed);
+
+    /* Replace scroll-bars: */
+    UISnapshotScrollBar *pScrollBarH = new UISnapshotScrollBar(Qt::Horizontal, this);
+    if (pScrollBarH)
+    {
+        connect(pScrollBarH, &UISnapshotScrollBar::sigNotifyAboutVisibilityChange,
+                this, &UISnapshotTree::sigNotifyAboutScrollBarVisibilityChange);
+        setHorizontalScrollBar(pScrollBarH);
+    }
+    UISnapshotScrollBar *pScrollBarV = new UISnapshotScrollBar(Qt::Vertical, this);
+    if (pScrollBarV)
+    {
+        connect(pScrollBarV, &UISnapshotScrollBar::sigNotifyAboutVisibilityChange,
+                this, &UISnapshotTree::sigNotifyAboutScrollBarVisibilityChange);
+        setVerticalScrollBar(pScrollBarV);
+    }
 }
 
 
@@ -1088,12 +1147,7 @@ void UISnapshotPane::sltHandleCurrentItemChange()
     const UISnapshotItem *pSnapshotItem = UISnapshotItem::toSnapshotItem(m_pSnapshotTree->currentItem());
 
     /* Make the current item visible: */
-    if (pSnapshotItem)
-    {
-        m_pSnapshotTree->horizontalScrollBar()->setValue(0);
-        m_pSnapshotTree->scrollToItem(pSnapshotItem);
-        m_pSnapshotTree->horizontalScrollBar()->setValue(m_pSnapshotTree->indentation() * pSnapshotItem->level());
-    }
+    sltHandleScrollBarVisibilityChange();
 
     /* Update action states: */
     updateActionStates();
@@ -1227,6 +1281,20 @@ void UISnapshotPane::sltHandleItemDoubleClick(QTreeWidgetItem *pItem)
             /* As show details-widget procedure: */
             m_pActionPool->action(UIActionIndexMN_M_Snapshot_T_Properties)->setChecked(true);
         }
+    }
+}
+
+void UISnapshotPane::sltHandleScrollBarVisibilityChange()
+{
+    /* Acquire "current snapshot" item: */
+    const UISnapshotItem *pSnapshotItem = UISnapshotItem::toSnapshotItem(m_pSnapshotTree->currentItem());
+
+    /* Make the current item visible: */
+    if (pSnapshotItem)
+    {
+        m_pSnapshotTree->horizontalScrollBar()->setValue(0);
+        m_pSnapshotTree->scrollToItem(pSnapshotItem);
+        m_pSnapshotTree->horizontalScrollBar()->setValue(m_pSnapshotTree->indentation() * pSnapshotItem->level());
     }
 }
 
@@ -1370,6 +1438,8 @@ void UISnapshotPane::prepareTreeWidget()
                 this, &UISnapshotPane::sltHandleItemChange);
         connect(m_pSnapshotTree, &UISnapshotTree::itemDoubleClicked,
                 this, &UISnapshotPane::sltHandleItemDoubleClick);
+        connect(m_pSnapshotTree, &UISnapshotTree::sigNotifyAboutScrollBarVisibilityChange,
+                this, &UISnapshotPane::sltHandleScrollBarVisibilityChange, Qt::QueuedConnection);
 
         /* Add into layout: */
         m_pLayoutMain->addWidget(m_pSnapshotTree, 1);
@@ -1453,7 +1523,6 @@ void UISnapshotPane::refreshAll()
                 pCurrentItem = m_currentStateItems.value(uMachineId);
 
             /* Choose current item: */
-            m_pSnapshotTree->scrollToItem(pCurrentItem);
             m_pSnapshotTree->setCurrentItem(pCurrentItem);
             sltHandleCurrentItemChange();
         }
@@ -1769,13 +1838,20 @@ void UISnapshotPane::adjustTreeWidget()
 
     /* Calculate the total snapshot tree width: */
     const int iTotal = m_pSnapshotTree->viewport()->width();
-    /* Look for a minimum width hints for non-important columns: */
+
+    /* Look for a minimum width hint for Taken column: */
     const int iMinWidth1 = qMax(pItemView->sizeHintForColumn(Column_Taken), pItemHeader->sectionSizeHint(Column_Taken));
-    /* Propose suitable width hints for non-important columns: */
+    /* Propose suitable width hint for Taken column (but no more than the half of existing space): */
     const int iWidth1 = iMinWidth1 < iTotal / Column_Max ? iMinWidth1 : iTotal / Column_Max;
+
+    /* Look for a minimum width hint for Name column: */
+    const int iMinWidth0 = qMax(pItemView->sizeHintForColumn(Column_Name), pItemHeader->sectionSizeHint(Column_Name));
+    /* Propose suitable width hint for important column (at least all remaining space and no less than the hint itself): */
+    const int iWidth0 = iMinWidth0 > iTotal - iWidth1 ? iMinWidth0 : iTotal - iWidth1;
+
     /* Apply the proposal: */
     m_pSnapshotTree->setColumnWidth(Column_Taken, iWidth1);
-    m_pSnapshotTree->setColumnWidth(Column_Name, iTotal - iWidth1);
+    m_pSnapshotTree->setColumnWidth(Column_Name, iWidth0);
 }
 
 UISnapshotItem *UISnapshotPane::findItem(const QUuid &uSnapshotID) const

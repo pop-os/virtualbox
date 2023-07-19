@@ -1522,6 +1522,7 @@ typedef RTASN1DYNTYPE *PRTASN1DYNTYPE;
 typedef RTASN1DYNTYPE const *PCRTASN1DYNTYPE;
 RTASN1TYPE_STANDARD_PROTOTYPES(RTASN1DYNTYPE, RTDECL, RTAsn1DynType, u.Core);
 RTDECL(int) RTAsn1DynType_SetToNull(PRTASN1DYNTYPE pThis);
+RTDECL(int) RTAsn1DynType_SetToObjId(PRTASN1DYNTYPE pThis, PCRTASN1OBJID pSrc, PCRTASN1ALLOCATORVTABLE pAllocator);
 
 
 /** @name Virtual Method Table Based API
@@ -1686,7 +1687,7 @@ RTDECL(int) RTAsn1EncodeToBuffer(PCRTASN1CORE pRoot, uint32_t fFlags, void *pvBu
  * but also handy when structures needs to be digested or similar during signing
  * or verification.
  *
- * We sometimes can use the data we've decoded directly, but often we have
+ * We sometimes can use the data we've decoded directly, but often we have to
  * encode it into a temporary heap buffer.
  *
  * @returns IPRT status code, details in @a pErrInfo if present.

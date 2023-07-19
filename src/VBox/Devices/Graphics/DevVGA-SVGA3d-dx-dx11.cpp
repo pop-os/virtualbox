@@ -64,7 +64,15 @@
 # define VBOX_D3D11_LIBRARY_NAME "VBoxDxVk"
 #endif
 
+/* One ID3D11Device object is used for all VMSVGA contexts. */
+/** @todo This should be the only option because VGPU freely uses surfaces from different VMSVGA contexts
+ * and synchronization of access to shared surfaces kills performance.
+ */
 #define DX_FORCE_SINGLE_DEVICE
+/* A single staging ID3D11Buffer is used for uploading data to other buffers. */
+#define DX_COMMON_STAGING_BUFFER
+/* Always flush after submitting a draw call for debugging. */
+//#define DX_FLUSH_AFTER_DRAW
 
 /* This is not available on non Windows hosts. */
 #ifndef D3D_RELEASE
@@ -98,9 +106,11 @@ typedef struct DXDEVICE
     IDXGIFactory               *pDxgiFactory;          /* DXGI Factory. */
     D3D_FEATURE_LEVEL           FeatureLevel;
 
+#ifdef DX_COMMON_STAGING_BUFFER
     /* Staging buffer for transfer to surface buffers. */
     ID3D11Buffer              *pStagingBuffer;         /* The staging buffer resource. */
     uint32_t                   cbStagingBuffer;        /* Current size of the staging buffer resource. */
+#endif
 
     D3D11BLITTER               Blitter;                /* Blits one texture to another. */
 } DXDEVICE;
@@ -151,12 +161,11 @@ typedef struct DXVIEW
 typedef enum VMSVGA3DBACKRESTYPE
 {
     VMSVGA3D_RESTYPE_NONE           = 0,
-    VMSVGA3D_RESTYPE_SCREEN_TARGET  = 1,
-    VMSVGA3D_RESTYPE_TEXTURE_1D     = 2,
-    VMSVGA3D_RESTYPE_TEXTURE_2D     = 3,
-    VMSVGA3D_RESTYPE_TEXTURE_CUBE   = 4,
-    VMSVGA3D_RESTYPE_TEXTURE_3D     = 5,
-    VMSVGA3D_RESTYPE_BUFFER         = 6,
+    VMSVGA3D_RESTYPE_TEXTURE_1D     = 1,
+    VMSVGA3D_RESTYPE_TEXTURE_2D     = 2,
+    VMSVGA3D_RESTYPE_TEXTURE_CUBE   = 3,
+    VMSVGA3D_RESTYPE_TEXTURE_3D     = 4,
+    VMSVGA3D_RESTYPE_BUFFER         = 5,
 } VMSVGA3DBACKRESTYPE;
 
 typedef struct VMSVGA3DBACKENDSURFACE
@@ -179,6 +188,9 @@ typedef struct VMSVGA3DBACKENDSURFACE
         ID3D11Texture1D    *pTexture1D;
         ID3D11Texture2D    *pTexture2D;
         ID3D11Texture3D    *pTexture3D;
+#ifndef DX_COMMON_STAGING_BUFFER
+        ID3D11Buffer       *pBuffer;
+#endif
     } dynamic;
 
     /* For reading the texture content. */
@@ -188,6 +200,9 @@ typedef struct VMSVGA3DBACKENDSURFACE
         ID3D11Texture1D    *pTexture1D;
         ID3D11Texture2D    *pTexture2D;
         ID3D11Texture3D    *pTexture3D;
+#ifndef DX_COMMON_STAGING_BUFFER
+        ID3D11Buffer       *pBuffer;
+#endif
     } staging;
 
     /* Screen targets are created as shared surfaces. */
@@ -365,6 +380,7 @@ static int dxSetCSUnorderedAccessViews(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT p
 static DECLCALLBACK(void) vmsvga3dBackSurfaceDestroy(PVGASTATECC pThisCC, bool fClearCOTableEntry, PVMSVGA3DSURFACE pSurface);
 static int dxDestroyShader(DXSHADER *pDXShader);
 static int dxDestroyQuery(DXQUERY *pDXQuery);
+static int dxReadBuffer(DXDEVICE *pDevice, ID3D11Buffer *pBuffer, UINT Offset, UINT Bytes, void **ppvData, uint32_t *pcbData);
 
 static HRESULT BlitInit(D3D11BLITTER *pBlitter, ID3D11Device *pDevice, ID3D11DeviceContext *pImmediateContext);
 static void BlitRelease(D3D11BLITTER *pBlitter);
@@ -896,8 +912,10 @@ static int dxDeviceCreate(PVMSVGA3DBACKEND pBackend, DXDEVICE *pDXDevice)
 
         pDXDevice->FeatureLevel = pBackend->dxDevice.FeatureLevel;
 
+#ifdef DX_COMMON_STAGING_BUFFER
         pDXDevice->pStagingBuffer = 0;
         pDXDevice->cbStagingBuffer = 0;
+#endif
 
         BlitInit(&pDXDevice->Blitter, pDXDevice->pDevice, pDXDevice->pImmediateContext);
         return rc;
@@ -1032,7 +1050,9 @@ static void dxDeviceDestroy(PVMSVGA3DBACKEND pBackend, DXDEVICE *pDevice)
 
     BlitRelease(&pDevice->Blitter);
 
+#ifdef DX_COMMON_STAGING_BUFFER
     D3D_RELEASE(pDevice->pStagingBuffer);
+#endif
 
     D3D_RELEASE(pDevice->pDxgiFactory);
     D3D_RELEASE(pDevice->pImmediateContext);
@@ -1719,7 +1739,6 @@ static HRESULT dxRenderTargetViewCreate(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT 
             desc.Texture3D.WSize = pEntry->desc.tex3D.wSize;
             break;
         case SVGA3D_RESOURCE_TEXTURECUBE:
-            AssertFailed(); /** @todo test. Probably not applicable to a render target view. */
             desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
             desc.Texture2DArray.MipSlice = pEntry->desc.tex.mipSlice;
             desc.Texture2DArray.FirstArraySlice = 0;
@@ -2157,92 +2176,6 @@ static HRESULT dxInitSharedHandle(PVMSVGA3DBACKEND pBackend, PVMSVGA3DBACKENDSUR
 }
 
 
-static int vmsvga3dBackSurfaceCreateScreenTarget(PVGASTATECC pThisCC, PVMSVGA3DSURFACE pSurface)
-{
-    PVMSVGA3DSTATE p3dState = pThisCC->svga.p3dState;
-    AssertReturn(p3dState, VERR_INVALID_STATE);
-
-    PVMSVGA3DBACKEND pBackend = p3dState->pBackend;
-    AssertReturn(pBackend, VERR_INVALID_STATE);
-
-    DXDEVICE *pDXDevice = &pBackend->dxDevice;
-    AssertReturn(pDXDevice->pDevice, VERR_INVALID_STATE);
-
-    /* Surface must have SCREEN_TARGET flag. */
-    ASSERT_GUEST_RETURN(RT_BOOL(pSurface->f.surfaceFlags & SVGA3D_SURFACE_SCREENTARGET), VERR_INVALID_PARAMETER);
-
-    if (VMSVGA3DSURFACE_HAS_HW_SURFACE(pSurface))
-    {
-        AssertFailed(); /* Should the function not be used like that? */
-        vmsvga3dBackSurfaceDestroy(pThisCC, false, pSurface);
-    }
-
-    PVMSVGA3DBACKENDSURFACE pBackendSurface;
-    int rc = dxBackendSurfaceAlloc(&pBackendSurface);
-    AssertRCReturn(rc, rc);
-
-    D3D11_TEXTURE2D_DESC td;
-    RT_ZERO(td);
-    td.Width              = pSurface->paMipmapLevels[0].mipmapSize.width;
-    td.Height             = pSurface->paMipmapLevels[0].mipmapSize.height;
-    Assert(pSurface->cLevels == 1);
-    td.MipLevels          = 1;
-    td.ArraySize          = 1;
-    td.Format             = vmsvgaDXSurfaceFormat2Dxgi(pSurface->format);
-    td.SampleDesc.Count   = 1;
-    td.SampleDesc.Quality = 0;
-    td.Usage              = D3D11_USAGE_DEFAULT;
-    td.BindFlags          = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-    td.CPUAccessFlags     = 0;
-    td.MiscFlags          = pBackend->fSingleDevice ? 0 : D3D11_RESOURCE_MISC_SHARED;
-
-    HRESULT hr = pDXDevice->pDevice->CreateTexture2D(&td, 0, &pBackendSurface->u.pTexture2D);
-    Assert(SUCCEEDED(hr));
-    if (SUCCEEDED(hr))
-    {
-        /* Map-able texture. */
-        td.Usage          = D3D11_USAGE_DYNAMIC;
-        td.BindFlags      = D3D11_BIND_SHADER_RESOURCE; /* Have to specify a supported flag, otherwise E_INVALIDARG will be returned. */
-        td.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        td.MiscFlags      = 0;
-        hr = pDXDevice->pDevice->CreateTexture2D(&td, 0, &pBackendSurface->dynamic.pTexture2D);
-        Assert(SUCCEEDED(hr));
-    }
-
-    if (SUCCEEDED(hr))
-    {
-        /* Staging texture. */
-        td.Usage          = D3D11_USAGE_STAGING;
-        td.BindFlags      = 0; /* No flags allowed. */
-        td.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
-        hr = pDXDevice->pDevice->CreateTexture2D(&td, 0, &pBackendSurface->staging.pTexture2D);
-        Assert(SUCCEEDED(hr));
-    }
-
-    if (SUCCEEDED(hr))
-        hr = dxInitSharedHandle(pBackend, pBackendSurface);
-
-    if (SUCCEEDED(hr))
-    {
-        /*
-         * Success.
-         */
-        pBackendSurface->enmResType = VMSVGA3D_RESTYPE_SCREEN_TARGET;
-        pBackendSurface->enmDxgiFormat = td.Format;
-        pSurface->pBackendSurface = pBackendSurface;
-        pSurface->idAssociatedContext = DX_CID_BACKEND;
-        return VINF_SUCCESS;
-    }
-
-    /* Failure. */
-    D3D_RELEASE(pBackendSurface->staging.pTexture2D);
-    D3D_RELEASE(pBackendSurface->dynamic.pTexture2D);
-    D3D_RELEASE(pBackendSurface->u.pTexture2D);
-    RTMemFree(pBackendSurface);
-    return VERR_NO_MEMORY;
-}
-
-
 static UINT dxBindFlags(SVGA3dSurfaceAllFlags surfaceFlags)
 {
     /* Catch unimplemented flags. */
@@ -2273,7 +2206,7 @@ static DXDEVICE *dxSurfaceDevice(PVMSVGA3DSTATE p3dState, PVMSVGA3DSURFACE pSurf
         return &p3dState->pBackend->dxDevice;
     }
 
-    if (dxIsSurfaceShareable(pSurface))
+    if (!pDXContext || dxIsSurfaceShareable(pSurface))
     {
         *pMiscFlags = D3D11_RESOURCE_MISC_SHARED;
         return &p3dState->pBackend->dxDevice;
@@ -2478,60 +2411,7 @@ static int vmsvga3dBackSurfaceCreateTexture(PVGASTATECC pThisCC, PVMSVGA3DDXCONT
     }
 
     HRESULT hr = S_OK;
-    if (pSurface->f.surfaceFlags & SVGA3D_SURFACE_SCREENTARGET)
-    {
-        /*
-         * Create the texture in backend device and open for the specified context.
-         */
-        D3D11_TEXTURE2D_DESC td;
-        RT_ZERO(td);
-        td.Width              = pSurface->paMipmapLevels[0].mipmapSize.width;
-        td.Height             = pSurface->paMipmapLevels[0].mipmapSize.height;
-        Assert(pSurface->cLevels == 1);
-        td.MipLevels          = 1;
-        td.ArraySize          = 1;
-        td.Format             = dxgiFormat;
-        td.SampleDesc.Count   = 1;
-        td.SampleDesc.Quality = 0;
-        td.Usage              = D3D11_USAGE_DEFAULT;
-        td.BindFlags          = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-        td.CPUAccessFlags     = 0;
-        td.MiscFlags          = MiscFlags;
-
-        hr = pDXDevice->pDevice->CreateTexture2D(&td, paInitialData, &pBackendSurface->u.pTexture2D);
-        Assert(SUCCEEDED(hr));
-        if (SUCCEEDED(hr))
-        {
-            /* Map-able texture. */
-            td.Format         = dxgiFormatDynamic;
-            td.Usage          = D3D11_USAGE_DYNAMIC;
-            td.BindFlags      = D3D11_BIND_SHADER_RESOURCE; /* Have to specify a supported flag, otherwise E_INVALIDARG will be returned. */
-            td.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-            td.MiscFlags      = 0;
-            hr = pDXDevice->pDevice->CreateTexture2D(&td, paInitialData, &pBackendSurface->dynamic.pTexture2D);
-            Assert(SUCCEEDED(hr));
-        }
-
-        if (SUCCEEDED(hr))
-        {
-            /* Staging texture. */
-            td.Format         = dxgiFormatStaging;
-            td.Usage          = D3D11_USAGE_STAGING;
-            td.BindFlags      = 0; /* No flags allowed. */
-            td.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
-            hr = pDXDevice->pDevice->CreateTexture2D(&td, paInitialData, &pBackendSurface->staging.pTexture2D);
-            Assert(SUCCEEDED(hr));
-        }
-
-        if (SUCCEEDED(hr))
-            hr = dxInitSharedHandle(pBackend, pBackendSurface);
-
-        if (SUCCEEDED(hr))
-        {
-            pBackendSurface->enmResType = VMSVGA3D_RESTYPE_SCREEN_TARGET;
-        }
-    }
-    else if (pSurface->f.surfaceFlags & SVGA3D_SURFACE_CUBEMAP)
+    if (pSurface->f.surfaceFlags & SVGA3D_SURFACE_CUBEMAP)
     {
         Assert(pSurface->cFaces == 6);
         Assert(cWidth == cHeight);
@@ -2855,6 +2735,29 @@ static int vmsvga3dBackSurfaceCreateBuffer(PVGASTATECC pThisCC, PVMSVGA3DDXCONTE
     bd.BindFlags = dxBindFlags(pSurface->f.surfaceFlags);
 
     HRESULT hr = pDevice->pDevice->CreateBuffer(&bd, pInitialData, &pBackendSurface->u.pBuffer);
+    Assert(SUCCEEDED(hr));
+#ifndef DX_COMMON_STAGING_BUFFER
+    if (SUCCEEDED(hr))
+    {
+        /* Map-able Buffer. */
+        bd.Usage          = D3D11_USAGE_DYNAMIC;
+        bd.BindFlags      = D3D11_BIND_SHADER_RESOURCE; /* Have to specify a supported flag, otherwise E_INVALIDARG will be returned. */
+        bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        hr = pDevice->pDevice->CreateBuffer(&bd, pInitialData, &pBackendSurface->dynamic.pBuffer);
+        Assert(SUCCEEDED(hr));
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        /* Staging texture. */
+        bd.Usage          = D3D11_USAGE_STAGING;
+        bd.BindFlags      = 0; /* No flags allowed. */
+        bd.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
+        hr = pDevice->pDevice->CreateBuffer(&bd, pInitialData, &pBackendSurface->staging.pBuffer);
+        Assert(SUCCEEDED(hr));
+    }
+#endif
+
     if (SUCCEEDED(hr))
     {
         /*
@@ -2869,6 +2772,10 @@ static int vmsvga3dBackSurfaceCreateBuffer(PVGASTATECC pThisCC, PVMSVGA3DDXCONTE
 
     /* Failure. */
     D3D_RELEASE(pBackendSurface->u.pBuffer);
+#ifndef DX_COMMON_STAGING_BUFFER
+    D3D_RELEASE(pBackendSurface->dynamic.pBuffer);
+    D3D_RELEASE(pBackendSurface->staging.pBuffer);
+#endif
     RTMemFree(pBackendSurface);
     return VERR_NO_MEMORY;
 }
@@ -2902,6 +2809,28 @@ static int vmsvga3dBackSurfaceCreateSoBuffer(PVGASTATECC pThisCC, PVMSVGA3DDXCON
     bd.StructureByteStride = 0;
 
     HRESULT hr = pDevice->pDevice->CreateBuffer(&bd, 0, &pBackendSurface->u.pBuffer);
+#ifndef DX_COMMON_STAGING_BUFFER
+    if (SUCCEEDED(hr))
+    {
+        /* Map-able Buffer. */
+        bd.Usage          = D3D11_USAGE_DYNAMIC;
+        bd.BindFlags      = D3D11_BIND_SHADER_RESOURCE; /* Have to specify a supported flag, otherwise E_INVALIDARG will be returned. */
+        bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        hr = pDevice->pDevice->CreateBuffer(&bd, 0, &pBackendSurface->dynamic.pBuffer);
+        Assert(SUCCEEDED(hr));
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        /* Staging texture. */
+        bd.Usage          = D3D11_USAGE_STAGING;
+        bd.BindFlags      = 0; /* No flags allowed. */
+        bd.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
+        hr = pDevice->pDevice->CreateBuffer(&bd, 0, &pBackendSurface->staging.pBuffer);
+        Assert(SUCCEEDED(hr));
+    }
+#endif
+
     if (SUCCEEDED(hr))
     {
         /*
@@ -2916,6 +2845,10 @@ static int vmsvga3dBackSurfaceCreateSoBuffer(PVGASTATECC pThisCC, PVMSVGA3DDXCON
 
     /* Failure. */
     D3D_RELEASE(pBackendSurface->u.pBuffer);
+#ifndef DX_COMMON_STAGING_BUFFER
+    D3D_RELEASE(pBackendSurface->dynamic.pBuffer);
+    D3D_RELEASE(pBackendSurface->staging.pBuffer);
+#endif
     RTMemFree(pBackendSurface);
     return VERR_NO_MEMORY;
 }
@@ -3067,6 +3000,27 @@ static int vmsvga3dBackSurfaceCreateResource(PVGASTATECC pThisCC, PVMSVGA3DDXCON
 
         hr = pDevice->pDevice->CreateBuffer(&bd, pInitialData, &pBackendSurface->u.pBuffer);
         Assert(SUCCEEDED(hr));
+#ifndef DX_COMMON_STAGING_BUFFER
+        if (SUCCEEDED(hr))
+        {
+            /* Map-able Buffer. */
+            bd.Usage          = D3D11_USAGE_DYNAMIC;
+            bd.BindFlags      = D3D11_BIND_SHADER_RESOURCE; /* Have to specify a supported flag, otherwise E_INVALIDARG will be returned. */
+            bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            hr = pDevice->pDevice->CreateBuffer(&bd, pInitialData, &pBackendSurface->dynamic.pBuffer);
+            Assert(SUCCEEDED(hr));
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            /* Staging texture. */
+            bd.Usage          = D3D11_USAGE_STAGING;
+            bd.BindFlags      = 0; /* No flags allowed. */
+            bd.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
+            hr = pDevice->pDevice->CreateBuffer(&bd, pInitialData, &pBackendSurface->staging.pBuffer);
+            Assert(SUCCEEDED(hr));
+        }
+#endif
         if (SUCCEEDED(hr))
         {
             pBackendSurface->enmResType = VMSVGA3D_RESTYPE_BUFFER;
@@ -3091,11 +3045,15 @@ static int vmsvga3dBackSurfaceCreateResource(PVGASTATECC pThisCC, PVMSVGA3DDXCON
     }
 
     /* Failure. */
+    D3D_RELEASE(pBackendSurface->u.pResource);
+    D3D_RELEASE(pBackendSurface->dynamic.pResource);
+    D3D_RELEASE(pBackendSurface->staging.pResource);
     RTMemFree(pBackendSurface);
     return VERR_NO_MEMORY;
 }
 
 
+#ifdef DX_COMMON_STAGING_BUFFER
 static int dxStagingBufferRealloc(DXDEVICE *pDXDevice, uint32_t cbRequiredSize)
 {
     AssertReturn(cbRequiredSize < SVGA3D_MAX_SURFACE_MEM_SIZE, VERR_INVALID_PARAMETER);
@@ -3131,6 +3089,7 @@ static int dxStagingBufferRealloc(DXDEVICE *pDXDevice, uint32_t cbRequiredSize)
 
     return rc;
 }
+#endif
 
 
 static DECLCALLBACK(int) vmsvga3dBackInit(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC)
@@ -3147,13 +3106,9 @@ static DECLCALLBACK(int) vmsvga3dBackInit(PPDMDEVINS pDevIns, PVGASTATE pThis, P
     }
 #endif
 
-    PVMSVGA3DSTATE pState = (PVMSVGA3DSTATE)RTMemAllocZ(sizeof(VMSVGA3DSTATE));
-    AssertReturn(pState, VERR_NO_MEMORY);
-    pThisCC->svga.p3dState = pState;
-
     PVMSVGA3DBACKEND pBackend = (PVMSVGA3DBACKEND)RTMemAllocZ(sizeof(VMSVGA3DBACKEND));
     AssertReturn(pBackend, VERR_NO_MEMORY);
-    pState->pBackend = pBackend;
+    pThisCC->svga.p3dState->pBackend = pBackend;
 
     rc = RTLdrLoadSystem(VBOX_D3D11_LIBRARY_NAME, /* fNoUnload = */ true, &pBackend->hD3D11);
     AssertRC(rc);
@@ -3219,24 +3174,7 @@ static DECLCALLBACK(int) vmsvga3dBackPowerOn(PPDMDEVINS pDevIns, PVGASTATE pThis
 
 static DECLCALLBACK(int) vmsvga3dBackReset(PVGASTATECC pThisCC)
 {
-    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
-    AssertReturn(pState, VERR_INVALID_STATE);
-
-    /** @todo This is generic code. Must be moved to in DevVGA-SVGA3d.cpp */
-    /* Destroy all leftover surfaces. */
-    for (uint32_t i = 0; i < pState->cSurfaces; i++)
-    {
-        if (pState->papSurfaces[i]->id != SVGA3D_INVALID_ID)
-            vmsvga3dSurfaceDestroy(pThisCC, pState->papSurfaces[i]->id);
-    }
-
-    /* Destroy all leftover DX contexts. */
-    for (uint32_t i = 0; i < pState->cDXContexts; i++)
-    {
-        if (pState->papDXContexts[i]->cid != SVGA3D_INVALID_ID)
-            vmsvga3dDXDestroyContext(pThisCC, pState->papDXContexts[i]->cid);
-    }
-
+    RT_NOREF(pThisCC);
     return VINF_SUCCESS;
 }
 
@@ -3247,15 +3185,7 @@ static DECLCALLBACK(int) vmsvga3dBackTerminate(PVGASTATECC pThisCC)
     AssertReturn(pState, VERR_INVALID_STATE);
 
     if (pState->pBackend)
-    {
-        /* Clean up backends. For example release resources from surfaces. */
-        vmsvga3dBackReset(pThisCC);
-
         dxDeviceDestroy(pState->pBackend, &pState->pBackend->dxDevice);
-
-        RTMemFree(pState->pBackend);
-        pState->pBackend = NULL;
-    }
 
     return VINF_SUCCESS;
 }
@@ -3542,39 +3472,10 @@ static DECLCALLBACK(int) vmsvga3dBackSurfaceMap(PVGASTATECC pThisCC, SVGA3dSurfa
     D3D11_MAPPED_SUBRESOURCE mappedResource;
     RT_ZERO(mappedResource);
 
-    if (pBackendSurface->enmResType == VMSVGA3D_RESTYPE_SCREEN_TARGET)
-    {
-        Assert(pImage->face == 0 && pImage->mipmap == 0);
-
-        /* Wait for the surface to finish drawing. */
-        dxSurfaceWait(pState, pSurface, pSurface->idAssociatedContext);
-
-        ID3D11Texture2D *pMappedTexture;
-        if (enmMapType == VMSVGA3D_SURFACE_MAP_READ)
-        {
-            pMappedTexture = pBackendSurface->staging.pTexture2D;
-
-            /* Copy the texture content to the staging texture. */
-            pDevice->pImmediateContext->CopyResource(pBackendSurface->staging.pTexture2D, pBackendSurface->u.pTexture2D);
-        }
-        else if (enmMapType == VMSVGA3D_SURFACE_MAP_WRITE)
-            pMappedTexture = pBackendSurface->staging.pTexture2D;
-        else
-            pMappedTexture = pBackendSurface->dynamic.pTexture2D;
-
-        UINT const Subresource = 0; /* Screen target surfaces have only one subresource. */
-        HRESULT hr = pDevice->pImmediateContext->Map(pMappedTexture, Subresource,
-                                                     d3d11MapType, /* MapFlags =  */ 0, &mappedResource);
-        if (SUCCEEDED(hr))
-            vmsvga3dSurfaceMapInit(pMap, enmMapType, &clipBox, pSurface,
-                                   mappedResource.pData, mappedResource.RowPitch, mappedResource.DepthPitch);
-        else
-            AssertFailedStmt(rc = VERR_NOT_SUPPORTED);
-    }
-    else if (   pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_1D
-             || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_2D
-             || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_CUBE
-             || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_3D)
+    if (   pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_1D
+        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_2D
+        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_CUBE
+        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_3D)
     {
         dxSurfaceWait(pState, pSurface, pSurface->idAssociatedContext);
 
@@ -3622,6 +3523,7 @@ static DECLCALLBACK(int) vmsvga3dBackSurfaceMap(PVGASTATECC pThisCC, SVGA3dSurfa
     }
     else if (pBackendSurface->enmResType == VMSVGA3D_RESTYPE_BUFFER)
     {
+#ifdef DX_COMMON_STAGING_BUFFER
         /* Map the staging buffer. */
         rc = dxStagingBufferRealloc(pDevice, pMipLevel->cbSurface);
         if (RT_SUCCESS(rc))
@@ -3660,6 +3562,44 @@ static DECLCALLBACK(int) vmsvga3dBackSurfaceMap(PVGASTATECC pThisCC, SVGA3dSurfa
             else
                 AssertFailedStmt(rc = VERR_NOT_SUPPORTED);
         }
+#else
+        ID3D11Resource *pMappedResource;
+        if (enmMapType == VMSVGA3D_SURFACE_MAP_READ)
+        {
+            pMappedResource = pBackendSurface->staging.pResource;
+
+            /* Copy the resource content to the staging resource. */
+            ID3D11Resource *pDstResource = pMappedResource;
+            UINT DstSubresource = 0;
+            UINT DstX = clipBox.x;
+            UINT DstY = clipBox.y;
+            UINT DstZ = clipBox.z;
+            ID3D11Resource *pSrcResource = pBackendSurface->u.pResource;
+            UINT SrcSubresource = 0;
+            D3D11_BOX SrcBox;
+            SrcBox.left   = clipBox.x;
+            SrcBox.top    = clipBox.y;
+            SrcBox.front  = clipBox.z;
+            SrcBox.right  = clipBox.w;
+            SrcBox.bottom = clipBox.h;
+            SrcBox.back   = clipBox.d;
+            pDevice->pImmediateContext->CopySubresourceRegion(pDstResource, DstSubresource, DstX, DstY, DstZ,
+                                                              pSrcResource, SrcSubresource, &SrcBox);
+        }
+        else if (enmMapType == VMSVGA3D_SURFACE_MAP_WRITE)
+            pMappedResource = pBackendSurface->staging.pResource;
+        else
+            pMappedResource = pBackendSurface->dynamic.pResource;
+
+        UINT const Subresource = 0; /* Dynamic or staging textures have one subresource. */
+        HRESULT hr = pDevice->pImmediateContext->Map(pMappedResource, Subresource,
+                                                     d3d11MapType, /* MapFlags =  */ 0, &mappedResource);
+        if (SUCCEEDED(hr))
+            vmsvga3dSurfaceMapInit(pMap, enmMapType, &clipBox, pSurface,
+                                   mappedResource.pData, mappedResource.RowPitch, mappedResource.DepthPitch);
+        else
+            AssertFailedStmt(rc = VERR_NOT_SUPPORTED);
+#endif
     }
     else
     {
@@ -3697,49 +3637,10 @@ static DECLCALLBACK(int) vmsvga3dBackSurfaceUnmap(PVGASTATECC pThisCC, SVGA3dSur
     DXDEVICE *pDevice = dxDeviceFromCid(pSurface->idAssociatedContext, pState);
     AssertReturn(pDevice && pDevice->pDevice, VERR_INVALID_STATE);
 
-    if (pBackendSurface->enmResType == VMSVGA3D_RESTYPE_SCREEN_TARGET)
-    {
-        ID3D11Texture2D *pMappedTexture;
-        if (pMap->enmMapType == VMSVGA3D_SURFACE_MAP_READ)
-            pMappedTexture = pBackendSurface->staging.pTexture2D;
-        else if (pMap->enmMapType == VMSVGA3D_SURFACE_MAP_WRITE)
-            pMappedTexture = pBackendSurface->staging.pTexture2D;
-        else
-            pMappedTexture = pBackendSurface->dynamic.pTexture2D;
-
-        UINT const Subresource = 0; /* Screen target surfaces have only one subresource. */
-        pDevice->pImmediateContext->Unmap(pMappedTexture, Subresource);
-
-        if (   fWritten
-            && (   pMap->enmMapType == VMSVGA3D_SURFACE_MAP_WRITE
-                || pMap->enmMapType == VMSVGA3D_SURFACE_MAP_READ_WRITE
-                || pMap->enmMapType == VMSVGA3D_SURFACE_MAP_WRITE_DISCARD))
-        {
-            ID3D11Resource *pDstResource = pBackendSurface->u.pTexture2D;
-            UINT DstSubresource = Subresource;
-            UINT DstX = pMap->box.x;
-            UINT DstY = pMap->box.y;
-            UINT DstZ = pMap->box.z;
-            ID3D11Resource *pSrcResource = pMappedTexture;
-            UINT SrcSubresource = Subresource;
-            D3D11_BOX SrcBox;
-            SrcBox.left   = pMap->box.x;
-            SrcBox.top    = pMap->box.y;
-            SrcBox.front  = pMap->box.z;
-            SrcBox.right  = pMap->box.x + pMap->box.w;
-            SrcBox.bottom = pMap->box.y + pMap->box.h;
-            SrcBox.back   = pMap->box.z + pMap->box.d;
-
-            pDevice->pImmediateContext->CopySubresourceRegion(pDstResource, DstSubresource, DstX, DstY, DstZ,
-                                                              pSrcResource, SrcSubresource, &SrcBox);
-
-            pBackendSurface->cidDrawing = pSurface->idAssociatedContext;
-        }
-    }
-    else if (   pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_1D
-             || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_2D
-             || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_CUBE
-             || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_3D)
+    if (   pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_1D
+        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_2D
+        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_CUBE
+        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_3D)
     {
         ID3D11Resource *pMappedResource;
         if (pMap->enmMapType == VMSVGA3D_SURFACE_MAP_READ)
@@ -3802,6 +3703,7 @@ static DECLCALLBACK(int) vmsvga3dBackSurfaceUnmap(PVGASTATECC pThisCC, SVGA3dSur
     {
         Log4(("Unmap buffer sid = %u:\n%.*Rhxd\n", pSurface->id, pMap->cbRow, pMap->pvData));
 
+#ifdef DX_COMMON_STAGING_BUFFER
         /* Unmap the staging buffer. */
         UINT const Subresource = 0; /* Buffers have only one subresource. */
         pDevice->pImmediateContext->Unmap(pDevice->pStagingBuffer, Subresource);
@@ -3834,6 +3736,43 @@ static DECLCALLBACK(int) vmsvga3dBackSurfaceUnmap(PVGASTATECC pThisCC, SVGA3dSur
             pDevice->pImmediateContext->CopySubresourceRegion(pDstResource, DstSubresource, DstX, DstY, DstZ,
                                                               pSrcResource, SrcSubresource, &SrcBox);
         }
+#else
+        ID3D11Resource *pMappedResource;
+        if (pMap->enmMapType == VMSVGA3D_SURFACE_MAP_READ)
+            pMappedResource = pBackendSurface->staging.pResource;
+        else if (pMap->enmMapType == VMSVGA3D_SURFACE_MAP_WRITE)
+            pMappedResource = pBackendSurface->staging.pResource;
+        else
+            pMappedResource = pBackendSurface->dynamic.pResource;
+
+        UINT const Subresource = 0; /* Staging or dynamic textures have one subresource. */
+        pDevice->pImmediateContext->Unmap(pMappedResource, Subresource);
+
+        if (   fWritten
+            && (   pMap->enmMapType == VMSVGA3D_SURFACE_MAP_WRITE
+                || pMap->enmMapType == VMSVGA3D_SURFACE_MAP_READ_WRITE
+                || pMap->enmMapType == VMSVGA3D_SURFACE_MAP_WRITE_DISCARD))
+        {
+            ID3D11Resource *pDstResource = pBackendSurface->u.pResource;
+            UINT DstSubresource = 0;
+            UINT DstX = pMap->box.x;
+            UINT DstY = pMap->box.y;
+            UINT DstZ = pMap->box.z;
+            ID3D11Resource *pSrcResource = pMappedResource;
+            UINT SrcSubresource = 0;
+            D3D11_BOX SrcBox;
+            SrcBox.left   = DstX;
+            SrcBox.top    = DstY;
+            SrcBox.front  = DstZ;
+            SrcBox.right  = DstX + pMap->box.w;
+            SrcBox.bottom = DstY + pMap->box.h;
+            SrcBox.back   = DstZ + pMap->box.d;
+            pDevice->pImmediateContext->CopySubresourceRegion(pDstResource, DstSubresource, DstX, DstY, DstZ,
+                                                              pSrcResource, SrcSubresource, &SrcBox);
+
+            pBackendSurface->cidDrawing = pSurface->idAssociatedContext;
+        }
+#endif
     }
     else
     {
@@ -3862,7 +3801,7 @@ static DECLCALLBACK(int) vmsvga3dScreenTargetBind(PVGASTATECC pThisCC, VMSVGASCR
         if (!VMSVGA3DSURFACE_HAS_HW_SURFACE(pSurface))
         {
             /* Create the actual texture. */
-            rc = vmsvga3dBackSurfaceCreateScreenTarget(pThisCC, pSurface);
+            rc = vmsvga3dBackSurfaceCreateTexture(pThisCC, NULL, pSurface);
             AssertRCReturn(rc, rc);
         }
     }
@@ -3881,7 +3820,8 @@ static DECLCALLBACK(int) vmsvga3dScreenTargetBind(PVGASTATECC pThisCC, VMSVGASCR
     if (sid != SVGA_ID_INVALID)
     {
         AssertReturn(   pSurface->pBackendSurface
-                     && pSurface->pBackendSurface->enmResType == VMSVGA3D_RESTYPE_SCREEN_TARGET, VERR_INVALID_PARAMETER);
+                     && pSurface->pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_2D
+                     && RT_BOOL(pSurface->f.surfaceFlags & SVGA3D_SURFACE_SCREENTARGET), VERR_INVALID_PARAMETER);
 
         HANDLE const hSharedSurface = pHwScreen->SharedHandle;
         rc = vmsvga3dDrvNotifyBindSurface(pThisCC, pScreen, hSharedSurface);
@@ -3915,7 +3855,10 @@ static DECLCALLBACK(int) vmsvga3dScreenTargetUpdate(PVGASTATECC pThisCC, VMSVGAS
     AssertRCReturn(rc, rc);
 
     PVMSVGA3DBACKENDSURFACE pBackendSurface = pSurface->pBackendSurface;
-    AssertReturn(pBackendSurface && pBackendSurface->enmResType == VMSVGA3D_RESTYPE_SCREEN_TARGET, VERR_INVALID_PARAMETER);
+    AssertReturn(   pBackendSurface
+                 && pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_2D
+                 && RT_BOOL(pSurface->f.surfaceFlags & SVGA3D_SURFACE_SCREENTARGET),
+                 VERR_INVALID_PARAMETER);
 
     SVGA3dRect boundRect;
     boundRect.x = 0;
@@ -4463,7 +4406,7 @@ static DECLCALLBACK(int) vmsvga3dBackQueryCaps(PVGASTATECC pThisCC, SVGA3dDevCap
     }
 
     case SVGA3D_DEVCAP_SM41:
-        *pu32Val = 0; /* boolean */
+        *pu32Val = 1; /* boolean */
         break;
 
     case SVGA3D_DEVCAP_MULTISAMPLE_2X:
@@ -4494,7 +4437,7 @@ static DECLCALLBACK(int) vmsvga3dBackQueryCaps(PVGASTATECC pThisCC, SVGA3dDevCap
         break;
 
     case SVGA3D_DEVCAP_SM5:
-        *pu32Val = 0; /* boolean */
+        *pu32Val = 1; /* boolean */
         break;
 
     case SVGA3D_DEVCAP_MULTISAMPLE_8X:
@@ -5018,8 +4961,7 @@ static DECLCALLBACK(void) vmsvga3dBackSurfaceDestroy(PVGASTATECC pThisCC, bool f
         dxViewDestroy(pIter);
     }
 
-    if (   pBackendSurface->enmResType == VMSVGA3D_RESTYPE_SCREEN_TARGET
-        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_1D
+    if (   pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_1D
         || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_2D
         || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_CUBE
         || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_3D)
@@ -5030,6 +4972,10 @@ static DECLCALLBACK(void) vmsvga3dBackSurfaceDestroy(PVGASTATECC pThisCC, bool f
     }
     else if (pBackendSurface->enmResType == VMSVGA3D_RESTYPE_BUFFER)
     {
+#ifndef DX_COMMON_STAGING_BUFFER
+        D3D_RELEASE(pBackendSurface->staging.pBuffer);
+        D3D_RELEASE(pBackendSurface->dynamic.pBuffer);
+#endif
         D3D_RELEASE(pBackendSurface->u.pBuffer);
     }
     else
@@ -5137,89 +5083,10 @@ static DECLCALLBACK(int) vmsvga3dBackSurfaceDMACopyBox(PVGASTATE pThis, PVGASTAT
     PVMSVGA3DBACKENDSURFACE pBackendSurface = pSurface->pBackendSurface;
     AssertReturn(pBackendSurface, VERR_INVALID_PARAMETER);
 
-    if (pBackendSurface->enmResType == VMSVGA3D_RESTYPE_SCREEN_TARGET)
-    {
-        /** @todo This is generic code and should be in DevVGA-SVGA3d.cpp for backends which support Map/Unmap. */
-        AssertReturn(uHostFace == 0 && uHostMipmap == 0, VERR_INVALID_PARAMETER);
-
-        uint32_t const u32GuestBlockX = pBox->srcx / pSurface->cxBlock;
-        uint32_t const u32GuestBlockY = pBox->srcy / pSurface->cyBlock;
-        Assert(u32GuestBlockX * pSurface->cxBlock == pBox->srcx);
-        Assert(u32GuestBlockY * pSurface->cyBlock == pBox->srcy);
-        uint32_t const cBlocksX = (pBox->w + pSurface->cxBlock - 1) / pSurface->cxBlock;
-        uint32_t const cBlocksY = (pBox->h + pSurface->cyBlock - 1) / pSurface->cyBlock;
-        AssertMsgReturn(cBlocksX && cBlocksY, ("Empty box %dx%d\n", pBox->w, pBox->h), VERR_INTERNAL_ERROR);
-
-        /* vmsvgaR3GmrTransfer verifies uGuestOffset.
-         * srcx(u32GuestBlockX) and srcy(u32GuestBlockY) have been verified in vmsvga3dSurfaceDMA
-         * to not cause 32 bit overflow when multiplied by cbBlock and cbGuestPitch.
-         */
-        uint64_t const uGuestOffset = u32GuestBlockX * pSurface->cbBlock + u32GuestBlockY * cbGuestPitch;
-        AssertReturn(uGuestOffset < UINT32_MAX, VERR_INVALID_PARAMETER);
-
-        SVGA3dSurfaceImageId image;
-        image.sid = pSurface->id;
-        image.face = uHostFace;
-        image.mipmap = uHostMipmap;
-
-        SVGA3dBox box;
-        box.x = pBox->x;
-        box.y = pBox->y;
-        box.z = 0;
-        box.w = pBox->w;
-        box.h = pBox->h;
-        box.d = 1;
-
-        VMSVGA3D_SURFACE_MAP const enmMap = transfer == SVGA3D_WRITE_HOST_VRAM
-                                          ? VMSVGA3D_SURFACE_MAP_WRITE
-                                          : VMSVGA3D_SURFACE_MAP_READ;
-
-        VMSVGA3D_MAPPED_SURFACE map;
-        rc = vmsvga3dBackSurfaceMap(pThisCC, &image, &box, enmMap, &map);
-        if (RT_SUCCESS(rc))
-        {
-            /* Prepare parameters for vmsvgaR3GmrTransfer, which needs the host buffer address, size
-             * and offset of the first scanline.
-             */
-            uint32_t const cbLockedBuf = map.cbRowPitch * cBlocksY;
-            uint8_t *pu8LockedBuf = (uint8_t *)map.pvData;
-            uint32_t const offLockedBuf = 0;
-
-            rc = vmsvgaR3GmrTransfer(pThis,
-                                     pThisCC,
-                                     transfer,
-                                     pu8LockedBuf,
-                                     cbLockedBuf,
-                                     offLockedBuf,
-                                     map.cbRowPitch,
-                                     GuestPtr,
-                                     (uint32_t)uGuestOffset,
-                                     cbGuestPitch,
-                                     cBlocksX * pSurface->cbBlock,
-                                     cBlocksY);
-            AssertRC(rc);
-
-            // Log4(("first line:\n%.*Rhxd\n", cBlocksX * pSurface->cbBlock, LockedRect.pBits));
-
-            //vmsvga3dMapWriteBmpFile(&map, "Dynamic");
-
-            vmsvga3dBackSurfaceUnmap(pThisCC, &image, &map, /* fWritten = */ true);
-        }
-#if 0
-            //DEBUG_BREAKPOINT_TEST();
-            rc = vmsvga3dBackSurfaceMap(pThisCC, &image, NULL, VMSVGA3D_SURFACE_MAP_READ, &map);
-            if (RT_SUCCESS(rc))
-            {
-                vmsvga3dMapWriteBmpFile(&map, "Staging");
-
-                vmsvga3dBackSurfaceUnmap(pThisCC, &image, &map, /* fWritten =  */ false);
-            }
-#endif
-    }
-    else if (   pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_1D
-             || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_2D
-             || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_CUBE
-             || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_3D)
+    if (   pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_1D
+        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_2D
+        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_CUBE
+        || pBackendSurface->enmResType == VMSVGA3D_RESTYPE_TEXTURE_3D)
     {
         /** @todo This is generic code and should be in DevVGA-SVGA3d.cpp for backends which support Map/Unmap. */
         uint32_t const u32GuestBlockX = pBox->srcx / pSurface->cxBlock;
@@ -5433,6 +5300,11 @@ static DECLCALLBACK(int) vmsvga3dBackDXDestroyContext(PVGASTATECC pThisCC, PVMSV
             for (uint32_t i = 0; i < pBackendDXContext->cStreamOutput; ++i)
                 dxDestroyStreamOutput(&pBackendDXContext->paStreamOutput[i]);
         }
+        if (pBackendDXContext->paUnorderedAccessView)
+        {
+            for (uint32_t i = 0; i < pBackendDXContext->cUnorderedAccessView; ++i)
+                D3D_RELEASE(pBackendDXContext->paUnorderedAccessView[i].u.pUnorderedAccessView);
+        }
 
         RTMemFreeZ(pBackendDXContext->papBlendState, sizeof(pBackendDXContext->papBlendState[0]) * pBackendDXContext->cBlendState);
         RTMemFreeZ(pBackendDXContext->papDepthStencilState, sizeof(pBackendDXContext->papDepthStencilState[0]) * pBackendDXContext->cDepthStencilState);
@@ -5445,6 +5317,7 @@ static DECLCALLBACK(int) vmsvga3dBackDXDestroyContext(PVGASTATECC pThisCC, PVMSV
         RTMemFreeZ(pBackendDXContext->paQuery, sizeof(pBackendDXContext->paQuery[0]) * pBackendDXContext->cQuery);
         RTMemFreeZ(pBackendDXContext->paShader, sizeof(pBackendDXContext->paShader[0]) * pBackendDXContext->cShader);
         RTMemFreeZ(pBackendDXContext->paStreamOutput, sizeof(pBackendDXContext->paStreamOutput[0]) * pBackendDXContext->cStreamOutput);
+        RTMemFreeZ(pBackendDXContext->paUnorderedAccessView, sizeof(pBackendDXContext->paUnorderedAccessView[0]) * pBackendDXContext->cUnorderedAccessView);
 
         /* Destroy backend surfaces which belong to this context. */
         /** @todo The context should have a list of surfaces (and also shared resources). */
@@ -5566,7 +5439,17 @@ static DECLCALLBACK(int) vmsvga3dBackDXSetSingleConstantBuffer(PVGASTATECC pThis
 
         pInitialData = &initialData;
 
-        // Log(("%.*Rhxd\n", sizeInBytes, initialData.pSysMem));
+#ifdef LOG_ENABLED
+        if (LogIs8Enabled())
+        {
+            float *pValuesF = (float *)initialData.pSysMem;
+            for (unsigned i = 0; i < sizeInBytes / sizeof(float) / 4; ++i)
+            {
+                Log(("ConstantF[%d]: " FLOAT_FMT_STR ", " FLOAT_FMT_STR ", " FLOAT_FMT_STR ", " FLOAT_FMT_STR "\n",
+                     i, FLOAT_FMT_ARGS(pValuesF[i*4 + 0]), FLOAT_FMT_ARGS(pValuesF[i*4 + 1]), FLOAT_FMT_ARGS(pValuesF[i*4 + 2]), FLOAT_FMT_ARGS(pValuesF[i*4 + 3])));
+            }
+        }
+#endif
     }
 
     D3D11_BUFFER_DESC bd;
@@ -6067,6 +5950,355 @@ static void dxSetIndexBuffer(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
     }
 }
 
+#ifdef LOG_ENABLED
+static void dxDbgLogVertexElement(DXGI_FORMAT Format, void const *pvElementData)
+{
+    switch (Format)
+    {
+        case DXGI_FORMAT_R32G32B32A32_FLOAT:
+        {
+            float const *pValues = (float const *)pvElementData;
+            Log8(("{ " FLOAT_FMT_STR ", " FLOAT_FMT_STR ", " FLOAT_FMT_STR ", " FLOAT_FMT_STR " },",
+                 FLOAT_FMT_ARGS(pValues[0]), FLOAT_FMT_ARGS(pValues[1]), FLOAT_FMT_ARGS(pValues[2]), FLOAT_FMT_ARGS(pValues[3])));
+            break;
+        }
+        case DXGI_FORMAT_R32G32B32_FLOAT:
+        {
+            float const *pValues = (float const *)pvElementData;
+            Log8(("{ " FLOAT_FMT_STR ", " FLOAT_FMT_STR ", " FLOAT_FMT_STR " },",
+                 FLOAT_FMT_ARGS(pValues[0]), FLOAT_FMT_ARGS(pValues[1]), FLOAT_FMT_ARGS(pValues[2])));
+            break;
+        }
+        case DXGI_FORMAT_R32G32_FLOAT:
+        {
+            float const *pValues = (float const *)pvElementData;
+            Log8(("{ " FLOAT_FMT_STR ", " FLOAT_FMT_STR " },",
+                 FLOAT_FMT_ARGS(pValues[0]), FLOAT_FMT_ARGS(pValues[1])));
+            break;
+        }
+        case DXGI_FORMAT_R16G16_FLOAT:
+        {
+            uint16_t const *pValues = (uint16_t const *)pvElementData;
+            Log8(("{ f16 " FLOAT_FMT_STR ", " FLOAT_FMT_STR " },",
+                 FLOAT_FMT_ARGS(float16ToFloat(pValues[0])), FLOAT_FMT_ARGS(float16ToFloat(pValues[1]))));
+            break;
+        }
+        case DXGI_FORMAT_R32G32_SINT:
+        {
+            int32_t const *pValues = (int32_t const *)pvElementData;
+            Log8(("{ %d, %d },",
+                 pValues[0], pValues[1]));
+            break;
+        }
+        case DXGI_FORMAT_R32G32_UINT:
+        {
+            uint32_t const *pValues = (uint32_t const *)pvElementData;
+            Log8(("{ %u, %u },",
+                 pValues[0], pValues[1]));
+            break;
+        }
+        case DXGI_FORMAT_R32_SINT:
+        {
+            int32_t const *pValues = (int32_t const *)pvElementData;
+            Log8(("{ %d },",
+                 pValues[0]));
+            break;
+        }
+        case DXGI_FORMAT_R32_UINT:
+        {
+            uint32_t const *pValues = (uint32_t const *)pvElementData;
+            Log8(("{ %u },",
+                 pValues[0]));
+            break;
+        }
+        case DXGI_FORMAT_R16G16_SINT:
+        {
+            int16_t const *pValues = (int16_t const *)pvElementData;
+            Log8(("{ s %d, %d },",
+                 pValues[0], pValues[1]));
+            break;
+        }
+        case DXGI_FORMAT_R16G16_UINT:
+        {
+            uint16_t const *pValues = (uint16_t const *)pvElementData;
+            Log8(("{ u %u, %u },",
+                 pValues[0], pValues[1]));
+            break;
+        }
+        case DXGI_FORMAT_R8G8B8A8_UNORM:
+        {
+            uint8_t const *pValues = (uint8_t const *)pvElementData;
+            Log8(("{ 8unorm  %u, %u, %u, %u },",
+                 pValues[0], pValues[1], pValues[2], pValues[3]));
+            break;
+        }
+        case DXGI_FORMAT_R8G8_UNORM:
+        {
+            uint8_t const *pValues = (uint8_t const *)pvElementData;
+            Log8(("{ 8unorm  %u, %u },",
+                 pValues[0], pValues[1]));
+            break;
+        }
+        default:
+            Log8(("{ ??? DXGI_FORMAT %d },",
+                 Format));
+            AssertFailed();
+    }
+}
+
+
+static void dxDbgDumpVertexData(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext, uint32_t vertexCount, uint32_t startVertexLocation)
+{
+    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
+
+    for (uint32_t iSlot = 0; iSlot < SVGA3D_DX_MAX_VERTEXBUFFERS; ++iSlot)
+    {
+        DXBOUNDVERTEXBUFFER *pBufferPipeline = &pBackend->resources.inputAssembly.vertexBuffers[iSlot];
+        uint32_t const sid = pDXContext->svgaDXContext.inputAssembly.vertexBuffers[iSlot].bufferId;
+        if (sid == SVGA3D_INVALID_ID)
+        {
+            Assert(pBufferPipeline->pBuffer == 0);
+            continue;
+        }
+
+        Assert(pBufferPipeline->pBuffer);
+
+        SVGA3dSurfaceImageId image;
+        image.sid = sid;
+        image.face = 0;
+        image.mipmap = 0;
+
+        VMSVGA3D_MAPPED_SURFACE map;
+        int rc = vmsvga3dBackSurfaceMap(pThisCC, &image, NULL, VMSVGA3D_SURFACE_MAP_READ, &map);
+        AssertRC(rc);
+        if (RT_SUCCESS(rc))
+        {
+            uint8_t const *pu8VertexData = (uint8_t *)map.pvData;
+            pu8VertexData += pBufferPipeline->offset;
+            pu8VertexData += startVertexLocation * pBufferPipeline->stride;
+
+            SVGA3dElementLayoutId const elementLayoutId = pDXContext->svgaDXContext.inputAssembly.layoutId;
+            DXELEMENTLAYOUT *pDXElementLayout = &pDXContext->pBackendDXContext->paElementLayout[elementLayoutId];
+            Assert(pDXElementLayout->cElementDesc > 0);
+
+            Log8(("Vertex buffer dump: sid = %u, vertexCount %u, startVertexLocation %d, offset = %d, stride = %d:\n",
+                  sid, vertexCount, startVertexLocation, pBufferPipeline->offset, pBufferPipeline->stride));
+
+            for (uint32_t v = 0; v < vertexCount; ++v)
+            {
+                Log8(("slot[%u] v%u { ", iSlot, startVertexLocation + v));
+
+                for (uint32_t iElement = 0; iElement < pDXElementLayout->cElementDesc; ++iElement)
+                {
+                    D3D11_INPUT_ELEMENT_DESC *pElement = &pDXElementLayout->aElementDesc[iElement];
+                    if (pElement->InputSlot == iSlot)
+                        dxDbgLogVertexElement(pElement->Format, pu8VertexData + pElement->AlignedByteOffset);
+                }
+
+                Log8((" }\n"));
+
+                if (pBufferPipeline->stride == 0)
+                    break;
+
+                pu8VertexData += pBufferPipeline->stride;
+            }
+
+            vmsvga3dBackSurfaceUnmap(pThisCC, &image, &map, /* fWritten =  */ false);
+        }
+    }
+}
+
+
+static void dxDbgDumpIndexedVertexData(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext, uint32_t indexCount, uint32_t startIndexLocation, int32_t baseVertexLocation)
+{
+    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
+    DXDEVICE *pDXDevice = dxDeviceFromContext(pThisCC->svga.p3dState, pDXContext);
+    SVGA3dSurfaceImageId image;
+
+    DXBOUNDINDEXBUFFER *pIB = &pBackend->resources.inputAssembly.indexBuffer;
+    uint32_t const sidIB = pDXContext->svgaDXContext.inputAssembly.indexBufferSid;
+    if (sidIB == SVGA3D_INVALID_ID)
+    {
+        Assert(pIB->pBuffer == 0);
+        return;
+    }
+
+    Assert(pIB->pBuffer);
+    UINT const BytesPerIndex = pIB->indexBufferFormat == DXGI_FORMAT_R16_UINT ? 2 : 4;
+
+    void *pvIndexBuffer;
+    uint32_t cbIndexBuffer;
+    int rc = dxReadBuffer(pDXDevice, pIB->pBuffer, pIB->indexBufferOffset + startIndexLocation * BytesPerIndex, indexCount * BytesPerIndex, &pvIndexBuffer, &cbIndexBuffer);
+    AssertRC(rc);
+    if (RT_SUCCESS(rc))
+    {
+        uint8_t const *pu8IndexData = (uint8_t *)pvIndexBuffer;
+
+        for (uint32_t iSlot = 0; iSlot < SVGA3D_DX_MAX_VERTEXBUFFERS; ++iSlot)
+        {
+            DXBOUNDVERTEXBUFFER *pVB = &pBackend->resources.inputAssembly.vertexBuffers[iSlot];
+            uint32_t const sidVB = pDXContext->svgaDXContext.inputAssembly.vertexBuffers[iSlot].bufferId;
+            if (sidVB == SVGA3D_INVALID_ID)
+            {
+                Assert(pVB->pBuffer == 0);
+                continue;
+            }
+
+            Assert(pVB->pBuffer);
+
+            image.sid = sidVB;
+            image.face = 0;
+            image.mipmap = 0;
+
+            VMSVGA3D_MAPPED_SURFACE mapVB;
+            rc = vmsvga3dBackSurfaceMap(pThisCC, &image, NULL, VMSVGA3D_SURFACE_MAP_READ, &mapVB);
+            AssertRC(rc);
+            if (RT_SUCCESS(rc))
+            {
+                uint8_t const *pu8VertexData = (uint8_t *)mapVB.pvData;
+                pu8VertexData += pVB->offset;
+                pu8VertexData += baseVertexLocation * pVB->stride;
+
+                SVGA3dElementLayoutId const elementLayoutId = pDXContext->svgaDXContext.inputAssembly.layoutId;
+                DXELEMENTLAYOUT *pDXElementLayout = &pDXContext->pBackendDXContext->paElementLayout[elementLayoutId];
+                Assert(pDXElementLayout->cElementDesc > 0);
+
+                Log8(("Vertex buffer dump: sid = %u, indexCount %u, startIndexLocation %d, baseVertexLocation %d, offset = %d, stride = %d:\n",
+                      sidVB, indexCount, startIndexLocation, baseVertexLocation, pVB->offset, pVB->stride));
+
+                for (uint32_t i = 0; i < indexCount; ++i)
+                {
+                    uint32_t Index;
+                    if (BytesPerIndex == 2)
+                        Index = ((uint16_t *)pu8IndexData)[i];
+                    else
+                        Index = ((uint32_t *)pu8IndexData)[i];
+
+                    Log8(("slot[%u] v%u { ", iSlot, Index));
+
+                    for (uint32_t iElement = 0; iElement < pDXElementLayout->cElementDesc; ++iElement)
+                    {
+                        D3D11_INPUT_ELEMENT_DESC *pElement = &pDXElementLayout->aElementDesc[iElement];
+                        if (pElement->InputSlotClass != D3D11_INPUT_PER_VERTEX_DATA)
+                            continue;
+
+                        if (pElement->InputSlot == iSlot)
+                        {
+                            uint8_t const *pu8Vertex = pu8VertexData + Index * pVB->stride;
+                            dxDbgLogVertexElement(pElement->Format, pu8Vertex + pElement->AlignedByteOffset);
+                        }
+                    }
+
+                    Log8((" }\n"));
+
+                    if (pVB->stride == 0)
+                        break;
+                }
+
+                vmsvga3dBackSurfaceUnmap(pThisCC, &image, &mapVB, /* fWritten =  */ false);
+            }
+        }
+
+        RTMemFree(pvIndexBuffer);
+    }
+}
+
+
+static void dxDbgDumpInstanceData(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext, uint32_t instanceCount, uint32_t startInstanceLocation)
+{
+    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
+    SVGA3dSurfaceImageId image;
+
+    /*
+     * Dump per-instance data.
+     */
+    for (uint32_t iInstance = 0; iInstance < instanceCount; ++iInstance)
+    {
+        for (uint32_t iSlot = 0; iSlot < SVGA3D_DX_MAX_VERTEXBUFFERS; ++iSlot)
+        {
+            DXBOUNDVERTEXBUFFER *pVB = &pBackend->resources.inputAssembly.vertexBuffers[iSlot];
+            uint32_t const sidVB = pDXContext->svgaDXContext.inputAssembly.vertexBuffers[iSlot].bufferId;
+            if (sidVB == SVGA3D_INVALID_ID)
+            {
+                Assert(pVB->pBuffer == 0);
+                continue;
+            }
+
+            Assert(pVB->pBuffer);
+
+            image.sid = sidVB;
+            image.face = 0;
+            image.mipmap = 0;
+
+            VMSVGA3D_MAPPED_SURFACE mapVB;
+            int rc = vmsvga3dBackSurfaceMap(pThisCC, &image, NULL, VMSVGA3D_SURFACE_MAP_READ, &mapVB);
+            AssertRC(rc);
+            if (RT_SUCCESS(rc))
+            {
+                uint8_t const *pu8VertexData = (uint8_t *)mapVB.pvData;
+                pu8VertexData += pVB->offset;
+                pu8VertexData += startInstanceLocation * pVB->stride;
+
+                SVGA3dElementLayoutId const elementLayoutId = pDXContext->svgaDXContext.inputAssembly.layoutId;
+                DXELEMENTLAYOUT *pDXElementLayout = &pDXContext->pBackendDXContext->paElementLayout[elementLayoutId];
+                Assert(pDXElementLayout->cElementDesc > 0);
+
+                Log8(("Instance data dump: sid = %u, iInstance %u, startInstanceLocation %d, offset = %d, stride = %d:\n",
+                      sidVB, iInstance, startInstanceLocation, pVB->offset, pVB->stride));
+
+                Log8(("slot[%u] i%u { ", iSlot, iInstance));
+                for (uint32_t iElement = 0; iElement < pDXElementLayout->cElementDesc; ++iElement)
+                {
+                    D3D11_INPUT_ELEMENT_DESC *pElement = &pDXElementLayout->aElementDesc[iElement];
+                    if (pElement->InputSlotClass != D3D11_INPUT_PER_INSTANCE_DATA)
+                        continue;
+
+                    if (pElement->InputSlot == iSlot)
+                    {
+                        uint8_t const *pu8Vertex = pu8VertexData + iInstance * pVB->stride;
+                        dxDbgLogVertexElement(pElement->Format, pu8Vertex + pElement->AlignedByteOffset);
+                    }
+                }
+                Log8((" }\n"));
+
+                vmsvga3dBackSurfaceUnmap(pThisCC, &image, &mapVB, /* fWritten =  */ false);
+            }
+        }
+    }
+}
+
+static void dxDbgDumpVertices_Draw(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext, uint32_t vertexCount, uint32_t startVertexLocation)
+{
+    dxDbgDumpVertexData(pThisCC, pDXContext, vertexCount, startVertexLocation);
+}
+
+
+static void dxDbgDumpVertices_DrawIndexed(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext, uint32_t indexCount, uint32_t startIndexLocation, int32_t baseVertexLocation)
+{
+    dxDbgDumpIndexedVertexData(pThisCC, pDXContext, indexCount, startIndexLocation, baseVertexLocation);
+}
+
+
+static void dxDbgDumpVertices_DrawInstanced(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext,
+                                            uint32_t vertexCountPerInstance, uint32_t instanceCount,
+                                            uint32_t startVertexLocation, uint32_t startInstanceLocation)
+{
+    dxDbgDumpVertexData(pThisCC, pDXContext, vertexCountPerInstance, startVertexLocation);
+    dxDbgDumpInstanceData(pThisCC, pDXContext, instanceCount, startInstanceLocation);
+}
+
+
+static void dxDbgDumpVertices_DrawIndexedInstanced(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext,
+                                                   uint32_t indexCountPerInstance, uint32_t instanceCount,
+                                                   uint32_t startIndexLocation, int32_t baseVertexLocation,
+                                                   uint32_t startInstanceLocation)
+{
+    dxDbgDumpIndexedVertexData(pThisCC, pDXContext, indexCountPerInstance, startIndexLocation, baseVertexLocation);
+    dxDbgDumpInstanceData(pThisCC, pDXContext, instanceCount, startInstanceLocation);
+}
+#endif
+
+
 static void dxSetupPipeline(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
 {
     /* Make sure that any draw operations on shader resource views have finished. */
@@ -6477,6 +6709,11 @@ static DECLCALLBACK(int) vmsvga3dBackDXDraw(PVGASTATECC pThisCC, PVMSVGA3DDXCONT
 
     dxSetupPipeline(pThisCC, pDXContext);
 
+#ifdef LOG_ENABLED
+    if (LogIs8Enabled())
+        dxDbgDumpVertices_Draw(pThisCC, pDXContext, vertexCount, startVertexLocation);
+#endif
+
     if (pDXContext->svgaDXContext.inputAssembly.topology != SVGA3D_PRIMITIVE_TRIANGLEFAN)
         pDevice->pImmediateContext->Draw(vertexCount, startVertexLocation);
     else
@@ -6551,6 +6788,10 @@ static DECLCALLBACK(int) vmsvga3dBackDXDraw(PVGASTATECC pThisCC, PVMSVGA3DDXCONT
     /* Note which surfaces are being drawn. */
     dxTrackRenderTargets(pThisCC, pDXContext);
 
+#ifdef DX_FLUSH_AFTER_DRAW
+    dxDeviceFlush(pDevice);
+#endif
+
     return VINF_SUCCESS;
 }
 
@@ -6570,22 +6811,23 @@ static int dxReadBuffer(DXDEVICE *pDevice, ID3D11Buffer *pBuffer, UINT Offset, U
     *ppvData = pvData;
     *pcbData = Bytes;
 
+#ifdef DX_COMMON_STAGING_BUFFER
     int rc = dxStagingBufferRealloc(pDevice, Bytes);
     if (RT_SUCCESS(rc))
     {
-        /* Copy from the buffer to the staging buffer. */
+        /* Copy 'Bytes' bytes starting at 'Offset' from the buffer to the start of staging buffer. */
         ID3D11Resource *pDstResource = pDevice->pStagingBuffer;
         UINT DstSubresource = 0;
-        UINT DstX = Offset;
+        UINT DstX = 0;
         UINT DstY = 0;
         UINT DstZ = 0;
         ID3D11Resource *pSrcResource = pBuffer;
         UINT SrcSubresource = 0;
         D3D11_BOX SrcBox;
-        SrcBox.left   = 0;
+        SrcBox.left   = Offset;
         SrcBox.top    = 0;
         SrcBox.front  = 0;
-        SrcBox.right  = Bytes;
+        SrcBox.right  = Offset + Bytes;
         SrcBox.bottom = 1;
         SrcBox.back   = 1;
         pDevice->pImmediateContext->CopySubresourceRegion(pDstResource, DstSubresource, DstX, DstY, DstZ,
@@ -6606,6 +6848,61 @@ static int dxReadBuffer(DXDEVICE *pDevice, ID3D11Buffer *pBuffer, UINT Offset, U
             AssertFailedStmt(rc = VERR_NOT_SUPPORTED);
 
     }
+#else
+    uint32_t const cbAlloc = Bytes;
+
+    D3D11_SUBRESOURCE_DATA *pInitialData = NULL;
+    D3D11_BUFFER_DESC bd;
+    RT_ZERO(bd);
+    bd.ByteWidth           = Bytes;
+    bd.Usage               = D3D11_USAGE_STAGING;
+    //bd.BindFlags         = 0; /* No bind flags are allowed for staging resources. */
+    bd.CPUAccessFlags      = D3D11_CPU_ACCESS_WRITE | D3D11_CPU_ACCESS_READ;
+
+    int rc = VINF_SUCCESS;
+    ID3D11Buffer *pStagingBuffer;
+    HRESULT hr = pDevice->pDevice->CreateBuffer(&bd, pInitialData, &pStagingBuffer);
+    if (SUCCEEDED(hr))
+    {
+        /* Copy from the buffer to the staging buffer. */
+        ID3D11Resource *pDstResource = pStagingBuffer;
+        UINT DstSubresource = 0;
+        UINT DstX = 0;
+        UINT DstY = 0;
+        UINT DstZ = 0;
+        ID3D11Resource *pSrcResource = pBuffer;
+        UINT SrcSubresource = 0;
+        D3D11_BOX SrcBox;
+        SrcBox.left   = Offset;
+        SrcBox.top    = 0;
+        SrcBox.front  = 0;
+        SrcBox.right  = Offset + Bytes;
+        SrcBox.bottom = 1;
+        SrcBox.back   = 1;
+        pDevice->pImmediateContext->CopySubresourceRegion(pDstResource, DstSubresource, DstX, DstY, DstZ,
+                                                          pSrcResource, SrcSubresource, &SrcBox);
+
+        D3D11_MAPPED_SUBRESOURCE mappedResource;
+        UINT const Subresource = 0; /* Buffers have only one subresource. */
+        hr = pDevice->pImmediateContext->Map(pStagingBuffer, Subresource,
+                                             D3D11_MAP_READ, /* MapFlags =  */ 0, &mappedResource);
+        if (SUCCEEDED(hr))
+        {
+            memcpy(pvData, mappedResource.pData, Bytes);
+
+            /* Unmap the staging buffer. */
+            pDevice->pImmediateContext->Unmap(pStagingBuffer, Subresource);
+        }
+        else
+            AssertFailedStmt(rc = VERR_NOT_SUPPORTED);
+
+        D3D_RELEASE(pStagingBuffer);
+    }
+    else
+    {
+        rc = VERR_NO_MEMORY;
+    }
+#endif
 
     if (RT_FAILURE(rc))
     {
@@ -6735,6 +7032,11 @@ static DECLCALLBACK(int) vmsvga3dBackDXDrawIndexed(PVGASTATECC pThisCC, PVMSVGA3
 
     dxSetupPipeline(pThisCC, pDXContext);
 
+#ifdef LOG_ENABLED
+    if (LogIs8Enabled())
+        dxDbgDumpVertices_DrawIndexed(pThisCC, pDXContext, indexCount, startIndexLocation, baseVertexLocation);
+#endif
+
     if (pDXContext->svgaDXContext.inputAssembly.topology != SVGA3D_PRIMITIVE_TRIANGLEFAN)
         pDevice->pImmediateContext->DrawIndexed(indexCount, startIndexLocation, baseVertexLocation);
     else
@@ -6744,6 +7046,10 @@ static DECLCALLBACK(int) vmsvga3dBackDXDrawIndexed(PVGASTATECC pThisCC, PVMSVGA3
 
     /* Note which surfaces are being drawn. */
     dxTrackRenderTargets(pThisCC, pDXContext);
+
+#ifdef DX_FLUSH_AFTER_DRAW
+    dxDeviceFlush(pDevice);
+#endif
 
     return VINF_SUCCESS;
 }
@@ -6760,12 +7066,21 @@ static DECLCALLBACK(int) vmsvga3dBackDXDrawInstanced(PVGASTATECC pThisCC, PVMSVG
 
     dxSetupPipeline(pThisCC, pDXContext);
 
+#ifdef LOG_ENABLED
+    if (LogIs8Enabled())
+        dxDbgDumpVertices_DrawInstanced(pThisCC, pDXContext, vertexCountPerInstance, instanceCount, startVertexLocation, startInstanceLocation);
+#endif
+
     Assert(pDXContext->svgaDXContext.inputAssembly.topology != SVGA3D_PRIMITIVE_TRIANGLEFAN);
 
     pDevice->pImmediateContext->DrawInstanced(vertexCountPerInstance, instanceCount, startVertexLocation, startInstanceLocation);
 
     /* Note which surfaces are being drawn. */
     dxTrackRenderTargets(pThisCC, pDXContext);
+
+#ifdef DX_FLUSH_AFTER_DRAW
+    dxDeviceFlush(pDevice);
+#endif
 
     return VINF_SUCCESS;
 }
@@ -6782,12 +7097,21 @@ static DECLCALLBACK(int) vmsvga3dBackDXDrawIndexedInstanced(PVGASTATECC pThisCC,
 
     dxSetupPipeline(pThisCC, pDXContext);
 
+#ifdef LOG_ENABLED
+    if (LogIs8Enabled())
+        dxDbgDumpVertices_DrawIndexedInstanced(pThisCC, pDXContext, indexCountPerInstance, instanceCount, startIndexLocation, baseVertexLocation, startInstanceLocation);
+#endif
+
     Assert(pDXContext->svgaDXContext.inputAssembly.topology != SVGA3D_PRIMITIVE_TRIANGLEFAN);
 
     pDevice->pImmediateContext->DrawIndexedInstanced(indexCountPerInstance, instanceCount, startIndexLocation, baseVertexLocation, startInstanceLocation);
 
     /* Note which surfaces are being drawn. */
     dxTrackRenderTargets(pThisCC, pDXContext);
+
+#ifdef DX_FLUSH_AFTER_DRAW
+    dxDeviceFlush(pDevice);
+#endif
 
     return VINF_SUCCESS;
 }
@@ -6809,6 +7133,10 @@ static DECLCALLBACK(int) vmsvga3dBackDXDrawAuto(PVGASTATECC pThisCC, PVMSVGA3DDX
 
     /* Note which surfaces are being drawn. */
     dxTrackRenderTargets(pThisCC, pDXContext);
+
+#ifdef DX_FLUSH_AFTER_DRAW
+    dxDeviceFlush(pDevice);
+#endif
 
     return VINF_SUCCESS;
 }
@@ -7049,7 +7377,7 @@ static int dxSetRenderTargets(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext
     }
 
     /* RTVs are followed by UAVs. */
-    Assert(NumRTVs <= pDXContext->svgaDXContext.uavSpliceIndex);
+    Assert(NumUAVs == 0 || NumRTVs <= pDXContext->svgaDXContext.uavSpliceIndex);
 
     ID3D11DepthStencilView *pDepthStencilView = NULL;
     SVGA3dDepthStencilViewId const depthStencilViewId = pDXContext->svgaDXContext.renderState.depthStencilViewId;
@@ -8451,6 +8779,7 @@ static int dxDefineShader(PVMSVGA3DDXCONTEXT pDXContext, SVGA3dShaderId shaderId
 static int dxDestroyShader(DXSHADER *pDXShader)
 {
     pDXShader->enmShaderType = SVGA3D_SHADERTYPE_INVALID;
+    DXShaderFree(&pDXShader->shaderInfo);
     D3D_RELEASE(pDXShader->pShader);
     RTMemFree(pDXShader->pvDXBC);
     pDXShader->pvDXBC = NULL;
@@ -8962,66 +9291,6 @@ static DECLCALLBACK(int) vmsvga3dBackDXBufferUpdate(PVGASTATECC pThisCC, PVMSVGA
 }
 
 
-static DECLCALLBACK(int) vmsvga3dBackDXSetVSConstantBufferOffset(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
-{
-    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
-
-    RT_NOREF(pBackend, pDXContext);
-    AssertFailed(); /** @todo Implement */
-    return VERR_NOT_IMPLEMENTED;
-}
-
-
-static DECLCALLBACK(int) vmsvga3dBackDXSetPSConstantBufferOffset(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
-{
-    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
-
-    RT_NOREF(pBackend, pDXContext);
-    AssertFailed(); /** @todo Implement */
-    return VERR_NOT_IMPLEMENTED;
-}
-
-
-static DECLCALLBACK(int) vmsvga3dBackDXSetGSConstantBufferOffset(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
-{
-    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
-
-    RT_NOREF(pBackend, pDXContext);
-    AssertFailed(); /** @todo Implement */
-    return VERR_NOT_IMPLEMENTED;
-}
-
-
-static DECLCALLBACK(int) vmsvga3dBackDXSetHSConstantBufferOffset(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
-{
-    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
-
-    RT_NOREF(pBackend, pDXContext);
-    AssertFailed(); /** @todo Implement */
-    return VERR_NOT_IMPLEMENTED;
-}
-
-
-static DECLCALLBACK(int) vmsvga3dBackDXSetDSConstantBufferOffset(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
-{
-    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
-
-    RT_NOREF(pBackend, pDXContext);
-    AssertFailed(); /** @todo Implement */
-    return VERR_NOT_IMPLEMENTED;
-}
-
-
-static DECLCALLBACK(int) vmsvga3dBackDXSetCSConstantBufferOffset(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
-{
-    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
-
-    RT_NOREF(pBackend, pDXContext);
-    AssertFailed(); /** @todo Implement */
-    return VERR_NOT_IMPLEMENTED;
-}
-
-
 static DECLCALLBACK(int) vmsvga3dBackDXCondBindAllShader(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
 {
     PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
@@ -9042,13 +9311,95 @@ static DECLCALLBACK(int) vmsvga3dBackScreenCopy(PVGASTATECC pThisCC, PVMSVGA3DDX
 }
 
 
-static DECLCALLBACK(int) vmsvga3dBackIntraSurfaceCopy(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
+static DECLCALLBACK(int) vmsvga3dBackIntraSurfaceCopy(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext, SVGA3dSurfaceImageId const &surface, SVGA3dCopyBox const &box)
 {
-    PVMSVGA3DBACKEND pBackend = pThisCC->svga.p3dState->pBackend;
+    RT_NOREF(pDXContext);
 
-    RT_NOREF(pBackend, pDXContext);
-    AssertFailed(); /** @todo Implement */
-    return VERR_NOT_IMPLEMENTED;
+    LogFunc(("sid %u\n", surface.sid));
+
+    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
+    AssertReturn(pState, VERR_INVALID_STATE);
+
+    PVMSVGA3DBACKEND pBackend = pState->pBackend;
+
+    PVMSVGA3DSURFACE pSurface;
+    int rc = vmsvga3dSurfaceFromSid(pThisCC->svga.p3dState, surface.sid, &pSurface);
+    AssertRCReturn(rc, rc);
+
+    PVMSVGA3DMIPMAPLEVEL pMipLevel;
+    rc = vmsvga3dMipmapLevel(pSurface, surface.face, surface.mipmap, &pMipLevel);
+    ASSERT_GUEST_RETURN(RT_SUCCESS(rc), rc);
+
+    /* Clip the box. */
+    SVGA3dCopyBox clipBox = box;
+    vmsvgaR3ClipCopyBox(&pMipLevel->mipmapSize, &pMipLevel->mipmapSize, &clipBox);
+
+    LogFunc(("surface%s cid %d\n",
+             pSurface->pBackendSurface ? "" : " sysmem",
+             pSurface ? pSurface->idAssociatedContext : SVGA_ID_INVALID));
+
+    if (pSurface->pBackendSurface)
+    {
+        /* Surface -> Surface. */
+        DXDEVICE *pDXDevice = &pBackend->dxDevice;
+
+        UINT DstSubresource = vmsvga3dCalcSubresource(surface.mipmap, surface.face, pSurface->cLevels);
+        UINT DstX = clipBox.x;
+        UINT DstY = clipBox.y;
+        UINT DstZ = clipBox.z;
+
+        UINT SrcSubresource = DstSubresource;
+        D3D11_BOX SrcBox;
+        SrcBox.left   = clipBox.srcx;
+        SrcBox.top    = clipBox.srcy;
+        SrcBox.front  = clipBox.srcz;
+        SrcBox.right  = clipBox.srcx + clipBox.w;
+        SrcBox.bottom = clipBox.srcy + clipBox.h;
+        SrcBox.back   = clipBox.srcz + clipBox.d;
+
+        ID3D11Resource *pDstResource;
+        ID3D11Resource *pSrcResource;
+        pDstResource = dxResource(pState, pSurface, NULL);
+        pSrcResource = pDstResource;
+
+        pDXDevice->pImmediateContext->CopySubresourceRegion1(pDstResource, DstSubresource, DstX, DstY, DstZ,
+                                                             pSrcResource, SrcSubresource, &SrcBox, 0);
+    }
+    else
+    {
+        /* Memory -> Memory. */
+        uint32_t const cxBlocks = (clipBox.w + pSurface->cxBlock - 1) / pSurface->cxBlock;
+        uint32_t const cyBlocks = (clipBox.h + pSurface->cyBlock - 1) / pSurface->cyBlock;
+        uint32_t const cbRow = cxBlocks * pSurface->cbBlock;
+
+        uint8_t const *pu8Src = (uint8_t *)pMipLevel->pSurfaceData
+                        + (clipBox.srcx / pSurface->cxBlock) * pSurface->cbBlock
+                        + (clipBox.srcy / pSurface->cyBlock) * pMipLevel->cbSurfacePitch
+                        + clipBox.srcz * pMipLevel->cbSurfacePlane;
+
+        uint8_t *pu8Dst = (uint8_t *)pMipLevel->pSurfaceData
+                        + (clipBox.x / pSurface->cxBlock) * pSurface->cbBlock
+                        + (clipBox.y / pSurface->cyBlock) * pMipLevel->cbSurfacePitch
+                        + clipBox.z * pMipLevel->cbSurfacePlane;
+
+        for (uint32_t z = 0; z < clipBox.d; ++z)
+        {
+            uint8_t const *pu8PlaneSrc = pu8Src;
+            uint8_t *pu8PlaneDst = pu8Dst;
+
+            for (uint32_t y = 0; y < cyBlocks; ++y)
+            {
+                memmove(pu8PlaneDst, pu8PlaneSrc, cbRow);
+                pu8PlaneDst += pMipLevel->cbSurfacePitch;
+                pu8PlaneSrc += pMipLevel->cbSurfacePitch;
+            }
+
+            pu8Src += pMipLevel->cbSurfacePlane;
+            pu8Dst += pMipLevel->cbSurfacePlane;
+        }
+    }
+
+    return rc;
 }
 
 
@@ -9291,6 +9642,10 @@ static DECLCALLBACK(int) vmsvga3dBackDXDrawIndexedInstancedIndirect(PVGASTATECC 
     /* Note which surfaces are being drawn. */
     dxTrackRenderTargets(pThisCC, pDXContext);
 
+#ifdef DX_FLUSH_AFTER_DRAW
+    dxDeviceFlush(pDevice);
+#endif
+
     return VINF_SUCCESS;
 }
 
@@ -9332,6 +9687,10 @@ static DECLCALLBACK(int) vmsvga3dBackDXDrawInstancedIndirect(PVGASTATECC pThisCC
     /* Note which surfaces are being drawn. */
     dxTrackRenderTargets(pThisCC, pDXContext);
 
+#ifdef DX_FLUSH_AFTER_DRAW
+    dxDeviceFlush(pDevice);
+#endif
+
     return VINF_SUCCESS;
 }
 
@@ -9347,6 +9706,10 @@ static DECLCALLBACK(int) vmsvga3dBackDXDispatch(PVGASTATECC pThisCC, PVMSVGA3DDX
     dxSetupPipeline(pThisCC, pDXContext);
 
     pDevice->pImmediateContext->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
+
+#ifdef DX_FLUSH_AFTER_DRAW
+    dxDeviceFlush(pDevice);
+#endif
 
     return VINF_SUCCESS;
 }
@@ -9737,12 +10100,6 @@ static DECLCALLBACK(int) vmsvga3dBackQueryInterface(PVGASTATECC pThisCC, char co
                 p->pfnDXBindAllShader             = vmsvga3dBackDXBindAllShader;
                 p->pfnDXHint                      = vmsvga3dBackDXHint;
                 p->pfnDXBufferUpdate              = vmsvga3dBackDXBufferUpdate;
-                p->pfnDXSetVSConstantBufferOffset = vmsvga3dBackDXSetVSConstantBufferOffset;
-                p->pfnDXSetPSConstantBufferOffset = vmsvga3dBackDXSetPSConstantBufferOffset;
-                p->pfnDXSetGSConstantBufferOffset = vmsvga3dBackDXSetGSConstantBufferOffset;
-                p->pfnDXSetHSConstantBufferOffset = vmsvga3dBackDXSetHSConstantBufferOffset;
-                p->pfnDXSetDSConstantBufferOffset = vmsvga3dBackDXSetDSConstantBufferOffset;
-                p->pfnDXSetCSConstantBufferOffset = vmsvga3dBackDXSetCSConstantBufferOffset;
                 p->pfnDXCondBindAllShader         = vmsvga3dBackDXCondBindAllShader;
                 p->pfnScreenCopy                  = vmsvga3dBackScreenCopy;
                 p->pfnIntraSurfaceCopy            = vmsvga3dBackIntraSurfaceCopy;

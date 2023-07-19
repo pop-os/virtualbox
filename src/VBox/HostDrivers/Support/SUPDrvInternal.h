@@ -242,6 +242,9 @@
 #           undef X86_CR4_VMXE
 #       endif
 #   endif
+#   if (RTLNX_VER_MIN(5,18,0) || RTLNX_RHEL_RANGE(9,3, 9,99)) && !defined(__NO_FORTIFY) && defined(__OPTIMIZE__) && defined(CONFIG_FORTIFY_SOURCE)
+#    define SUPDRV_UNFORTIFIED_MEMCPY __underlying_memcpy
+#   endif
 #   define SUPR0_EXPORT_SYMBOL(a_Name) EXPORT_SYMBOL(a_Name)
 
 #elif defined(RT_OS_DARWIN)
@@ -371,6 +374,16 @@
  * Use a dedicated kernel thread to service TSC-delta measurement requests.
  * @todo Test on servers with many CPUs and sockets. */
 # define SUPDRV_USE_TSC_DELTA_THREAD
+#endif
+
+/** @def SUPDRV_UNFORTIFIED_MEMCPY
+ * Use when copying to variable length structures, it prevents a fortified
+ * memcpy (linux 5.18+) from complaining about "field-spanning writes".
+ *
+ * @see @ticketref{21410}, @bugref{10209}
+ */
+#if !defined(SUPDRV_UNFORTIFIED_MEMCPY) || defined(DOXYGEN_RUNNING) /* (Already defined above if fortified.) */
+# define SUPDRV_UNFORTIFIED_MEMCPY memcpy
 #endif
 
 
@@ -1056,7 +1069,6 @@ int VBOXCALL    supdrvOSInitGipGroupTable(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOP
  *
  * This is currently only implemented on windows [lazy bird].
  *
- * @returns CPU group number.
  * @param   pDevExt             The device globals.
  * @param   pGip                The GIP.
  * @param   pGipCpu             The GIP CPU structure being initialized.

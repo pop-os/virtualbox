@@ -611,8 +611,8 @@ int NvramStore::i_loadStoreFromTar(RTVFSFSSTREAM hVfsFssTar)
     return vrc;
 }
 
-
 #ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+
 /**
  * Sets up the encryption or decryption machinery.
  *
@@ -674,7 +674,6 @@ int NvramStore::i_setupEncryptionOrDecryption(RTVFSIOSTREAM hVfsIosInOut, bool f
 /**
  * Releases all resources acquired in NvramStore::i_setupEncryptionOrDecryption().
  *
- * @returns nothing.
  * @param   hVfsIos             Handle to the I/O stream previously created.
  * @param   pCryptoIf           Pointer to the cryptographic interface being released.
  * @param   pKey                Pointer to the key buffer being released.
@@ -690,8 +689,8 @@ void NvramStore::i_releaseEncryptionOrDecryptionResources(RTVFSIOSTREAM hVfsIos,
     pKey->release();
     RTVfsIoStrmRelease(hVfsIos);
 }
-#endif
 
+#endif /* VBOX_WITH_FULL_VM_ENCRYPTION */
 
 /**
  * Loads the NVRAM store.
@@ -744,9 +743,10 @@ int NvramStore::i_loadStore(const char *pszPath)
                         if (RT_SUCCESS(vrc))
                         {
                             /* Try to parse it as an EFI variable store. */
+                            RTERRINFOSTATIC ErrInfo;
                             RTVFS hVfsEfiVarStore;
-                            vrc = RTEfiVarStoreOpenAsVfs(hVfsFileNvram, RTVFSMNT_F_READ_ONLY, 0 /*fVarStoreFlags*/, &hVfsEfiVarStore,
-                                                         NULL /*pErrInfo*/);
+                            vrc = RTEfiVarStoreOpenAsVfs(hVfsFileNvram, RTVFSMNT_F_READ_ONLY, 0 /*fVarStoreFlags*/,
+                                                         &hVfsEfiVarStore, RTErrInfoInitStatic(&ErrInfo));
                             if (RT_SUCCESS(vrc))
                             {
                                 vrc = RTVfsFileSeek(hVfsFileNvram, 0 /*offSeek*/, RTFILE_SEEK_BEGIN, NULL /*poffActual*/);
@@ -778,7 +778,7 @@ int NvramStore::i_loadStore(const char *pszPath)
                                     LogRel(("The given NVRAM file is neither a raw UEFI variable store nor a tar archive (opening failed with %Rrc)\n", vrc));
                             }
                             else
-                                LogRel(("Opening the UEFI variable store '%s' failed with %Rrc\n", pszPath, vrc));
+                                LogRel(("Opening the UEFI variable store '%s' failed with %Rrc%RTeim\n", pszPath, vrc, &ErrInfo.Core));
 
                             RTVfsFileRelease(hVfsFileNvram);
                         }
@@ -798,8 +798,11 @@ int NvramStore::i_loadStore(const char *pszPath)
                 LogRelMax(10, ("NVRAM store '%s' couldn't be opened with %Rrc\n", pszPath, vrc));
         }
         else
+        {
             LogRelMax(10, ("NVRAM store '%s' exceeds limit of %u bytes, actual size is %u\n",
                            pszPath, _1M, cbStore));
+            vrc = VERR_OUT_OF_RANGE;
+        }
     }
     else if (vrc == VERR_FILE_NOT_FOUND) /* Valid for the first run where no NVRAM file is there. */
         vrc = VINF_SUCCESS;

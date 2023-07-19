@@ -73,6 +73,124 @@ Rules for adding a changelog entry to make them look more uniform:
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
 
+    <title>Version 7.0.10 (2023-07-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+       <para>OCI: Introduced general improvements</para>
+      </listitem>
+
+      <listitem>
+       <para>VMM: Fixed sluggish performance starting with macOS Ventura 13.3 (bug #21563, bug#21596)</para>
+      </listitem>
+
+      <listitem>
+       <para>VMM: Fixed a bug while walking page tables while executing nested VMs causing flooding of
+         the release log as a consequence (Intel hosts only, bug #21551)</para>
+      </listitem>
+
+      <listitem>
+       <para>GUI: Added general improvements</para>
+      </listitem>
+
+      <listitem>
+       <para>TPM: Fixed a crash when a VM has a TPM version 1.2 configured (bug #21622)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: Initial support for OpenGL 4.1</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: Fixed various graphics issues with Windows 11 guests
+          (bugs #21136, #21515)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control/VBoxManage: Fixed parameter "--ignore-orphaned-processes"</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control/VBoxManage: Fixed behavior of how handling argument 0 for a started guest process
+          works: One can now explicitly specify it with the newly added option "--arg0". This will effectively
+          restore the behavior of former VirtualBox versions</para>
+      </listitem>
+
+      <listitem>
+       <para>Audio: Also use the PulseAudio backend when pipewire-pulse is running
+         instead of falling back to ALSA (bug #21575)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: Adjusted UDP proxy timeout from 18-21 to 21-24 range to respect
+          intended 20 second timeout (bug #21560)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host: Added initial support for Indirect Branch Tracking (bug #21435)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host: Added initial support for kernel 6.5 (NOTE: Guest Additions
+          do not support kernel 6.5 yet)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Host: Introduced general improvements in the installer area</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host and Guest: Improved condition check when kernel modules need
+          to be signed</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host and Guest: Added initial support for RHEL 8.8 (bug #21692),
+          8.9 (bug #21690) and 9.3 (bugs #21598 and #21671) kernels</para>
+      </listitem>
+
+      <listitem>
+        <para>MacOS Host and Guest: Introduced general improvements in the installer area</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Host and Guest: Introduced ECDSA support (bug #21621)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed issue when kernel modules were rebuilt on each boot
+          when guest system has no X11 installed</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Added initial support for kernel 6.4</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed issue when vboxvideo module reloading
+          caused kernel panic in some guests (bug #21740)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Introduced general improvements in the
+          installer area</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions: Introduced general improvements in graphics
+          drivers area</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
+
     <title>Version 7.0.8 (2023-04-18)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
