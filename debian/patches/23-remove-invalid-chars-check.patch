@@ -4,7 +4,7 @@ Author: Felix Geyer <fgeyer@debian.org>
 
 --- a/configure
 +++ b/configure
-@@ -193,11 +193,6 @@ BUILD_TYPE="release"
+@@ -195,11 +195,6 @@ BUILD_TYPE="release"
  # the restricting tool is ar (mri mode).
  INVALID_CHARS="[^A-Za-z0-9/\\$:._-]"
  
