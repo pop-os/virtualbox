@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 155204 $"
+__version__ = "$Revision: 157454 $"
 
 
 # Standard Python imports.
@@ -86,6 +86,14 @@ class tdUnitTest1(vbox.TestDriver):
             'testcase/tstRTSemRW': '',                  # line 338: RTSemRWReleaseRead(hSemRW): got VERR_ACCESS_DENIED
             'testcase/tstRTStrAlloc': '',               # VERR_NO_STR_MEMORY!
             'testcase/tstRTFileQuerySize-1': '',        # VERR_DEV_IO_ERROR on /dev/null!
+            'testcase/tstLow' : '',                     # VERR_NOT_SUPPORTED - allocating kernel memory with physical backing
+                                                        # below 4GB (RTR0MemObjAllocLow) for running code (fExecutable=true)
+                                                        # isn't implemented.
+            'testcase/tstContiguous' : '',              # VERR_NOT_SUPPORTED - allocating kernel memory with contiguous physical
+                                                        # backing below 4GB (RTR0MemObjAllocCont) for running code
+                                                        # (fExecutable=true) isn't implemented.
+            'tstPDMQueue' : ''                          # VERR_NOT_SUPPORTED - running without the support driver (vboxdrv) isn't
+                                                        # supported on Solaris (VMCREATE_F_DRIVERLESS/SUPR3INIT_F_DRIVERLESS).
         },
         'solaris.amd64': {
             'testcase/tstLdr-4': '',        # failed: Failed to get bits for '/home/vbox/test/tmp/bin/testcase/tstLdrObjR0.r0'/0,

@@ -94,6 +94,11 @@ typedef struct VMSVGA3D_MAPPED_SURFACE
     void *pvData;
 } VMSVGA3D_MAPPED_SURFACE;
 
+void vmsvga3dReset(PVGASTATECC pThisCC);
+void vmsvga3dTerminate(PVGASTATECC pThisCC);
+
+int vmsvga3dInit(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC);
+
 /* Write render targets to bitmaps. */
 //#define DUMP_BITMAPS
 void vmsvga3dMapWriteBmpFile(VMSVGA3D_MAPPED_SURFACE const *pMap, char const *pszPrefix);
@@ -512,15 +517,9 @@ typedef struct
     DECLCALLBACKMEMBER(int, pfnDXBindAllShader,             (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
     DECLCALLBACKMEMBER(int, pfnDXHint,                      (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
     DECLCALLBACKMEMBER(int, pfnDXBufferUpdate,              (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
-    DECLCALLBACKMEMBER(int, pfnDXSetVSConstantBufferOffset, (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
-    DECLCALLBACKMEMBER(int, pfnDXSetPSConstantBufferOffset, (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
-    DECLCALLBACKMEMBER(int, pfnDXSetGSConstantBufferOffset, (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
-    DECLCALLBACKMEMBER(int, pfnDXSetHSConstantBufferOffset, (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
-    DECLCALLBACKMEMBER(int, pfnDXSetDSConstantBufferOffset, (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
-    DECLCALLBACKMEMBER(int, pfnDXSetCSConstantBufferOffset, (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
     DECLCALLBACKMEMBER(int, pfnDXCondBindAllShader,         (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
     DECLCALLBACKMEMBER(int, pfnScreenCopy,                  (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
-    DECLCALLBACKMEMBER(int, pfnIntraSurfaceCopy,            (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
+    DECLCALLBACKMEMBER(int, pfnIntraSurfaceCopy,            (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext, SVGA3dSurfaceImageId const &surface, SVGA3dCopyBox const &box));
     DECLCALLBACKMEMBER(int, pfnDXResolveCopy,               (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
     DECLCALLBACKMEMBER(int, pfnDXPredResolveCopy,           (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
     DECLCALLBACKMEMBER(int, pfnDXPredConvertRegion,         (PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext));
@@ -636,16 +635,11 @@ int vmsvga3dDXReadbackAllQuery(PVGASTATECC pThisCC, uint32_t idDXContext, SVGA3d
 int vmsvga3dDXBindAllShader(PVGASTATECC pThisCC, uint32_t idDXContext);
 int vmsvga3dDXHint(PVGASTATECC pThisCC, uint32_t idDXContext);
 int vmsvga3dDXBufferUpdate(PVGASTATECC pThisCC, uint32_t idDXContext);
-int vmsvga3dDXSetVSConstantBufferOffset(PVGASTATECC pThisCC, uint32_t idDXContext);
-int vmsvga3dDXSetPSConstantBufferOffset(PVGASTATECC pThisCC, uint32_t idDXContext);
-int vmsvga3dDXSetGSConstantBufferOffset(PVGASTATECC pThisCC, uint32_t idDXContext);
-int vmsvga3dDXSetHSConstantBufferOffset(PVGASTATECC pThisCC, uint32_t idDXContext);
-int vmsvga3dDXSetDSConstantBufferOffset(PVGASTATECC pThisCC, uint32_t idDXContext);
-int vmsvga3dDXSetCSConstantBufferOffset(PVGASTATECC pThisCC, uint32_t idDXContext);
+int vmsvga3dDXSetConstantBufferOffset(PVGASTATECC pThisCC, uint32_t idDXContext, SVGA3dCmdDXSetConstantBufferOffset const *pCmd, SVGA3dShaderType type);
 int vmsvga3dDXCondBindAllShader(PVGASTATECC pThisCC, uint32_t idDXContext);
 int vmsvga3dScreenCopy(PVGASTATECC pThisCC, uint32_t idDXContext);
 int vmsvga3dDXGrowCOTable(PVGASTATECC pThisCC, SVGA3dCmdDXGrowCOTable const *pCmd);
-int vmsvga3dIntraSurfaceCopy(PVGASTATECC pThisCC, uint32_t idDXContext);
+int vmsvga3dIntraSurfaceCopy(PVGASTATECC pThisCC, uint32_t idDXContext, SVGA3dCmdIntraSurfaceCopy const *pCmd);
 int vmsvga3dDXResolveCopy(PVGASTATECC pThisCC, uint32_t idDXContext);
 int vmsvga3dDXPredResolveCopy(PVGASTATECC pThisCC, uint32_t idDXContext);
 int vmsvga3dDXPredConvertRegion(PVGASTATECC pThisCC, uint32_t idDXContext);
@@ -683,6 +677,9 @@ int vmsvga3dDXSaveExec(PPDMDEVINS pDevIns, PVGASTATECC pThisCC, PSSMHANDLE pSSM)
 
 int vmsvga3dVBDXClearRenderTargetViewRegion(PVGASTATECC pThisCC, uint32_t idDXContext, SVGA3dCmdVBDXClearRenderTargetViewRegion const *pCmd, uint32_t cRect, SVGASignedRect const *paRect);
 #endif /* VMSVGA3D_DX */
+
+
+float float16ToFloat(uint16_t f16);
 
 
 #endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_h */

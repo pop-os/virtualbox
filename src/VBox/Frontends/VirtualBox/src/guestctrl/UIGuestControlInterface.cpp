@@ -182,7 +182,7 @@ UIGuestControlInterface::UIGuestControlInterface(QObject* parent, const CGuest &
                 "\t\t[--exe <path to executable>] [--timeout <msec>]\n"
                 "\t\t[--sessionid <id> |  [sessionname <name>]]\n"
                 "\t\t[-E|--putenv <NAME>[=<VALUE>]] [--unquoted-args]\n"
-                "\t\t[--ignore-operhaned-processes] [--profile]\n"
+                "\t\t[--ignore-orphaned-processes] [--profile]\n"
                 "\t\t-- <program/arg0> [argument1] ... [argumentN]]\n"
                 "createsession\t\t[common-options]  [--sessionname <name>]\n"
                 "mkdir\t\t[common-options]\n"
@@ -413,7 +413,7 @@ bool UIGuestControlInterface::handleStart(int argc, char** argv)
         { "--exe",                          'e',                                      RTGETOPT_REQ_STRING  },
         { "--timeout",                      't',                                      RTGETOPT_REQ_UINT32  },
         { "--unquoted-args",                'u',                                      RTGETOPT_REQ_NOTHING },
-        { "--ignore-operhaned-processes",   kGstCtrlRunOpt_IgnoreOrphanedProcesses,   RTGETOPT_REQ_NOTHING },
+        { "--ignore-orphaned-processes",    kGstCtrlRunOpt_IgnoreOrphanedProcesses,   RTGETOPT_REQ_NOTHING },
         { "--no-profile",                   kGstCtrlRunOpt_NoProfile,                 RTGETOPT_REQ_NOTHING }, /** @todo Deprecated. */
         { "--profile",                      kGstCtrlRunOpt_Profile,                   RTGETOPT_REQ_NOTHING }
     };
@@ -583,7 +583,7 @@ void UIGuestControlInterface::prepareSubCommandHandlers()
 
 void UIGuestControlInterface::putCommand(const QString &strCommand)
 {
-    if (!isGuestAdditionsAvailable(m_comGuest))
+    if (!isGuestAdditionsAvailable(m_comGuest, "6.1"))
     {
         emit sigOutputString("No guest addtions detected. Guest control requires guest additions");
         return;
@@ -697,12 +697,33 @@ bool UIGuestControlInterface::createSession(const CommandData &commandData, CGue
 }
 
 /* static */
-bool UIGuestControlInterface::isGuestAdditionsAvailable(const CGuest &guest)
+bool UIGuestControlInterface::isGuestAdditionsAvailable(const CGuest &guest, const char *pszMinimumVersion)
 {
-    if (!guest.isOk())
-        return false;
     CGuest guestNonConst = const_cast<CGuest&>(guest);
-    return guestNonConst.GetAdditionsStatus(guestNonConst.GetAdditionsRunLevel());
+
+    if (guestNonConst.isNull() || !pszMinimumVersion)
+        return false;
+
+    /* Guest control stuff is in userland: */
+    if (!guestNonConst.GetAdditionsStatus(KAdditionsRunLevelType_Userland))
+        return false;
+
+    if (!guestNonConst.isOk())
+        return false;
+
+    /* Check the related GA facility: */
+    LONG64 iLastUpdatedIgnored;
+    if (guestNonConst.GetFacilityStatus(KAdditionsFacilityType_VBoxService, iLastUpdatedIgnored) != KAdditionsFacilityStatus_Active)
+        return false;
+
+    if (!guestNonConst.isOk())
+        return false;
+
+    QString strGAVersion = guestNonConst.GetAdditionsVersion();
+    if (guestNonConst.isOk())
+        return (RTStrVersionCompare(strGAVersion.toUtf8().constData(), pszMinimumVersion) >= 0);
+
+    return false;
 }
 
 template<typename T>

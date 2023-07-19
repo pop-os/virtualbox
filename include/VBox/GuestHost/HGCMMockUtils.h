@@ -218,7 +218,6 @@ int TstHGCMUtilsTaskInit(PTSTHGCMUTILSTASK pTask)
 /**
  * Destroys a HGCM Mock utils task.
  *
- * @returns VBox status code.
  * @param   pTask               Task to destroy.
  */
 void TstHGCMUtilsTaskDestroy(PTSTHGCMUTILSTASK pTask)

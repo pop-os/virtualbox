@@ -471,7 +471,6 @@ int vusbUrbQueueAsyncRh(PVUSBURB pUrb)
 
 /**
  * Send a control message *synchronously*.
- * @return
  */
 static void vusbMsgSubmitSynchronously(PVUSBURB pUrb, bool fSafeRequest)
 {
@@ -678,6 +677,14 @@ static bool vusbMsgSetup(PVUSBPIPE pPipe, const void *pvBuf, uint32_t cbBuf)
         return false;
     }
 
+    /* Paranoia: Clear data memory that was previously used
+     * by the guest. See @bugref{10438}.
+     */
+    PVUSBSETUP pOldSetup = pExtra->pMsg;
+    uint32_t   cbClean = sizeof(VUSBSETUP) + pOldSetup->wLength;
+    cbClean = RT_MIN(cbClean, pExtra->cbMax);
+    memset(pExtra->Urb.abData, 0, cbClean);
+
     /*
      * Check if we've got an cancelled message URB. Allocate a new one in that case.
      */
@@ -705,7 +712,9 @@ static bool vusbMsgSetup(PVUSBPIPE pPipe, const void *pvBuf, uint32_t cbBuf)
     if (pExtra->cbMax < cbBuf + pSetupIn->wLength)
     {
         uint32_t cbReq = RT_ALIGN_32(cbBuf + pSetupIn->wLength, 64);
-        PVUSBCTRLEXTRA pNew = (PVUSBCTRLEXTRA)RTMemRealloc(pExtra, RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[cbReq]));
+        PVUSBCTRLEXTRA pNew = (PVUSBCTRLEXTRA)RTMemReallocZ(pExtra,
+                                                            RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[pExtra->cbMax]),
+                                                            RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[cbReq]));
         if (!pNew)
         {
             Log(("vusbMsgSetup: out of memory!!! cbReq=%u %zu\n",
@@ -1304,7 +1313,6 @@ void vusbUrbDoReapAsync(PRTLISTANCHOR pUrbLst, RTMSINTERVAL cMillies)
 /**
  * Reap URBs on a per device level.
  *
- * @returns nothing.
  * @param   pDev        The device instance to reap URBs for.
  * @param   cMillies    Number of milliseconds to block in each reap operation.
  *                      Use 0 to not block at all.

@@ -1069,7 +1069,6 @@ static int utsClientReqProcess(PUTSCLIENT pClient)
 /**
  * Destroys a client instance.
  *
- * @returns nothing.
  * @param   pClient             The UTS client structure.
  */
 static void utsClientDestroy(PUTSCLIENT pClient)
@@ -1561,7 +1560,7 @@ static RTEXITCODE utsParseArgv(int argc, char **argv, bool *pfExit)
             }
 
             case 'V':
-                RTPrintf("$Revision: 155244 $\n");
+                RTPrintf("$Revision: 157380 $\n");
                 *pfExit = true;
                 return RTEXITCODE_SUCCESS;
 

@@ -1,7 +1,7 @@
 #! /bin/sh
 # $Id: vboxadd.sh $
 ## @file
-# Linux Additions kernel module init script ($Revision: 156089 $)
+# Linux Additions kernel module init script ($Revision: 158050 $)
 #
 
 #
@@ -66,6 +66,7 @@ PACKAGE=VBoxGuestAdditions
 MODPROBE=/sbin/modprobe
 OLDMODULES="vboxguest vboxadd vboxsf vboxvfs vboxvideo"
 SERVICE="VirtualBox Guest Additions"
+VBOXSERVICE_PIDFILE="/var/run/vboxadd-service.sh"
 ## systemd logs information about service status, otherwise do that ourselves.
 QUIET=
 test -z "${TARGET_VER}" && TARGET_VER=`uname -r`
@@ -107,10 +108,19 @@ info()
     fi
 }
 
+# When script is running as non-root, it does not have access to log
+# files in /var. In this case, lets print error message to stdout and
+# exit with bad status.
+early_fail()
+{
+    echo "$1" >&2
+    exit 1
+}
+
 fail()
 {
     log "${1}"
-    echo "$1" >&2
+    echo "${SERVICE}: $1" >&2
     echo "The log file $LOG may contain further information." >&2
     exit 1
 }
@@ -148,52 +158,81 @@ test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
 MODULE_SRC="$INSTALL_DIR/src/vboxguest-$INSTALL_VER"
 BUILDINTMP="$MODULE_SRC/build_in_tmp"
 
+# Path to VBoxService control script.
+VBOX_SERVICE_SCRIPT="/sbin/rcvboxadd-service"
+
 # Attempt to detect VirtualBox Guest Additions version and revision information.
-VBOXCLIENT="${INSTALL_DIR}/bin/VBoxClient"
-VBOX_VERSION="`"$VBOXCLIENT" --version | cut -d r -f1`"
+VBOXCONTROL="${INSTALL_DIR}/bin/VBoxControl"
+VBOX_VERSION="`"$VBOXCONTROL" --version | cut -d r -f1`"
 [ -n "$VBOX_VERSION" ] || VBOX_VERSION='unknown'
-VBOX_REVISION="r`"$VBOXCLIENT" --version | cut -d r -f2`"
+VBOX_REVISION="r`"$VBOXCONTROL" --version | cut -d r -f2`"
 [ "$VBOX_REVISION" != "r" ] || VBOX_REVISION='unknown'
 
+# Returns if the vboxguest module is running or not.
+#
+# Returns true if vboxguest module is running, false if not.
 running_vboxguest()
 {
     lsmod | grep -q "vboxguest[^_-]"
 }
 
+# Returns if the vboxadd module is running or not.
+#
+# Returns true if vboxadd module is running, false if not.
 running_vboxadd()
 {
     lsmod | grep -q "vboxadd[^_-]"
 }
 
+# Returns if the vboxsf module is running or not.
+#
+# Returns true if vboxsf module is running, false if not.
 running_vboxsf()
 {
     lsmod | grep -q "vboxsf[^_-]"
 }
 
+# Returns if the vboxvideo module is running or not.
+#
+# Returns true if vboxvideo module is running, false if not.
 running_vboxvideo()
 {
     lsmod | grep -q "vboxvideo[^_-]"
 }
 
+# Returns if a specific module is running or not.
+#
+# Input $1: Module name to check running status for.
+#
+# Returns true if the module is running, false if not.
 running_module()
 {
     lsmod | grep -q "$1"
 }
 
-# Get version string of currently running kernel module.
+# Returns the version string of a currently running kernel module.
+#
+# Input $1: Module name to check.
+#
+# Returns the module version string if found, or none if not found.
 running_module_version()
 {
-    mod=$1
+    mod="$1"
     version_string_path="/sys/module/"$mod"/version"
 
     [ -n "$mod" ] || return
-    [ -r "$version_string_path" ] || return
-
-    cat "$version_string_path"
+    if [ -r "$version_string_path" ]; then
+        cat "$version_string_path"
+    else
+        echo "unknown"
+    fi
 }
 
-# Check if currently loaded kernel module version matches to
-# current Guest Additions installed version and revision.
+# Checks if a loaded kernel module version matches to the currently installed Guest Additions version and revision.
+#
+# Input $1: Module name to check.
+#
+# Returns "1" if the module matches the installed Guest Additions, or none if not.
 check_running_module_version()
 {
     mod=$1
@@ -203,40 +242,6 @@ check_running_module_version()
     [ -n "$expected" ] || return
 
     [ "$expected" = "$(running_module_version "$mod")" ] || return
-}
-
-
-# Checks if systemctl is present and functional (i.e., systemd is the init process).
-use_systemd()
-{
-    systemctl status >/dev/null 2>&1
-}
-
-## Did we install a systemd service?
-systemd_service_installed()
-{
-    ## Name of service to test.
-    name="${1}"
-
-    test -f /lib/systemd/system/"${name}".service ||
-        test -f /usr/lib/systemd/system/"${name}".service
-}
-
-## Perform an action on a service
-do_sysvinit_action()
-{
-    ## Name of service to start.
-    name="${1}"
-    ## The action to perform, normally "start", "stop" or "status".
-    action="${2}"
-
-    if use_systemd -a systemd_service_installed "${name}"; then
-        systemctl -q ${action} "${name}"
-    elif test -x "/etc/rc.d/init.d/${name}"; then
-        "/etc/rc.d/init.d/${name}" "${action}" quiet
-    elif test -x "/etc/init.d/${name}"; then
-        "/etc/init.d/${name}" "${action}" quiet
-    fi
 }
 
 do_vboxguest_non_udev()
@@ -293,7 +298,7 @@ restart()
     return 0
 }
 
-## Update the initramfs.  Debian and Ubuntu put the graphics driver in, and
+## Updates the initramfs.  Debian and Ubuntu put the graphics driver in, and
 # need the touch(1) command below.  Everyone else that I checked just need
 # the right module alias file from depmod(1) and only use the initramfs to
 # load the root filesystem, not the boot splash.  update-initramfs works
@@ -321,7 +326,7 @@ update_initramfs()
     fi
 }
 
-# Remove any existing VirtualBox guest kernel modules from the disk, but not
+# Removes any existing VirtualBox guest kernel modules from the disk, but not
 # from the kernel as they may still be in use
 cleanup_modules()
 {
@@ -372,7 +377,7 @@ case "`mokutil --test-key "$DEB_PUB_KEY" 2>/dev/null`" in
     *) unset DEB_KEY_ENROLLED;;
 esac
 
-# Check if update-secureboot-policy tool supports required commandline options.
+# Checks if update-secureboot-policy tool supports required commandline options.
 update_secureboot_policy_supports()
 {
     opt_name="$1"
@@ -391,24 +396,30 @@ fi
 # Reads kernel configuration option.
 kernel_get_config_opt()
 {
-    opt_name="$1"
+    kern_ver="$1"
+    opt_name="$2"
+
+    [ -n "$kern_ver" ] || return
     [ -n "$opt_name" ] || return
 
     # Check if there is a kernel tool which can extract config option.
-    if test -x /lib/modules/"$KERN_VER"/build/scripts/config; then
-        /lib/modules/"$KERN_VER"/build/scripts/config \
-            --file /lib/modules/"$KERN_VER"/build/.config \
+    if test -x /lib/modules/"$kern_ver"/build/scripts/config; then
+        /lib/modules/"$kern_ver"/build/scripts/config \
+            --file /lib/modules/"$kern_ver"/build/.config \
             --state "$opt_name" 2>/dev/null
-    elif test -f /lib/modules/"$KERN_VER"/build/.config; then
+    elif test -f /lib/modules/"$kern_ver"/build/.config; then
         # Extract config option manually.
-        grep "$opt_name" /lib/modules/"$KERN_VER"/build/.config | sed -e "s/^$opt_name=//" -e "s/\"//g"
+        grep "$opt_name=" /lib/modules/"$kern_ver"/build/.config | sed -e "s/^$opt_name=//" -e "s/\"//g"
     fi
 }
 
 # Reads CONFIG_MODULE_SIG_HASH from kernel config.
 kernel_module_sig_hash()
 {
-    kernel_get_config_opt "CONFIG_MODULE_SIG_HASH"
+    kern_ver="$1"
+    [ -n "$kern_ver" ] || return
+
+    kernel_get_config_opt "$kern_ver" "CONFIG_MODULE_SIG_HASH"
 }
 
 # Returns "1" if kernel module signature hash algorithm
@@ -428,6 +439,43 @@ module_sig_hash_supported()
     echo "1"
 }
 
+# Check if kernel configuration requires modules signature.
+kernel_requires_module_signature()
+{
+    kern_ver="$1"
+    vbox_sys_lockdown_path="/sys/kernel/security/lockdown"
+
+    [ -n "$kern_ver" ] || return
+
+    requires=""
+    # We consider that if kernel is running in the following configurations,
+    # it will require modules to be signed.
+    if [ "$(kernel_get_config_opt "$kern_ver" "CONFIG_MODULE_SIG")" = "y" ]; then
+
+        # Modules signature verification is hardcoded in kernel config.
+        [ "$(kernel_get_config_opt "$kern_ver" "CONFIG_MODULE_SIG_FORCE")" = "y" ] && requires="1"
+
+        # Unsigned modules loading is restricted by "lockdown" feature in runtime.
+        if [   "$(kernel_get_config_opt "$kern_ver" "CONFIG_LOCK_DOWN_KERNEL")" = "y" \
+            -o "$(kernel_get_config_opt "$kern_ver" "CONFIG_SECURITY_LOCKDOWN_LSM")" = "y" \
+            -o "$(kernel_get_config_opt "$kern_ver" "CONFIG_SECURITY_LOCKDOWN_LSM_EARLY")" = "y" ]; then
+
+            # Once lockdown level is set to something different from "none" (e.g., "integrity"
+            # or "confidentiality"), kernel will reject unsigned modules loading.
+            if [ -r "$vbox_sys_lockdown_path" ]; then
+                [ -n "$(cat "$vbox_sys_lockdown_path" | grep "\[integrity\]")" ] && requires="1"
+                [ -n "$(cat "$vbox_sys_lockdown_path" | grep "\[confidentiality\]")" ] && requires="1"
+            fi
+
+            # This configuration is used by a number of modern Linux distributions and restricts
+            # unsigned modules loading when Secure Boot mode is enabled.
+            [ "$(kernel_get_config_opt "$kern_ver" "CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT")" = "y" -a -n "$HAVE_SEC_BOOT" ] && requires="1"
+        fi
+    fi
+
+    [ -n "$requires" ] && echo "1"
+}
+
 sign_modules()
 {
     KERN_VER="$1"
@@ -438,8 +486,8 @@ sign_modules()
     # vboxvideo might not present on for older kernels.
     [ -f "/lib/modules/"$KERN_VER"/misc/vboxvideo.ko" ] && MODULE_LIST="$MODULE_LIST vboxvideo"
 
-    # Secure boot on Ubuntu, Debian and Oracle Linux.
-    if test -n "$HAVE_SEC_BOOT"; then
+    # Sign kernel modules if kernel configuration requires it.
+    if test "$(kernel_requires_module_signature $KERN_VER)" = "1"; then
         begin "Signing VirtualBox Guest Additions kernel modules"
 
         # Generate new signing key if needed.
@@ -469,7 +517,7 @@ Restart \"rcvboxadd setup\" after system is rebooted.
         fi
 
         # Get kernel signature hash algorithm from kernel config and validate it.
-        sig_hashalgo=$(kernel_module_sig_hash)
+        sig_hashalgo=$(kernel_module_sig_hash "$KERN_VER")
         [ "$(module_sig_hash_supported $sig_hashalgo)" = "1" ] \
             || fail "Unsupported kernel signature hash algorithm $sig_hashalgo"
 
@@ -526,7 +574,7 @@ setup_modules()
 
     # Detect if kernel was built with clang.
     unset LLVM
-    vbox_cc_is_clang=$(kernel_get_config_opt "CONFIG_CC_IS_CLANG")
+    vbox_cc_is_clang=$(kernel_get_config_opt "$KERN_VER" "CONFIG_CC_IS_CLANG")
     if test "${vbox_cc_is_clang}" = "y"; then
         info "Using clang compiler."
         export LLVM=1
@@ -656,7 +704,11 @@ shared_folder_setup()
     fi
 }
 
-# Returns path to module file as seen by modinfo(8) or empty string.
+# Returns path to a module file as seen by modinfo(8), or none if not found.
+#
+# Input $1: Module name to get path for.
+#
+# Returns the module path as a string.
 module_path()
 {
     mod="$1"
@@ -665,7 +717,11 @@ module_path()
     modinfo "$mod" 2>/dev/null | grep -e "^filename:" | tr -s ' ' | cut -d " " -f2
 }
 
-# Returns module version if module is available or empty string.
+# Returns module version if module is available, or none if not found.
+#
+# Input $1: Module name to get version for.
+#
+# Returns the module version as a string.
 module_version()
 {
     mod="$1"
@@ -674,7 +730,11 @@ module_version()
     modinfo "$mod" 2>/dev/null | grep -e "^version:" | tr -s ' ' | cut -d " " -f2
 }
 
-# Returns module revision if module is available in the system or empty string.
+# Returns the module revision if module is available in the system, or none if not found.
+#
+# Input $1: Module name to get revision for.
+#
+# Returns the module revision as a string.
 module_revision()
 {
     mod="$1"
@@ -683,8 +743,12 @@ module_revision()
     modinfo "$mod" 2>/dev/null | grep -e "^version:" | tr -s ' ' | cut -d " " -f3
 }
 
+# Checks if a given kernel module is properly signed or not.
+#
+# Input $1: Module name to check.
+#
 # Returns "1" if module is signed and signature can be verified
-# with public key provided in DEB_PUB_KEY. Or empty string otherwise.
+# with public key provided in DEB_PUB_KEY, or none otherwise.
 module_signed()
 {
     mod="$1"
@@ -740,9 +804,13 @@ module_signed()
     echo "1"
 }
 
+# Checks if a given kernel module matches the installed VirtualBox Guest Additions version.
+#
+# Input $1: Module name to check.
+#
 # Returns "1" if externally built module is available in the system and its
 # version and revision number do match to current VirtualBox installation.
-# Or empty string otherwise.
+# None otherwise.
 module_available()
 {
     mod="$1"
@@ -769,8 +837,9 @@ module_available()
     mod_dir="$(dirname "$mod_path" | sed 's;^.*/;;')"
     [ "$mod_dir" = "misc" ] || return
 
-    # In case if system is running in Secure Boot mode, check if module is signed.
-    if test -n "$HAVE_SEC_BOOT"; then
+    # In case if kernel configuration (for currently loaded kernel) requires
+    # module signature, check if module is signed.
+    if test "$(kernel_requires_module_signature $(uname -r))" = "1"; then
         [ "$(module_signed "$mod")" = "1" ] || return
     fi
 
@@ -778,6 +847,8 @@ module_available()
 }
 
 # Check if required modules are installed in the system and versions match.
+#
+# Returns "1" on success, none otherwise.
 setup_complete()
 {
     [ "$(module_available vboxguest)"   = "1" ] || return
@@ -875,7 +946,7 @@ start()
     test "$(setup_complete)" = "1" || setup
 
     # Warn if Secure Boot setup not yet complete.
-    if test -n "$HAVE_SEC_BOOT" && test -z "$DEB_KEY_ENROLLED"; then
+    if test "$(kernel_requires_module_signature)" = "1" && test -z "$DEB_KEY_ENROLLED"; then
         if test -n "$HAVE_DEB_KEY"; then
             info "You must re-start your system to finish secure boot set-up."
         else
@@ -926,10 +997,16 @@ stop()
     return 0
 }
 
+check_root()
+{
+    # Check if script is running with root privileges and exit if it does not.
+    [ `id -u` -eq 0 ] || early_fail "root privileges are required"
+}
+
 # Check if process with this PID is running.
 check_pid()
 {
-    pid=$1
+    pid="$1"
 
     test -n "$pid" -a -d "/proc/$pid"
 }
@@ -963,9 +1040,15 @@ check_status_kernel()
         # In case of error, try to print out proper reason of failure.
         if [ $? -ne 0 ]; then
             # Was module loaded?
-            [ -n "$mod_is_running" ] || fail "module $mod is not loaded"
-            # If module was loaded it means that it has incorrect version.
-            fail "currently loaded module $mod version ($(running_module_version "$mod")) does not match to VirtualBox Guest Additions installation version ($VBOX_VERSION $VBOX_REVISION)"
+            if [ -z "$mod_is_running" ]; then
+                info "module $mod is not loaded"
+            else
+                # If module was loaded it means that it has incorrect version.
+                info "currently loaded module $mod version ($(running_module_version "$mod")) does not match to VirtualBox Guest Additions installation version ($VBOX_VERSION $VBOX_REVISION)"
+            fi
+
+            # Set "bad" rc.
+            false
         fi
 
     done
@@ -975,17 +1058,18 @@ check_status_kernel()
 # Currently only check for VBoxService.
 check_status_user()
 {
-    check_pid "$(cat /var/run/vboxadd-service.sh)" >/dev/null 2>&1
+    [ -r "$VBOXSERVICE_PIDFILE" ] && check_pid "$(cat $VBOXSERVICE_PIDFILE)" >/dev/null 2>&1
 }
 
-send_sig_usr1_by_pidfile()
+send_signal_by_pidfile()
 {
-    pidfile=$1
+    sig="$1"
+    pidfile="$2"
 
     if [ -f "$pidfile" ]; then
         check_pid $(cat "$pidfile")
         if [ $? -eq 0 ]; then
-            kill -USR1 $(cat "$pidfile") >/dev/null 2>&1
+            kill "$sig" $(cat "$pidfile") >/dev/null 2>&1
         else
             # Do not spoil $?.
             true
@@ -999,59 +1083,92 @@ send_sig_usr1_by_pidfile()
 # SIGUSR1 is used in order to notify VBoxClient processes that system
 # update is started or kernel modules are going to be reloaded,
 # so VBoxClient can release vboxguest.ko resources and then restart itself.
-send_sig_usr1()
+send_signal()
 {
+    sig="$1"
     # Specify whether we sending signal to VBoxClient parent (control)
     # process or a child (actual service) process.
-    process_type="$1"
+    process_type="$2"
 
     pidfile_postfix=""
     [ -z "$process_type" ] || pidfile_postfix="-$process_type"
 
-    for user_home in $(getent passwd | cut -d ':' -f 6); do
-        if [ -d "$user_home" ]; then
+    for user_name in $(getent passwd | cut -d ':' -f 1); do
 
-            for pid_file in "$user_home"/.vboxclient-*"$pidfile_postfix".pid; do
+        # Filter out empty login names (paranoia).
+        [ -n "$user_name" ] || continue
 
-                # If process type was not specified, we assume that signal supposed
-                # to be sent to legacy VBoxClient processes which have different
-                # pidfile name pattern (it does not contain "control" or "service").
-                # Skip those pidfiles who has.
-                [ -z "$process_type" -a -n "$(echo "$pid_file" | grep "control")" ] && continue
-                [ -z "$process_type" -a -n "$(echo "$pid_file" | grep "service")" ] && continue
+        user_shell=$(getent passwd "$user_name" | cut -d ':' -f 7)
 
-                send_sig_usr1_by_pidfile "$pid_file"
-            done
+        # Filter out login names with not specified shells (paranoia).
+        [ -n "$user_shell" ] || continue
 
-        fi
+        # Filter out know non-login account names.
+        case "$user_shell" in
+        *nologin)   skip_user_home="1";;
+        *sync)      skip_user_home="1";;
+        *shutdown)  skip_user_home="1";;
+        *halt)      skip_user_home="1";;
+        *)          skip_user_home=""
+        esac
+        [ -z "$skip_user_home" ] || continue;
+
+        user_home=$(getent passwd "$user_name" | cut -d ':' -f 6)
+
+        for pid_file in "$user_home"/.vboxclient-*"$pidfile_postfix".pid; do
+
+            [ -r "$pid_file" ] || continue
+
+            # If process type was not specified, we assume that signal supposed
+            # to be sent to legacy VBoxClient processes which have different
+            # pidfile name pattern (it does not contain "control" or "service").
+            # Skip those pidfiles who has.
+            [ -z "$process_type" -a -n "$(echo "$pid_file" | grep "control")" ] && continue
+            [ -z "$process_type" -a -n "$(echo "$pid_file" | grep "service")" ] && continue
+
+            send_signal_by_pidfile -USR1 "$pid_file"
+
+        done
     done
+}
+
+# Helper function which executes a command, prints error message if command fails,
+# and preserves command execution status for further processing.
+try_load_preserve_rc()
+{
+    cmd="$1"
+    msg="$2"
+
+    $cmd >/dev/null 2>&1
+
+    rc=$?
+    [ $rc -eq 0 ] || info "$msg"
+
+    return $rc
 }
 
 reload()
 {
     begin "reloading kernel modules and services"
 
-    # Check if script was started with root privileges.
-    [ `id -u` -eq 0 ] || fail "root privileges are required"
-
     # Stop VBoxService if running.
-    do_sysvinit_action vboxadd-service status >/dev/null 2>&1
+    $VBOX_SERVICE_SCRIPT status >/dev/null 2>&1
     if [ $? -eq 0 ]; then
-        do_sysvinit_action vboxadd-service stop >/dev/null 2>&1 || fail "unable to stop VBoxService"
+        $VBOX_SERVICE_SCRIPT stop >/dev/null 2>&1 || fail "unable to stop VBoxService"
     fi
 
     # Unmount Shared Folders.
-    umount -a -t vboxsf >/dev/null 2>&1 || fail "unable to unmount shared folders"
+    umount -a -t vboxsf >/dev/null 2>&1 || fail "unable to unmount shared folders, mount point(s) might be still in use"
 
     # Stop VBoxDRMClient.
-    send_sig_usr1_by_pidfile "/var/run/VBoxDRMClient" || fail "unable to stop VBoxDRMClient"
+    send_signal_by_pidfile "-USR1" "/var/run/VBoxDRMClient" || fail "unable to stop VBoxDRMClient"
 
     if [ $? -eq 0 ]; then
         # Tell legacy VBoxClient processes to release vboxguest.ko references.
-        send_sig_usr1 ""
+        send_signal "-USR1" ""
 
         # Tell compatible VBoxClient processes to release vboxguest.ko references.
-        send_sig_usr1 "service"
+        send_signal "-USR1" "service"
 
         # Try unload.
         for attempt in 1 2 3 4 5; do
@@ -1062,7 +1179,6 @@ reload()
             # Try unload drivers unconditionally (ignore previous command exit code).
             # If final goal of unloading vboxguest.ko won't be met, we will fail on
             # the next step anyway.
-            running_vboxvideo && modprobe -r vboxvideo >/dev/null  2>&1
             running_vboxsf && modprobe -r vboxsf >/dev/null  2>&1
             running_vboxguest
             if [ $? -eq 0 ]; then
@@ -1077,35 +1193,38 @@ reload()
         # Check if we succeeded with unloading vboxguest after several attempts.
         running_vboxguest
         if [ $? -eq 0 ]; then
-            fail "Cannot reload kernel modules: one or more module(s) is still in use"
+            info "cannot reload kernel modules: one or more module(s) is still in use"
+            false
         else
             # Do not spoil $?.
             true
         fi
 
         # Load drivers (skip vboxvideo since it is not loaded for very old guests).
-        [ $? -eq 0 ] && modprobe vboxguest >/dev/null 2>&1
-        [ $? -eq 0 ] && modprobe vboxsf >/dev/null 2>&1
+        [ $? -eq 0 ] && try_load_preserve_rc "modprobe vboxguest" "unable to load vboxguest kernel module, see dmesg"
+        [ $? -eq 0 ] && try_load_preserve_rc "modprobe vboxsf" "unable to load vboxsf kernel module, see dmesg"
 
-        # Start VBoxService and VBoxDRMClient (systemctl start vboxadd-service.service).
-        [ $? -eq 0 ] && do_sysvinit_action vboxadd-service start >/dev/null 2>&1
+        # Start VBoxService and VBoxDRMClient.
+        [ $? -eq 0 ] && try_load_preserve_rc "$VBOX_SERVICE_SCRIPT start" "unable to start VBoxService"
 
         # Reload VBoxClient processes.
-        [ $? -eq 0 ] && send_sig_usr1 "control"
+        [ $? -eq 0 ] && try_load_preserve_rc "send_signal -USR1 control" "unable to reload user session services"
+
+        # Check if we just loaded modules of correct version.
+        [ $? -eq 0 ] && try_load_preserve_rc "check_status_kernel" "kernel modules were not reloaded"
+
+        # Check if user-land processes were restarted as well.
+        [ $? -eq 0 ] && try_load_preserve_rc "check_status_user" "user-land services were not started"
 
         if [ $? -eq 0 ]; then
-
-            # Check if we just loaded modules of correct version.
-            check_status_kernel
-
-            # Check if user-land processes were restarted as well.
-            check_status_user
-
             # Take reported version of running Guest Additions from running vboxguest module (as a paranoia check).
             info "kernel modules and services $(running_module_version "vboxguest") reloaded"
             info "NOTE: you may still consider to re-login if some user session specific services (Shared Clipboard, Drag and Drop, Seamless or Guest Screen Resize) were not restarted automatically"
         else
-            fail "cannot verify if kernel modules and services were reloaded"
+            # In case of failure, sent SIGTERM to abandoned control processes to remove leftovers from failed reloading.
+            send_signal "-TERM" "control"
+
+            fail "kernel modules and services were not reloaded"
         fi
     else
         fail "cannot stop user services"
@@ -1128,29 +1247,35 @@ case "$1" in
 # Does setup without clean-up first and marks all kernels currently found on the
 # system so that we can see later if any were added.
 start)
+    check_root
     start
     ;;
 # Tries to build kernel modules for kernels added since start.  Tries to unmount
 # shared folders.  Uninstalls our Chromium 3D libraries since we can't always do
 # this fast enough at start time if we discover we do not want to use them.
 stop)
+    check_root
     stop
     ;;
 restart)
+    check_root
     restart
     ;;
 # Tries to reload kernel modules and restart user processes.
 reload)
+    check_root
     reload
     ;;
 # Setup does a clean-up (see below) and re-does all Additions-specific
 # configuration of the guest system, including building kernel modules for the
 # current kernel.
 setup)
+    check_root
     cleanup && start
     ;;
 # Builds kernel modules for the specified kernels if they are not already built.
 quicksetup)
+    check_root
     if test x"$2" = xall; then
        for topi in /lib/modules/*; do
            KERN_VER="${topi%/misc}"
@@ -1166,20 +1291,30 @@ quicksetup)
 # Clean-up removes all Additions-specific configuration of the guest system,
 # including all kernel modules.
 cleanup)
+    check_root
     cleanup
     ;;
 status)
     dmnstatus
     ;;
 status-kernel)
-    check_status_kernel && info "Kernel modules are loaded"
+    check_root
+    check_status_kernel
+    if [ $? -eq 0 ]; then
+        info "kernel modules are loaded"
+    else
+        info "kernel modules were not loaded"
+        false
+    fi
     ;;
 status-user)
+    check_root
     check_status_user
     if [ $? -eq 0 ]; then
-        info "User-land services are running"
+        info "user-land services are running"
     else
-        fail "User-land services are not running"
+        info "user-land services are not running"
+        false
     fi
     ;;
 *)

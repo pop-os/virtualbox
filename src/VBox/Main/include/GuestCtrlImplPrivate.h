@@ -512,7 +512,7 @@ public:
     }
 
     /**
-     * @copydoc copy()
+     * @copydoc GuestEnvironment::copy()
      */
     GuestEnvironment &operator=(const GuestEnvironmentBase &rThat)
     {
@@ -522,11 +522,11 @@ public:
         return *this;
     }
 
-    /** @copydoc copy() */
+    /** @copydoc GuestEnvironment::copy() */
     GuestEnvironment &operator=(const GuestEnvironment &rThat)
     {   return operator=((const GuestEnvironmentBase &)rThat); }
 
-    /** @copydoc copy() */
+    /** @copydoc GuestEnvironment::copy() */
     GuestEnvironment &operator=(const GuestEnvironmentChanges &rThat)
     {   return operator=((const GuestEnvironmentBase &)rThat); }
 
@@ -594,7 +594,8 @@ public:
     }
 
     /**
-     * @copydoc copy()
+     * @copydoc GuestEnvironmentChanges::copy()
+     * @throws  HRESULT
      */
     GuestEnvironmentChanges &operator=(const GuestEnvironmentBase &rThat)
     {
@@ -604,11 +605,13 @@ public:
         return *this;
     }
 
-    /** @copydoc copy() */
+    /** @copydoc GuestEnvironmentChanges::copy()
+     * @throws  HRESULT */
     GuestEnvironmentChanges &operator=(const GuestEnvironmentChanges &rThat)
     {   return operator=((const GuestEnvironmentBase &)rThat); }
 
-    /** @copydoc copy() */
+    /** @copydoc GuestEnvironmentChanges::copy()
+     * @throws  HRESULT */
     GuestEnvironmentChanges &operator=(const GuestEnvironment &rThat)
     {   return operator=((const GuestEnvironmentBase &)rThat); }
 };
@@ -936,8 +939,8 @@ class GuestProcessStreamValue
 public:
 
     GuestProcessStreamValue(void) { }
-    GuestProcessStreamValue(const char *pszValue)
-        : mValue(pszValue) {}
+    GuestProcessStreamValue(const char *pszValue, size_t cwcValue = RTSTR_MAX)
+        : mValue(pszValue, cwcValue) {}
 
     GuestProcessStreamValue(const GuestProcessStreamValue& aThat)
            : mValue(aThat.mValue) { }
@@ -959,13 +962,22 @@ typedef std::map < Utf8Str, GuestProcessStreamValue > GuestCtrlStreamPairMap;
 typedef std::map < Utf8Str, GuestProcessStreamValue >::iterator GuestCtrlStreamPairMapIter;
 typedef std::map < Utf8Str, GuestProcessStreamValue >::const_iterator GuestCtrlStreamPairMapIterConst;
 
+class GuestProcessStream;
+
 /**
  * Class representing a block of stream pairs (key=value). Each block in a raw guest
  * output stream is separated by "\0\0", each pair is separated by "\0". The overall
  * end of a guest stream is marked by "\0\0\0\0".
+ *
+ * An empty stream block will be treated as being incomplete.
+ *
+ * Only used for the busybox-like toolbox commands within VBoxService.
+ * Deprecated, do not use anymore.
  */
 class GuestProcessStreamBlock
 {
+    friend GuestProcessStream;
+
 public:
 
     GuestProcessStreamBlock(void);
@@ -989,19 +1001,42 @@ public:
     uint32_t    GetUInt32(const char *pszKey, uint32_t uDefault = 0) const;
     int32_t     GetInt32(const char *pszKey, int32_t iDefault = 0) const;
 
-    bool        IsEmpty(void) { return mPairs.empty(); }
+    bool        IsComplete(void) const { return !m_mapPairs.empty() && m_fComplete; }
+    bool        IsEmpty(void) const { return m_mapPairs.empty(); }
 
+    int         SetValueEx(const char *pszKey, size_t cwcKey, const char *pszValue, size_t cwcValue, bool fOverwrite = false);
     int         SetValue(const char *pszKey, const char *pszValue);
 
 protected:
 
-    GuestCtrlStreamPairMap mPairs;
+    /** Wheter the stream block is marked as complete.
+     *  An empty stream block is considered as incomplete. */
+    bool                   m_fComplete;
+    /** Map of stream pairs this block contains.*/
+    GuestCtrlStreamPairMap m_mapPairs;
 };
 
 /** Vector containing multiple allocated stream pair objects. */
 typedef std::vector< GuestProcessStreamBlock > GuestCtrlStreamObjects;
 typedef std::vector< GuestProcessStreamBlock >::iterator GuestCtrlStreamObjectsIter;
 typedef std::vector< GuestProcessStreamBlock >::const_iterator GuestCtrlStreamObjectsIterConst;
+
+/** Defines a single terminator as a single char. */
+#define GUESTTOOLBOX_STRM_TERM                      '\0'
+/** Defines a single terminator as a string. */
+#define GUESTTOOLBOX_STRM_TERM_STR                  "\0"
+/** Defines the termination sequence for a single key/value pair. */
+#define GUESTTOOLBOX_STRM_TERM_PAIR_STR             GUESTTOOLBOX_STRM_TERM_STR
+/** Defines the termination sequence for a single stream block. */
+#define GUESTTOOLBOX_STRM_TERM_BLOCK_STR            GUESTTOOLBOX_STRM_TERM_STR GUESTTOOLBOX_STRM_TERM_STR
+/** Defines the termination sequence for the stream. */
+#define GUESTTOOLBOX_STRM_TERM_STREAM_STR           GUESTTOOLBOX_STRM_TERM_STR GUESTTOOLBOX_STRM_TERM_STR GUESTTOOLBOX_STRM_TERM_STR GUESTTOOLBOX_STRM_TERM_STR
+/** Defines how many consequtive terminators a key/value pair has. */
+#define GUESTTOOLBOX_STRM_PAIR_TERM_CNT             1
+/** Defines how many consequtive terminators a stream block has. */
+#define GUESTTOOLBOX_STRM_BLK_TERM_CNT              2
+/** Defines how many consequtive terminators a stream has. */
+#define GUESTTOOLBOX_STRM_TERM_CNT                  4
 
 /**
  * Class for parsing machine-readable guest process output by VBoxService'
@@ -1026,9 +1061,11 @@ public:
     void Dump(const char *pszFile);
 #endif
 
-    size_t GetOffset() { return m_offBuffer; }
+    size_t GetOffset(void) const { return m_offBuf; }
 
-    size_t GetSize() { return m_cbUsed; }
+    size_t GetSize(void) const { return m_cbUsed; }
+
+    size_t GetBlocks(void) const { return m_cBlocks; }
 
     int ParseBlock(GuestProcessStreamBlock &streamBlock);
 
@@ -1042,9 +1079,11 @@ protected:
     /** Currently used size at m_offBuffer. */
     size_t m_cbUsed;
     /** Current byte offset within the internal stream buffer. */
-    size_t m_offBuffer;
+    size_t m_offBuf;
     /** Internal stream buffer. */
     BYTE  *m_pbBuffer;
+    /** How many completed stream blocks already were processed. */
+    size_t m_cBlocks;
 };
 
 class Guest;

@@ -33,7 +33,9 @@ include $(KBUILD_PATH)/subheader.kmk
 #
 ifndef VBOX_ONLY_ROOT_MAKEFILE
  if   (defined(VBOX_WITH_DOCS) || defined(VBOX_WITH_MAIN)) \
-   && (!defined(VBOX_ONLY_BUILD) || defined(VBOX_ONLY_DOCS) || defined(VBOX_ONLY_SDK)) \
+   && (   !defined(VBOX_ONLY_BUILD) \
+       || defined(VBOX_ONLY_DOCS) \
+       || (defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_SDK_IN_VM))) \
    && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
   include $(PATH_SUB_CURRENT)/doc/manual/Makefile.kmk
  endif
@@ -98,7 +100,9 @@ if   !defined(VBOX_ONLY_ADDITIONS) \
  # To avoid dragging in unnecessary tools and sdks here, we don't use the .win
  # and .linux property suffixes.
  #
- INSTALLS += InstallExternalLibs
+ if !defined(VBOX_ONLY_SDK)
+  INSTALLS += InstallExternalLibs
+ endif
 
  InstallExternalLibs_INST = $(INST_BIN)
 
@@ -221,145 +225,141 @@ if   !defined(VBOX_ONLY_ADDITIONS) \
  #       https://developer.apple.com/library/mac/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/FrameworkAnatomy.html
  #       the Info.plist file goes into Resources.
  #
- ifeq ($(KBUILD_TARGET),darwin)
-  ifdef VBOX_WITH_QT6
-   include $(KBUILD_PATH)/units/qt6.kmk
-   VBOX_QT_FWRK_VER = A
-   VBOX_QT_PATH    = $(PATH_SDK_QT6)
-   VBOX_QT_PATH_LIB = $(PATH_SDK_QT6_LIB)
-  else
-   include $(KBUILD_PATH)/units/qt5.kmk
-   VBOX_QT_FWRK_VER = 5
-   VBOX_QT_PATH    = $(PATH_SDK_QT5)
-   VBOX_QT_PATH_LIB = $(PATH_SDK_QT5_LIB)
-  endif
-  ifdef VBOX_WITH_QTGUI
+ if defined(VBOX_WITH_QTGUI) && !defined(VBOX_ONLY_SDK)
+  ifeq ($(KBUILD_TARGET),darwin)
+   ifdef VBOX_WITH_QT6
+    include $(KBUILD_PATH)/units/qt6.kmk
+    VBOX_QT_FWRK_VER = A
+    VBOX_QT_PATH   = $(PATH_SDK_QT6)
+    VBOX_QT_PATH_LIB = $(PATH_SDK_QT6_LIB)
+   else
+    include $(KBUILD_PATH)/units/qt5.kmk
+    VBOX_QT_FWRK_VER = 5
+    VBOX_QT_PATH   = $(PATH_SDK_QT5)
+    VBOX_QT_PATH_LIB = $(PATH_SDK_QT5_LIB)
+   endif
    INSTALLS += qt5-bin
-  endif
-  qt5-bin_INST = $(INST_VIRTUALBOX)Contents/
-  qt5-bin_EXEC_SOURCES = $(foreach qtmod,$(VBOX_QT_MOD_NAMES), \
-  	$(VBOX_QT_PATH_LIB)/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/$(qtmod)=>Frameworks/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/$(qtmod))
-  qt5-bin_SOURCES = $(foreach qtmod,$(VBOX_QT_MOD_NAMES), \
-  	$(VBOX_QT_PATH_LIB)/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/Resources/Info.plist=>Frameworks/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/Resources/Info.plist)
-  ifdef VBOX_WITH_QT_DSYMS
-   qt5-bin_SOURCES += $(foreach qtmod,$(VBOX_QT_MOD_NAMES), \
-   	$(VBOX_QT_PATH_LIB)/$(qtmod).framework.dSYM/Contents/Info.plist=>Frameworks/$(qtmod).framework.dSYM/Contents/Info.plist \
-   	$(VBOX_QT_PATH_LIB)/$(qtmod).framework.dSYM/Contents/Resources/DWARF/$(qtmod)=>Frameworks/$(qtmod).framework.dSYM/Contents/Resources/DWARF/$(qtmod))
-  endif
-  qt5-bin_EXEC_SOURCES += \
-  	$(VBOX_QT_PATH)/plugins/platforms/libqcocoa$(SUFF_DLL)=>plugins/platforms/libqcocoa$(SUFF_DLL) \
-  	$(VBOX_QT_PATH)/plugins/platforms/libqminimal$(SUFF_DLL)=>plugins/platforms/libqminimal$(SUFF_DLL) \
-  	$(VBOX_QT_PATH)/plugins/platforms/libqoffscreen$(SUFF_DLL)=>plugins/platforms/libqoffscreen$(SUFF_DLL) \
-  	$(VBOX_QT_PATH)/plugins/sqldrivers/libqsqlite$(SUFF_DLL)=>plugins/sqldrivers/libqsqlite$(SUFF_DLL) \
-  	$(VBOX_QT_PATH)/plugins/styles/libqmacstyle$(SUFF_DLL)=>plugins/styles/libqmacstyle$(SUFF_DLL)
-  ifdef VBOX_WITH_QT_DSYMS
-   qt5-bin_SOURCES += $(foreach qtplat, libqcocoa libqminimal libqoffscreen, \
-   	$(VBOX_QT_PATH)/plugins/platforms/$(qtplat)$(SUFF_DLL).dSYM/Contents/Info.plist=>plugins/platforms/$(qtplat)$(SUFF_DLL).dSYM/Contents/Info.plist \
-   	$(VBOX_QT_PATH)/plugins/platforms/$(qtplat)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtplat)$(SUFF_DLL)=>plugins/platforms/$(qtplat)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtplat)$(SUFF_DLL))
-   qt5-bin_SOURCES += $(foreach qtsqldrv, libqsqlite, \
-   	$(VBOX_QT_PATH)/plugins/sqldrivers/$(qtsqldrv)$(SUFF_DLL).dSYM/Contents/Info.plist=>plugins/sqldrivers/$(qtsqldrv)$(SUFF_DLL).dSYM/Contents/Info.plist \
-   	$(VBOX_QT_PATH)/plugins/sqldrivers/$(qtsqldrv)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtsqldrv)$(SUFF_DLL)=>plugins/sqldrivers/$(qtsqldrv)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtsqldrv)$(SUFF_DLL))
-   qt5-bin_SOURCES += $(foreach qtstyl, libqmacstyle, \
-   	$(VBOX_QT_PATH)/plugins/styles/$(qtstyl)$(SUFF_DLL).dSYM/Contents/Info.plist=>plugins/styles/$(qtstyl)$(SUFF_DLL).dSYM/Contents/Info.plist \
-   	$(VBOX_QT_PATH)/plugins/styles/$(qtstyl)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtstyl)$(SUFF_DLL)=>plugins/styles/$(qtstyl)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtstyl)$(SUFF_DLL))
-  endif
-  qt5-bin_SYMLINKS = $(foreach qtmod, $(VBOX_QT_MOD_NAMES), \
-  	Frameworks/$(qtmod).framework/Versions/Current=>$(VBOX_QT_FWRK_VER) \
-  	Frameworks/$(qtmod).framework/$(qtmod)=>Versions/$(VBOX_QT_FWRK_VER)/$(qtmod) \
-  	Frameworks/$(qtmod).framework/Resources=>Versions/$(VBOX_QT_FWRK_VER)/Resources)
-  qt5-bin_INSTALLER = $(INSTALL) $(if $(uid),-o $(uid)) $(if $(gid),-g $(gid)) $(if $(mode),-m $(mode)) $(4) -- \
-  	"$(1)" "$(2)" $(if-expr "$(source_type_prefix)" == "EXEC_" \
-  	,$(NLTAB)install_name_tool \
-  	$(if-expr "$(suffix $2)" == "", -id "$(if $(VBOX_WITH_HARDENING),/Applications/VirtualBox.app/Contents/Framework,@rpath)/$(notdir $(2)).framework/Version/$(VBOX_QT_FWRK_VER)/$(notdir $(2))",) \
-  	$(foreach qtmod, $(VBOX_QT_MOD_NAMES), \
-  	$(foreach prefix, @executable_path/../Frameworks/ $(VBOX_PATH_QT)/Frameworks/ $(VBOX_QT_PATH)/, \
-  	-change "$(prefix)$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/$(qtmod)" \
-  	"$(if $(VBOX_WITH_HARDENING),/Applications/VirtualBox.app/Contents/Frameworks,@rpath)/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/$(qtmod)" ) ) \
-  	"$(2)",)  # HACK ALERT! Using $(source_type_prefix) to detect EXEC_SOURCES.
- else # win x11
-  if1of ($(KBUILD_TARGET), linux solaris)
-   if !defined(VBOX_ONLY_BUILD) && defined(VBOX_WITH_QTGUI)
-    ifneq ($(VBOX_GCC_VERSION_CXX),)
-     if $(VBOX_GCC_VERSION_CXX) < 40400
-      $(error gcc >= 4.4 required when compiling against Qt5!)
+   qt5-bin_INST = $(INST_VIRTUALBOX)Contents/
+   qt5-bin_EXEC_SOURCES = $(foreach qtmod,$(VBOX_QT_MOD_NAMES), \
+   	$(VBOX_QT_PATH_LIB)/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/$(qtmod)=>Frameworks/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/$(qtmod))
+   qt5-bin_SOURCES = $(foreach qtmod,$(VBOX_QT_MOD_NAMES), \
+   	$(VBOX_QT_PATH_LIB)/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/Resources/Info.plist=>Frameworks/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/Resources/Info.plist)
+   ifdef VBOX_WITH_QT_DSYMS
+    qt5-bin_SOURCES += $(foreach qtmod,$(VBOX_QT_MOD_NAMES), \
+    	$(VBOX_QT_PATH_LIB)/$(qtmod).framework.dSYM/Contents/Info.plist=>Frameworks/$(qtmod).framework.dSYM/Contents/Info.plist \
+    	$(VBOX_QT_PATH_LIB)/$(qtmod).framework.dSYM/Contents/Resources/DWARF/$(qtmod)=>Frameworks/$(qtmod).framework.dSYM/Contents/Resources/DWARF/$(qtmod))
+   endif
+   qt5-bin_EXEC_SOURCES += \
+   	$(VBOX_QT_PATH)/plugins/platforms/libqcocoa$(SUFF_DLL)=>plugins/platforms/libqcocoa$(SUFF_DLL) \
+   	$(VBOX_QT_PATH)/plugins/platforms/libqminimal$(SUFF_DLL)=>plugins/platforms/libqminimal$(SUFF_DLL) \
+   	$(VBOX_QT_PATH)/plugins/platforms/libqoffscreen$(SUFF_DLL)=>plugins/platforms/libqoffscreen$(SUFF_DLL) \
+   	$(VBOX_QT_PATH)/plugins/sqldrivers/libqsqlite$(SUFF_DLL)=>plugins/sqldrivers/libqsqlite$(SUFF_DLL) \
+   	$(VBOX_QT_PATH)/plugins/styles/libqmacstyle$(SUFF_DLL)=>plugins/styles/libqmacstyle$(SUFF_DLL)
+   ifdef VBOX_WITH_QT_DSYMS
+    qt5-bin_SOURCES += $(foreach qtplat, libqcocoa libqminimal libqoffscreen, \
+    	$(VBOX_QT_PATH)/plugins/platforms/$(qtplat)$(SUFF_DLL).dSYM/Contents/Info.plist=>plugins/platforms/$(qtplat)$(SUFF_DLL).dSYM/Contents/Info.plist \
+    	$(VBOX_QT_PATH)/plugins/platforms/$(qtplat)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtplat)$(SUFF_DLL)=>plugins/platforms/$(qtplat)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtplat)$(SUFF_DLL))
+    qt5-bin_SOURCES += $(foreach qtsqldrv, libqsqlite, \
+    	$(VBOX_QT_PATH)/plugins/sqldrivers/$(qtsqldrv)$(SUFF_DLL).dSYM/Contents/Info.plist=>plugins/sqldrivers/$(qtsqldrv)$(SUFF_DLL).dSYM/Contents/Info.plist \
+    	$(VBOX_QT_PATH)/plugins/sqldrivers/$(qtsqldrv)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtsqldrv)$(SUFF_DLL)=>plugins/sqldrivers/$(qtsqldrv)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtsqldrv)$(SUFF_DLL))
+    qt5-bin_SOURCES += $(foreach qtstyl, libqmacstyle, \
+    	$(VBOX_QT_PATH)/plugins/styles/$(qtstyl)$(SUFF_DLL).dSYM/Contents/Info.plist=>plugins/styles/$(qtstyl)$(SUFF_DLL).dSYM/Contents/Info.plist \
+    	$(VBOX_QT_PATH)/plugins/styles/$(qtstyl)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtstyl)$(SUFF_DLL)=>plugins/styles/$(qtstyl)$(SUFF_DLL).dSYM/Contents/Resources/DWARF/$(qtstyl)$(SUFF_DLL))
+   endif
+   qt5-bin_SYMLINKS = $(foreach qtmod, $(VBOX_QT_MOD_NAMES), \
+   	Frameworks/$(qtmod).framework/Versions/Current=>$(VBOX_QT_FWRK_VER) \
+   	Frameworks/$(qtmod).framework/$(qtmod)=>Versions/$(VBOX_QT_FWRK_VER)/$(qtmod) \
+   	Frameworks/$(qtmod).framework/Resources=>Versions/$(VBOX_QT_FWRK_VER)/Resources)
+   qt5-bin_INSTALLER = $(INSTALL) $(if $(uid),-o $(uid)) $(if $(gid),-g $(gid)) $(if $(mode),-m $(mode)) $(4) -- \
+   	"$(1)" "$(2)" $(if-expr "$(source_type_prefix)" == "EXEC_" \
+   	,$(NLTAB)install_name_tool \
+   	$(if-expr "$(suffix $2)" == "", -id "$(if $(VBOX_WITH_HARDENING),/Applications/VirtualBox.app/Contents/Framework,@rpath)/$(notdir $(2)).framework/Version/$(VBOX_QT_FWRK_VER)/$(notdir $(2))",) \
+   	$(foreach qtmod, $(VBOX_QT_MOD_NAMES), \
+   	$(foreach prefix, @executable_path/../Frameworks/ $(VBOX_PATH_QT)/Frameworks/ $(VBOX_QT_PATH)/, \
+   	-change "$(prefix)$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/$(qtmod)" \
+   	"$(if $(VBOX_WITH_HARDENING),/Applications/VirtualBox.app/Contents/Frameworks,@rpath)/$(qtmod).framework/Versions/$(VBOX_QT_FWRK_VER)/$(qtmod)" ) ) \
+   	"$(2)",)  # HACK ALERT! Using $(source_type_prefix) to detect EXEC_SOURCES.
+  else # win x11
+   if1of ($(KBUILD_TARGET), linux solaris)
+    if !defined(VBOX_ONLY_BUILD) && defined(VBOX_WITH_QTGUI)
+     ifneq ($(VBOX_GCC_VERSION_CXX),)
+      if $(VBOX_GCC_VERSION_CXX) < 40400
+       $(error gcc >= 4.4 required when compiling against Qt5!)
+      endif
      endif
     endif
    endif
-  endif
-  if defined(VBOX_WITH_ORACLE_QT) || defined(VBOX_WITH_QT_PAYLOAD)
-   include $(KBUILD_PATH)/units/qt5.kmk
-   ifeq ($(KBUILD_TARGET),win)
-    ifdef VBOX_WITH_QTGUI
+   if defined(VBOX_WITH_ORACLE_QT) || defined(VBOX_WITH_QT_PAYLOAD)
+    include $(KBUILD_PATH)/units/qt5.kmk
+    ifeq ($(KBUILD_TARGET),win)
      INSTALLS += qt5-bin
-    endif
-    qt5-bin_MODE = 755
-    qt5-bin_INST = $(INST_BIN)
-    qt5-bin_SOURCES = \
-    	$(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/bin/$(qtmod)$(SUFF_DLL)))
-    qt5-bin_SOURCES += \
-    	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/platforms/qwindows$(SUFF_DLL))=>platforms/qwindows$(SUFF_DLL) \
-    	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/platforms/qminimal$(SUFF_DLL))=>platforms/qminimal$(SUFF_DLL) \
-    	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/platforms/qoffscreen$(SUFF_DLL))=>platforms/qoffscreen$(SUFF_DLL) \
-    	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/sqldrivers/qsqlite$(SUFF_DLL))=>sqldrivers/qsqlite$(SUFF_DLL) \
-    	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/styles/qwindowsvistastyle$(SUFF_DLL))=>styles/qwindowsvistastyle$(SUFF_DLL)
-    ifdef VBOX_WITH_QT_PDBS
+     qt5-bin_MODE = 755
+     qt5-bin_INST = $(INST_BIN)
+     qt5-bin_SOURCES = \
+     	$(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/bin/$(qtmod)$(SUFF_DLL)))
      qt5-bin_SOURCES += \
-     	$(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(wildcard $(PATH_SDK_QT5)/qt*/$(VBOX_PATH_QT_LIB)/$(qtmod).pdb))
-    endif # VBOX_WITH_QT_PDBS
-   else # x11
-    ifdef VBOX_WITH_QTGUI
+     	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/platforms/qwindows$(SUFF_DLL))=>platforms/qwindows$(SUFF_DLL) \
+     	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/platforms/qminimal$(SUFF_DLL))=>platforms/qminimal$(SUFF_DLL) \
+     	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/platforms/qoffscreen$(SUFF_DLL))=>platforms/qoffscreen$(SUFF_DLL) \
+     	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/sqldrivers/qsqlite$(SUFF_DLL))=>sqldrivers/qsqlite$(SUFF_DLL) \
+     	$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/styles/qwindowsvistastyle$(SUFF_DLL))=>styles/qwindowsvistastyle$(SUFF_DLL)
+     ifdef VBOX_WITH_QT_PDBS
+      qt5-bin_SOURCES += \
+      	$(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(wildcard $(PATH_SDK_QT5)/qt*/$(VBOX_PATH_QT_LIB)/$(qtmod).pdb))
+     endif # VBOX_WITH_QT_PDBS
+    else # x11
      INSTALLS += qt5-bin
-    endif
-    qt5-bin_MODE = 755
-    qt5-bin_INST = $(INST_BIN)
-    ifdef VBOX_WITH_HARDENING
-     # The wildcards are necessary to install the libs instead of the symlinks
-     qt5-bin_SOURCES = \
-     	$(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(wildcard $(VBOX_PATH_QT_LIB)/lib$(qtmod).so.*.*.*[0-9])=>lib$(qtmod).so.5) \
-     	$(foreach lib,$(VBOX_QT_PLUGINS),$(VBOX_PATH_QT)/$(lib)=>$(lib))
-    else # !VBOX_WITH_HARDENING
-     # For non-hardened builds we need to remove the RUNPATH. This stuff is
-     # ugly but we need to prevent kBuild from hard-linking otherwise we
-     # (indirectly) change the binaries in tools
-     ifneq ($(KBUILD_TARGET),solaris)
-      QT5_VERSION = 5.15.2
-     else
-      QT5_VERSION = 5.15.2
-     endif
-     qt5-bin_SOURCES = \
-     	$(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(qt5-bin_0_OUTDIR)/lib$(qtmod).so.$(QT5_VERSION)=>lib$(qtmod).so.5) \
-     	$(foreach lib,$(VBOX_QT_PLUGINS),$(qt5-bin_0_OUTDIR)/$(lib)=>$(lib))
+     qt5-bin_MODE = 755
+     qt5-bin_INST = $(INST_BIN)
+     ifdef VBOX_WITH_HARDENING
+      # The wildcards are necessary to install the libs instead of the symlinks
+      qt5-bin_SOURCES = \
+      	$(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(wildcard $(VBOX_PATH_QT_LIB)/lib$(qtmod).so.*.*.*[0-9])=>lib$(qtmod).so.5) \
+      	$(foreach lib,$(VBOX_QT_PLUGINS),$(VBOX_PATH_QT)/$(lib)=>$(lib))
+     else # !VBOX_WITH_HARDENING
+      # For non-hardened builds we need to remove the RUNPATH. This stuff is
+      # ugly but we need to prevent kBuild from hard-linking otherwise we
+      # (indirectly) change the binaries in tools
+      ifneq ($(KBUILD_TARGET),solaris)
+       QT5_VERSION = 5.15.2
+      else
+       QT5_VERSION = 5.15.2
+      endif
+      qt5-bin_SOURCES = \
+      	$(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(qt5-bin_0_OUTDIR)/lib$(qtmod).so.$(QT5_VERSION)=>lib$(qtmod).so.5) \
+      	$(foreach lib,$(VBOX_QT_PLUGINS),$(qt5-bin_0_OUTDIR)/$(lib)=>$(lib))
 
-     $(foreach qtmod,$(VBOX_QT_MOD_NAMES),$$(qt5-bin_0_OUTDIR)/lib$(qtmod).so.$(QT5_VERSION)): \
-     		$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT_LIB)/% | $$(qt5-bin_0_OUTDIR)/
+      $(foreach qtmod,$(VBOX_QT_MOD_NAMES),$$(qt5-bin_0_OUTDIR)/lib$(qtmod).so.$(QT5_VERSION)): \
+      		$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT_LIB)/% | $$(qt5-bin_0_OUTDIR)/
 	$(call MSG_INST_FILE,$^,$@)
 	$(QUIET)$(CP) $^ $@
 	$(QUIET)chrpath --replace "\$$ORIGIN" $@
 
-     ifn1of ($(KBUILD_TARGET), solaris linux)
-      $(foreach lib,$(VBOX_QT_PLUGINS),$$(qt5-bin_0_OUTDIR)/$(lib)): \
-      		$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT)/% | $$(qt5-bin_0_OUTDIR)/
+      ifn1of ($(KBUILD_TARGET), solaris linux)
+       $(foreach lib,$(VBOX_QT_PLUGINS),$$(qt5-bin_0_OUTDIR)/$(lib)): \
+       		$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT)/% | $$(qt5-bin_0_OUTDIR)/
 	$(call MSG_INST_FILE,$^,$@)
 	$(QUIET)$(MKDIR) -p $(@D)
 	$(QUIET)$(CP) $^ $@
 	$(QUIET)chrpath --delete $@
-     endif # !solaris and !linux
+      endif # !solaris and !linux
 
-     # @todo For solaris and some linuxes dlopen fails to navigate executable rpath to dependent libraries,
-     #       so add explicit rpath for libqxcb.so, find better solution later.
-     if1of ($(KBUILD_TARGET), solaris linux)
-      $(foreach lib,$(VBOX_QT_PLUGINS),$$(qt5-bin_0_OUTDIR)/$(lib)): \
-      		$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT)/% | $$(qt5-bin_0_OUTDIR)/
+      # @todo For solaris and some linuxes dlopen fails to navigate executable rpath to dependent libraries,
+      #       so add explicit rpath for libqxcb.so, find better solution later.
+      if1of ($(KBUILD_TARGET), solaris linux)
+       $(foreach lib,$(VBOX_QT_PLUGINS),$$(qt5-bin_0_OUTDIR)/$(lib)): \
+       		$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT)/% | $$(qt5-bin_0_OUTDIR)/
 	$(call MSG_INST_FILE,$^,$@)
 	$(QUIET)$(MKDIR) -p $(@D)
 	$(QUIET)$(CP) $^ $@
 	$(QUIET)chrpath --replace "\$$ORIGIN/../../" $@
-     endif # solaris linux
+      endif # solaris linux
 
-    endif # !VBOX_WITH_HARDENING
-   endif # x11
-  endif # VBOX_WITH_ORACLE_QT || VBOX_WITH_QT_PAYLOAD
- endif # win x11
+     endif # !VBOX_WITH_HARDENING
+    endif # x11
+   endif # VBOX_WITH_ORACLE_QT || VBOX_WITH_QT_PAYLOAD
+  endif # win x11
+ endif # defined(VBOX_WITH_QTGUI) && !defined(VBOX_ONLY_SDK)
 
 
  #
@@ -454,7 +454,7 @@ if   !defined(VBOX_ONLY_ADDITIONS) \
  endif # VBOX_WITH_DOCS_FROM_BUILD_SERVER
 
 
- ifdef VBOX_WITH_EFI
+ if defined(VBOX_WITH_EFI) && !defined(VBOX_ONLY_SDK)
   #
   # Install EFI firmware image
   #
@@ -523,7 +523,7 @@ if   !defined(VBOX_ONLY_ADDITIONS) \
    	$(PATH_ROOT)/src/VBox/Devices/EFI/FirmwareBin/VBoxEFI32.fd=>VBoxEFI32.fd \
    	$(PATH_ROOT)/src/VBox/Devices/EFI/FirmwareBin/VBoxEFI64.fd=>VBoxEFI64.fd
   endif # !VBOX_WITH_EFIFW_FROM_BUILD_SERVER
- endif # VBOX_WITH_EFI
+ endif # VBOX_WITH_EFI && !VBOX_ONLY_SDK
 
 
  ifdef VBOX_WITH_EXTPACKS_FROM_BUILD_SERVER
@@ -953,7 +953,7 @@ VBOX_CORE_DOXYFILE_INPUT := \
 	, $(wildcard $(dir)/*.cpp $(dir)/*.c $(dir)/*.m $(dir)/*.mm $(dir)/*.py $(dir)/.asm))
 VBOX_CORE_DOXYFILE_INPUT := \
 	$(VBOX_CORE_DOXYFILE_INPUT_FIRST) \
-	$(sort $(filter-out $(VBOX_CORE_DOXYFILE_INPUT_FIRST), $(VBOX_CORE_DOXYFILE_INPUT)))
+	$(sort $(filter-out $(VBOX_CORE_DOXYFILE_INPUT_FIRST) %/CPUM-armv8.cpp, $(VBOX_CORE_DOXYFILE_INPUT)))
 
 VBOX_CORE_DOXYFILE_INPUT += \
 	$(wildcard $(PATH_ROOT)/src/VBox/VMM/VMMAll/*.h $(PATH_ROOT)/src/VBox/VMM/VMMR3/*.h $(PATH_ROOT)/src/VBox/VMM/VMMR0/*.h )
@@ -978,7 +978,17 @@ $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Core: Doxyfile.Core \
 		"$(PATH_ROOT)/src/VBox/HostServices/SharedOpenGL/crserver/main.c" \
 		"$(PATH_ROOT)/src/VBox/HostServices/SharedOpenGL/crserverlib/server_main.c" \
 		"$(PATH_ROOT)/src/VBox/HostServices/SharedOpenGL/unpacker/unpack_arrays.c" \
-		"$(PATH_ROOT)/src/VBox/Additions/common/crOpenGL/context.c"
+		"$(PATH_ROOT)/src/VBox/Additions/common/crOpenGL/context.c" \
+		\
+		"$(PATH_ROOT)/src/VBox/VMM/include/IEMInternal-armv8.h" \
+		             "src/VBox/VMM/include/IEMInternal-armv8.h" \
+		"$(PATH_ROOT)/src/VBox/VMM/VMMAll/CPUMAllRegs-armv8.cpp" \
+		             "src/VBox/VMM/VMMAll/CPUMAllRegs-armv8.cpp" \
+		"$(PATH_ROOT)/src/VBox/VMM/VMMR3/CPUM-armv8.cpp" \
+		             "src/VBox/VMM/VMMR3/CPUM-armv8.cpp" \
+		"$(PATH_ROOT)/src/VBox/VMM/VMMR3/HM-armv8.cpp" \
+		             "src/VBox/VMM/VMMR3/HM-armv8.cpp"
+## @todo ARMv8: crap is duplicated multiple times or in different sections. Clean up the above *armv8* mess.
 	$(QUIET)$(APPEND) $@.tmp
 	$(QUIET)$(APPEND) $@.tmp 'INPUT = $(foreach x,$(VBOX_CORE_DOXYFILE_INPUT),\$(NLTAB)$(x))'
 	$(QUIET)$(APPEND) $@.tmp
@@ -998,7 +1008,7 @@ $(VBOX_CORE_DOXYFILE_OUTPUT)/docs.Core: $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Co
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(RM) -Rf $(VBOX_CORE_DOXYFILE_OUTPUT)/html/
 	$(if-expr $(VBOX_JAVA_VERSION)+0 >= 70000, $(REDIRECT) -E "PATH=$(VBOX_JAVA_BIN_PATH)$(HOST_PATH_SEP)$(PATH)" --,) \
-		doxygen $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Core
+		$(VBOX_DOXYGEN) $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Core
 	$(SED) -n \
                -e ':nextwarning' \
                -e '/^ *$(DOLLAR)/d' \
@@ -1008,6 +1018,7 @@ $(VBOX_CORE_DOXYFILE_OUTPUT)/docs.Core: $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Co
                -e '/\/src\/VBox\/Additions\/x11\/VBoxClient\/seamless-x11\.h.* warning/b ignore' \
                -e '/\/src\/VBox\/HostDrivers\/Support\/win\/SUPR3HardenedMain-win\.cpp.* warning/b ignore' \
                -e '/\/src\/VBox\/ValidationKit\/.* warning/b ignore' \
+               -e '/WRAPPED_MODULE_SYMBOL_INCLUDE/b ignore' \
                \
                -e '/unable to resolve link to .dtrace_pops_t./b ignore' \
                \
@@ -1341,8 +1352,42 @@ else
  additions-build-linux.rsync-into-vm:
 	$(TIME) -- $(call VBOX_RSYNC_IN_FN,linux,*) \
 		'--exclude=src/VBox/Additions/WINNT/**' \
+		'--include=src/VBox/Devices/' \
+		'--include=src/VBox/Devices/Audio/' \
+		'--include=src/VBox/Devices/Audio/**' \
+		'--include=src/VBox/Devices/build/' \
+		'--include=src/VBox/Devices/build/**' \
+		'--exclude=src/VBox/Devices/**' \
+		'--exclude=src/VBox/Debugger/**' \
+		'--exclude=src/VBox/ExtPacks/**' \
 		'--exclude=src/VBox/Frontends/**' \
+		'--exclude=src/VBox/HostService/**' \
+		'--exclude=src/VBox/ImageMounter/**' \
+		'--exclude=src/VBox/Main/**' \
+		'--exclude=src/VBox/NetworkServices/**' \
+		'--exclude=src/VBox/RDP/**' \
+		'--exclude=src/VBox/Storage/**' \
+		'--include=src/VBox/ValidationKit/' \
+		'--include=src/VBox/ValidationKit/Config.kmk' \
+		'--include=src/VBox/ValidationKit/utils/' \
+		'--include=src/VBox/ValidationKit/utils/audio/' \
+		'--include=src/VBox/ValidationKit/utils/audio/**' \
+		'--exclude=src/VBox/ValidationKit/**' \
 		'--exclude=src/VBox/VMM/**' \
+		'--exclude=src/libs/dxvk-native-**' \
+		'--exclude=src/libs/curl-**' \
+		'--exclude=src/libs/libjpeg-turbo-**' \
+		'--exclude=src/libs/libogg-**' \
+		'--exclude=src/libs/libpng-**' \
+		'--exclude=src/libs/libssh-**' \
+		'--exclude=src/libs/libtpms-**' \
+		'--exclude=src/libs/libvorbis-**' \
+		'--exclude=src/libs/libvpx-**' \
+		'--exclude=src/libs/libxml-**' \
+		'--exclude=src/libs/softfloat-**' \
+		'--exclude=src/libs/TestFloat-**' \
+		'--exclude=src/libs/xpcom18a4/**' \
+		'--exclude=src/apps/**' \
 		. $(VBOX_BLD_VM_LNX_IP):/mnt/tinderbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)
 
  additions-build-linux.build-it: additions-build-linux.rsync-into-vm
@@ -1656,11 +1701,20 @@ ifeq ($(KBUILD_TARGET),linux)
 else
  # Serialize 32-bit and 64-bit ASSUMING the same VM builds both.
  extpacks-build-linux.rsync-into-vm: $(VBOX_EXTPACKS_BUILD_WIN_HOST_FIRST)
-	$(TIME) -- $(call VBOX_RSYNC_IN_FN,linux,*) . $(VBOX_BLD_VM_LNX_IP):/mnt/tinderbox/$(VBOX_EXTPACKS_BUILD_SUBDIRNAME)
+	$(TIME) -- $(call VBOX_RSYNC_IN_FN,linux,*) \
+		'--exclude=src/VBox/Additions/**' \
+		'--exclude=src/VBox/Debugger/**' \
+		'--exclude=src/VBox/Frontends/**' \
+		'--exclude=src/VBox/GuestHost/**' \
+		'--exclude=src/VBox/HostServices/**' \
+		'--exclude=src/VBox/ImageMounter/**' \
+		'--exclude=src/VBox/NetworkServices/**' \
+		'--exclude=src/app/**' \
+		. $(VBOX_BLD_VM_LNX_IP):/mnt/tinderbox/$(VBOX_EXTPACKS_BUILD_SUBDIRNAME)
 
  extpacks-build-linux.build-it: extpacks-build-linux.rsync-into-vm
 	$(call VBOX_BLD_VM_MSG_BEGIN,Linux/amd64 extension packs)
-	$(TIME) -- $(VBOX_SSH) vbox@$(VBOX_BLD_VM_LNX_IP)         'dchroot -c debian-4.0-amd64 "cd /mnt/tinderbox/$(VBOX_EXTPACKS_BUILD_SUBDIRNAME) && tools/env.sh --no-wine kmk $(VBOX_EXTPACKS_BUILD.amd64) all " '
+	$(TIME) -- $(VBOX_SSH) vbox@$(VBOX_BLD_VM_LNX_IP)         'dchroot -c ol-7.5-amd64 "cd /mnt/tinderbox/$(VBOX_EXTPACKS_BUILD_SUBDIRNAME) && PATH=/opt/rh/devtoolset-9/root/bin:$$PATH tools/env.sh --no-wine kmk $(VBOX_EXTPACKS_BUILD.amd64) all " '
 	$(call VBOX_BLD_VM_MSG_END__,Linux/amd64 extension packs)
  if1of (x86, $(VBOX_SUPPORTED_HOST_ARCHS))
 	$(call VBOX_BLD_VM_MSG_BEGIN,Linux/x86 extension packs)
@@ -1864,8 +1918,7 @@ else # !OS/2
  validationkit-build-os2.rsync-into-vm:
 	-$(VBOX_BLD_VM_OS2_KKILL_STUFF)
 	$(TIME) -- $(call VBOX_RSYNC_IN_FN,os2,*,nossh) \
-		'--exclude=src/VBox/Additions/x11/**' \
-		'--exclude=src/VBox/Additions/WINNT/**' \
+		'--exclude=src/VBox/Additions/**' \
 		'--exclude=src/VBox/Frontends/**' \
 		'--exclude=src/VBox/VMM/**' \
 		. rsync://vbox@$(VBOX_BLD_VM_OS2_IP)/tinderbox/$(VBOX_VALIDATIONKIT_BUILD_SUBDIRNAME)
@@ -1895,9 +1948,20 @@ ifeq ($(KBUILD_TARGET),linux)
 else
  validationkit-build-linux.rsync-into-vm: $(VBOX_VALIDATIONKIT_BUILD_WIN_HOST_FIRST)
 	$(TIME) -- $(call VBOX_RSYNC_IN_FN,linux,*) \
-		'--exclude=src/VBox/Additions/WINNT/**' \
+		'--exclude=src/VBox/Additions/**' \
+		'--exclude=src/VBox/Debugger/**' \
 		'--exclude=src/VBox/Frontends/**' \
+		'--exclude=src/VBox/GuestHost/**' \
+		'--exclude=src/VBox/HostServices/**' \
+		'--exclude=src/VBox/ImageMounter/**' \
+		'--include=src/VBox/Main/' \
+		'--include=src/VBox/Main/idl**' \
+		'--exclude=src/VBox/Main/**' \
+		'--exclude=src/VBox/NetworkServices/**' \
+		'--exclude=src/VBox/RDP/**' \
+		'--exclude=src/VBox/Storage/**' \
 		'--exclude=src/VBox/VMM/**' \
+		'--exclude=src/app/**' \
 		. $(VBOX_BLD_VM_LNX_IP):/mnt/tinderbox/$(VBOX_VALIDATIONKIT_BUILD_SUBDIRNAME)
 
  validationkit-build-linux.build-it: validationkit-build-linux.rsync-into-vm
@@ -2002,6 +2066,100 @@ efi-build: $(VBOX_VERSION_HEADER)
 
 efi-packing:
 	+ $(KMK) -C src/VBox/Devices/EFI/Firmware$(VBOX_EFI_FIRMWARE_SUFFIX) $(PATH_STAGE)/VBoxEfiFirmware.zip
+
+
+
+#
+# Build the SDK, all of it.
+#
+# Hosting the build on windows, with the linux part in a VM.
+#
+sdk-fetch:
+	+ $(KMK) -C tools fetch VBOX_ONLY_SDK=1 VBOX_ONLY_SDK_ON_HOST=1
+	+ $(KMK) -C tools fetch VBOX_ONLY_SDK=1 VBOX_ONLY_SDK_IN_VM=1 KBUILD_TARGET=linux
+	+ $(KMK) -C tools fetch VBOX_ONLY_SDK=1 VBOX_ONLY_SDK_IN_VM=1 KBUILD_TARGET=win
+
+sdk-build: \
+		sdk-build-rsync-into-vms \
+		sdk-build-linux \
+		sdk-build-win
+
+sdk-build-rsync-into-vms: \
+		sdk-build-linux.rsync-into-vm
+	$(call MSG_L1,Rsynced the sources + tools into the VM(s).)
+.NOTPARALLEL: sdk-build-rsync-into-vms
+.PHONY: sdk-build-rsync-into-vms
+
+VBOX_SDK_BUILD.amd64 = VBOX_ONLY_SDK=1 KBUILD_TYPE=$(KBUILD_TYPE) KBUILD_TARGET_ARCH=amd64 VBOX_SVN_REV=$(VBOX_SVN_REV)
+
+# Automatically determine the SDL build subdir name. Used for figuring
+# out directory names inside the test suite building VMs.
+VBOX_SDK_BUILD_SUBDIRNAME := $(lastword $(subst /, ,$(PATH_ROOT)))
+
+sdk-build-win:
+ifeq ($(KBUILD_TARGET),win)
+	+ $(TIME) -- $(KMK) $(VBOX_SDK_BUILD.amd64) VBOX_ONLY_SDK_ON_HOST=1 all $(VBOX_SDK_HOST_BUILD_TWEAK)
+else
+	$(call VBOX_BLD_VM_MSG_BEGIN,Windows/amd64 SDK)
+	$(TIME) -- $(VBOX_SSH) vbox@$(VBOX_BLD_VM_WIN_X86_IP) 'cd e:/$(VBOX_SDK_BUILD_SUBDIRNAME) && tools/env.sh kmk $(VBOX_SDK_BUILD.amd64) VBOX_ONLY_SDK_IN_VM=1 all '
+	$(call VBOX_BLD_VM_MSG_END__,Windows/amd64 SDK)
+endif
+
+ifeq ($(KBUILD_TARGET),linux)
+ sdk-build-linux:
+	+ $(TIME) -- $(KMK) $(VBOX_SDK_BUILD.amd64) all $(VBOX_SDK_HOST_BUILD_TWEAK)
+
+else
+ sdk-build-linux.rsync-into-vm: $(VBOX_SDK_BUILD_WIN_HOST_FIRST)
+	$(TIME) -- $(call VBOX_RSYNC_IN_FN,linux,*) \
+		'--exclude=src/VBox/Additions/**' \
+		'--exclude=src/VBox/Artwork/**' \
+		'--exclude=src/VBox/Devices**' \
+		'--exclude=src/VBox/Debugger/**' \
+		'--exclude=src/VBox/Disassembler/**' \
+		'--exclude=src/VBox/ExtPacks/**' \
+		'--include=src/VBox/Frontends/' \
+		'--include=src/VBox/Frontends/VBoxShell**' \
+		'--exclude=src/VBox/Frontends/**' \
+		'--exclude=src/VBox/GuestHost/**' \
+		'--exclude=src/VBox/HostDrivers/**' \
+		'--exclude=src/VBox/HostServices/**' \
+		'--exclude=src/VBox/ImageMounter/**' \
+		'--exclude=src/VBox/NetworkServices/**' \
+		'--exclude=src/VBox/Runtime/**' \
+		'--exclude=src/VBox/Storage/**' \
+		'--exclude=src/VBox/VMM/**' \
+		'--include=src/libs/' \
+		'--include=src/libs/Makefile.kmk' \
+		'--include=src/libs/xpcom**' \
+		'--exclude=src/libs/**' \
+		. $(VBOX_BLD_VM_LNX_IP):/mnt/tinderbox/$(VBOX_SDK_BUILD_SUBDIRNAME)
+
+ sdk-build-linux.build-it: sdk-build-linux.rsync-into-vm
+	$(call VBOX_BLD_VM_MSG_BEGIN,Linux/amd64 SDK)
+	$(TIME) -- $(VBOX_SSH) vbox@$(VBOX_BLD_VM_LNX_IP) 'cd /mnt/tinderbox/$(VBOX_SDK_BUILD_SUBDIRNAME) && tools/env.sh --no-wine kmk $(VBOX_SDK_BUILD.amd64) VBOX_ONLY_SDK_IN_VM=1 all '
+	$(call VBOX_BLD_VM_MSG_END__,Linux/amd64 SDK)
+
+ sdk-build-linux.rsync-out-of-vm: sdk-build-linux.build-it
+	$(TIME) -- $(VBOX_RSYNC) -a --delete $(VBOX_BLD_VM_LNX_IP):/mnt/tinderbox/$(VBOX_SDK_BUILD_SUBDIRNAME)/out/linux.amd64 out/
+
+ .PHONY: sdk-build-linux.rsync-out-of-vm sdk-build-linux.rsync-into-vm sdk-build-linux.build-it
+
+ sdk-build-linux: sdk-build-linux.rsync-out-of-vm
+endif
+
+
+sdk-packing:
+	+ $(KMK) VBOX_ONLY_SDK=1 VBOX_ONLY_SDK_ON_HOST=1 \
+		VBOX_WITH_SDK_PACKING.linux.amd64=1 \
+		VBOX_WITH_SDK_PACKING.win.amd64=1 \
+		-C src/VBox/Installer packing
+.PHONY: \
+		sdk-fetch \
+		sdk-build \
+		sdk-build-linux \
+		sdk-build-win \
+		sdk-packing
 
 
 #
@@ -2128,17 +2286,6 @@ else
 	$(MAKE) -C tools -f Makefile-ose.kmk fetch
 endif
 
-
-#
-# Aliases for building the SDK.
-#
-.NOTPARALLEL: sdk sdk-fetch
-sdk:
-	+ $(KMK) VBOX_ONLY_SDK=1 \
-		pass_bldprogs pass_others pass_installs pass_packing
-
-sdk-fetch:
-	+ $(KMK) VBOX_ONLY_SDK=1 -C tools
 
 
 #

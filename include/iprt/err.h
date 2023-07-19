@@ -2155,7 +2155,7 @@
 #define VERR_CR_PKIX_OSSL_D2I_PUBLIC_KEY_FAILED     (-23516)
 /** The EVP_PKEY_type API in OpenSSL failed.  */
 #define VERR_CR_PKIX_OSSL_EVP_PKEY_TYPE_ERROR       (-23517)
-/** OpenSSL failed to decode the public key. */
+/** OpenSSL failed to decode the private key. */
 #define VERR_CR_PKIX_OSSL_D2I_PRIVATE_KEY_FAILED    (-23518)
 /** The EVP_PKEY_CTX_set_rsa_padding API in OpenSSL failed.  */
 #define VERR_CR_PKIX_OSSL_EVP_PKEY_RSA_PAD_ERROR    (-23519)
@@ -2169,6 +2169,12 @@
 #define VERR_CR_PKIX_NOT_RSA_PRIVATE_KEY            (-23523)
 /** Expected RSA public key. */
 #define VERR_CR_PKIX_NOT_RSA_PUBLIC_KEY             (-23524)
+/** Expected ECDSA private key. */
+#define VERR_CR_PKIX_NOT_ECDSA_PRIVATE_KEY          (-23525)
+/** Expected ECDSA public key. */
+#define VERR_CR_PKIX_NOT_ECDSA_PUBLIC_KEY           (-23526)
+/** OpenSSL failed to decode the key parameters. */
+#define VERR_CR_PKIX_OSSL_D2I_KEY_PARAMS_FAILED     (-23527)
 /** @} */
 
 /** @name RTCrStore status codes.
@@ -2212,6 +2218,15 @@
 #define VINF_CR_KEY_WAS_DECRYPTED                   (23814)
 /** Failed to generate RSA key. */
 #define VERR_CR_KEY_GEN_FAILED_RSA                  (-23815)
+/** Key algorithm parameters not expected. */
+#define VERR_CR_KEY_ALGO_PARAMS_UNEXPECTED          (-23816)
+/** Key algorithm parameters are required but missing. */
+#define VERR_CR_KEY_ALGO_PARAMS_MISSING             (-23817)
+/** Key algorithm parameters are not known/supported. */
+#define VERR_CR_KEY_ALGO_PARAMS_UNKNOWN             (-23818)
+/** Algorithm parameters does not match the key. */
+#define VERR_CR_KEY_ALGO_PARAMS_MISMATCH            (-23819)
+
 /** @} */
 
 /** @name RTCrRsa status codes.
@@ -2254,6 +2269,8 @@
 
 /** @name RTCr misc status codes.
  * @{ */
+/** The OpenSSL version is too old for the attempted operation. */
+#define VERR_CR_OPENSSL_VERSION_TOO_OLD             (-24395)
 /** Failed to derivate key from password. */
 #define VERR_CR_PASSWORD_2_KEY_DERIVIATION_FAILED   (-24396)
 /** Failed getting cryptographically strong random bytes. */

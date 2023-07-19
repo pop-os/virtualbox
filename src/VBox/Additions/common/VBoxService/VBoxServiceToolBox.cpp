@@ -268,7 +268,6 @@ static void vgsvcToolboxPrintStrmHeader(const char *pszToolName, uint32_t uVersi
 /**
  * Prints a standardized termination sequence indicating that the
  * parseable stream just ended.
- *
  */
 static void vgsvcToolboxPrintStrmTermination()
 {
@@ -292,7 +291,6 @@ static int vgsvcToolboxParseMode(const char *pcszMode, RTFMODE *pfMode)
 /**
  * Destroys a path buffer list.
  *
- * @return  IPRT status code.
  * @param   pList                   Pointer to list to destroy.
  */
 static void vgsvcToolboxPathBufDestroy(PRTLISTNODE pList)
@@ -712,7 +710,7 @@ static int vgsvcToolboxPrintFsInfo(const char *pszName, size_t cchName, uint32_t
     {
         if (fOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE)
         {
-            RTPrintf("ftype=%c%cnode_id=%RU64%inode_dev=%RU32%ccname_len=%zu%cname=%s%c",
+            RTPrintf("ftype=%c%cnode_id=%RU64%cinode_dev=%RU32%ccname_len=%zu%cname=%s%c",
                      chFileType, 0, (uint64_t)pObjInfo->Attr.u.Unix.INodeId, 0,
                      (uint32_t)pObjInfo->Attr.u.Unix.INodeIdDevice, 0, cchName, 0, pszName, 0);
             RTPrintf("%c%c", 0, 0);

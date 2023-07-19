@@ -87,6 +87,7 @@
   global NAME_FASTCALL(%1,%2,$@)
  %endif
 NAME_FASTCALL(%1,%2,@):
+        IBT_ENDBRxx
 %endmacro
 
 
@@ -442,6 +443,23 @@ NAME_FASTCALL(%1,%2,@):
         or      T0_8, [NAME(g_afParity) + %4]
  %endif
         mov     [%1], T0_32             ; Save the result.
+%endmacro
+
+
+;;
+; Checks that the size expression %1 matches %2 adjusted according to
+; RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK and for 256 entries.
+; @param 1  The jump array size assembly expression.
+; @param 2  The size without accounting for the IBT_ENDBRxx_WITHOUT_NOTRACK instruction.
+;
+%macro IEMCHECK_256_JUMP_ARRAY_SIZE 2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        dw      (0xffff - %2 - 256*4) + %1  ; will cause warning if entries are too big.
+        dw      (0xffff + %2 + 256*4) - %1  ; will cause warning if entries are too small.
+ %else
+        dw      (0xffff - %2)         + %1  ; will cause warning if entries are too big.
+        dw      (0xffff + %2)         - %1  ; will cause warning if entries are too small.
+ %endif
 %endmacro
 
 
@@ -3882,9 +3900,14 @@ BEGINPROC_FASTCALL iemAImpl_pshufw_u64, 16
 
         movq    mm1, [A1]
         movq    mm0, mm0                ; paranoia!
-        lea     T0, [A2 + A2*4]         ; sizeof(pshufw+ret) == 5
         lea     T1, [.imm0 xWrtRIP]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*8]         ; sizeof(pshufw+ret) == 9
+ %else
+        lea     T0, [A2 + A2*4]         ; sizeof(pshufw+ret) == 5
+ %endif
         lea     T1, [T1 + T0]
+        IBT_NOTRACK
         call    T1
         movq    [A0], mm0
 
@@ -3893,13 +3916,12 @@ BEGINPROC_FASTCALL iemAImpl_pshufw_u64, 16
 %assign bImm 0
 %rep 256
 .imm %+ bImm:
-       pshufw    mm0, mm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        pshufw  mm0, mm1, bImm
+        ret
  %assign bImm bImm + 1
 %endrep
-.immEnd:                                ; 256*5 == 0x500
-dw 0xfaff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x104ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x500
 ENDPROC iemAImpl_pshufw_u64
 
 
@@ -3911,23 +3933,28 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
         movdqu  xmm1, [A1]
         movdqu  xmm0, xmm1              ; paranoia!
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A2 + A2*2]         ; sizeof(pshufXX+ret) == 6: (A3 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*4]         ; sizeof(pshufXX+ret) == 10: A2 * 10 = (A2 * 5) * 2
+ %else
+        lea     T0, [A2 + A2*2]         ; sizeof(pshufXX+ret) ==  6: A2 *  6 = (A2 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         movdqu  [A0], xmm0
 
         IEMIMPL_SSE_EPILOGUE
         EPILOGUE_3_ARGS
+
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       xmm0, xmm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      xmm0, xmm1, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_ %+ %1 %+ _u128
 %endmacro
 
@@ -3944,8 +3971,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u256, 16
         vmovdqu  ymm1, [A1]
         vmovdqu  ymm0, ymm1             ; paranoia!
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A2 + A2*2]         ; sizeof(pshufXX+ret) == 6: (A3 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*4]         ; sizeof(pshufXX+ret) == 10: A2 * 10 = (A2 * 5) * 2
+ %else
+        lea     T0, [A2 + A2*2]         ; sizeof(pshufXX+ret) ==  6: A2 *  6 = (A2 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         vmovdqu  [A0], ymm0
 
@@ -3954,13 +3986,12 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u256, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       ymm0, ymm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      ymm0, ymm1, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_ %+ %1 %+ _u256
 %endmacro
 
@@ -3979,9 +4010,14 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _imm_u64, 16
         IEMIMPL_MMX_PROLOGUE
 
         movq    mm0, [A0]
-        lea     T0, [A1 + A1*4]         ; sizeof(psXX+ret) == 5
         lea     T1, [.imm0 xWrtRIP]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A1 + A1*8]         ; sizeof(psXX+ret) == 9
+ %else
+        lea     T0, [A1 + A1*4]         ; sizeof(psXX+ret) == 5
+ %endif
         lea     T1, [T1 + T0]
+        IBT_NOTRACK
         call    T1
         movq    [A0], mm0
 
@@ -3990,13 +4026,12 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _imm_u64, 16
 %assign bImm 0
 %rep 256
 .imm %+ bImm:
-       %1       mm0, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      mm0, bImm
+        ret
  %assign bImm bImm + 1
 %endrep
-.immEnd:                                ; 256*5 == 0x500
-dw 0xfaff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x104ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x500
 ENDPROC iemAImpl_ %+ %1 %+ _imm_u64
 %endmacro
 
@@ -4017,8 +4052,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _imm_u128, 16
 
         movdqu  xmm0, [A0]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A1 + A1*2]         ; sizeof(psXX+ret) == 6: (A3 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A1 + A1*4]         ; sizeof(psXX+ret) == 10: A1 * 10 = (A1 * 5) * 2
+ %else
+        lea     T0, [A1 + A1*2]         ; sizeof(psXX+ret) ==  6: A1 *  6 = (A1 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         movdqu  [A0], xmm0
 
@@ -4027,13 +4067,12 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _imm_u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       xmm0, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      xmm0, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_ %+ %1 %+ _imm_u128
 %endmacro
 
@@ -4858,8 +4897,13 @@ BEGINPROC_FASTCALL iemAImpl_shufps_u128, 16
         movdqu  xmm0, [A0]
         movdqu  xmm1, [A1]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A2 + A2*2]         ; sizeof(shufpX+ret+int3) == 6: (A2 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*4]         ; sizeof(shufpX+ret+int3) == 10: A2 * 10 = (A2 * 5) * 2
+ %else
+        lea     T0, [A2 + A2*2]         ; sizeof(shufpX+ret+int3) ==  6: A2 *  6 = (A2 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         movdqu  [A0], xmm0
 
@@ -4868,14 +4912,13 @@ BEGINPROC_FASTCALL iemAImpl_shufps_u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       shufps   xmm0, xmm1, bImm
-       ret
-       int3
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        shufps  xmm0, xmm1, bImm
+        ret
+        int3
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_shufps_u128
 
 
@@ -4893,8 +4936,13 @@ BEGINPROC_FASTCALL iemAImpl_shufpd_u128, 16
         movdqu  xmm0, [A0]
         movdqu  xmm1, [A1]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A2 + A2*2]         ; sizeof(shufpX+ret) == 6: (A2 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*4]         ; sizeof(shufpX+ret) == 10: A2 * 10 = (A2 * 5) * 2
+ %else
+        lea     T0, [A2 + A2*2]         ; sizeof(shufpX+ret) ==  6: A2 *  6 = (A2 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         movdqu  [A0], xmm0
 
@@ -4903,13 +4951,12 @@ BEGINPROC_FASTCALL iemAImpl_shufpd_u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       shufpd   xmm0, xmm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        shufpd  xmm0, xmm1, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_shufpd_u128
 
 
@@ -4931,8 +4978,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
         movdqu  xmm0, [A1]
         movdqu  xmm1, [A2]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A3 + A3*2]         ; sizeof(vshufpX+ret) == 6: (A3 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A3 + A3*4]         ; sizeof(vshufpX+ret) == 10: A3 * 10 = (A3 * 5) * 2
+ %else
+        lea     T0, [A3 + A3*2]         ; sizeof(vshufpX+ret) ==  6: A3 *  6 = (A3 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         movdqu  [A0], xmm0
 
@@ -4941,13 +4993,12 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       xmm0, xmm0, xmm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      xmm0, xmm0, xmm1, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_ %+ %1 %+ _u128
 
 BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u256, 16
@@ -4957,8 +5008,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u256, 16
         vmovdqu ymm0, [A1]
         vmovdqu ymm1, [A2]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A3 + A3*2]         ; sizeof(vshufpX+ret) == 6: (A3 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A3 + A3*4]         ; sizeof(vshufpX+ret) == 10: A3 * 10 = (A3 * 5) * 2
+ %else
+        lea     T0, [A3 + A3*2]         ; sizeof(vshufpX+ret) ==  6: A3 *  6 = (A3 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         vmovdqu [A0], ymm0
 
@@ -4967,13 +5023,12 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u256, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       ymm0, ymm0, ymm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      ymm0, ymm0, ymm1, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_ %+ %1 %+ _u256
 %endmacro
 
@@ -5068,8 +5123,13 @@ BEGINPROC_FASTCALL iemAImpl_palignr_u64, 16
         movq    mm0, [A0]
         movq    mm1, A1
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A2 + A2*2]         ; sizeof(palignr+ret) == 6: (A2 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*4]         ; sizeof(endbrxx+palignr+ret) == 10: A2 * 10 = (A2 * 5) * 2
+ %else
+        lea     T0, [A2 + A2*2]         ; sizeof(palignr+ret)         ==  6: A2 *  6 = (A2 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         movq    [A0], mm0
 
@@ -5078,13 +5138,12 @@ BEGINPROC_FASTCALL iemAImpl_palignr_u64, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       palignr  mm0, mm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        palignr mm0, mm1, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_palignr_u64
 
 
@@ -5107,8 +5166,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
         movdqu  xmm0, [A0]
         movdqu  xmm1, [A1]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A2 + A2*3]         ; sizeof(insnX+ret) == 8: (A2 * 4) * 2
-        lea     T1, [T1 + T0*2]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*2]         ; sizeof(endbrxx+insnX+ret+int3) == 12: A2 * 12 = (A2 * 3) * 4
+        lea     T1, [T1 + T0*4]
+ %else
+        lea     T1, [T1 + A2*8]         ; sizeof(insnX+ret+int3)         ==  8: A2 * 8
+ %endif
+        IBT_NOTRACK
         call    T1
         movdqu  [A0], xmm0
 
@@ -5117,14 +5181,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       xmm0, xmm1, bImm
-       ret
-       int3
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      xmm0, xmm1, bImm
+        ret
+        int3
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*8 == 0x800
-dw 0xf7ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x107ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x800
 ENDPROC iemAImpl_ %+ %1 %+ _u128
 %endmacro
 
@@ -5157,8 +5220,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
         movdqu  xmm0, [A1]
         movdqu  xmm1, [A2]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A3 + A3*3]         ; sizeof(insnX+ret) == 8: (A3 * 4) * 2
-        lea     T1, [T1 + T0*2]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A3 + A3*2]         ; sizeof(endbrxx+insnX+ret+int3) == 12: A3 * 12 = (A3 * 3) * 4
+        lea     T1, [T1 + T0*4]
+ %else
+        lea     T1, [T1 + A3*8]         ; sizeof(insnX+ret+int3)         ==  8: A3 * 8
+ %endif
+        IBT_NOTRACK
         call    T1
         movdqu  [A0], xmm0
 
@@ -5167,14 +5235,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       xmm0, xmm0, xmm1, bImm
-       ret
-       int3
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      xmm0, xmm0, xmm1, bImm
+        ret
+        int3
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*8 == 0x800
-dw 0xf7ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x107ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x800
 ENDPROC iemAImpl_ %+ %1 %+ _u128
 
  %if %2 == 1
@@ -5185,8 +5252,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u256, 16
         vmovdqu ymm0, [A1]
         vmovdqu ymm1, [A2]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A3 + A3*3]         ; sizeof(insnX+ret) == 8: (A3 * 4) * 2
-        lea     T1, [T1 + T0*2]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A3 + A3*2]         ; sizeof(endbrxx+insnX+ret+int3) == 12: A3 * 12 = (A3 * 3) * 4
+        lea     T1, [T1 + T0*4]
+ %else
+        lea     T1, [T1 + A3*8]         ; sizeof(insnX+ret+int3)         ==  8: A3 *  8
+ %endif
+        IBT_NOTRACK
         call    T1
         vmovdqu [A0], ymm0
 
@@ -5195,14 +5267,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u256, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       ymm0, ymm0, ymm1, bImm
-       ret
-       int3
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      ymm0, ymm0, ymm1, bImm
+        ret
+        int3
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*8 == 0x800
-dw 0xf7ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x107ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x800
 ENDPROC iemAImpl_ %+ %1 %+ _u256
  %endif
 %endmacro
@@ -5238,8 +5309,13 @@ BEGINPROC_FASTCALL iemAImpl_pcmpistri_u128, 16
         movdqu  xmm1, [A2 + IEMPCMPISTRISRC.uSrc2]
         mov     T2, A0                  ; A0 can be ecx/rcx in some calling conventions which gets overwritten later (T2 only available on AMD64)
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A3 + A3*3]         ; sizeof(insnX+ret) == 8: (A3 * 4) * 2
-        lea     T1, [T1 + T0*2]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A3 + A3*2]         ; sizeof(endbrxx+insnX+ret) == 12: A3 * 12 = (A3 * 3) * 4
+        lea     T1, [T1 + T0*4]
+ %else
+        lea     T1, [T1 + A3*8]         ; sizeof(insnX+ret)         ==  8: A3 * 8
+ %endif
+        IBT_NOTRACK
         call    T1
 
         IEM_SAVE_FLAGS A1, X86_EFL_STATUS_BITS, 0
@@ -5250,14 +5326,13 @@ BEGINPROC_FASTCALL iemAImpl_pcmpistri_u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       pcmpistri xmm0, xmm1, bImm
-       ret
-       int3
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        pcmpistri xmm0, xmm1, bImm
+        ret
+        int3
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*8 == 0x800
-dw 0xf7ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x107ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x800
 ENDPROC iemAImpl_pcmpistri_u128
 
 
@@ -5273,9 +5348,14 @@ BEGINPROC_FASTCALL iemAImpl_pinsrw_u64, 16
         IEMIMPL_SSE_PROLOGUE
 
         movq    mm0,  [A0]
-        lea     T0, [A2 + A2*4]         ; sizeof(pinsrw+ret) == 5
         lea     T1, [.imm0 xWrtRIP]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*8]         ; sizeof(endbrxx+pinsrw+ret) == 9: A2 * 9
+ %else
+        lea     T0, [A2 + A2*4]         ; sizeof(pinsrw+ret)         == 5: A2 * 5
+ %endif
         lea     T1, [T1 + T0]
+        IBT_NOTRACK
         call    T1
         movq    [A0], mm0
 
@@ -5284,13 +5364,12 @@ BEGINPROC_FASTCALL iemAImpl_pinsrw_u64, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       pinsrw   mm0, A1_32, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        pinsrw  mm0, A1_32, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*5 == 0x500
-dw 0xfaff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x104ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x500
 ENDPROC iemAImpl_pinsrw_u64
 
 BEGINPROC_FASTCALL iemAImpl_pinsrw_u128, 16
@@ -5299,8 +5378,13 @@ BEGINPROC_FASTCALL iemAImpl_pinsrw_u128, 16
 
         movdqu  xmm0, [A0]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A2 + A2*2]         ; sizeof(pinsrw+ret) == 6: (A2 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*4]         ; sizeof(endbrxx+pinsrw+ret) == 10: A2 * 10 = (A2 * 5) * 2
+ %else
+        lea     T0, [A2 + A2*2]         ; sizeof(pinsrw+ret)         ==  6: A2 *  6 = (A2 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         movdqu  [A0], xmm0
 
@@ -5309,13 +5393,12 @@ BEGINPROC_FASTCALL iemAImpl_pinsrw_u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       pinsrw   xmm0, A1_32, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        pinsrw  xmm0, A1_32, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_pinsrw_u128
 
 ;;
@@ -5332,9 +5415,14 @@ BEGINPROC_FASTCALL iemAImpl_vpinsrw_u128, 16
 
         movdqu  xmm0, [A1]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A3 + A3*2]         ; sizeof(vpinsrw+ret) == 6: (A3 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A3 + A3*4]         ; sizeof(endbrxx+vpinsrw+ret) == 10: A3 * 10 = (A3 * 5) * 2
+ %else
+        lea     T0, [A3 + A3*2]         ; sizeof(vpinsrw+ret)         ==  6: A3 *  6 = (A3 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
         mov     A1, A2                  ; A2 requires longer encoding on Windows
+        IBT_NOTRACK
         call    T1
         movdqu  [A0], xmm0
 
@@ -5343,13 +5431,12 @@ BEGINPROC_FASTCALL iemAImpl_vpinsrw_u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       vpinsrw   xmm0, xmm0, A1_32, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        vpinsrw xmm0, xmm0, A1_32, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_vpinsrw_u128
 
 
@@ -5365,9 +5452,14 @@ BEGINPROC_FASTCALL iemAImpl_pextrw_u64, 16
         IEMIMPL_SSE_PROLOGUE
 
         movq    mm0,  A1
-        lea     T0, [A2 + A2*4]         ; sizeof(pextrw+ret) == 5
         lea     T1, [.imm0 xWrtRIP]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*8]         ; sizeof(endbrxx+pextrw+ret) == 9: A2 * 9
+ %else
+        lea     T0, [A2 + A2*4]         ; sizeof(pextrw+ret)         == 5: A2 * 5
+ %endif
         lea     T1, [T1 + T0]
+        IBT_NOTRACK
         call    T1
         mov     word [A0], T0_16
 
@@ -5376,13 +5468,12 @@ BEGINPROC_FASTCALL iemAImpl_pextrw_u64, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       pextrw   T0_32, mm0, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        pextrw  T0_32, mm0, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*5 == 0x500
-dw 0xfaff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x104ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x500
 ENDPROC iemAImpl_pextrw_u64
 
 BEGINPROC_FASTCALL iemAImpl_pextrw_u128, 16
@@ -5391,8 +5482,13 @@ BEGINPROC_FASTCALL iemAImpl_pextrw_u128, 16
 
         movdqu  xmm0, [A1]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A2 + A2*2]         ; sizeof(pextrw+ret) == 6: (A2 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*4]         ; sizeof(endbrxx+pextrw+ret) == 10: A2 * 10 = (A2 * 5) * 2
+ %else
+        lea     T0, [A2 + A2*2]         ; sizeof(pextrw+ret)         ==  6: A2 *  6 = (A2 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         mov     word [A0], T0_16
 
@@ -5401,13 +5497,12 @@ BEGINPROC_FASTCALL iemAImpl_pextrw_u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       pextrw   T0_32, xmm0, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        pextrw  T0_32, xmm0, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_pextrw_u128
 
 ;;
@@ -5423,8 +5518,13 @@ BEGINPROC_FASTCALL iemAImpl_vpextrw_u128, 16
 
         movdqu  xmm0, [A1]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A2 + A2*2]         ; sizeof(vpextrw+ret) == 6: (A2 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A2 + A2*4]         ; sizeof(endbrxx+vpextrw+ret) == 10: A2 * 10 = (A2 * 5) * 2
+ %else
+        lea     T0, [A2 + A2*2]         ; sizeof(vpextrw+ret)         ==  6: A2 *  6 = (A2 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         mov     word [A0], T0_16
 
@@ -5433,13 +5533,12 @@ BEGINPROC_FASTCALL iemAImpl_vpextrw_u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       vpextrw   T0_32, xmm0, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        vpextrw T0_32, xmm0, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_vpextrw_u128
 
 
@@ -6001,9 +6100,14 @@ BEGINPROC_FASTCALL iemAImpl_cmpps_u128, 16
 
         movdqu  xmm0, [A2 + IEMMEDIAF2XMMSRC.uSrc1]
         movdqu  xmm1, [A2 + IEMMEDIAF2XMMSRC.uSrc2]
-        lea     T0, [A3 + A3*4]         ; sizeof(cmpps+ret) == 5
         lea     T1, [.imm0 xWrtRIP]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A3 + A3*8]         ; sizeof(endbrxx+cmpps+ret) == 9: A3 * 9
+ %else
+        lea     T0, [A3 + A3*4]         ; sizeof(cmpps+ret)         == 5: A3 * 5
+ %endif
         lea     T1, [T1 + T0]
+        IBT_NOTRACK
         call    T1
         movdqu  [A1], xmm0
 
@@ -6013,13 +6117,12 @@ BEGINPROC_FASTCALL iemAImpl_cmpps_u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       cmpps xmm0, xmm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        cmpps   xmm0, xmm1, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*5 == 0x500
-dw 0xfaff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x104ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x500
 ENDPROC iemAImpl_cmpps_u128
 
 ;;
@@ -6044,8 +6147,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
         movdqu  xmm0, [A2 + IEMMEDIAF2XMMSRC.uSrc1]
         movdqu  xmm1, [A2 + IEMMEDIAF2XMMSRC.uSrc2]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A3 + A3*2]         ; sizeof(pshufXX+ret) == 6: (A3 * 3) *2
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A3 + A3*4]         ; sizeof(endbrxx+cmpXX+ret) == 10: A3 * 10 = (A3 * 5) * 2
+ %else
+        lea     T0, [A3 + A3*2]         ; sizeof(cmpXX+ret)         ==  6: A3 *  6 = (A3 * 3) * 2
+ %endif
         lea     T1, [T1 + T0*2]
+        IBT_NOTRACK
         call    T1
         movdqu  [A1], xmm0
 
@@ -6055,13 +6163,12 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       xmm0, xmm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      xmm0, xmm1, bImm
+        ret
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*6 == 0x600
-dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x600
 ENDPROC iemAImpl_ %+ %1 %+ _u128
 %endmacro
 
@@ -6091,10 +6198,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
         movdqu  xmm0, [A2 + IEMMEDIAF2XMMSRC.uSrc1]
         movdqu  xmm1, [A2 + IEMMEDIAF2XMMSRC.uSrc2]
         lea     T1, [.imm0 xWrtRIP]
-        lea     T0, [A3*2 + A3]        ; sizeof(insn+ret) == 7: 2 * (A3 * 3) + A3
-        lea     T0, [T0*2]
-        lea     T0, [T0 + A3]
-        lea     T1, [T1 + T0]
+ %ifdef RT_WITH_IBT_BRANCH_PROTECTION_WITHOUT_NOTRACK
+        lea     T0, [A3 + A3*2]         ; sizeof(endbrxx+insn+ret+int3) == 12: A3 * 12 = (A3 * 3) * 4
+        lea     T1, [T1 + T0*4]
+ %else
+        lea     T1, [T1 + A3*8]         ; sizeof(insn+ret+int3)         ==  8: A3 * 8
+ %endif
+        IBT_NOTRACK
         call    T1
         movdqu  [A1], xmm0
 
@@ -6104,13 +6214,13 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 16
  %assign bImm 0
  %rep 256
 .imm %+ bImm:
-       %1       xmm0, xmm1, bImm
-       ret
+        IBT_ENDBRxx_WITHOUT_NOTRACK
+        %1      xmm0, xmm1, bImm
+        ret
+        int3
   %assign bImm bImm + 1
  %endrep
-.immEnd:                                ; 256*(6+1) == 0x700
-dw 0xf8ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
-dw 0x106ff - (.immEnd - .imm0)          ; will cause warning if entries are too small.
+.immEnd: IEMCHECK_256_JUMP_ARRAY_SIZE (.immEnd - .imm0), 0x800
 ENDPROC iemAImpl_ %+ %1 %+ _u128
 %endmacro
 

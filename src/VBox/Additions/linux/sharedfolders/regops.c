@@ -88,6 +88,14 @@
 # define VBSF_GET_ITER_TYPE(a_pIter) ((a_pIter)->type)
 #endif
 
+/** Starting from 6.4.0, iter_iov() macro should be used in order to access to iov field
+ * of struct iov_iter. */
+#if RTLNX_VER_MIN(6,4,0)
+# define VBSF_GET_ITER_IOV(_iter) iter_iov(_iter)
+#else
+# define VBSF_GET_ITER_IOV(_iter) iter->iov
+#endif
+
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -2399,7 +2407,7 @@ static size_t vbsf_iter_max_span_of_pages(struct iov_iter *iter)
 # if RTLNX_VER_MIN(3,16,0)
     if (iter_is_iovec(iter) || (VBSF_GET_ITER_TYPE(iter) & ITER_KVEC)) {
 # endif
-        const struct iovec *pCurIov    = iter->iov;
+        const struct iovec *pCurIov    = VBSF_GET_ITER_IOV(iter);
         size_t              cLeft      = iter->nr_segs;
         size_t              cPagesSpan = 0;
 
@@ -3072,7 +3080,7 @@ static int vbsf_reg_open(struct inode *inode, struct file *file)
         LogRelFunc(("Failed to allocate a VBOXSFCREATEREQ buffer!\n"));
         return -ENOMEM;
     }
-    VBOX_LINUX_MEMCPY(&pReq->StrPath, sf_i->path, SHFLSTRING_HEADER_SIZE + sf_i->path->u16Size);
+    VBSF_UNFORTIFIED_MEMCPY(&pReq->StrPath, sf_i->path, SHFLSTRING_HEADER_SIZE + sf_i->path->u16Size);
     RT_ZERO(pReq->CreateParms);
     pReq->CreateParms.Handle = SHFL_HANDLE_NIL;
 
@@ -3593,7 +3601,7 @@ struct inode_operations vbsf_reg_iops = {
  * Needed for mmap and reads+writes when the file is mmapped in a
  * shared+writeable fashion.
  */
-#if RTLNX_VER_MIN(5,19,0)
+#if RTLNX_VER_MIN(5,19,0)|| RTLNX_RHEL_RANGE(9,3, 9,99)
 static int vbsf_read_folio(struct file *file, struct folio *folio)
 {
     struct page *page = &folio->page;
@@ -3764,7 +3772,7 @@ static inline void vbsf_write_begin_warn(loff_t pos, unsigned len, unsigned flag
     }
 }
 
-# if RTLNX_VER_MIN(5,19,0)
+# if RTLNX_VER_MIN(5,19,0) || RTLNX_RHEL_RANGE(9,3, 9,99)
 int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
                      unsigned len, struct page **pagep, void **fsdata)
 {
@@ -3853,7 +3861,7 @@ static int vbsf_direct_IO(int rw, struct inode *inode, struct kiobuf *buf, unsig
  * @todo the FsPerf touch/flush (mmap) test fails on 4.4.0 (ubuntu 16.04 lts).
  */
 struct address_space_operations vbsf_reg_aops = {
-#if RTLNX_VER_MIN(5,19,0)
+#if RTLNX_VER_MIN(5,19,0) || RTLNX_RHEL_RANGE(9,3, 9,99)
     .read_folio     = vbsf_read_folio,
 #else
     .readpage       = vbsf_readpage,

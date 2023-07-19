@@ -2685,7 +2685,7 @@ static LPCGUID dsoundConfigQueryGUID(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const c
     {
         rc = RTUuidFromStr(pUuid, pszGuid);
         if (RT_SUCCESS(rc))
-            pGuid = (LPCGUID)&pUuid;
+            pGuid = (LPCGUID)pUuid;
         else
             DSLOGREL(("DSound: Error parsing device GUID for device '%s': %Rrc\n", pszName, rc));
 

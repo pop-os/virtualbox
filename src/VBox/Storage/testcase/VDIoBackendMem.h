@@ -44,7 +44,7 @@ typedef PVDIOBACKENDMEM *PPVDIOBACKENDMEM;
 /**
  * Completion handler.
  *
- * @returns nothing.
+ * @returns IPRT status code.
  * @param   pvUser    Opaque user data.
  * @param   rcReq     Completion code for the request.
  */

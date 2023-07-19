@@ -567,7 +567,6 @@ static VBOXSTRICTRC iemInitDecoderAndPrefetchOpcodes(PVMCPUCC pVCpu, bool fBypas
  *
  * This is called internally as well as by PGM when moving GC mappings.
  *
- * @returns
  * @param   pVCpu       The cross context virtual CPU structure of the calling
  *                      thread.
  */
@@ -6776,7 +6775,6 @@ VBOXSTRICTRC iemMemCommitAndUnmapPostponeTroubleToR3(PVMCPUCC pVCpu, void *pvMem
  *
  * The caller shall only call this after checking cActiveMappings.
  *
- * @returns Strict VBox status code to pass up.
  * @param   pVCpu       The cross context virtual CPU structure of the calling thread.
  */
 void iemMemRollback(PVMCPUCC pVCpu) RT_NOEXCEPT
