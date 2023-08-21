@@ -1,3 +1,9 @@
+virtualbox (7.0.10-dfsg-1pop1) jammy; urgency=medium
+
+  * Pop!_OS
+
+ -- Michael Aaron Murphy <michael@mmurphy.dev>  Mon, 21 Aug 2023 16:27:40 +0200
+
 virtualbox (7.0.10-dfsg-1) unstable; urgency=medium
 
   * Refresh patches with upstream versions
