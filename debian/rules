@@ -89,7 +89,7 @@ override_dh_auto_install:
 
 ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 	export VBOX_INSTALL_PATH=$(INSTALL_PATH) && \
-	    cd out/bin/sdk/installer && \
+	    cd out/bin/sdk/installer/python && \
 	    python3 ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
 endif
 
