@@ -1,0 +1,12 @@
+Test-Command: /usr/share/modass/module-assistant-autopkgtest virtualbox-source
+Features: test-name=m-a-autopkgtest
+Architecture: amd64
+Depends:
+ virtualbox-source,
+ module-assistant-autopkgtest,
+ linux-doc,
+Restrictions:
+ superficial,
+ needs-root,
+ breaks-testbed,
+ allow-stderr,
