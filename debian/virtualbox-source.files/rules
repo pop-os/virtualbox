@@ -48,9 +48,9 @@ kdist_clean: clean
 #MAKE:=kmk
 
 clean:
-	$(MAKE) -C vboxdrv clean
-	$(MAKE) -C vboxnetflt clean
-	$(MAKE) -C vboxnetadp clean
+	$(MAKE) KERN_VER=$(KVERS) -C vboxdrv clean
+	$(MAKE) KERN_VER=$(KVERS) -C vboxnetflt clean
+	$(MAKE) KERN_VER=$(KVERS) -C vboxnetadp clean
 	dh_clean
 
 binary-modules: prep-deb-files
