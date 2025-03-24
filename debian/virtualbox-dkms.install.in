@@ -30,3 +30,4 @@ out/bin/src/vboxdrv/VBox /usr/src/virtualbox-CVERSION
 out/bin/src/vboxdrv/include/iprt/nocrt /usr/src/virtualbox-CVERSION/include/iprt
 
 debian/virtualbox-dkms.files/Makefile /usr/src/virtualbox-CVERSION
+debian/virtualbox-dkms.modprobe.conf /etc/modprobe.d/virtualbox-dkms.conf
