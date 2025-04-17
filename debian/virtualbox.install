@@ -17,7 +17,6 @@ out/bin/VBoxNet* /usr/lib/virtualbox
 out/bin/VBoxSDL /usr/lib/virtualbox
 out/bin/VBoxSVC /usr/lib/virtualbox
 out/bin/VBoxSysInfo.sh /usr/lib/virtualbox
-out/bin/VBoxTestOGL /usr/lib/virtualbox
 out/bin/VBoxVMM* /usr/lib/virtualbox
 out/bin/VBoxVolInfo /usr/lib/virtualbox
 out/bin/VBoxXPCOM* /usr/lib/virtualbox
