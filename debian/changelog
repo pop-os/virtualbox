@@ -12,6 +12,7 @@ virtualbox (7.1.0-dfsg-1) UNRELEASED; urgency=medium
   * New upstream version 7.1.8-dfsg
   * Disable build docs for now to fix FTBFS.
   * Add patch for fix FTBFS with python-3.13.
+  * Add python3-setuptools to B-D.
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 08 Oct 2024 13:49:59 +0200
 
