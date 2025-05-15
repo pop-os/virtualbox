@@ -16,7 +16,7 @@ if [ "$1" = configure ]; then
 			major="`expr "$dev" : '\(.*\):' 2> /dev/null || true`"
 			minor="`expr "$dev" : '.*:\(.*\)' 2> /dev/null || true`"
 			class="`cat $i/bDeviceClass 2> /dev/null || true`"
-			/lib/udev/VBoxCreateUSBNode.sh "$major" "$minor" "$class" vboxusers 2>/dev/null || true
+			/usr/lib/udev/VBoxCreateUSBNode.sh "$major" "$minor" "$class" vboxusers 2>/dev/null || true
 		fi
 	done
 
