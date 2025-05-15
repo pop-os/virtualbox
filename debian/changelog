@@ -10,6 +10,51 @@ virtualbox (7.1.0-dfsg-1) UNRELEASED; urgency=medium
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 08 Oct 2024 13:49:59 +0200
 
+virtualbox (7.0.26-dfsg-1) unstable; urgency=medium
+
+  [ Gianfranco Costamagna ]
+  * Ack previous NMUs, thanks!
+  * New upstream release 7.0.26-dfsg (Closes: #1103582, Closes: #1101182,
+    Closes: #1093879, Closes: #1085440).
+    - CVE-2025-30712 CVE-2025-30719 CVE-2025-30725 should be fixed by this
+      release
+    - CVE-2025-21533 CVE-2025-21571 should be fixed by this release
+    - CVE-2024-21248 CVE-2024-21253 CVE-2024-21259 CVE-2024-21263
+      CVE-2024-21273 should be fixed by this release
+  * Refresh patches
+  * Add libfuse2 runtime dependency (Closes: #1082889), thanks Marco Moock for the report
+
+  [ Tobias Frost ]
+  * Fix broken watchfile (Closes: #1094801)
+
+  [ Stefano Rivera ]
+  * Add missing Build-Depends on python3-setuptools (Closes: #1080878)
+
+  [ Andreas Beckmann ]
+  * dkms and module-assistant updates (Closes: #1098998)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 14 May 2025 14:19:49 +0200
+
+virtualbox (7.0.20-dfsg-1.2) unstable; urgency=medium
+
+  [ Tobias Frost ]
+  * Non maintainer upload, importing doko's patch from Ubuntu.
+  * Add NEWS entry for the kernel 6.12 issue (See: #1082157)
+
+  [ Matthias Klose ]
+  * Check for Python 3.13. (Closes: #1092081)
+
+ -- Tobias Frost <tobi@debian.org>  Fri, 31 Jan 2025 12:05:06 +0100
+
+virtualbox (7.0.20-dfsg-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+
+  [ Chris Hofstaedtler ]
+  * Install files into /usr (DEP17 M2). (Closes: #1057014)
+
+ -- Helmut Grohne <helmut@subdivi.de>  Fri, 03 Jan 2025 15:16:07 +0100
+
 virtualbox (7.0.20-dfsg-1) unstable; urgency=medium
 
   * New upstream version 7.0.20-dfsg
