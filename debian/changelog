@@ -18,7 +18,7 @@ virtualbox (7.1.8-dfsg-1) unstable; urgency=medium
   * Disable build docs for now to fix FTBFS.
   * Add patch for fix FTBFS with python-3.13.
   * Add python3-setuptools to B-D.
-  * Add conflict on virtualbox-7.1 
+  * Add conflict on virtualbox-7.1
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 16 May 2025 17:55:04 +0200
 
