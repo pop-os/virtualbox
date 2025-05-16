@@ -5,7 +5,7 @@ Maintainer: Debian Virtualbox Team <team+debian-virtualbox@tracker.debian.org>
 Uploaders: Ritesh Raj Sarraf <rrs@debian.org>,
            Gianfranco Costamagna <locutusofborg@debian.org>
 Build-Depends: debhelper-compat (= 13), kbuild
-Standards-Version: 4.7.0
+Standards-Version: 4.7.2
 Homepage: https://www.virtualbox.org
 Vcs-Browser: https://salsa.debian.org/pkg-virtualbox-team/virtualbox
 Vcs-Git: https://salsa.debian.org/pkg-virtualbox-team/virtualbox.git

@@ -79,7 +79,7 @@ Build-Depends: bzip2,
                xsltproc,
                yasm,
                zlib1g-dev
-Standards-Version: 4.7.0
+Standards-Version: 4.7.2
 Rules-Requires-Root: no
 Homepage: https://www.virtualbox.org
 Vcs-Browser: https://salsa.debian.org/pkg-virtualbox-team/virtualbox
