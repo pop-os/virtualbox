@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -454,10 +454,12 @@ private:
 
         /** Holds the right pane instance. */
         QStackedWidget   *m_pStackRightPane;
+
         /** Holds the right pane empty widget separator instance. */
         QILabelSeparator *m_pLabelSeparatorEmpty;
         /** Holds the info label instance. */
         QLabel           *m_pLabelInfo;
+
         /** Holds the right pane controller widget separator instance. */
         QILabelSeparator *m_pLabelSeparatorParameters;
         /** Holds the name label instance. */
@@ -474,14 +476,25 @@ private:
         QSpinBox         *m_pSpinboxPortCount;
         /** Holds the IO cache check-box instance. */
         QCheckBox        *m_pCheckBoxIoCache;
+
         /** Holds the right pane attachment widget separator instance. */
         QILabelSeparator *m_pLabelSeparatorAttributes;
-        /** Holds the medium label instance. */
-        QLabel           *m_pLabelMedium;
+        /** Holds the medium label container instance. */
+        QStackedWidget   *m_pContainerMediumLabels;
+        /** Holds the HD label instance. */
+        QLabel           *m_pLabelHD;
+        /** Holds the CD label instance. */
+        QLabel           *m_pLabelCD;
+        /** Holds the FD label instance. */
+        QLabel           *m_pLabelFD;
         /** Holds the slot combo instance. */
         QComboBox        *m_pComboSlot;
         /** Holds the open tool-button instance. */
         QIToolButton     *m_pToolButtonOpen;
+        /** Holds the 1st check-box container instance. */
+        QStackedWidget   *m_pContainerForCheckBoxes1;
+        /** Holds the 2nd check-box container instance. */
+        QStackedWidget   *m_pContainerForCheckBoxes2;
         /** Holds the passthrough check-box instance. */
         QCheckBox        *m_pCheckBoxPassthrough;
         /** Holds the temporary eject check-box instance. */
@@ -490,16 +503,15 @@ private:
         QCheckBox        *m_pCheckBoxNonRotational;
         /** Holds the hot-pluggable check-box instance. */
         QCheckBox        *m_pCheckBoxHotPluggable;
+
         /** Holds the right pane attachment widget separator instance. */
         QILabelSeparator *m_pLabelSeparatorInformation;
+        /** Holds the information container instance. */
+        QStackedWidget   *m_pContainerInformation;
         /** Holds the HD format label instance. */
         QLabel           *m_pLabelHDFormat;
         /** Holds the HD format field instance. */
         QILabel          *m_pFieldHDFormat;
-        /** Holds the CD/FD type label instance. */
-        QLabel           *m_pLabelCDFDType;
-        /** Holds the CD/FD type field instance. */
-        QILabel          *m_pFieldCDFDType;
         /** Holds the HD virtual size label instance. */
         QLabel           *m_pLabelHDVirtualSize;
         /** Holds the HD virtual size field instance. */
@@ -508,26 +520,54 @@ private:
         QLabel           *m_pLabelHDActualSize;
         /** Holds the HD actual size field instance. */
         QILabel          *m_pFieldHDActualSize;
-        /** Holds the CD/FD size label instance. */
-        QLabel           *m_pLabelCDFDSize;
-        /** Holds the CD/FD size field instance. */
-        QILabel          *m_pFieldCDFDSize;
         /** Holds the HD details label instance. */
         QLabel           *m_pLabelHDDetails;
         /** Holds the HD details field instance. */
         QILabel          *m_pFieldHDDetails;
-        /** Holds the location label instance. */
-        QLabel           *m_pLabelLocation;
-        /** Holds the location field instance. */
-        QILabel          *m_pFieldLocation;
-        /** Holds the usage label instance. */
-        QLabel           *m_pLabelUsage;
-        /** Holds the usage field instance. */
-        QILabel          *m_pFieldUsage;
-        /** Holds the encryption label instance. */
-        QLabel           *m_pLabelEncryption;
-        /** Holds the encryption field instance. */
-        QILabel          *m_pFieldEncryption;
+        /** Holds the HD location label instance. */
+        QLabel           *m_pLabelHDLocation;
+        /** Holds the HD location field instance. */
+        QILabel          *m_pFieldHDLocation;
+        /** Holds the HD usage label instance. */
+        QLabel           *m_pLabelHDUsage;
+        /** Holds the HD usage field instance. */
+        QILabel          *m_pFieldHDUsage;
+        /** Holds the HD encryption label instance. */
+        QLabel           *m_pLabelHDEncryption;
+        /** Holds the HD encryption field instance. */
+        QILabel          *m_pFieldHDEncryption;
+        /** Holds the CD type label instance. */
+        QLabel           *m_pLabelCDType;
+        /** Holds the CD type field instance. */
+        QILabel          *m_pFieldCDType;
+        /** Holds the CD size label instance. */
+        QLabel           *m_pLabelCDSize;
+        /** Holds the CD size field instance. */
+        QILabel          *m_pFieldCDSize;
+        /** Holds the CD location label instance. */
+        QLabel           *m_pLabelCDLocation;
+        /** Holds the CD location field instance. */
+        QILabel          *m_pFieldCDLocation;
+        /** Holds the CD usage label instance. */
+        QLabel           *m_pLabelCDUsage;
+        /** Holds the CD usage field instance. */
+        QILabel          *m_pFieldCDUsage;
+        /** Holds the FD type label instance. */
+        QLabel           *m_pLabelFDType;
+        /** Holds the FD type field instance. */
+        QILabel          *m_pFieldFDType;
+        /** Holds the FD size label instance. */
+        QLabel           *m_pLabelFDSize;
+        /** Holds the FD size field instance. */
+        QILabel          *m_pFieldFDSize;
+        /** Holds the FD location label instance. */
+        QLabel           *m_pLabelFDLocation;
+        /** Holds the FD location field instance. */
+        QILabel          *m_pFieldFDLocation;
+        /** Holds the FD usage label instance. */
+        QLabel           *m_pLabelFDUsage;
+        /** Holds the FD usage field instance. */
+        QILabel          *m_pFieldFDUsage;
     /** @} */
 };
 

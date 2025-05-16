@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage mediumio
 -->
 <!--
-    Copyright (C) 2018-2023 Oracle and/or its affiliates.
+    Copyright (C) 2018-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-mediumio" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2023-04-21 23:59:02 +0200 (Fri, 21 Apr 2023) $</pubdate>
+    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
     <title>VBoxManage mediumio</title>
   </refentryinfo>
 
@@ -92,8 +92,9 @@
     <refsect2 id="vboxmanage-mediumio-common-options">
       <title>Common options</title>
       <remark role="help-scope" condition="GLOBAL"/>
-      <para>The subcommands of <command>mediumio</command> all operate on a medium which need to be specified, optionally
-        with an encryption password.  The following common options can be placed before or after the sub-command:</para>
+      <para>The subcommands of <command>mediumio</command> all operate on a medium which must be specified using
+        one of the following options along with an optional encryption password.  The following common options
+        can be placed before or after the sub-command:</para>
       <variablelist>
         <varlistentry>
           <term>--disk=<replaceable>uuid|filename</replaceable></term>
@@ -119,8 +120,8 @@
       <title>mediumio formatfat</title>
       <remark role="help-copy-synopsis"/>
       <para>
-        Formats a floppy medium with the FAT file system. This will erase the
-        content of the medium.
+        Formats a medium with the FAT file system. This will erase the
+        contents of the medium.
       </para>
       <variablelist>
         <varlistentry>
@@ -133,7 +134,7 @@
       <title>mediumio cat</title>
       <remark role="help-copy-synopsis"/>
       <para>
-        Dumps the medium content to stdout or the specified file.
+        Dumps the contents of the medium to stdout or the specified file.
       </para>
       <variablelist>
         <varlistentry>

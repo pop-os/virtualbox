@@ -37,7 +37,7 @@
 
 /* Forward declarations: */
 class QCheckBox;
-class QGridLayout;
+class QHBoxLayout;
 class QLabel;
 class QILineEdit;
 class UIBaseMemoryEditor;
@@ -123,7 +123,7 @@ class UIAdditionalUnattendedOptions : public QGroupBox
 signals:
 
     void sigHostnameDomainNameChanged(const QString &strHostnameDomainName, bool fIsComplete);
-    void sigProductKeyChanged(const QString &strHostnameDomainName);
+    void sigProductKeyChanged(const QString &strProductKey);
     void sigStartHeadlessChanged(bool fChecked);
 
 public:
@@ -151,11 +151,7 @@ private:
 
     void prepare();
 
-    QLabel *m_pProductKeyLabel;
-    QILineEdit *m_pProductKeyLineEdit;
     UIHostnameDomainNameEditor *m_pHostnameDomainNameEditor;
-    QCheckBox *m_pStartHeadlessCheckBox;
-    QGridLayout *m_pMainLayout;
 };
 
 

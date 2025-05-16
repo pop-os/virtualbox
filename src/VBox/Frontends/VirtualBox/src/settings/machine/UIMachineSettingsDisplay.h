@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -155,10 +155,10 @@ private:
     void updateMinimumLayoutHint();
 
     /** Holds the guest OS type. */
-    QString m_strGuestOSTypeId;
+    QString                  m_strGuestOSTypeId;
 #ifdef VBOX_WITH_3D_ACCELERATION
-    /** Holds whether the guest OS supports WDDM. */
-    bool          m_fWddmModeSupported;
+    /** Holds whether 3D acceleration supported. */
+    bool                     m_f3DAccelerationSupported;
 #endif
     /** Holds recommended graphics controller type. */
     KGraphicsControllerType  m_enmGraphicsControllerTypeRecommended;

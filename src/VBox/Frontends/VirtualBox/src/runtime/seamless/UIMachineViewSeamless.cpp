@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -143,6 +143,14 @@ void UIMachineViewSeamless::cleanupSeamless()
 
 void UIMachineViewSeamless::adjustGuestScreenSize()
 {
+    /* Step 0: Is machine running or paused? */
+    if (!uimachine()->isRunning() && !uimachine()->isPaused())
+    {
+        LogRel(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: "
+                "Guest-screen #%d display is not initialized, adjustment is not possible.\n",
+                screenId()));
+        return;
+    }
     /* Step 1: Is guest-screen visible? */
     if (!uimachine()->isScreenVisible(screenId()))
     {

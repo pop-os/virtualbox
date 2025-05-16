@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -2218,7 +2218,7 @@ static int vbsf_iter_lock_pages(struct iov_iter *iter, bool fWrite, struct vbsf_
 # endif
                 cbSegRet = VBOX_IOV_GET_PAGES(iter, papPages, iov_iter_count(iter), cMaxPages, &offPage0);
                 if (cbSegRet > 0) {
-# if RTLNX_VER_MAX(6,0,0)
+# if RTLNX_VER_MAX(6,0,0) && !RTLNX_RHEL_RANGE(9,4, 9,99)
                     iov_iter_advance(iter, cbSegRet);
 #endif
                     cbChunk    = (size_t)cbSegRet;
@@ -2246,7 +2246,7 @@ static int vbsf_iter_lock_pages(struct iov_iter *iter, bool fWrite, struct vbsf_
                 }
                 cbSegRet = VBOX_IOV_GET_PAGES(iter, &papPages[cPages], iov_iter_count(iter), 1, &offPgProbe);
                 if (cbSegRet > 0) {
-# if RTLNX_VER_MAX(6,0,0)
+# if RTLNX_VER_MAX(6,0,0) && !RTLNX_RHEL_RANGE(9,4, 9,99)
                     iov_iter_advance(iter, cbSegRet); /** @todo maybe not do this if we stash the page? */
 #endif
                     Assert(offPgProbe + cbSegRet <= PAGE_SIZE);
@@ -2268,7 +2268,7 @@ static int vbsf_iter_lock_pages(struct iov_iter *iter, bool fWrite, struct vbsf_
                             if (cbSegRet > 0) {
                                 size_t const cPgRet = RT_ALIGN_Z((size_t)cbSegRet, PAGE_SIZE) >> PAGE_SHIFT;
                                 Assert(offPgProbe == 0);
-# if RTLNX_VER_MAX(6,0,0)
+# if RTLNX_VER_MAX(6,0,0) && !RTLNX_RHEL_RANGE(9,4, 9,99)
                                 iov_iter_advance(iter, cbSegRet);
 # endif
                                 SFLOG3(("vbsf_iter_lock_pages: iov_iter_get_pages() -> %#zx; %#zx pages\n", cbSegRet, cPgRet));
@@ -3681,7 +3681,9 @@ static int vbsf_readpage(struct file *file, struct page *page)
             err = -ENOMEM;
     } else
         err = -EIO;
+#if RTLNX_VER_MAX(6,12,0)
     SetPageError(page);
+#endif
     unlock_page(page);
     return err;
 }
@@ -3740,9 +3742,11 @@ static int vbsf_writepage(struct page *page)
                     && offEndOfWrite > i_size_read(inode))
                     i_size_write(inode, offEndOfWrite);
 
+#if RTLNX_VER_MAX(6,12,0)
                 /* Update and unlock the page. */
                 if (PageError(page))
                     ClearPageError(page);
+#endif
                 SetPageUptodate(page);
                 unlock_page(page);
 
@@ -3764,7 +3768,9 @@ static int vbsf_writepage(struct page *page)
             printk("vbsf_writepage: no writable handle for %s..\n", sf_i->path->String.ach);
         err = -EIO;
     }
+#if RTLNX_VER_MAX(6,12,0)
     SetPageError(page);
+#endif
     unlock_page(page);
     return err;
 }
@@ -3792,21 +3798,28 @@ static inline void vbsf_write_begin_warn(loff_t pos, unsigned len, unsigned flag
     }
 }
 
-# if RTLNX_VER_MIN(5,19,0) || RTLNX_RHEL_RANGE(9,3, 9,99)
+# if RTLNX_VER_MIN(6,12,0)
+static int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
+                     unsigned len, struct folio **foliop, void **fsdata)
+{
+    vbsf_write_begin_warn(pos, len, 0);
+    return simple_write_begin(file, mapping, pos, len, foliop, fsdata);
+}
+# elif RTLNX_VER_MIN(5,19,0) || RTLNX_RHEL_RANGE(9,3, 9,99)
 static int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
                      unsigned len, struct page **pagep, void **fsdata)
 {
     vbsf_write_begin_warn(pos, len, 0);
     return simple_write_begin(file, mapping, pos, len, pagep, fsdata);
 }
-# else
+# else /* KERNEL_VERSION <= 5.19 */
 static int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
                      unsigned len, unsigned flags, struct page **pagep, void **fsdata)
 {
     vbsf_write_begin_warn(pos, len, flags);
     return simple_write_begin(file, mapping, pos, len, flags, pagep, fsdata);
 }
-# endif
+# endif /* KERNEL_VERSION >= 6.12 */
 
 #endif /* KERNEL_VERSION >= 2.6.24 */
 
@@ -3814,9 +3827,15 @@ static int vbsf_write_begin(struct file *file, struct address_space *mapping, lo
 /**
  * Companion to vbsf_write_begin (i.e. shouldn't be called).
  */
+# if RTLNX_VER_MIN(6,12,0)
+static int vbsf_write_end(struct file *file, struct address_space *mapping,
+                          loff_t pos, unsigned int len, unsigned int copied,
+                          struct folio *folio, void *fsdata)
+# else /* KERNEL_VERSION <= 6.12 && KERNEL_VERSION >= 5.14 */
 static int vbsf_write_end(struct file *file, struct address_space *mapping,
                           loff_t pos, unsigned int len, unsigned int copied,
                           struct page *page, void *fsdata)
+# endif /* KERNEL_VERSION >= 6.12 */
 {
     static uint64_t volatile s_cCalls = 0;
     if (s_cCalls++ < 16)

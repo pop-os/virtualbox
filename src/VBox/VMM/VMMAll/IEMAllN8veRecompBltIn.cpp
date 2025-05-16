@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -55,6 +55,7 @@
 #include "IEMN8veRecompiler.h"
 #include "IEMN8veRecompilerEmit.h"
 #include "IEMN8veRecompilerTlbLookup.h"
+#include "target-x86/IEMAllN8veEmit-x86.h"
 
 
 
@@ -171,7 +172,7 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_LogCpuState)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_LogCpuState)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 
@@ -189,7 +190,7 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_DeferToCImpl0)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_DeferToCImpl0)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 
@@ -205,14 +206,16 @@ IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_DeferToCImpl0)
  * Worker for the CheckIrq, CheckTimers and CheckTimersAndIrq builtins below.
  */
 template<bool const a_fCheckTimers, bool const a_fCheckIrqs>
-DECL_FORCE_INLINE(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(PIEMRECOMPILERSTATE pReNative, uint32_t off)
+DECL_FORCE_INLINE_THROW(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(PIEMRECOMPILERSTATE pReNative, uint32_t off)
 {
     uint8_t const         idxEflReg  = !a_fCheckIrqs ? UINT8_MAX
-                                     : iemNativeRegAllocTmpForGuestReg(pReNative, &off, kIemNativeGstReg_EFlags,
-                                                                       kIemNativeGstRegUse_ReadOnly);
+                                     : iemNativeRegAllocTmpForGuestEFlagsReadOnly(pReNative, &off,
+                                                                                  RT_BIT_64(IEMLIVENESSBIT_IDX_EFL_OTHER));
     uint8_t const         idxTmpReg1 = iemNativeRegAllocTmp(pReNative, &off);
     uint8_t const         idxTmpReg2 = a_fCheckIrqs ? iemNativeRegAllocTmp(pReNative, &off) : UINT8_MAX;
-    PIEMNATIVEINSTR const pCodeBuf   = iemNativeInstrBufEnsure(pReNative, off, RT_ARCH_VAL == RT_ARCH_VAL_AMD64 ? 72 : 32);
+    PIEMNATIVEINSTR const pCodeBuf   = iemNativeInstrBufEnsure(pReNative, off,
+                                                                 (RT_ARCH_VAL == RT_ARCH_VAL_AMD64 ? 72 : 32)
+                                                               + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS * 3);
 
     /*
      * First we decrement the timer poll counter, if so desired.
@@ -225,7 +228,7 @@ DECL_FORCE_INLINE(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(P
         off = iemNativeEmitGprByVCpuDisp(pCodeBuf, off, 1, RT_UOFFSETOF(VMCPU, iem.s.cTbsTillNextTimerPoll));
 
         /* jz   ReturnBreakFF */
-        off = iemNativeEmitJccTbExitEx(pReNative, pCodeBuf, off, kIemNativeLabelType_ReturnBreakFF, kIemNativeInstrCond_e);
+        off = iemNativeEmitTbExitJccEx<kIemNativeLabelType_ReturnBreakFF>(pReNative, pCodeBuf, off, kIemNativeInstrCond_e);
 
 # elif defined(RT_ARCH_ARM64)
         AssertCompile(RTASSERT_OFFSET_OF(VMCPU, iem.s.cTbsTillNextTimerPoll) < _4K * sizeof(uint32_t));
@@ -234,8 +237,8 @@ DECL_FORCE_INLINE(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(P
         off = iemNativeEmitStoreGprToVCpuU32Ex(pCodeBuf, off, idxTmpReg1, RT_UOFFSETOF(VMCPU, iem.s.cTbsTillNextTimerPoll));
 
         /* cbz reg1, ReturnBreakFF */
-        off = iemNativeEmitTestIfGprIsZeroAndTbExitEx(pReNative, pCodeBuf, off, idxTmpReg1, false /*f64Bit*/,
-                                                      kIemNativeLabelType_ReturnBreakFF);
+        off = iemNativeEmitTbExitIfGprIsZeroEx<kIemNativeLabelType_ReturnBreakFF>(pReNative, pCodeBuf, off,
+                                                                                  idxTmpReg1, false /*f64Bit*/);
 
 # else
 #  error "port me"
@@ -274,11 +277,39 @@ DECL_FORCE_INLINE(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(P
 
         /* OR in VM::fGlobalForcedActions.  We access the member via pVCpu.
            No need to mask anything here.  Unfortunately, it's a 32-bit
-           variable, so we can't OR it directly on x86. */
+           variable, so we can't OR it directly on x86.
+
+           Note! We take a tiny liberty here and ASSUME that the VM and associated
+                 VMCPU mappings are less than 2 GiB away from one another, so we
+                 can access VM::fGlobalForcedActions via a 32-bit signed displacement.
+
+                 This is _only_ a potential issue with VMs using the _support_ _driver_
+                 for manging the structure, as it maps the individual bits separately
+                 and the mapping order differs between host platforms.  Linux may
+                 map the VM structure higher than the VMCPU ones, whereas windows may
+                 do put the VM structure in the lowest address.  On all hosts there
+                 is a chance that virtual memory fragmentation could cause the bits to
+                 end up at a greater distance from one another, but it is rather
+                 doubtful and we just ASSUME it won't happen for now...
+
+                 When the VM structure is allocated in userland, there is one
+                 allocation for it and all the associated VMCPU components, thus no
+                 problems. */
         AssertCompile(VM_FF_ALL_MASK == UINT32_MAX);
         intptr_t const offGlobalForcedActions = (intptr_t)&pReNative->pVCpu->CTX_SUFF(pVM)->fGlobalForcedActions
                                               - (intptr_t)pReNative->pVCpu;
-        Assert((int32_t)offGlobalForcedActions == offGlobalForcedActions);
+        if (RT_LIKELY((int32_t)offGlobalForcedActions == offGlobalForcedActions))
+        { /* likely */ }
+        else
+        {
+            LogRelMax(16, ("!!WARNING!! offGlobalForcedActions=%#zx pVM=%p pVCpu=%p - CheckTimersAndIrqsCommon\n",
+                           offGlobalForcedActions, pReNative->pVCpu->CTX_SUFF(pVM), pReNative->pVCpu));
+# ifdef IEM_WITH_THROW_CATCH
+            AssertFailedStmt(IEMNATIVE_DO_LONGJMP(NULL, VERR_IEM_IPE_9));
+# else
+            AssertReleaseFailed();
+# endif
+        }
 
 # ifdef RT_ARCH_AMD64
         if (idxTmpReg2 >= 8)
@@ -291,9 +322,11 @@ DECL_FORCE_INLINE(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(P
 
         /* jz nothing_pending */
         uint32_t const offFixup1 = off;
-        off = iemNativeEmitJccToFixedEx(pCodeBuf, off, off + 64, kIemNativeInstrCond_e);
+        off = iemNativeEmitJccToFixedEx(pCodeBuf, off, IEMNATIVE_HAS_POSTPONED_EFLAGS_CALCS(pReNative) ? off + 512 : off + 64,
+                                        kIemNativeInstrCond_e);
 
 # elif defined(RT_ARCH_ARM64)
+        Assert(offGlobalForcedActions < 0);
         off = iemNativeEmitGprBySignedVCpuLdStEx(pCodeBuf, off, idxTmpReg2, (int32_t)offGlobalForcedActions,
                                                  kArmv8A64InstrLdStType_Ld_Word, sizeof(uint32_t));
         off = iemNativeEmitOrGprByGprEx(pCodeBuf, off, idxTmpReg1, idxTmpReg2);
@@ -301,7 +334,7 @@ DECL_FORCE_INLINE(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(P
         /* cbz nothing_pending */
         uint32_t const offFixup1 = off;
         off = iemNativeEmitTestIfGprIsZeroOrNotZeroAndJmpToFixedEx(pCodeBuf, off, idxTmpReg1, true /*f64Bit*/,
-                                                                   false /*fJmpIfNotZero*/, off + 16);
+                                                                   false /*fJmpIfNotZero*/, off);
 # else
 #  error "port me"
 # endif
@@ -311,7 +344,7 @@ DECL_FORCE_INLINE(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(P
         /* cmp reg1, 3 */
         off = iemNativeEmitCmpGprWithImmEx(pCodeBuf, off, idxTmpReg1, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC);
         /* ja ReturnBreakFF */
-        off = iemNativeEmitJccTbExitEx(pReNative, pCodeBuf, off, kIemNativeLabelType_ReturnBreakFF, kIemNativeInstrCond_nbe);
+        off = iemNativeEmitTbExitJccEx<kIemNativeLabelType_ReturnBreakFF>(pReNative, pCodeBuf, off, kIemNativeInstrCond_nbe);
 
         /*
          * Okay, we've only got pending IRQ related FFs: Can we dispatch IRQs?
@@ -327,12 +360,12 @@ DECL_FORCE_INLINE(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(P
 
 # ifdef RT_ARCH_AMD64
         /* jz   ReturnBreakFF */
-        off = iemNativeEmitJccTbExitEx(pReNative, pCodeBuf, off, kIemNativeLabelType_ReturnBreakFF, kIemNativeInstrCond_e);
+        off = iemNativeEmitTbExitJccEx<kIemNativeLabelType_ReturnBreakFF>(pReNative, pCodeBuf, off, kIemNativeInstrCond_e);
 
 # elif defined(RT_ARCH_ARM64)
         /* cbz  reg1, ReturnBreakFF */
-        off = iemNativeEmitTestIfGprIsZeroAndTbExitEx(pReNative, pCodeBuf, off, idxTmpReg1, false /*f64Bit*/,
-                                                      kIemNativeLabelType_ReturnBreakFF);
+        off = iemNativeEmitTbExitIfGprIsZeroEx<kIemNativeLabelType_ReturnBreakFF>(pReNative, pCodeBuf, off,
+                                                                                  idxTmpReg1, false /*f64Bit*/);
 # else
 #  error "port me"
 # endif
@@ -340,6 +373,7 @@ DECL_FORCE_INLINE(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCommon(P
          * nothing_pending:
          */
         iemNativeFixupFixedJump(pReNative, offFixup1, off);
+        IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
     }
 
     IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
@@ -390,8 +424,9 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckIrq)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckIrq)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     IEM_LIVENESS_RAW_EFLAGS_ONE_INPUT(pOutgoing, fEflOther);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 
@@ -409,7 +444,8 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckTimers)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckTimers)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 
@@ -426,8 +462,9 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckTimersAndIrq)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckTimersAndIrq)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     IEM_LIVENESS_RAW_EFLAGS_ONE_INPUT(pOutgoing, fEflOther);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 
@@ -442,8 +479,8 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckMode)
 
     off = iemNativeEmitLoadGprFromVCpuU32(pReNative, off, idxTmpReg, RT_UOFFSETOF(VMCPUCC, iem.s.fExec));
     off = iemNativeEmitAndGpr32ByImm(pReNative, off, idxTmpReg, IEMTB_F_KEY_MASK);
-    off = iemNativeEmitTestIfGpr32NotEqualImmAndTbExit(pReNative, off, idxTmpReg, fExpectedExec & IEMTB_F_KEY_MASK,
-                                                       kIemNativeLabelType_ReturnBreak);
+    off = iemNativeEmitTbExitIfGpr32NotEqualImm<kIemNativeLabelType_ReturnBreak>(pReNative, off, idxTmpReg,
+                                                                                 fExpectedExec & IEMTB_F_KEY_MASK);
     iemNativeRegFreeTmp(pReNative, idxTmpReg);
 
     /* Maintain the recompiler fExec state. */
@@ -453,7 +490,8 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckMode)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckMode)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 
@@ -572,7 +610,7 @@ iemNativeEmitBltInCheckCsLim(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_
     }
 
     /* 3. Jump if greater. */
-    off = iemNativeEmitJaTbExit(pReNative, off, kIemNativeLabelType_RaiseGp0);
+    off = iemNativeEmitTbExitJa<kIemNativeLabelType_RaiseGp0>(pReNative, off);
 
     iemNativeRegFreeTmp(pReNative, idxRegCsLim);
     iemNativeRegFreeTmp(pReNative, idxRegPc);
@@ -660,7 +698,7 @@ iemNativeEmitBltInConsiderLimChecking(PIEMRECOMPILERSTATE pReNative, uint32_t of
 
     /* Compare the two and jump out if we're too close to the limit. */
     off = iemNativeEmitCmpGprWithGpr(pReNative, off, idxRegLeft, idxRegRight);
-    off = iemNativeEmitJlTbExit(pReNative, off, kIemNativeLabelType_NeedCsLimChecking);
+    off = iemNativeEmitTbExitJl<kIemNativeLabelType_NeedCsLimChecking>(pReNative, off);
 
     iemNativeRegFreeTmp(pReNative, idxRegRight);
     iemNativeRegFreeTmp(pReNative, idxRegLeft);
@@ -720,12 +758,6 @@ iemNativeEmitBltInCheckOpcodes(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIE
             pbCodeBuf[off++] = RT_BYTE1(offPage); \
         } while (0)
 
-# ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
-#  define NEAR_JMP_SIZE 5
-# else
-#  define NEAR_JMP_SIZE 6
-# endif
-
 # define CHECK_OPCODES_CMP_JMP() /* cost: 7 bytes first time, then 2 bytes */ do { \
             if (offConsolidatedJump != UINT32_MAX) \
             { \
@@ -736,11 +768,12 @@ iemNativeEmitBltInCheckOpcodes(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIE
             } \
             else \
             { \
-                pbCodeBuf[off++] = 0x74; /* jz near +NEAR_JMP_SIZE */ \
-                pbCodeBuf[off++] = NEAR_JMP_SIZE + BP_ON_OBSOLETION; \
-                offConsolidatedJump = off; \
+                pbCodeBuf[off++] = 0x74; /* jz near +5 */ \
+                offConsolidatedJump = ++off; \
                 if (BP_ON_OBSOLETION) pbCodeBuf[off++] = 0xcc; \
-                off = iemNativeEmitTbExitEx(pReNative, pbCodeBuf, off, kIemNativeLabelType_ObsoleteTb); \
+                off = iemNativeEmitTbExitEx<kIemNativeLabelType_ObsoleteTb, false /*a_fActuallyExitingTb*/>(pReNative, \
+                                                                                                            pbCodeBuf, off); \
+                pbCodeBuf[offConsolidatedJump - 1]  = off - offConsolidatedJump; \
             } \
         } while (0)
 
@@ -806,7 +839,8 @@ iemNativeEmitBltInCheckOpcodes(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIE
             offPage &= 3;
         }
 
-        uint8_t * const pbCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 6 + 14 + 54 + 8 + 6 + BP_ON_OBSOLETION /* = 88 */);
+        uint8_t * const pbCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 6 + 14 + 54 + 8 + 6 + BP_ON_OBSOLETION /* = 88 */
+                                                            + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS);
 
         if (cbLeft > 8)
             switch (offPage & 3)
@@ -850,7 +884,8 @@ iemNativeEmitBltInCheckOpcodes(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIE
         /* RCX = counts. */
         uint8_t const idxRegCx = iemNativeRegAllocTmpEx(pReNative, &off, RT_BIT_32(X86_GREG_xCX));
 
-        uint8_t * const pbCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 6 + 10 + 5 + 5 + 3 + 4 + 3 + BP_ON_OBSOLETION /*= 36*/);
+        uint8_t * const pbCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 6 + 10 + 5 + 5 + 3 + 4 + 3 + BP_ON_OBSOLETION /*= 36*/
+                                                            + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS);
 
         /** @todo profile and optimize this further.  Maybe an idea to align by
          *        offPage if the two cannot be reconsidled. */
@@ -913,7 +948,7 @@ iemNativeEmitBltInCheckOpcodes(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIE
        load via pbInstrBuf. */
     uint8_t const idxRegSrc1Val = iemNativeRegAllocTmp(pReNative, &off);
 
-    uint32_t * const pu32CodeBuf = iemNativeInstrBufEnsure(pReNative, off, 64);
+    uint32_t * const pu32CodeBuf = iemNativeInstrBufEnsure(pReNative, off, 64 + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS * 2);
 
     /* One byte compare can be done with the opcode byte as an immediate. We'll
        do this to uint16_t align src1. */
@@ -984,8 +1019,8 @@ iemNativeEmitBltInCheckOpcodes(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIE
             {
                 if (fPendingJmp)
                 {
-                    off = iemNativeEmitJccTbExitEx(pReNative, pu32CodeBuf, off, kIemNativeLabelType_ObsoleteTb,
-                                                   kArmv8InstrCond_Ne);
+                    off = iemNativeEmitTbExitJccEx<kIemNativeLabelType_ObsoleteTb>(pReNative, pu32CodeBuf, off,
+                                                                                   kArmv8InstrCond_Ne);
                     fPendingJmp = false;
                 }
 
@@ -1021,8 +1056,7 @@ iemNativeEmitBltInCheckOpcodes(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIE
                 pu32CodeBuf[off++] = Armv8A64MkInstrCCmpReg(idxRegSrc1Val, idxRegSrc2Val,
                                                             ARMA64_NZCV_F_N0_Z0_C0_V0, kArmv8InstrCond_Eq);
 
-                off = iemNativeEmitJccTbExitEx(pReNative, pu32CodeBuf, off, kIemNativeLabelType_ObsoleteTb,
-                                               kArmv8InstrCond_Ne);
+                off = iemNativeEmitTbExitJccEx<kIemNativeLabelType_ObsoleteTb>(pReNative, pu32CodeBuf, off, kArmv8InstrCond_Ne);
 
                 /* Advance and loop. */
                 pu32CodeBuf[off++] = Armv8A64MkInstrAddUImm12(idxRegSrc1Ptr, idxRegSrc1Ptr, 0x20);
@@ -1155,7 +1189,7 @@ iemNativeEmitBltInCheckOpcodes(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIE
      * Finally, the branch on difference.
      */
     if (fPendingJmp)
-        off = iemNativeEmitJnzTbExit(pReNative, off, kIemNativeLabelType_ObsoleteTb);
+        off = iemNativeEmitTbExitJnz<kIemNativeLabelType_ObsoleteTb>(pReNative, off);
 
     RT_NOREF(pu32CodeBuf, cbLeft, offPage, pbOpcodes, offConsolidatedJump);
 
@@ -1271,7 +1305,7 @@ iemNativeEmitBltInCheckPcAfterBranch(PIEMRECOMPILERSTATE pReNative, uint32_t off
     /* Assert(pVCpu->cpum.GstCtx.cs.u64Base == 0 || !IEM_F_MODE_X86_IS_FLAT(pReNative->fExec)); */
     if (IEM_F_MODE_X86_IS_FLAT(pReNative->fExec))
     {
-        off = iemNativeEmitLoadGprFromVCpuU64(pReNative, off, idxRegTmp, RT_UOFFSETOF(VMCPUCC, cpum.GstCtx.cs.u64Base));
+        off = iemNativeEmitLoadGprWithGstRegT<kIemNativeGstReg_CsBase>(pReNative, off, idxRegTmp);
 # ifdef RT_ARCH_ARM64
         uint32_t * const pu32CodeBuf = iemNativeInstrBufEnsure(pReNative, off, 2);
         pu32CodeBuf[off++] = Armv8A64MkInstrCbzCbnz(false /*fJmpIfNotZero*/, 2, idxRegTmp);
@@ -1316,7 +1350,7 @@ iemNativeEmitBltInCheckPcAfterBranch(PIEMRECOMPILERSTATE pReNative, uint32_t off
 
     /* 3. Check that off is less than X86_PAGE_SIZE/cbInstrBufTotal. */
     off = iemNativeEmitCmpGprWithImm(pReNative, off, idxRegTmp, X86_PAGE_SIZE - 1);
-    off = iemNativeEmitJaTbExit(pReNative, off, kIemNativeLabelType_CheckBranchMiss);
+    off = iemNativeEmitTbExitJa<kIemNativeLabelType_CheckBranchMiss>(pReNative, off);
 
     /* 4. Add iem.s.GCPhysInstrBuf and compare with GCPhysRangePageWithOffset. */
 #ifdef RT_ARCH_AMD64
@@ -1347,8 +1381,8 @@ iemNativeEmitBltInCheckPcAfterBranch(PIEMRECOMPILERSTATE pReNative, uint32_t off
     RTGCPHYS const GCPhysRangePageWithOffset = (  iemTbGetRangePhysPageAddr(pTb, idxRange)
                                                 | pTb->aRanges[idxRange].offPhysPage)
                                              + offRange;
-    off = iemNativeEmitTestIfGprNotEqualImmAndTbExit(pReNative, off, idxRegTmp, GCPhysRangePageWithOffset,
-                                                     kIemNativeLabelType_CheckBranchMiss);
+    off = iemNativeEmitTbExitIfGprNotEqualImm<kIemNativeLabelType_CheckBranchMiss>(pReNative, off, idxRegTmp,
+                                                                                   GCPhysRangePageWithOffset);
 
     iemNativeRegFreeTmp(pReNative, idxRegTmp);
     return off;
@@ -1406,6 +1440,11 @@ iemNativeEmitBltLoadTlbForNewPage(PIEMRECOMPILERSTATE pReNative, uint32_t off, P
     uint32_t const fHstRegsNotToSave = TlbState.getRegsNotToSave() | RT_BIT_32(idxRegGCPhys);
     off = iemNativeVarSaveVolatileRegsPreHlpCall(pReNative, off, fHstRegsNotToSave);
 
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    /* Do delayed EFLAGS calculations. There are no restrictions on volatile registers here. */
+    off = iemNativeDoPostponedEFlagsAtTlbMiss<0>(pReNative, off, &TlbState, fHstRegsNotToSave);
+#endif
+
     /* IEMNATIVE_CALL_ARG1_GREG = offInstr */
     off = iemNativeEmitLoadGpr8Imm(pReNative, off, IEMNATIVE_CALL_ARG1_GREG, offInstr);
 
@@ -1413,7 +1452,7 @@ iemNativeEmitBltLoadTlbForNewPage(PIEMRECOMPILERSTATE pReNative, uint32_t off, P
     off = iemNativeEmitLoadGprFromGpr(pReNative, off, IEMNATIVE_CALL_ARG0_GREG, IEMNATIVE_REG_FIXED_PVMCPU);
 
     /* Done setting up parameters, make the call. */
-    off = iemNativeEmitCallImm(pReNative, off, (uintptr_t)iemNativeHlpMemCodeNewPageTlbMissWithOff);
+    off = iemNativeEmitCallImm<true /*a_fSkipEflChecks*/>(pReNative, off, (uintptr_t)iemNativeHlpMemCodeNewPageTlbMissWithOff);
 
     /* Move the result to the right register. */
     if (idxRegGCPhys != IEMNATIVE_CALL_RET_GREG)
@@ -1433,10 +1472,10 @@ iemNativeEmitBltLoadTlbForNewPage(PIEMRECOMPILERSTATE pReNative, uint32_t off, P
         /*
          * TlbLookup:
          */
-        off = iemNativeEmitTlbLookup<false>(pReNative, off, &TlbState,
-                                            IEM_F_MODE_X86_IS_FLAT(pReNative->fExec) ? UINT8_MAX : X86_SREG_CS,
-                                            1 /*cbMem*/, 0 /*fAlignMask*/, IEM_ACCESS_TYPE_EXEC,
-                                            idxLabelTlbLookup, idxLabelTlbMiss, idxRegGCPhys, offInstr);
+        off = iemNativeEmitTlbLookup<false, 1 /*cbMem*/, 0 /*fAlignMask*/,
+                                     IEM_ACCESS_TYPE_EXEC>(pReNative, off, &TlbState,
+                                                           IEM_F_MODE_X86_IS_FLAT(pReNative->fExec) ? UINT8_MAX : X86_SREG_CS,
+                                                           idxLabelTlbLookup, idxLabelTlbMiss, idxRegGCPhys, offInstr);
 
 # ifdef IEM_WITH_TLB_STATISTICS
         off = iemNativeEmitIncStamCounterInVCpu(pReNative, off, TlbState.idxReg1, TlbState.idxReg2,
@@ -1457,8 +1496,7 @@ iemNativeEmitBltLoadTlbForNewPage(PIEMRECOMPILERSTATE pReNative, uint32_t off, P
      * Now check the physical address of the page matches the expected one.
      */
     RTGCPHYS const GCPhysNewPage = iemTbGetRangePhysPageAddr(pTb, idxRange);
-    off = iemNativeEmitTestIfGprNotEqualImmAndTbExit(pReNative, off, idxRegGCPhys, GCPhysNewPage,
-                                                     kIemNativeLabelType_ObsoleteTb);
+    off = iemNativeEmitTbExitIfGprNotEqualImm<kIemNativeLabelType_ObsoleteTb>(pReNative, off, idxRegGCPhys, GCPhysNewPage);
 
     iemNativeRegFreeTmp(pReNative, idxRegGCPhys);
     return off;
@@ -1580,7 +1618,7 @@ iemNativeEmitBltLoadTlbAfterBranch(PIEMRECOMPILERSTATE pReNative, uint32_t off, 
     /* Assert(pVCpu->cpum.GstCtx.cs.u64Base == 0 || !IEM_F_MODE_X86_IS_FLAT(pReNative->fExec)); */
     if (IEM_F_MODE_X86_IS_FLAT(pReNative->fExec))
     {
-        off = iemNativeEmitLoadGprFromVCpuU64(pReNative, off, idxRegTmp, RT_UOFFSETOF(VMCPUCC, cpum.GstCtx.cs.u64Base));
+        off = iemNativeEmitLoadGprWithGstRegT<kIemNativeGstReg_CsBase>(pReNative, off, idxRegTmp);
 # ifdef RT_ARCH_ARM64
         uint32_t * const pu32CodeBuf = iemNativeInstrBufEnsure(pReNative, off, 2);
         pu32CodeBuf[off++] = Armv8A64MkInstrCbzCbnz(false /*fJmpIfNotZero*/, 2, idxRegTmp);
@@ -1669,7 +1707,7 @@ iemNativeEmitBltLoadTlbAfterBranch(PIEMRECOMPILERSTATE pReNative, uint32_t off, 
     /** @todo synch the threaded BODY_LOAD_TLB_AFTER_BRANCH version with this. */
     off = iemNativeEmitLoadGprImm64(pReNative, off, idxRegTmp2, GCPhysRangePageWithOffset);
     off = iemNativeEmitCmpGprWithGpr(pReNative, off, idxRegTmp, idxRegTmp2);
-    off = iemNativeEmitJnzTbExit(pReNative, off, kIemNativeLabelType_CheckBranchMiss);
+    off = iemNativeEmitTbExitJnz<kIemNativeLabelType_CheckBranchMiss>(pReNative, off);
     uint32_t const offFixedJumpToEnd = off;
     off = iemNativeEmitJmpToFixed(pReNative, off, off + 512 /* force rel32 */);
 
@@ -1681,8 +1719,7 @@ iemNativeEmitBltLoadTlbAfterBranch(PIEMRECOMPILERSTATE pReNative, uint32_t off, 
     iemNativeFixupFixedJump(pReNative, offFixedJumpToTlbLoad, off);
 
     /* Check that we haven't been here before. */
-    off = iemNativeEmitTestIfGprIsNotZeroAndTbExit(pReNative, off, idxRegTmp2,  false /*f64Bit*/,
-                                                   kIemNativeLabelType_CheckBranchMiss);
+    off = iemNativeEmitTbExitIfGprIsNotZero<kIemNativeLabelType_CheckBranchMiss>(pReNative, off, idxRegTmp2, false /*f64Bit*/);
 
     /* Jump to the TLB lookup code. */
     uint32_t const idxLabelTlbLookup = !TlbState.fSkip
@@ -1705,11 +1742,16 @@ iemNativeEmitBltLoadTlbAfterBranch(PIEMRECOMPILERSTATE pReNative, uint32_t off, 
                                      | (idxRegDummy != UINT8_MAX ? RT_BIT_32(idxRegDummy) : 0);
     off = iemNativeVarSaveVolatileRegsPreHlpCall(pReNative, off, fHstRegsNotToSave);
 
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    /* Do delayed EFLAGS calculations. There are no restrictions on volatile registers here. */
+    off = iemNativeDoPostponedEFlagsAtTlbMiss<0>(pReNative, off, &TlbState, fHstRegsNotToSave);
+#endif
+
     /* IEMNATIVE_CALL_ARG0_GREG = pVCpu */
     off = iemNativeEmitLoadGprFromGpr(pReNative, off, IEMNATIVE_CALL_ARG0_GREG, IEMNATIVE_REG_FIXED_PVMCPU);
 
     /* Done setting up parameters, make the call. */
-    off = iemNativeEmitCallImm(pReNative, off, (uintptr_t)iemNativeHlpMemCodeNewPageTlbMiss);
+    off = iemNativeEmitCallImm<true /*a_fSkipEflChecks*/>(pReNative, off, (uintptr_t)iemNativeHlpMemCodeNewPageTlbMiss);
 
     /* Restore variables and guest shadow registers to volatile registers. */
     off = iemNativeVarRestoreVolatileRegsPostHlpCall(pReNative, off, fHstRegsNotToSave);
@@ -1728,9 +1770,9 @@ iemNativeEmitBltLoadTlbAfterBranch(PIEMRECOMPILERSTATE pReNative, uint32_t off, 
         /*
          * TlbLookup:
          */
-        off = iemNativeEmitTlbLookup<false, true>(pReNative, off, &TlbState, fIsFlat ? UINT8_MAX : X86_SREG_CS,
-                                                  1 /*cbMem*/, 0 /*fAlignMask*/, IEM_ACCESS_TYPE_EXEC,
-                                                  idxLabelTlbLookup, idxLabelTlbMiss, idxRegDummy);
+        off = iemNativeEmitTlbLookup<false, 1 /*cbMem*/, 0 /*fAlignMask*/,
+                                     IEM_ACCESS_TYPE_EXEC, true>(pReNative, off, &TlbState, fIsFlat ? UINT8_MAX : X86_SREG_CS,
+                                                                 idxLabelTlbLookup, idxLabelTlbMiss, idxRegDummy);
 
 # ifdef IEM_WITH_TLB_STATISTICS
         off = iemNativeEmitIncStamCounterInVCpu(pReNative, off, TlbState.idxReg1, TlbState.idxReg2,
@@ -1788,8 +1830,9 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckCsLim)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckCsLim)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_CS_LIM(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -1815,9 +1858,10 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckCsLimAndOpcodes)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckCsLimAndOpcodes)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_CS_LIM(pOutgoing);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -1842,8 +1886,9 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodes)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodes)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -1869,9 +1914,10 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodesConsiderC
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodesConsiderCsLim)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CONSIDER_CS_LIM_CHECKING(pOutgoing);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -1906,10 +1952,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckCsLimAndPcAndOpc
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckCsLimAndPcAndOpcodes)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_CS_LIM(pOutgoing);
     LIVENESS_CHECK_PC_AFTER_BRANCH(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -1939,9 +1986,10 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckPcAndOpcodes)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckPcAndOpcodes)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_PC_AFTER_BRANCH(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -1973,10 +2021,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckPcAndOpcodesCons
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckPcAndOpcodesConsiderCsLim)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CONSIDER_CS_LIM_CHECKING(pOutgoing);
     LIVENESS_CHECK_PC_AFTER_BRANCH(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2011,10 +2060,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckCsLimAndOpcodesL
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckCsLimAndOpcodesLoadingTlb)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_CS_LIM(pOutgoing);
     LIVENESS_LOAD_TLB_AFTER_BRANCH(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2048,9 +2098,10 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodesLoadingTl
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodesLoadingTlb)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_LOAD_TLB_AFTER_BRANCH(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2085,10 +2136,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodesLoadingTl
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodesLoadingTlbConsiderCsLim)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CONSIDER_CS_LIM_CHECKING(pOutgoing);
     LIVENESS_LOAD_TLB_AFTER_BRANCH(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2129,10 +2181,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckCsLimAndOpcodesA
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckCsLimAndOpcodesAcrossPageLoadingTlb)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_CS_LIM(pOutgoing);
     LIVENESS_CHECK_OPCODES(pOutgoing);
     LIVENESS_LOAD_TLB_FOR_NEW_PAGE(pOutgoing, pCallEntry);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2167,9 +2220,10 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodesAcrossPag
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodesAcrossPageLoadingTlb)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_OPCODES(pOutgoing);
     LIVENESS_LOAD_TLB_FOR_NEW_PAGE(pOutgoing, pCallEntry);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2206,10 +2260,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodesAcrossPag
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodesAcrossPageLoadingTlbConsiderCsLim)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CONSIDER_CS_LIM_CHECKING(pOutgoing);
     LIVENESS_CHECK_OPCODES(pOutgoing);
     LIVENESS_LOAD_TLB_FOR_NEW_PAGE(pOutgoing, pCallEntry);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2242,10 +2297,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckCsLimAndOpcodesO
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckCsLimAndOpcodesOnNextPageLoadingTlb)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_CS_LIM(pOutgoing);
     LIVENESS_LOAD_TLB_FOR_NEW_PAGE(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2277,9 +2333,10 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodesOnNextPag
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodesOnNextPageLoadingTlb)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_LOAD_TLB_FOR_NEW_PAGE(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2312,10 +2369,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodesOnNextPag
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodesOnNextPageLoadingTlbConsiderCsLim)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CONSIDER_CS_LIM_CHECKING(pOutgoing);
     LIVENESS_LOAD_TLB_FOR_NEW_PAGE(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2344,10 +2402,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckCsLimAndOpcodesO
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckCsLimAndOpcodesOnNewPageLoadingTlb)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CHECK_CS_LIM(pOutgoing);
     LIVENESS_LOAD_TLB_FOR_NEW_PAGE(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2375,9 +2434,10 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodesOnNewPage
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodesOnNewPageLoadingTlb)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_LOAD_TLB_FOR_NEW_PAGE(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2407,10 +2467,11 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_CheckOpcodesOnNewPage
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_CheckOpcodesOnNewPageLoadingTlbConsiderCsLim)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     LIVENESS_CONSIDER_CS_LIM_CHECKING(pOutgoing);
     LIVENESS_LOAD_TLB_FOR_NEW_PAGE(pOutgoing, pCallEntry);
     LIVENESS_CHECK_OPCODES(pOutgoing);
+    IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 #endif
@@ -2458,7 +2519,8 @@ IEM_DECL_IEMNATIVERECOMPFUNC_DEF(iemNativeRecompFunc_BltIn_Jump)
 
 IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(iemNativeLivenessFunc_BltIn_Jump)
 {
-    IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(pOutgoing, pIncoming);
+    /* We could also use UNUSED here, but this'll is equivialent (at the moment). */
+    IEM_LIVENESS_RAW_INIT_WITH_CALL(pOutgoing, pIncoming);
     RT_NOREF(pCallEntry);
 }
 

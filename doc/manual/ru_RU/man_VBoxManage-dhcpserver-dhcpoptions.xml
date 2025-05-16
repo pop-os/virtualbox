@@ -4,7 +4,7 @@
     DO NOT EDIT!
 -->
 <!--
-    Copyright (C) 2019-2023 Oracle and/or its affiliates.
+    Copyright (C) 2019-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -88,7 +88,7 @@
           <listitem><para>Whether non-local datagrams should be forwarded by the client (boolean)</para></listitem>
         </varlistentry>        <varlistentry>
           <term>21 - PolicyFilter</term>
-          <listitem><para>List of IPv4 addresses and masks paris controlling non-local source routing.</para></listitem>
+          <listitem><para>List of IPv4 addresses and masks pairs controlling non-local source routing.</para></listitem>
         </varlistentry>        <varlistentry>
           <term>22 - MaxDgramReassemblySize</term>
           <listitem><para>The maximum datagram size the client should reassemble (16-bit decimal value).</para></listitem>

@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -199,7 +199,9 @@ static struct file_operations   g_FileOps =
     fasync:         vgdrvLinuxFAsync,
     read:           vgdrvLinuxRead,
     poll:           vgdrvLinuxPoll,
+#if RTLNX_VER_MAX(6,12,0)
     llseek:         no_llseek,
+#endif
 };
 
 /** The miscdevice structure. */

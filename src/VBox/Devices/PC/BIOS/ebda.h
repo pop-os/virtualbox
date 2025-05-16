@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -197,7 +197,7 @@ typedef struct {
 
 /* SCSI specific device information. */
 typedef struct {
-    uint16_t    hba_seg;        /* Segment of HBA driver data block. */
+    uint16_t    hba_ofs;        /* Offset (in paragraphs) of HBA driver data block within EBDA. */
     uint8_t     idx_hba;        /* The HBA driver to use. */
     uint8_t     target_id;      /* Target ID. */
 } scsi_dev_t;

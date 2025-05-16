@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2004-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -216,3 +216,78 @@ void BIOSCALL apic_setup(void)
 }
 
 #endif
+
+/**
+ * Allocate n KB of conventional memory, and either add it to
+ * the EBDA or just take it away from memory below 640K.
+ *
+ * Returns offset (in paragraphs) to the allocated block within
+ * the EBDA when adding to the EBDA, or segment address when
+ * allocating outside of the EBDA.
+ *
+ * NB: By default, the EBDA is 1KB in size, located at 639KB
+ * into the start of memory (just below the video RAM). Optional
+ * BIOS components may need additional real-mode addressable RAM
+ * which is added to the EBDA.
+ *
+ * The EBDA should be relocatable as a whole. All pointers to
+ * the EBDA must be relative, actual address is calculated from
+ * the value at 40:0E.
+ *
+ * Items like PS/2 mouse support must be at a fixed offset from
+ * the start of the EBDA. Therefore, any additional memory gets
+ * allocated at the end and the original EBDA contents are
+ * shifted down.
+ *
+ * To make relocating the EBDA practical, the EBDA must
+ * immediately follow the end of conventional memory. Therefore,
+ * new
+ *
+ * WARNING: When successful, this function moves the EBDA!
+ */
+uint16_t conv_mem_alloc(int n_kb, int in_ebda)
+{
+    uint16_t        base_mem_kb;
+    uint16_t        ebda_kb;
+    uint16_t        user_ofs;   /* Offset and size in paragraphs */
+    uint16_t        user_size;
+    uint16_t        old_ebda_seg;
+    uint16_t        new_ebda_seg;
+    uint16_t        ret_val;
+
+    base_mem_kb = read_word(0x00, 0x0413);
+
+    DPRINT("BIOS: %dK of base mem, removing %dK\n", base_mem_kb, n_kb);
+
+    if (base_mem_kb == 0)
+        return 0;
+
+    /* Reduce conventional memory size and update the BDA. */
+    base_mem_kb -= n_kb;
+    write_word(0x0040, 0x0013, base_mem_kb);
+
+    /* Figure out what's where. */
+    old_ebda_seg = read_word(0x0040, 0x000E);
+    ebda_kb      = read_byte(old_ebda_seg, 0);
+    user_ofs     = ebda_kb * (1024 / 16);   /* Old EBDA size == new mem offset. */
+    user_size    = n_kb * (1024 / 16);
+
+    /* Shift the existing EBDA down. */
+    new_ebda_seg = old_ebda_seg - user_size;
+    /* This is where we should be using memmove(), but we know how our own memcpy() works. */
+    _fmemcpy(MK_FP(new_ebda_seg, 0), MK_FP(old_ebda_seg, 0), user_ofs * 16);
+    _fmemset(MK_FP(new_ebda_seg + user_ofs, 0), 0, user_size * 16);
+
+    /* Update the EBDA location and possibly size. */
+    write_word(0x0040, 0x000E, new_ebda_seg);
+    if (in_ebda) {
+        write_byte(new_ebda_seg, 0, ebda_kb + n_kb);
+        ret_val = user_ofs;
+    } else {
+        ret_val = new_ebda_seg + user_ofs;
+    }
+
+    DPRINT("BIOS: added %04X paras ofs or seg %04X\n", user_size, ret_val);
+    return ret_val;
+}
+

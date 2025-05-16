@@ -4456,6 +4456,18 @@
         <comment>IndicatorType</comment>
         <translation>Расширение клавиатуры</translation>
     </message>
+    <message>
+        <source>TLS</source>
+        <translation>TLS</translation>
+    </message>
+    <message>
+        <source>RDP</source>
+        <translation>RDP</translation>
+    </message>
+    <message>
+        <source>NEGOTIATE</source>
+        <translation>Согласованный</translation>
+    </message>
 </context>
 <context>
     <name>UIDefaultMachineFolderEditor</name>
@@ -7011,7 +7023,7 @@
     </message>
     <message>
         <source>Please consider lowering the number of CPUs assigned to the virtual machine rather than setting the processor execution cap.</source>
-        <translation>Имеет смысл уменьшить число виртуальных процессоров данной машины, а не .предел загрузки ЦПУ.</translation>
+        <translation>Имеет смысл уменьшить число виртуальных процессоров данной машины, а не предел загрузки ЦПУ.</translation>
     </message>
     <message>
         <source>Lowering the processor execution cap may result in a decline in performance.</source>
@@ -13596,7 +13608,7 @@
     </message>
     <message>
         <source>Authentication &amp;Method:</source>
-        <translation>&amp;Метод аутентификации:</translation>
+        <translation>Метод &amp;аутентификации:</translation>
     </message>
     <message>
         <source>Selects the VRDP authentication method.</source>
@@ -13621,6 +13633,14 @@
     <message>
         <source>When checked, multiple simultaneous connections to the VM are permitted.</source>
         <translation>Если галочка стоит, к серверу удалённого доступа будут разрешены несколько одновременных подключений.</translation>
+    </message>
+    <message>
+        <source>&amp;Security Method:</source>
+        <translation>&amp;Метод безопасности:</translation>
+    </message>
+    <message>
+        <source>Selects the VRDP security method.</source>
+        <translation>Позволяет выбрать метод безопасности сервера удалённого доступа.</translation>
     </message>
 </context>
 <context>

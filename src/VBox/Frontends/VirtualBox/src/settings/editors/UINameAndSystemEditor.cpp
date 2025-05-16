@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -27,6 +27,7 @@
 
 /* Qt includes: */
 #include <QComboBox>
+#include <QDir>
 #include <QGridLayout>
 #include <QLabel>
 #include <QVBoxLayout>
@@ -166,6 +167,13 @@ QString UINameAndSystemEditor::path() const
     return m_pSelectorPath->path();
 }
 
+QString UINameAndSystemEditor::fullPath() const
+{
+    QDir dir(path());
+    QString strFullPath = dir.filePath(name());
+    return QDir::cleanPath(strFullPath);
+}
+
 void UINameAndSystemEditor::setISOImagePath(const QString &strPath)
 {
     if (m_pSelectorImage)
@@ -233,10 +241,10 @@ QString UINameAndSystemEditor::typeId() const
            : m_distributionToType.value(distribution());
 }
 
-void UINameAndSystemEditor::markNameEditor(bool fError)
+void UINameAndSystemEditor::markNameEditor(bool fError, const QString &strErrorMessage, const QString &strNoErrorMessage)
 {
     if (m_pEditorName)
-        m_pEditorName->mark(fError, tr("Invalid guest machine name"), tr("Guest machine name is valid"));
+        m_pEditorName->mark(fError, strErrorMessage, strNoErrorMessage);
 }
 
 void UINameAndSystemEditor::markImageEditor(bool fError, const QString &strErrorMessage, const QString &strNoErrorMessage)
@@ -456,7 +464,7 @@ void UINameAndSystemEditor::prepareWidgets()
             m_pSelectorPath = new UIFilePathSelector(this);
             if (m_pSelectorPath)
             {
-                m_pLabelPath->setBuddy(m_pSelectorPath->focusProxy());
+                m_pLabelPath->setBuddy(m_pSelectorPath);
                 QString strDefaultMachineFolder = gpGlobalSession->virtualBox().GetSystemProperties().GetDefaultMachineFolder();
                 m_pSelectorPath->setPath(strDefaultMachineFolder);
                 m_pSelectorPath->setDefaultPath(strDefaultMachineFolder);
@@ -479,7 +487,7 @@ void UINameAndSystemEditor::prepareWidgets()
             m_pSelectorImage = new UIFilePathSelector(this);
             if (m_pSelectorImage)
             {
-                m_pLabelImage->setBuddy(m_pSelectorImage->focusProxy());
+                m_pLabelImage->setBuddy(m_pSelectorImage);
                 m_pSelectorImage->setResetEnabled(false);
                 m_pSelectorImage->setMode(UIFilePathSelector::Mode_File_Open);
                 m_pSelectorImage->setFileDialogFilters("ISO Images(*.iso *.ISO)");

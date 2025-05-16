@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -7250,30 +7250,55 @@ void vmsvgaR3CmdUpdate(PVGASTATE pThis, PVGASTATECC pThisCC, SVGAFifoCmdUpdate c
     STAM_REL_COUNTER_INC(&pSvgaR3State->StatR3CmdUpdate);
     Log(("SVGA_CMD_UPDATE %d,%d %dx%d\n", pCmd->x, pCmd->y, pCmd->width, pCmd->height));
 
-    /** @todo Multiple screens? */
-    VMSVGASCREENOBJECT *pScreen = vmsvgaR3GetScreenObject(pThisCC, 0);
-    if (!pScreen) /* Can happen if screen is not defined (aScreens[idScreen].fDefined == false) yet. */
-        return;
+    /* These conditions are too strict but prevent any further integer overflow */
+    ASSERT_GUEST_RETURN_VOID(pCmd->x < pThis->svga.u32MaxWidth);
+    ASSERT_GUEST_RETURN_VOID(pCmd->y < pThis->svga.u32MaxHeight);
+    ASSERT_GUEST_RETURN_VOID(pCmd->width  < pThis->svga.u32MaxWidth);
+    ASSERT_GUEST_RETURN_VOID(pCmd->height < pThis->svga.u32MaxHeight);
+    RT_UNTRUSTED_VALIDATED_FENCE();
 
-    vmsvgaR3UpdateScreen(pThisCC, pScreen, pCmd->x, pCmd->y, pCmd->width, pCmd->height);
+    for (uint32_t idScreen = 0; idScreen < (uint32_t)RT_ELEMENTS(pSvgaR3State->aScreens); idScreen++)
+    {
+        VMSVGASCREENOBJECT *pScreen = vmsvgaR3GetScreenObject(pThisCC, idScreen);
+        if (!pScreen) /* Can happen if screen is not defined (aScreens[idScreen].fDefined == false) yet. */
+            continue;
+
+        /* Clip updated Rect to the screen dimensions. */
+        SVGASignedRect screenRect;
+        screenRect.left   = pScreen->xOrigin;
+        screenRect.top    = pScreen->yOrigin;
+        screenRect.right  = pScreen->xOrigin + pScreen->cWidth;
+        screenRect.bottom = pScreen->yOrigin + pScreen->cHeight;
+
+        SVGASignedRect clipRect;
+        clipRect.left = (int32)pCmd->x;
+        clipRect.top  = (int32)pCmd->y;
+        clipRect.right  = (int32)(pCmd->x + pCmd->width);
+        clipRect.bottom = (int32)(pCmd->y + pCmd->height);
+        vmsvgaR3ClipRect(&screenRect, &clipRect);
+
+        if (clipRect.left == clipRect.right || clipRect.top == clipRect.bottom)
+            continue;
+
+        vmsvgaR3UpdateScreen(pThisCC, pScreen,
+            clipRect.left - screenRect.left,
+            clipRect.top  - screenRect.top,
+            clipRect.right  - clipRect.left,
+            clipRect.bottom - clipRect.top);
+    }
 }
 
 
 /* SVGA_CMD_UPDATE_VERBOSE */
 void vmsvgaR3CmdUpdateVerbose(PVGASTATE pThis, PVGASTATECC pThisCC, SVGAFifoCmdUpdateVerbose const *pCmd)
 {
-    RT_NOREF(pThis);
     PVMSVGAR3STATE const pSvgaR3State = pThisCC->svga.pSvgaR3State;
 
     STAM_REL_COUNTER_INC(&pSvgaR3State->StatR3CmdUpdateVerbose);
     Log(("SVGA_CMD_UPDATE_VERBOSE %d,%d %dx%d reason %#x\n", pCmd->x, pCmd->y, pCmd->width, pCmd->height, pCmd->reason));
 
-    /** @todo Multiple screens? */
-    VMSVGASCREENOBJECT *pScreen = vmsvgaR3GetScreenObject(pThisCC, 0);
-    if (!pScreen) /* Can happen if screen is not defined (aScreens[idScreen].fDefined == false) yet. */
-        return;
-
-    vmsvgaR3UpdateScreen(pThisCC, pScreen, pCmd->x, pCmd->y, pCmd->width, pCmd->height);
+    /* Just like SVGA_CMD_UPDATE, but also provides a per-rectangle 'reason' value */
+    vmsvgaR3CmdUpdate(pThis, pThisCC, (SVGAFifoCmdUpdate const *)pCmd);
 }
 
 
@@ -8359,17 +8384,39 @@ int vmsvgaR3GmrTransfer(PVGASTATE pThis, PVGASTATECC pThisCC, const SVGA3dTransf
             cbDstPitch = cbHstPitch;
         }
 
+        if (pbDst > pbSrc)
+        {
+            if (pbDst - pbSrc < cbSrcPitch * cHeight)
+            {
+                LogFlow(("Src buffer 0x%p overlaps Dst buffer 0x%p, cbSrcPitch %d, cbDstPitch %d, cbWidth %u, cHeight %u\n",
+                    pbSrc, pbDst, cbSrcPitch, cbDstPitch, cbWidth, cHeight));
+            }
+        }
+        else if (pbSrc > pbDst)
+        {
+            if (pbSrc - pbDst < cbDstPitch * cHeight)
+            {
+                LogFlow(("Dst buffer 0x%p overlaps Src buffer 0x%p, cbSrcPitch %d, cbDstPitch %d, cbWidth %u, cHeight %u\n",
+                    pbDst, pbSrc, cbSrcPitch, cbDstPitch, cbWidth, cHeight));
+            }
+        }
+        else
+        {
+            LogFlow(("Src and Dst buffers are both start at 0x%p, cbSrcPitch %d, cbDstPitch %d, cbWidth %u, cHeight %u\n",
+                pbSrc, cbSrcPitch, cbDstPitch, cbWidth, cHeight));
+        }
+
         if (   cbWidth == (uint32_t)cbGstPitch
             && cbGstPitch == cbHstPitch)
         {
             /* Entire scanlines, positive pitch. */
-            memcpy(pbDst, pbSrc, cbWidth * cHeight);
+            memmove(pbDst, pbSrc, cbWidth * cHeight);
         }
         else
         {
             for (uint32_t i = 0; i < cHeight; ++i)
             {
-                memcpy(pbDst, pbSrc, cbWidth);
+                memmove(pbDst, pbSrc, cbWidth);
 
                 pbDst += cbDstPitch;
                 pbSrc += cbSrcPitch;

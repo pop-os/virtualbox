@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -633,10 +633,9 @@ DECLINLINE(void) virtioCoreR3DescInfo(PCDBGFINFOHLP pHlp, PVIRTQ_DESC_T pDesc, u
 }
 
 /** API Fuunction: See header file */
-DECLHIDDEN(void) virtioCoreR3VirtqInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs, int uVirtq)
+DECLHIDDEN(void) virtioCoreR3VirtqInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, PVIRTIOCORE pVirtio, const char *pszArgs, int uVirtq)
 {
     RT_NOREF(pszArgs);
-    PVIRTIOCORE pVirtio = PDMDEVINS_2_DATA(pDevIns, PVIRTIOCORE);
     PVIRTQUEUE pVirtq = &pVirtio->aVirtqueues[uVirtq];
 
     /** @todo add ability to dump physical contents described by any descriptor (using existing VirtIO core API function) */
@@ -1393,6 +1392,7 @@ static void virtioResetDevice(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio)
 {
     LogFunc(("Resetting device VirtIO state\n"));
     pVirtio->fLegacyDriver          = pVirtio->fOfferLegacy;   /* Cleared if VIRTIO_F_VERSION_1 feature ack'd */
+    pVirtio->fDriverFeaturesWritten = 0;    /* Features can be re-negotiated after reset! */
     pVirtio->uDeviceFeaturesSelect  = 0;
     pVirtio->uDriverFeaturesSelect  = 0;
     pVirtio->uConfigGeneration      = 0;

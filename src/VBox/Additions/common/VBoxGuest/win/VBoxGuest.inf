@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2023 Oracle and/or its affiliates.
+; Copyright (C) 2006-2024 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -42,9 +42,10 @@ Class=System
 DriverPackageType=PlugAndPlay
 ;edit-DriverVer=08/26/2008,2.00.0000
 ;cat CatalogFile=VBoxGuest.cat
+;PnpLockdown=1
 
 [SourceDisksNames]
-1 = %VBoxGuest.MediaDesc%
+1 = %VBoxGuest_MediaDesc%,,,
 
 [SourceDisksFiles]
 VBoxGuest.sys = 1
@@ -52,39 +53,43 @@ VBoxControl.exe = 1
 VBoxTray.exe = 1
 
 [DestinationDirs]
-DefaultDestDir = 12 ; drivers
+VBoxGuest_CopyFiles = 12 ; drivers
 VBoxTray_CopyFiles = 11 ; system32
 
 [Manufacturer]
 %ORACLE%=VBoxGuest@COMMA-NT-ARCH@
 
 [VBoxGuest@DOT-NT-ARCH@]
-%VBoxGuest.DeviceDesc%=VBoxGuest_Install,PCI\VEN_80ee&DEV_cafe
+%VBoxGuest_DeviceDesc%=VBoxGuest,PCI\VEN_80ee&DEV_cafe
+CopyFiles = VBoxGuest_CopyFiles
+CopyFiles = VBoxTray_CopyFiles ; Separate CopyFiles directive to make InfVerif.exe happy. Bug?
+AddReg = VBoxTray_Registry
 
-[VBoxGuest_Install]
-CopyFiles = VBoxGuest_CopyFiles, VBoxTray_CopyFiles
-AddReg = VBoxTray_Add_Reg
-
-[VBoxGuest_CopyFiles]
-VBoxGuest.sys
-
-[VBoxTray_CopyFiles]
-VBoxTray.exe
-VBoxControl.exe
-
-[VBoxGuest_Install.Services]
-AddService = VBoxGuest, 0x00000002, VBoxGuest_ServiceInstallSection
+[VBoxGuest@DOT-NT-ARCH@.Services]
+AddService = VBoxGuest, 0x00000002, VBoxGuest_AddService
 DelService = VBoxTray, 0x00000004
 
-[VBoxGuest_ServiceInstallSection]
-DisplayName    = %VBoxGuest_svcdesc%
-ServiceType    = 0x00000001 ; kernel driver
-StartType      = 0x00000000 ; boot start
-ErrorControl   = 0x00000001 ; normal error handling
+[VBoxGuest_CopyFiles]
+VBoxGuest.sys,,,0x4000          ; COPYFLG_IN_USE_TRY_RENAME
+
+[VBoxTray_CopyFiles]
+VBoxTray.exe,,,0x4000           ; COPYFLG_IN_USE_TRY_RENAME
+VBoxControl.exe,,,0x4000        ; COPYFLG_IN_USE_TRY_RENAME
+
+[VBoxGuest_AddService]
+DisplayName    = %VBoxGuest_SvcDesc%
+ServiceType    = %SERVICE_TYPE_KERNEL_DRIVER%
+StartType      = %SERVICE_STARTTYPE_BOOT%
+ErrorControl   = %SERVICE_ERRORCTL_NORMAL%
 LoadOrderGroup = Base
 ServiceBinary  = %12%\VBoxGuest.sys
 
-[VBoxTray_Add_Reg]
+[DefaultUninstall@DOT-NT-ARCH@.Services]
+DelService = VBoxGuest,0x00000200
+DelReg     = VBoxTray_Registry
+LegacyUninstall=1
+
+[VBoxTray_Registry]
 HKLM, SOFTWARE\Microsoft\Windows\CurrentVersion\Run, VBoxTray, 0x00020000, %%SystemRoot%%\system32\VBoxTray.exe
 
 [ClassInstall32]
@@ -92,7 +97,15 @@ HKLM, SOFTWARE\Microsoft\Windows\CurrentVersion\Run, VBoxTray, 0x00020000, %%Sys
 
 [Strings]
 ORACLE = "Oracle Corporation"
-VBoxGuest.DeviceDesc = "VirtualBox Guest Device"
-VBoxGuest_svcdesc = "VirtualBox Guest Driver"
-VBoxTray_svcdesc = "VirtualBox Guest Tray"
-VBoxGuest.MediaDesc = "VirtualBox Guest Driver Installation Disk"
+VBoxGuest_DeviceDesc = "VirtualBox Guest Device"
+VBoxGuest_SvcDesc = "VirtualBox Guest Driver"
+VBoxTray_SvcDesc = "VirtualBox Guest Tray"
+VBoxGuest_MediaDesc = "VirtualBox Guest Driver Installation Disk"
+
+; Useful constants
+SERVICE_TYPE_KERNEL_DRIVER = 1
+SERVICE_STARTTYPE_BOOT    = 0
+SERVICE_STARTTYPE_DEMAND  = 3
+SERVICE_ERRORCTL_IGNORE  = 0
+SERVICE_ERRORCTL_NORMAL  = 1
+

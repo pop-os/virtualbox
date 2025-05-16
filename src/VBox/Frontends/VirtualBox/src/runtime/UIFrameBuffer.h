@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -107,10 +107,6 @@ public:
     double devicePixelRatio() const;
     /** Defines device-pixel-ratio set for HiDPI frame-buffer. */
     void setDevicePixelRatio(double dDevicePixelRatio);
-    /** Returns actual device-pixel-ratio set for HiDPI frame-buffer. */
-    double devicePixelRatioActual() const;
-    /** Defines actual device-pixel-ratio set for HiDPI frame-buffer. */
-    void setDevicePixelRatioActual(double dDevicePixelRatioActual);
 
     /** Returns whether frame-buffer should use unscaled HiDPI output. */
     bool useUnscaledHiDPIOutput() const;

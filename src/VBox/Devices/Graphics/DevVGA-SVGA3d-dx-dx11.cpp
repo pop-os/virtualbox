@@ -425,6 +425,137 @@ DECLINLINE(D3D11_TEXTURECUBE_FACE) vmsvga3dCubemapFaceFromIndex(uint32_t iFace)
 }
 #endif
 
+#ifdef LOG_ENABLED
+static const char *dxFormatName(DXGI_FORMAT dxgiFormat)
+{
+    switch (dxgiFormat)
+    {
+        RT_CASE_RET_STR(DXGI_FORMAT_UNKNOWN);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32B32A32_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32B32A32_FLOAT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32B32A32_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32B32A32_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32B32_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32B32_FLOAT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32B32_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32B32_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16B16A16_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16B16A16_FLOAT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16B16A16_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16B16A16_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16B16A16_SNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16B16A16_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32_FLOAT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G32_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32G8X24_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_D32_FLOAT_S8X24_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_X32_TYPELESS_G8X24_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R10G10B10A2_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R10G10B10A2_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R10G10B10A2_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R11G11B10_FLOAT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8B8A8_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8B8A8_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8B8A8_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8B8A8_SNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8B8A8_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16_FLOAT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16_SNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16G16_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_D32_FLOAT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32_FLOAT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R32_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R24G8_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_D24_UNORM_S8_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_X24_TYPELESS_G8_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8_SNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16_FLOAT);
+        RT_CASE_RET_STR(DXGI_FORMAT_D16_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16_SNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R16_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8_UINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8_SNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8_SINT);
+        RT_CASE_RET_STR(DXGI_FORMAT_A8_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R1_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R9G9B9E5_SHAREDEXP);
+        RT_CASE_RET_STR(DXGI_FORMAT_R8G8_B8G8_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_G8R8_G8B8_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC1_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC1_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC1_UNORM_SRGB);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC2_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC2_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC2_UNORM_SRGB);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC3_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC3_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC3_UNORM_SRGB);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC4_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC4_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC4_SNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC5_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC5_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC5_SNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_B5G6R5_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_B5G5R5A1_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_B8G8R8A8_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_B8G8R8X8_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_B8G8R8A8_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_B8G8R8A8_UNORM_SRGB);
+        RT_CASE_RET_STR(DXGI_FORMAT_B8G8R8X8_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_B8G8R8X8_UNORM_SRGB);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC6H_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC6H_UF16);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC6H_SF16);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC7_TYPELESS);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC7_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_BC7_UNORM_SRGB);
+        RT_CASE_RET_STR(DXGI_FORMAT_AYUV);
+        RT_CASE_RET_STR(DXGI_FORMAT_Y410);
+        RT_CASE_RET_STR(DXGI_FORMAT_Y416);
+        RT_CASE_RET_STR(DXGI_FORMAT_NV12);
+        RT_CASE_RET_STR(DXGI_FORMAT_P010);
+        RT_CASE_RET_STR(DXGI_FORMAT_P016);
+        RT_CASE_RET_STR(DXGI_FORMAT_420_OPAQUE);
+        RT_CASE_RET_STR(DXGI_FORMAT_YUY2);
+        RT_CASE_RET_STR(DXGI_FORMAT_Y210);
+        RT_CASE_RET_STR(DXGI_FORMAT_Y216);
+        RT_CASE_RET_STR(DXGI_FORMAT_NV11);
+        RT_CASE_RET_STR(DXGI_FORMAT_AI44);
+        RT_CASE_RET_STR(DXGI_FORMAT_IA44);
+        RT_CASE_RET_STR(DXGI_FORMAT_P8);
+        RT_CASE_RET_STR(DXGI_FORMAT_A8P8);
+        RT_CASE_RET_STR(DXGI_FORMAT_B4G4R4A4_UNORM);
+        RT_CASE_RET_STR(DXGI_FORMAT_P208);
+        RT_CASE_RET_STR(DXGI_FORMAT_V208);
+        RT_CASE_RET_STR(DXGI_FORMAT_V408);
+        default:
+            break;
+    }
+    return "not known";
+}
+#endif /* LOG_ENABLED */
+
 /* This is to workaround issues with X8 formats, because they can't be used in some operations. */
 #define DX_REPLACE_X8_WITH_A8
 static DXGI_FORMAT vmsvgaDXSurfaceFormat2Dxgi(SVGA3dSurfaceFormat format)
@@ -848,22 +979,6 @@ static int vmsvgaDXCheckFormatSupportPreDX(PVMSVGA3DSTATE pState, SVGA3dSurfaceF
     return rc;
 }
 
-static int dxFormatAllowMultisample(DXGI_FORMAT dxgiFormat)
-{
-    /* Windows 11 guest does not allow multisample flag for a number of formats.
-     * D3D11 implementation on non-Windows hosts might return such flag.
-     */
-    switch (dxgiFormat)
-    {
-        case DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS:
-        case DXGI_FORMAT_X32_TYPELESS_G8X24_UINT:
-        case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
-        case DXGI_FORMAT_X24_TYPELESS_G8_UINT:
-            return false;
-        default: break;
-    }
-    return true;
-}
 
 static int vmsvgaDXCheckFormatSupport(PVMSVGA3DSTATE pState, SVGA3dSurfaceFormat enmFormat, uint32_t *pu32DevCap)
 {
@@ -909,7 +1024,7 @@ static int vmsvgaDXCheckFormatSupport(PVMSVGA3DSTATE pState, SVGA3dSurfaceFormat
             {
                 UINT NumQualityLevels;
                 hr = pDevice->CheckMultisampleQualityLevels(dxgiFormat, 2, &NumQualityLevels);
-                if (SUCCEEDED(hr) && NumQualityLevels != 0 && dxFormatAllowMultisample(dxgiFormat))
+                if (SUCCEEDED(hr) && NumQualityLevels != 0)
                     *pu32DevCap |= SVGA3D_DXFMT_MULTISAMPLE;
             }
         }
@@ -2503,11 +2618,19 @@ static int vmsvga3dBackSurfaceCreateTexture(PVGASTATECC pThisCC, PVMSVGA3DSURFAC
     else
         dxgiFormatDynamic = dxgiFormatTypeless;
 
+    UINT const BindFlags = dxBindFlags(pSurface->f.surfaceFlags);
+
     /*
      * Create D3D11 texture object.
+     *
+     * No initial data for multisample resources.
+     * On NVidia the host driver does not allow initial data for large textures with D3D11_BIND_DECODER flag.
      */
     D3D11_SUBRESOURCE_DATA *paInitialData = NULL;
-    if (pSurface->paMipmapLevels[0].pSurfaceData && pSurface->surfaceDesc.multisampleCount <= 1)
+    if (   pSurface->paMipmapLevels[0].pSurfaceData
+        && pSurface->surfaceDesc.multisampleCount <= 1
+        && (BindFlags & D3D11_BIND_DECODER) == 0
+       )
     {
         /* Can happen for a non GBO surface or if GBO texture was updated prior to creation of the hardware resource. */
         uint32_t const cSubresource = numMipLevels * pSurface->surfaceDesc.numArrayElements;
@@ -2523,6 +2646,12 @@ static int vmsvga3dBackSurfaceCreateTexture(PVGASTATECC pThisCC, PVMSVGA3DSURFAC
             p->SysMemSlicePitch = pMipmapLevel->cbSurfacePlane;
         }
     }
+
+    LogFlowFunc(("sid = %u %ux%ux%u mips = %u fmt = %s(%u) typeless = %s(%u) staging = %s(%u) dyn = %s(%u) pInitData = %p\n",
+                 pSurface->id, cWidth, cHeight, cDepth, numMipLevels,
+                 dxFormatName(dxgiFormat), dxgiFormat, dxFormatName(dxgiFormatTypeless), dxgiFormatTypeless,
+                 dxFormatName(dxgiFormatStaging), dxgiFormatStaging, dxFormatName(dxgiFormatDynamic), dxgiFormatDynamic,
+                 paInitialData));
 
     HRESULT hr = S_OK;
     if (pSurface->f.surfaceFlags & SVGA3D_SURFACE_CUBEMAP)
@@ -2542,7 +2671,7 @@ static int vmsvga3dBackSurfaceCreateTexture(PVGASTATECC pThisCC, PVMSVGA3DSURFAC
         td.SampleDesc.Count   = 1;
         td.SampleDesc.Quality = 0;
         td.Usage              = D3D11_USAGE_DEFAULT;
-        td.BindFlags          = dxBindFlags(pSurface->f.surfaceFlags);
+        td.BindFlags          = BindFlags;
         td.CPUAccessFlags     = 0; /** @todo */
         td.MiscFlags          = MiscFlags | D3D11_RESOURCE_MISC_TEXTURECUBE; /** @todo */
         if (   numMipLevels > 1
@@ -2596,7 +2725,7 @@ static int vmsvga3dBackSurfaceCreateTexture(PVGASTATECC pThisCC, PVMSVGA3DSURFAC
         td.ArraySize          = pSurface->surfaceDesc.numArrayElements;
         td.Format             = dxgiFormat;
         td.Usage              = D3D11_USAGE_DEFAULT;
-        td.BindFlags          = dxBindFlags(pSurface->f.surfaceFlags);
+        td.BindFlags          = BindFlags;
         td.CPUAccessFlags     = 0;
         td.MiscFlags          = MiscFlags; /** @todo */
         if (   numMipLevels > 1
@@ -2654,7 +2783,7 @@ static int vmsvga3dBackSurfaceCreateTexture(PVGASTATECC pThisCC, PVMSVGA3DSURFAC
             td.MipLevels          = numMipLevels;
             td.Format             = dxgiFormat;
             td.Usage              = D3D11_USAGE_DEFAULT;
-            td.BindFlags          = dxBindFlags(pSurface->f.surfaceFlags);
+            td.BindFlags          = BindFlags;
             td.CPUAccessFlags     = 0; /** @todo */
             td.MiscFlags          = MiscFlags; /** @todo */
             if (   numMipLevels > 1
@@ -2711,7 +2840,7 @@ static int vmsvga3dBackSurfaceCreateTexture(PVGASTATECC pThisCC, PVMSVGA3DSURFAC
             td.SampleDesc.Count   = pSurface->surfaceDesc.multisampleCount;
             td.SampleDesc.Quality = 0;
             td.Usage              = D3D11_USAGE_DEFAULT;
-            td.BindFlags          = dxBindFlags(pSurface->f.surfaceFlags);
+            td.BindFlags          = BindFlags;
             td.CPUAccessFlags     = 0; /** @todo */
             td.MiscFlags          = MiscFlags; /** @todo */
             if (   numMipLevels > 1
@@ -3931,7 +4060,7 @@ static DECLCALLBACK(int) vmsvga3dScreenTargetBind(PVGASTATECC pThisCC, VMSVGASCR
         rc = vmsvga3dSurfaceFromSid(pState, sid, &pSurface);
         AssertRCReturn(rc, rc);
 
-        if (!VMSVGA3DSURFACE_HAS_HW_SURFACE(pSurface))
+        if (!VMSVGA3DSURFACE_HAS_HW_SURFACE(pSurface) && !pState->fVMSVGA2dGBO)
         {
             /* Create the actual texture. */
             rc = vmsvga3dBackSurfaceCreateTexture(pThisCC, pSurface);
@@ -4618,27 +4747,10 @@ static DECLCALLBACK(int) vmsvga3dBackSurfaceCopy(PVGASTATECC pThisCC, SVGA3dSurf
     rc = vmsvga3dSurfaceFromSid(pThisCC->svga.p3dState, dest.sid, &pDstSurface);
     AssertRCReturn(rc, rc);
 
-/** @todo Implement a separate code paths for memory->texture, texture->memory and memory->memory transfers */
+/** @todo Implement a separate code paths for memory->texture, texture->memory */
     LogFunc(("src%s sid = %u -> dst%s sid = %u\n",
              pSrcSurface->pBackendSurface ? "" : " sysmem", pSrcSurface->id,
              pDstSurface->pBackendSurface ? "" : " sysmem", pDstSurface->id));
-
-    //DXDEVICE *pDevice = dxDeviceGet(pThisCC->svga.p3dState);
-    //AssertReturn(pDevice->pDevice, VERR_INVALID_STATE);
-
-    if (pSrcSurface->pBackendSurface == NULL)
-    {
-        rc = vmsvga3dBackSurfaceCreateTexture(pThisCC, pSrcSurface);
-        AssertRCReturn(rc, rc);
-    }
-
-    if (pDstSurface->pBackendSurface == NULL)
-    {
-        rc = vmsvga3dBackSurfaceCreateTexture(pThisCC, pDstSurface);
-        AssertRCReturn(rc, rc);
-    }
-
-    DXDEVICE *pDXDevice = &pBackend->dxDevice;
 
     /* Clip the box. */
     PVMSVGA3DMIPMAPLEVEL pSrcMipLevel;
@@ -4651,6 +4763,61 @@ static DECLCALLBACK(int) vmsvga3dBackSurfaceCopy(PVGASTATECC pThisCC, SVGA3dSurf
 
     SVGA3dCopyBox clipBox = *pBox;
     vmsvgaR3ClipCopyBox(&pSrcMipLevel->mipmapSize, &pDstMipLevel->mipmapSize, &clipBox);
+
+    if (pSrcSurface->pBackendSurface == NULL && pDstSurface->pBackendSurface == NULL)
+    {
+        AssertReturn(pSrcSurface->format == pDstSurface->format, VERR_INVALID_PARAMETER);
+        AssertReturn(pSrcSurface->cbBlock == pDstSurface->cbBlock, VERR_INVALID_PARAMETER);
+        AssertReturn(pSrcMipLevel->pSurfaceData && pDstMipLevel->pSurfaceData, VERR_INVALID_STATE);
+
+        uint32_t const cxBlocks = (clipBox.w + pSrcSurface->cxBlock - 1) / pSrcSurface->cxBlock;
+        uint32_t const cyBlocks = (clipBox.h + pSrcSurface->cyBlock - 1) / pSrcSurface->cyBlock;
+        uint32_t const cbRow = cxBlocks * pSrcSurface->cbBlock;
+
+        uint8_t const *pu8Src = (uint8_t *)pSrcMipLevel->pSurfaceData
+                + (clipBox.srcx / pSrcSurface->cxBlock) * pSrcSurface->cbBlock
+                + (clipBox.srcy / pSrcSurface->cyBlock) * pSrcMipLevel->cbSurfacePitch
+                + clipBox.srcz * pSrcMipLevel->cbSurfacePlane;
+
+        uint8_t *pu8Dst = (uint8_t *)pDstMipLevel->pSurfaceData
+                + (clipBox.x / pDstSurface->cxBlock) * pDstSurface->cbBlock
+                + (clipBox.y / pDstSurface->cyBlock) * pDstMipLevel->cbSurfacePitch
+                + clipBox.z * pDstMipLevel->cbSurfacePlane;
+
+        for (uint32_t z = 0; z < clipBox.d; ++z)
+        {
+            uint8_t const *pu8PlaneSrc = pu8Src;
+            uint8_t *pu8PlaneDst = pu8Dst;
+
+            for (uint32_t y = 0; y < cyBlocks; ++y)
+            {
+                memcpy(pu8PlaneDst, pu8PlaneSrc, cbRow);
+                pu8PlaneDst += pDstMipLevel->cbSurfacePitch;
+                pu8PlaneSrc += pSrcMipLevel->cbSurfacePitch;
+            }
+
+            pu8Src += pSrcMipLevel->cbSurfacePlane;
+            pu8Dst += pDstMipLevel->cbSurfacePlane;
+        }
+
+        return VINF_SUCCESS;
+    }
+
+    //DXDEVICE *pDevice = dxDeviceGet(pThisCC->svga.p3dState);
+    //AssertReturn(pDevice->pDevice, VERR_INVALID_STATE);
+    DXDEVICE *pDXDevice = &pBackend->dxDevice;
+
+    if (pSrcSurface->pBackendSurface == NULL)
+    {
+        rc = vmsvga3dBackSurfaceCreateTexture(pThisCC, pSrcSurface);
+        AssertRCReturn(rc, rc);
+    }
+
+    if (pDstSurface->pBackendSurface == NULL)
+    {
+        rc = vmsvga3dBackSurfaceCreateTexture(pThisCC, pDstSurface);
+        AssertRCReturn(rc, rc);
+    }
 
     UINT DstSubresource = vmsvga3dCalcSubresource(dest.mipmap, dest.face, pDstSurface->cLevels);
     UINT DstX = clipBox.x;
@@ -6665,7 +6832,10 @@ static void dxSetupPipeline(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
     /* Unbind render target views because they mught be (re-)used as shader resource views. */
     DXDEVICE *pDXDevice = dxDeviceGet(pThisCC->svga.p3dState);
     pDXDevice->pImmediateContext->OMSetRenderTargetsAndUnorderedAccessViews(0, NULL, NULL, 0, 0, NULL, NULL);
-    for (unsigned i = 0; i < SVGA3D_DX11_1_MAX_UAVIEWS; ++i)
+    uint32_t const cMaxUAViews = pDXDevice->FeatureLevel >= D3D_FEATURE_LEVEL_11_1
+                               ? SVGA3D_DX11_1_MAX_UAVIEWS
+                               : SVGA3D_MAX_UAVIEWS;
+    for (uint32_t i = 0; i < cMaxUAViews; ++i)
     {
         ID3D11UnorderedAccessView *pNullUA = 0;
         pDXDevice->pImmediateContext->CSSetUnorderedAccessViews(i, 1, &pNullUA, NULL);
@@ -6725,7 +6895,7 @@ static void dxSetupPipeline(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
      * Compute shader unordered access views
      */
 
-    for (uint32_t idxUA = 0; idxUA < SVGA3D_DX11_1_MAX_UAVIEWS; ++idxUA)
+    for (uint32_t idxUA = 0; idxUA < cMaxUAViews; ++idxUA)
     {
         SVGA3dUAViewId const viewId = pDXContext->svgaDXContext.csuaViewIds[idxUA];
         if (viewId != SVGA3D_INVALID_ID)
@@ -6783,7 +6953,7 @@ static void dxSetupPipeline(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
         }
     }
 
-    for (uint32_t idxUA = 0; idxUA < SVGA3D_DX11_1_MAX_UAVIEWS; ++idxUA)
+    for (uint32_t idxUA = 0; idxUA < cMaxUAViews; ++idxUA)
     {
         SVGA3dUAViewId const viewId = pDXContext->svgaDXContext.uaViewIds[idxUA];
         if (viewId != SVGA3D_INVALID_ID)
@@ -7506,7 +7676,10 @@ static int dxSetRenderTargets(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext
     UINT NumUAVs = 0;
     ID3D11UnorderedAccessView *apUnorderedAccessViews[SVGA3D_DX11_1_MAX_UAVIEWS];
     UINT aUAVInitialCounts[SVGA3D_DX11_1_MAX_UAVIEWS];
-    for (uint32_t idxUA = 0; idxUA < SVGA3D_DX11_1_MAX_UAVIEWS; ++idxUA)
+    uint32_t const cMaxUAViews = pDevice->FeatureLevel >= D3D_FEATURE_LEVEL_11_1
+                               ? SVGA3D_DX11_1_MAX_UAVIEWS
+                               : SVGA3D_MAX_UAVIEWS;
+    for (uint32_t idxUA = 0; idxUA < cMaxUAViews; ++idxUA)
     {
         apUnorderedAccessViews[idxUA] =  NULL;
         aUAVInitialCounts[idxUA] = (UINT)-1;
@@ -9934,7 +10107,10 @@ static int dxSetCSUnorderedAccessViews(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT p
     uint32_t const *pUAIds = &pDXContext->svgaDXContext.csuaViewIds[0];
     ID3D11UnorderedAccessView *papUnorderedAccessView[SVGA3D_DX11_1_MAX_UAVIEWS];
     UINT aUAVInitialCounts[SVGA3D_DX11_1_MAX_UAVIEWS];
-    for (uint32_t i = 0; i < SVGA3D_DX11_1_MAX_UAVIEWS; ++i)
+    uint32_t const cMaxUAViews = pDevice->FeatureLevel >= D3D_FEATURE_LEVEL_11_1
+                               ? SVGA3D_DX11_1_MAX_UAVIEWS
+                               : SVGA3D_MAX_UAVIEWS;
+    for (uint32_t i = 0; i < cMaxUAViews; ++i)
     {
         papUnorderedAccessView[i] = NULL;
         aUAVInitialCounts[i] = (UINT)-1;
@@ -9953,7 +10129,7 @@ static int dxSetCSUnorderedAccessViews(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT p
         }
     }
 
-    dxCSUnorderedAccessViewSet(pDevice, 0, SVGA3D_DX11_1_MAX_UAVIEWS, papUnorderedAccessView, aUAVInitialCounts);
+    dxCSUnorderedAccessViewSet(pDevice, 0, cMaxUAViews, papUnorderedAccessView, aUAVInitialCounts);
     return VINF_SUCCESS;
 }
 
@@ -11217,13 +11393,7 @@ static int dxGetVideoCapDecodeProfile(PVGASTATECC pThisCC, DXDEVICE *pDXDevice, 
     UINT ProfileCount = pDXDevice->pVideoDevice->GetVideoDecoderProfileCount();
     ProfileCount = RT_MIN(ProfileCount, cbData / sizeof(paDecodeProfileInfo[0]));
 
-#ifndef DEBUG_sunlover
-    /** @todo Allocation of video decoder output texture often fails on NVidia. Disable video decoding for now. */
-    if (pThisCC->svga.p3dState->pBackend->VendorId == 0x10de)
-        ProfileCount = 0;
-#else
     RT_NOREF(pThisCC);
-#endif
 
     for (UINT i = 0; i < ProfileCount; ++i)
     {

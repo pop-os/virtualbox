@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -282,6 +282,7 @@ extern  uint16_t    cdrom_boot(void);
 extern  void        show_logo(void);
 extern  void        delay_boot(uint16_t secs);
 extern  bx_bool     set_enable_a20(bx_bool val);
+extern uint16_t     conv_mem_alloc(int n_kb, int in_ebda);
 
 #define printf(...)  bios_printf(BIOS_PRINTF_SCREEN, __VA_ARGS__)
 
@@ -303,13 +304,6 @@ extern  bx_bool     set_enable_a20(bx_bool val);
 #define BX_PANIC(...)   bios_printf(BIOS_PRINTF_DEBHALT, __VA_ARGS__)
 
 uint16_t pci16_find_device(uint32_t search_item, uint16_t index, int search_class, int ignore_if);
-
-/* Because we don't tell the recompiler when guest physical memory
- * is written, it can incorrectly cache guest code overwritten by
- * DMA (bus master or not). We just re-write the memory block to flush
- * any of its caches. This is not exactly efficient, but works!
- */
-#define DMA_WORKAROUND      1
 
 /* Random hardware-related definitions. */
 

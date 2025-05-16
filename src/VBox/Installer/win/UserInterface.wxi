@@ -2,7 +2,7 @@
     User interface include for VirtualBox WiX script.
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -625,11 +625,15 @@
             <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="[DialogBitmap]" />
             <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="!(loc.ButtonText_Back)" />
             <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
-            <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="60" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorTitle)" />
-            <Control Id="Description" Type="Text" X="135" Y="70" Width="220" Height="80" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDescription1) !(loc.FatalErrorDescription2)" />
-            <Control Id="Build" Type="Text" X="20" Y="247" Width="220" Height="10" Transparent="yes" NoPrefix="yes">
-                <Text Value="[Version_text] $(var.Property_Version)" />
+            <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="60" Transparent="yes" NoPrefix="yes" Text="{\DlgTextStyleErrorTitle}!(loc.FatalErrorDlg_Title)" />
+            <Control Id="Desc1" Type="Text" X="135" Y="85" Width="220" Height="80" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDlg_Description1)" />
+            <Control Id="Desc2" Type="Text" X="135" Y="110" Width="220" Height="80" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDlg_Description2)" />
+            <Control Id="BrowseButton" Type="PushButton" X="135" Y="170" Width="100" Height="17" Text="!(loc.FatalErrorDlg_DescLogOpen)">
+                <Publish Property="WixShellExecTarget" Value="[MsiLogFileLocation]" />
+                <Publish Event="DoAction" Value="ca_ShellExecIgnore" />
             </Control>
+            <Control Id="Desc3" Type="Text" X="135" Y="195" Width="220" Height="15" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDlg_DescLogPath)" />
+            <Control Id="Desc4" Type="Text" X="135" Y="210" Width="220" Height="15" Transparent="yes" NoPrefix="yes" Text="[MsiLogFileLocation]" />
         </Dialog>
 
         <Dialog Id="FilesInUse" Width="370" Height="270" Title="[ProductName] !(loc.Setup)" KeepModeless="yes">
@@ -638,10 +642,12 @@
             </Control>
             <!-- Currently we don't want to let the users ignore a running VirtualBox installation, as this
                  will result in an unstable mix of the old and new installation until a reboot is performed. See #9139.
-            <Control Id="Ignore" Type="PushButton" X="235" Y="243" Width="56" Height="17" Text="!(loc.ButtonText_Ignore)">
-                <Publish Event="EndDialog" Value="Ignore">1</Publish>
+
+                 WIX v4 will report an error (ICE20) when simply commenting out the following button, as this button
+                 needs to be defined for that standard dialog. So we simply disable the button instead. -->
+            <Control Id="Ignore" Type="PushButton" X="235" Y="243" Width="56" Height="17" Text="!(loc.ButtonText_Ignore)" Disabled="yes">
+                <Publish Event="EndDialog" Value="Ignore" />
             </Control>
-            -->
             <Control Id="Exit" Type="PushButton" X="235" Y="243" Width="56" Height="17" Text="!(loc.ButtonText_Exit)">
                 <Publish Event="EndDialog" Value="Exit" />
             </Control>
@@ -963,6 +969,7 @@
         <TextStyle Id="DlgVerdanaBold13" FaceName="Verdana" Size="13" Bold="yes" />
         <TextStyle Id="DlgInvalidSerial" FaceName="Verdana" Size="13" Bold="yes" Red="255" />
         <TextStyle Id="DlgWarnDisconNetIfaces" FaceName="Verdana" Size="13" Bold="yes" Red="255" />
+        <TextStyle Id="DlgTextStyleErrorTitle" FaceName="Verdana" Size="13" Bold="yes" Red="255" />
         <TextStyle Id="DlgWarnPython" FaceName="Verdana" Size="13" Bold="yes" />
 
         <!-- The UIText table contains the localized versions of some of the strings used in the user interface.
@@ -1037,6 +1044,33 @@
         <ProgressText Action="RollbackCleanup" Template="File: [1]" Message="!(loc.ProgressTextRollbackCleanup)" />
         <ProgressText Action="UnmoveFiles" Template="File: [1], Directory: [9]" Message="!(loc.ProgressTextUnmoveFiles)" />
         <ProgressText Action="UnpublishProduct" Message="!(loc.ProgressTextUnpublishProduct)" />
+
+        <!-- Custom progress texts for custom actions we provide. -->
+        <ProgressText Action="ca_CheckTargetDirPre" Message="!(loc.ProgressTextCheckTargetDir)" />
+        <ProgressText Action="ca_CheckTargetDirPost" Message="!(loc.ProgressTextCheckTargetDir)" />
+
+        <ProgressText Action="ca_VBoxSupDrvInst" Message="!(loc.ProgressTextSupDrvInt)" />
+        <ProgressText Action="ca_VBoxSupDrvStart" Message="!(loc.ProgressTextSupDrvStart)" />
+        <ProgressText Action="ca_VBoxSupDrvUninst" Message="!(loc.ProgressTextSupDrvUninst)" />
+<?if $(env.VBOX_WITH_USB) = "yes" ?>
+        <ProgressText Action="ca_VBoxUSBDevDrvInst" Message="!(loc.ProgressTextUSBDevDrvInst)" />
+        <ProgressText Action="ca_VBoxUSBDevDrvUninst" Message="!(loc.ProgressTextUSBDevDrvUninst)" />
+        <ProgressText Action="ca_VBoxUSBMonDrvInst" Message="!(loc.ProgressTextUSBMonDrvInst)" />
+        <ProgressText Action="ca_VBoxUSBMonDrvStart" Message="!(loc.ProgressTextUSBMonDrvStart)" />
+        <ProgressText Action="ca_VBoxUSBMonDrvUninst" Message="!(loc.ProgressTextUSBMonDrvUninst)" />
+<?endif?>
+<?if $(env.VBOX_WITH_NETADP) = "yes" ?>
+    <ProgressText Action="ca_CreateHostOnlyInterfaceNDIS6" Message="!(loc.ProgressTextNetAdp6Create)" />
+    <ProgressText Action="ca_RemoveHostOnlyInterfacesNDIS6" Message="!(loc.ProgressTextNetAdp6Remove)" />
+    <ProgressText Action="ca_UpdateHostOnlyInterfacesNDIS6" Message="!(loc.ProgressTextNetAdp6Update)" />
+    <ProgressText Action="ca_UninstallNetAdp6" Message="!(loc.ProgressTextNetAdp6Uninst)" />
+<?endif?>
+<?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
+    <ProgressText Action="ca_InstallNetLwf" Message="!(loc.ProgressTextNetLwfInst)" />
+    <ProgressText Action="ca_RollbackInstallNetLwf" Message="!(loc.ProgressTextNetLwfRollbackInst)" />
+    <ProgressText Action="ca_UninstallNetLwf" Message="!(loc.ProgressTextNetLwfUninst)" />
+    <ProgressText Action="ca_RollbackUninstallNetLwf" Message="!(loc.ProgressTextNetLwfRollbackUninst)" />
+<?endif?>
 
         <UIText Id="bytes" Value="!(loc.UITextbytes)" />
         <UIText Id="GB" Value="!(loc.UITextGB)" />
@@ -1219,7 +1253,6 @@
 
         <Publish Dialog="VBoxVerifyReadyDlg" Control="Back" Event="NewDialog" Value="VBoxCustomize2Dlg" Condition="VBOX_SHOW_CUSTOMIZE2_DLG" />
         <Publish Dialog="VBoxVerifyReadyDlg" Control="Back" Event="NewDialog" Value="VBoxCustomizeDlg" Condition="NOT VBOX_SHOW_CUSTOMIZE2_DLG" />
-        <Publish Dialog="VBoxVerifyReadyDlg" Control="Next" Event="NewDialog" Value="VBoxVerifyReadyDlg" />
 
         <!-- This defines the order in which the GUI panels will be shown to the user. -->
         <InstallUISequence>

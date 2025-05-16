@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -360,6 +360,7 @@ UIIconPoolGeneral::UIIconPoolGeneral()
     m_guestOSTypeIconNames.insert(GUEST_OS_ID_STR_X64("Windows2016"),           ":/os_win2k16.png");
     m_guestOSTypeIconNames.insert(GUEST_OS_ID_STR_X64("Windows2019"),           ":/os_win2k19.png");
     m_guestOSTypeIconNames.insert(GUEST_OS_ID_STR_X64("Windows2022"),           ":/os_win2k22.png");
+    m_guestOSTypeIconNames.insert(GUEST_OS_ID_STR_X64("Windows2025"),           ":/os_win2k25.png");
     m_guestOSTypeIconNames.insert(GUEST_OS_ID_STR_X86("WindowsNT"),             ":/os_win_other.png");
     m_guestOSTypeIconNames.insert(GUEST_OS_ID_STR_X64("WindowsNT"),             ":/os_win_other.png");
     m_guestOSTypeIconNames.insert(GUEST_OS_ID_STR_X86("OS2Warp3"),              ":/os_os2warp3.png");

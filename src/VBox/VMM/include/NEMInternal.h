@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -263,6 +263,10 @@ typedef struct NEM
     bool                        fExtendedCpuIdExit : 1;
     /** WHvRunVpExitReasonException is supported. */
     bool                        fExtendedXcptExit : 1;
+    /** Copy of WHV_CAPABILITY_FEATURES::SpeculationControl. */
+    bool                        fSpeculationControl : 1;
+    /** Whether to export/import IA32_SPEC_CTRL. */
+    bool                        fDoIa32SpecCtrl : 1;
 #  ifdef NEM_WIN_WITH_A20
     /** Set if we've started more than one CPU and cannot mess with A20. */
     bool                        fA20Fixed : 1;
@@ -415,6 +419,20 @@ typedef struct NEMCPU
     bool                        fUsingHyperDR7 : 1;
     /** Whether \#DE needs to be intercepted for GIM. */
     bool                        fGCMTrapXcptDE : 1;
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    /** Set if indirect branch prediction barrier on VM exit. */
+    bool                        fIbpbOnVmExit : 1;
+    /** Set if indirect branch prediction barrier on VM entry. */
+    bool                        fIbpbOnVmEntry : 1;
+    /** Set if level 1 data cache should be flushed on VM entry. */
+    bool                        fL1dFlushOnVmEntry : 1;
+    /** Set if level 1 data cache should be flushed on EMT scheduling. */
+    bool                        fL1dFlushOnSched : 1;
+    /** Set if MDS related buffers should be cleared on VM entry. */
+    bool                        fMdsClearOnVmEntry : 1;
+    /** Set if MDS related buffers should be cleared on EMT scheduling. */
+    bool                        fMdsClearOnSched : 1;
+#endif
 
 #if defined(RT_OS_LINUX)
     uint8_t                     abPadding[3];

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1274,7 +1274,8 @@ int ShClX11Destroy(PSHCLX11CTX pCtx)
 
     int rc = VINF_SUCCESS;
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS_HTTP
-    rc = ShClTransferHttpServerDestroy(&pCtx->HttpCtx.HttpServer);
+    if (!shClX11HeadlessIsEnabled(pCtx))
+        rc = ShClTransferHttpServerDestroy(&pCtx->HttpCtx.HttpServer);
 #endif
 
 #ifdef TESTCASE

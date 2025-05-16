@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -532,6 +532,10 @@ void UINotificationCenter::sltHandleProgressFinished()
 
 void UINotificationCenter::prepare()
 {
+    /* Make sure notification-center and it's children always have cursor,
+     * even if parent (like VM view) set it to Qt::BlankCursor intentionally. */
+    setCursor(Qt::ArrowCursor);
+
     /* Hide initially: */
     setHidden(true);
 

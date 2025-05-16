@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2015-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -484,46 +484,6 @@ double UIDesktopWidgetWatchdog::devicePixelRatio(QWidget *pWidget)
 {
     /* Redirect call to wrapper above: */
     return devicePixelRatio(screenNumber(pWidget));
-}
-
-/* static */
-double UIDesktopWidgetWatchdog::devicePixelRatioActual(int iHostScreenIndex /* = -1 */)
-{
-    /* First, we should check whether the screen is valid: */
-    QScreen *pScreen = 0;
-    if (iHostScreenIndex == -1)
-    {
-        pScreen = QGuiApplication::primaryScreen();
-        iHostScreenIndex = QGuiApplication::screens().indexOf(pScreen);
-    }
-    else
-        pScreen = QGuiApplication::screens().value(iHostScreenIndex);
-    AssertPtrReturn(pScreen, 1.0);
-
-#ifdef VBOX_WS_WIN
-    /* Enumerate available monitors through EnumDisplayMonitors if GetDpiForMonitor is available: */
-    if (ResolveDynamicImports())
-    {
-        QList<QPair<int, int> > listOfScreenDPI;
-        EnumDisplayMonitors(0, 0, MonitorEnumProcF, (LPARAM)&listOfScreenDPI);
-        if (iHostScreenIndex >= 0 && iHostScreenIndex < listOfScreenDPI.size())
-        {
-            const QPair<int, int> dpiPair = listOfScreenDPI.at(iHostScreenIndex);
-            if (dpiPair.first > 0)
-                return (double)dpiPair.first / 96 /* dpi unawarness value */;
-        }
-    }
-#endif /* VBOX_WS_WIN */
-
-    /* Then acquire device-pixel-ratio: */
-    return pScreen->devicePixelRatio();
-}
-
-/* static */
-double UIDesktopWidgetWatchdog::devicePixelRatioActual(QWidget *pWidget)
-{
-    /* Redirect call to wrapper above: */
-    return devicePixelRatioActual(screenNumber(pWidget));
 }
 
 /* static */

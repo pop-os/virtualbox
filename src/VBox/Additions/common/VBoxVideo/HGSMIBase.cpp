@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -232,7 +232,7 @@ DECLHIDDEN(int)  VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx, uin
     p->u32Height = cHeight;
     if (cbPixels)
         /* Copy the actual pointer data. */
-        memcpy (p->au8Data, pPixels, cbPixels);
+        RT_BCOPY_UNFORTIFIED(p->au8Data, pPixels, cbPixels);
     /* No need to check that the buffer is valid as we have just allocated it. */
     VBoxHGSMIBufferSubmit(pCtx, p);
     rc = p->i32Result;

@@ -1,25 +1,10 @@
 /* $Id: IEMAllN8veExecMem.cpp $ */
 /** @file
- * IEM - Native Recompiler
- *
- * Logging group IEM_RE_NATIVE assignments:
- *      - Level 1  (Log)  : ...
- *      - Flow  (LogFlow) : ...
- *      - Level 2  (Log2) : Details calls as they're recompiled.
- *      - Level 3  (Log3) : Disassemble native code after recompiling.
- *      - Level 4  (Log4) : ...
- *      - Level 5  (Log5) : ...
- *      - Level 6  (Log6) : ...
- *      - Level 7  (Log7) : ...
- *      - Level 8  (Log8) : ...
- *      - Level 9  (Log9) : ...
- *      - Level 10 (Log10): ...
- *      - Level 11 (Log11): Variable allocator.
- *      - Level 12 (Log12): Register allocator.
+ * IEM - Native Recompiler, Executable Memory Allocator.
  */
 
 /*
- * Copyright (C) 2023 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -225,10 +210,8 @@ typedef struct IEMEXECMEMCHUNK
     void                   *pvChunkRw;
     /** Pointer to the readable/executable view of the memory chunk. */
     void                   *pvChunkRx;
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
     /** Pointer to the context structure detailing the per chunk common code. */
     PCIEMNATIVEPERCHUNKCTX  pCtx;
-#endif
 #ifdef IN_RING3
     /**
      * Pointer to the unwind information.
@@ -292,6 +275,9 @@ typedef struct IEMEXECMEMALLOCATOR
      * portion corresponding to an chunk). */
     uint32_t                cBitmapElementsPerChunk;
 
+    /** Number of times we fruitlessly scanned a chunk for free space. */
+    uint64_t                cFruitlessChunkScans;
+
 #ifdef IEMEXECMEM_ALT_SUB_WITH_ALT_PRUNING
     /** The next chunk to prune in. */
     uint32_t                idxChunkPrune;
@@ -307,8 +293,9 @@ typedef struct IEMEXECMEMALLOCATOR
     STAMPROFILE             StatAlloc;
     /** Total amount of memory not being usable currently due to IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE. */
     uint64_t                cbUnusable;
+    /** Allocation size distribution (in alloc units; 0 is the slop bucket). */
+    STAMCOUNTER             aStatSizes[16];
 #endif
-
 
 #if defined(IN_RING3) && !defined(RT_OS_WINDOWS)
     /** Pointer to the array of unwind info running parallel to aChunks (same
@@ -335,10 +322,19 @@ typedef IEMEXECMEMALLOCATOR *PIEMEXECMEMALLOCATOR;
  */
 typedef struct IEMEXECMEMALLOCHDR
 {
-    /** Magic value / eyecatcher (IEMEXECMEMALLOCHDR_MAGIC). */
-    uint32_t        uMagic;
-    /** The allocation chunk (for speeding up freeing). */
-    uint32_t        idxChunk;
+    RT_GCC_EXTENSION
+    union
+    {
+        struct
+        {
+            /** Magic value / eyecatcher (IEMEXECMEMALLOCHDR_MAGIC). */
+            uint32_t        uMagic;
+            /** The allocation chunk (for speeding up freeing). */
+            uint32_t        idxChunk;
+        };
+        /** Combined magic and chunk index, for the pruning scanner code. */
+        uint64_t u64MagicAndChunkIdx;
+    };
     /** Pointer to the translation block the allocation belongs to.
      * This is the whole point of the header. */
     PIEMTB          pTb;
@@ -371,7 +367,11 @@ static void iemExecMemAllocatorPrune(PVMCPU pVCpu, PIEMEXECMEMALLOCATOR pExecMem
     /*
      * Before we can start, we must process delayed frees.
      */
+#if 1
+    PIEMTBALLOCATOR const pTbAllocator = iemTbAllocatorFreeBulkStart(pVCpu);
+#else
     iemTbAllocatorProcessDelayedFrees(pVCpu, pVCpu->iem.s.pTbAllocatorR3);
+#endif
 
     AssertCompile(RT_IS_POWER_OF_TWO(IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE));
 
@@ -416,40 +416,62 @@ static void iemExecMemAllocatorPrune(PVMCPU pVCpu, PIEMEXECMEMALLOCATOR pExecMem
         idxChunk = 0;
     }
 
-    uint32_t const offPruneEnd = RT_MIN(offChunk + cbToPrune, cbChunk);
+    uint32_t const offPruneStart = offChunk;
+    uint32_t const offPruneEnd   = RT_MIN(offChunk + cbToPrune, cbChunk);
 
     /*
      * Do the pruning.  The current approach is the sever kind.
+     *
+     * This is memory bound, as we must load both the allocation header and the
+     * associated TB and then modify them. So, the CPU isn't all that unitilized
+     * here.  Try apply some prefetching to speed it up a tiny bit.
      */
-    uint64_t            cbPruned = 0;
-    uint8_t * const     pbChunk  = (uint8_t *)pExecMemAllocator->aChunks[idxChunk].pvChunkRx;
+    uint64_t            cbPruned            = 0;
+    uint64_t const      u64MagicAndChunkIdx = RT_MAKE_U64(IEMEXECMEMALLOCHDR_MAGIC, idxChunk);
+    uint8_t * const     pbChunk             = (uint8_t *)pExecMemAllocator->aChunks[idxChunk].pvChunkRx;
     while (offChunk < offPruneEnd)
     {
         PIEMEXECMEMALLOCHDR pHdr = (PIEMEXECMEMALLOCHDR)&pbChunk[offChunk];
 
-        /* Is this the start of an allocation block for TB? (We typically have
-           one allocation at the start of each chunk for the unwind info where
-           pTb is NULL.)  */
-        if (   pHdr->uMagic   == IEMEXECMEMALLOCHDR_MAGIC
-            && pHdr->pTb      != NULL
-            && pHdr->idxChunk == idxChunk)
+        /* Is this the start of an allocation block for a TB? (We typically
+           have one allocation at the start of each chunk for the unwind info
+           where pTb is NULL.)  */
+        PIEMTB pTb;
+        if (   pHdr->u64MagicAndChunkIdx == u64MagicAndChunkIdx
+            && RT_LIKELY((pTb = pHdr->pTb) != NULL))
         {
-            PIEMTB const pTb = pHdr->pTb;
             AssertPtr(pTb);
 
             uint32_t const cbBlock = RT_ALIGN_32(pTb->Native.cInstructions * sizeof(IEMNATIVEINSTR) + sizeof(*pHdr),
                                                  IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE);
-            AssertBreakStmt(offChunk + cbBlock <= cbChunk, offChunk += IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE); /* paranoia */
 
-            iemTbAllocatorFree(pVCpu, pTb);
-
-            cbPruned += cbBlock;
+            /* Prefetch the next header before freeing the current one and its TB. */
+            /** @todo Iff the block size was part of the header in some way, this could be
+             *        a tiny bit faster. */
             offChunk += cbBlock;
+#if defined(_MSC_VER) && defined(RT_ARCH_AMD64)
+            _mm_prefetch((char *)&pbChunk[offChunk], _MM_HINT_T0);
+#elif defined(_MSC_VER) && defined(RT_ARCH_ARM64)
+            __prefetch(&pbChunk[offChunk]);
+#else
+            __builtin_prefetch(&pbChunk[offChunk], 1 /*rw*/);
+#endif
+            /* Some paranoia first, though.  */
+            AssertBreakStmt(offChunk <= cbChunk, offChunk -= cbBlock - IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE);
+            cbPruned += cbBlock;
+
+#if 1
+            iemTbAllocatorFreeBulk(pVCpu, pTbAllocator, pTb);
+#else
+            iemTbAllocatorFree(pVCpu, pTb);
+#endif
         }
         else
             offChunk += IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE;
     }
     STAM_REL_PROFILE_ADD_PERIOD(&pExecMemAllocator->StatPruneRecovered, cbPruned);
+
+    pVCpu->iem.s.ppTbLookupEntryR3 = &pVCpu->iem.s.pTbLookupEntryDummyR3;
 
     /*
      * Save the current pruning point.
@@ -459,11 +481,343 @@ static void iemExecMemAllocatorPrune(PVMCPU pVCpu, PIEMEXECMEMALLOCATOR pExecMem
 
     /* Set the hint to the start of the pruned region. */
     pExecMemAllocator->idxChunkHint  = idxChunk;
-    pExecMemAllocator->aChunks[idxChunk].idxFreeHint = offChunk / IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE;
+    pExecMemAllocator->aChunks[idxChunk].idxFreeHint = offPruneStart / IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE;
 
     STAM_REL_PROFILE_STOP(&pExecMemAllocator->StatPruneProf, a);
 }
 #endif /* IEMEXECMEM_ALT_SUB_WITH_ALT_PRUNING */
+
+
+#if defined(VBOX_STRICT) || 0
+/**
+ * The old bitmap scanner code, for comparison and assertions.
+ */
+static uint32_t iemExecMemAllocatorFindReqFreeUnitsOld(uint64_t *pbmAlloc, uint32_t cToScan, uint32_t cReqUnits)
+{
+    /** @todo This can probably be done more efficiently for non-x86 systems. */
+    int iBit = ASMBitFirstClear(pbmAlloc, cToScan);
+    while (iBit >= 0 && (uint32_t)iBit <= cToScan - cReqUnits)
+    {
+        uint32_t idxAddBit = 1;
+        while (idxAddBit < cReqUnits && !ASMBitTest(pbmAlloc, (uint32_t)iBit + idxAddBit))
+            idxAddBit++;
+        if (idxAddBit >= cReqUnits)
+            return (uint32_t)iBit;
+        iBit = ASMBitNextClear(pbmAlloc, cToScan, iBit + idxAddBit - 1);
+    }
+    return UINT32_MAX;
+}
+#endif
+
+
+/**
+ * Bitmap scanner code that looks for a bunch of @a cReqUnits zero bits.
+ *
+ * Booting win11 with a r165098 release build the average native TB size is
+ * around 9 units (of 256 bytes).  So, it is unlikely we need to scan any
+ * subsequent words once we hit a patch of zeros, thus @a a_fBig.
+ *
+ * @todo This needs more tweaking. While it *is* faster the the old code,
+ *       it doens't seem like it's all that much. :/
+ */
+template<const bool a_fBig>
+static uint32_t iemExecMemAllocatorFindReqFreeUnits(uint64_t *pbmAlloc, uint32_t c64WordsToScan, uint32_t cReqUnits)
+{
+    /*
+     * Scan the (section of the) allocation bitmap in 64-bit words.
+     */
+    unsigned cPrevLeadingZeros = 0;
+    for (uint32_t off = 0; off < c64WordsToScan; off++)
+    {
+        uint64_t uWord = pbmAlloc[off];
+        if (uWord == UINT64_MAX)
+        {
+            /*
+             * Getting thru patches of UINT64_MAX is a frequent problem when the allocator
+             * fills up, so it's definitely worth optimizing.
+             *
+             * The complicated code below is a bit faster on arm. Reducing the per TB cost
+             * from 4255ns to 4106ns (best run out of 10).  On win/amd64 there isn't an
+             * obvious gain here, at least not with the data currently being profiled.
+             */
+#if 1
+            off++;
+            uint32_t cQuads = (c64WordsToScan - off) / 4;
+
+            /* Align. */
+            if (cQuads > 1)
+                switch (((uintptr_t)&pbmAlloc[off] / sizeof(uint64_t)) & 3)
+                {
+                    case 0:
+                        break;
+                    case 1:
+                    {
+                        uWord           = pbmAlloc[off];
+                        uint64_t uWord1 = pbmAlloc[off + 1];
+                        uint64_t uWord2 = pbmAlloc[off + 2];
+                        if ((uWord & uWord1 & uWord2) == UINT64_MAX)
+                        {
+                            off   += 3;
+                            cQuads = (c64WordsToScan - off) / 4;
+                        }
+                        else if (uWord == UINT64_MAX)
+                        {
+                            if (uWord1 != UINT64_MAX)
+                            {
+                                uWord = uWord1;
+                                off  += 1;
+                            }
+                            else
+                            {
+                                uWord = uWord2;
+                                off  += 2;
+                            }
+                        }
+                        break;
+                    }
+                    case 2:
+                    {
+                        uWord           = pbmAlloc[off];
+                        uint64_t uWord1 = pbmAlloc[off + 1];
+                        if ((uWord & uWord1) == UINT64_MAX)
+                        {
+                            off   += 2;
+                            cQuads = (c64WordsToScan - off) / 4;
+                        }
+                        else if (uWord == UINT64_MAX)
+                        {
+                            uWord = uWord1;
+                            off  += 1;
+                        }
+                        break;
+                    }
+                    case 3:
+                        uWord = pbmAlloc[off];
+                        if (uWord == UINT64_MAX)
+                        {
+                            off++;
+                            cQuads = (c64WordsToScan - off) / 4;
+                        }
+                        break;
+                }
+            if (uWord == UINT64_MAX)
+            {
+                /* Looping over 32 bytes at a time. */
+                for (;;)
+                {
+                    if (cQuads-- > 0)
+                    {
+                        uWord           = pbmAlloc[off + 0];
+                        uint64_t uWord1 = pbmAlloc[off + 1];
+                        uint64_t uWord2 = pbmAlloc[off + 2];
+                        uint64_t uWord3 = pbmAlloc[off + 3];
+                        if ((uWord & uWord1 & uWord2 & uWord3) == UINT64_MAX)
+                            off += 4;
+                        else
+                        {
+                            if (uWord != UINT64_MAX)
+                            { }
+                            else if (uWord1 != UINT64_MAX)
+                            {
+                                uWord = uWord1;
+                                off += 1;
+                            }
+                            else if (uWord2 != UINT64_MAX)
+                            {
+                                uWord = uWord2;
+                                off += 2;
+                            }
+                            else
+                            {
+                                uWord = uWord3;
+                                off += 3;
+                            }
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        if (off < c64WordsToScan)
+                        {
+                            uWord = pbmAlloc[off];
+                            if (uWord != UINT64_MAX)
+                                break;
+                            off++;
+                            if (off < c64WordsToScan)
+                            {
+                                uWord = pbmAlloc[off];
+                                if (uWord != UINT64_MAX)
+                                    break;
+                                off++;
+                                if (off < c64WordsToScan)
+                                {
+                                    uWord = pbmAlloc[off];
+                                    if (uWord != UINT64_MAX)
+                                        break;
+                                    Assert(off + 1 == c64WordsToScan);
+                                }
+                            }
+                        }
+                        return UINT32_MAX;
+                    }
+                }
+            }
+#else
+            do
+            {
+                off++;
+                if (off < c64WordsToScan)
+                    uWord = pbmAlloc[off];
+                else
+                    return UINT32_MAX;
+            } while (uWord == UINT64_MAX);
+#endif
+            cPrevLeadingZeros = 0;
+        }
+
+        /*
+         * If we get down here, we have a word that isn't UINT64_MAX.
+         */
+        if (uWord != 0)
+        {
+            /*
+             * Fend of large request we cannot satisfy before the first set bit.
+             */
+            if (!a_fBig || cReqUnits < 64 + cPrevLeadingZeros)
+            {
+#ifdef __GNUC__
+                unsigned cZerosInWord = __builtin_popcountl(~uWord);
+#elif defined(_MSC_VER) && defined(RT_ARCH_AMD64)
+                unsigned cZerosInWord = __popcnt64(~uWord);
+#elif defined(_MSC_VER) && defined(RT_ARCH_ARM64)
+                unsigned cZerosInWord = _CountOneBits64(~uWord);
+#else
+# pragma message("need popcount intrinsic or something...")
+                unsigned cZerosInWord = 0;
+                for (uint64_t uTmp = ~uWords; uTmp; cZerosInWord++)
+                    uTmp &= uTmp - 1; /* Clears the least significant bit set. */
+#endif
+                if (cZerosInWord + cPrevLeadingZeros >= cReqUnits)
+                {
+                    /* Check if we've got a patch of zeros at the trailing end
+                       when joined with the previous word: */
+#ifdef __GNUC__
+                    unsigned cTrailingZeros = __builtin_ctzl(uWord);
+#else
+                    unsigned cTrailingZeros = ASMBitFirstSetU64(uWord) - 1;
+#endif
+                    if (cPrevLeadingZeros + cTrailingZeros >= cReqUnits)
+                        return off * 64 - cPrevLeadingZeros;
+
+                    /*
+                     * Try leading zeros before we get on with the tedious stuff.
+                     */
+#ifdef __GNUC__
+                    cPrevLeadingZeros = __builtin_clzl(uWord);
+#else
+                    cPrevLeadingZeros = 64 - ASMBitLastSetU64(uWord);
+#endif
+                    if (cPrevLeadingZeros >= cReqUnits)
+                        return (off + 1) * 64 - cPrevLeadingZeros;
+
+                    /*
+                     * Check the popcount again sans leading & trailing before looking
+                     * inside the word.
+                     */
+                    cZerosInWord -= cPrevLeadingZeros + cTrailingZeros;
+                    if (cZerosInWord >= cReqUnits)
+                    {
+                        /* 1; 64 - 0 - 1 = 63; */
+                        unsigned const iBitLast = 64 - cPrevLeadingZeros - cReqUnits; /** @todo boundrary */
+                        unsigned       iBit     = cTrailingZeros;
+                        uWord >>= cTrailingZeros;
+                        do
+                        {
+                            Assert(uWord & 1);
+#ifdef __GNUC__
+                            unsigned iZeroBit = __builtin_ctzl(~uWord);
+#else
+                            unsigned iZeroBit = ASMBitFirstSetU64(~uWord) - 1;
+#endif
+                            iBit   += iZeroBit;
+                            uWord >>= iZeroBit;
+                            Assert(iBit <= iBitLast);
+                            Assert((uWord & 1) == 0);
+#ifdef __GNUC__
+                            unsigned cZeros = __builtin_ctzl(uWord);
+#else
+                            unsigned cZeros = ASMBitFirstSetU64(uWord) - 1;
+#endif
+                            if (cZeros >= cReqUnits)
+                                return off * 64 + iBit;
+
+                            cZerosInWord -= cZeros;  /* (may underflow as we will count shifted in zeros) */
+                            iBit         += cZeros;
+                            uWord       >>= cZeros;
+                        } while ((int)cZerosInWord >= (int)cReqUnits && iBit < iBitLast);
+                    }
+                    continue; /* we've already calculated cPrevLeadingZeros */
+                }
+            }
+
+            /* Update the leading (MSB) zero count. */
+#ifdef __GNUC__
+            cPrevLeadingZeros = __builtin_clzl(uWord);
+#else
+            cPrevLeadingZeros = 64 - ASMBitLastSetU64(uWord);
+#endif
+        }
+        /*
+         * uWord == 0
+         */
+        else
+        {
+            if RT_CONSTEXPR_IF(!a_fBig)
+                return off * 64 - cPrevLeadingZeros;
+            else /* keep else */
+            {
+                if (cPrevLeadingZeros + 64 >= cReqUnits)
+                    return off * 64 - cPrevLeadingZeros;
+                for (uint32_t off2 = off + 1;; off2++)
+                {
+                    if (off2 < c64WordsToScan)
+                    {
+                        uWord = pbmAlloc[off2];
+                        if (uWord == UINT64_MAX)
+                        {
+                            cPrevLeadingZeros = 0;
+                            break;
+                        }
+                        if (uWord == 0)
+                        {
+                            if (cPrevLeadingZeros + (off2 - off + 1) * 64 >= cReqUnits)
+                                return off * 64 - cPrevLeadingZeros;
+                        }
+                        else
+                        {
+#ifdef __GNUC__
+                            unsigned cTrailingZeros = __builtin_ctzl(uWord);
+#else
+                            unsigned cTrailingZeros = ASMBitFirstSetU64(uWord) - 1;
+#endif
+                            if (cPrevLeadingZeros + (off2 - off) * 64 + cTrailingZeros >= cReqUnits)
+                                return off * 64 - cPrevLeadingZeros;
+#ifdef __GNUC__
+                            cPrevLeadingZeros = __builtin_clzl(uWord);
+#else
+                            cPrevLeadingZeros = 64 - ASMBitLastSetU64(uWord);
+#endif
+                            break;
+                        }
+                    }
+                    else
+                        return UINT32_MAX;
+                }
+            }
+        }
+    }
+    return UINT32_MAX;
+}
 
 
 /**
@@ -481,108 +835,121 @@ iemExecMemAllocatorAllocInChunkInt(PIEMEXECMEMALLOCATOR pExecMemAllocator, uint6
     Assert(!(idxFirst & 63));
     Assert(cToScan + idxFirst <= pExecMemAllocator->cUnitsPerChunk);
     pbmAlloc += idxFirst / 64;
+    cToScan  += idxFirst & 63;
+    Assert(!(cToScan & 63));
 
-    /*
-     * Scan the bitmap for cReqUnits of consequtive clear bits
-     */
-    /** @todo This can probably be done more efficiently for non-x86 systems. */
-    int iBit = ASMBitFirstClear(pbmAlloc, cToScan);
-    while (iBit >= 0 && (uint32_t)iBit <= cToScan - cReqUnits)
-    {
-        uint32_t idxAddBit = 1;
-        while (idxAddBit < cReqUnits && !ASMBitTest(pbmAlloc, (uint32_t)iBit + idxAddBit))
-            idxAddBit++;
-        if (idxAddBit >= cReqUnits)
-        {
-            ASMBitSetRange(pbmAlloc, (uint32_t)iBit, (uint32_t)iBit + cReqUnits);
-
-            PIEMEXECMEMCHUNK const pChunk = &pExecMemAllocator->aChunks[idxChunk];
-            pChunk->cFreeUnits -= cReqUnits;
-            pChunk->idxFreeHint = (uint32_t)iBit + cReqUnits;
-
-            pExecMemAllocator->cAllocations += 1;
-            uint32_t const cbReq = cReqUnits << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT;
-            pExecMemAllocator->cbAllocated  += cbReq;
-            pExecMemAllocator->cbFree       -= cbReq;
-            pExecMemAllocator->idxChunkHint  = idxChunk;
-
-            void * const pvMemRw = (uint8_t *)pChunk->pvChunkRw
-                                 + ((idxFirst + (uint32_t)iBit) << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT);
-
-            if (ppChunkCtx)
-                *ppChunkCtx = pChunk->pCtx;
-
-            /*
-             * Initialize the header and return.
-             */
-# ifdef IEMEXECMEM_ALT_SUB_WITH_ALLOC_HEADER
-            PIEMEXECMEMALLOCHDR const pHdr = (PIEMEXECMEMALLOCHDR)pvMemRw;
-            pHdr->uMagic   = IEMEXECMEMALLOCHDR_MAGIC;
-            pHdr->idxChunk = idxChunk;
-            pHdr->pTb      = pTb;
-
-            if (ppvExec)
-                *ppvExec = (uint8_t *)pChunk->pvChunkRx
-                         + ((idxFirst + (uint32_t)iBit) << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT)
-                         + sizeof(*pHdr);
-
-            return pHdr + 1;
+#if 1
+    uint32_t const iBit = cReqUnits < 64
+                        ? iemExecMemAllocatorFindReqFreeUnits<false>(pbmAlloc, cToScan / 64, cReqUnits)
+                        : iemExecMemAllocatorFindReqFreeUnits<true>( pbmAlloc, cToScan / 64, cReqUnits);
+# ifdef VBOX_STRICT
+    uint32_t const iBitOld = iemExecMemAllocatorFindReqFreeUnitsOld(pbmAlloc, cToScan, cReqUnits);
+    AssertMsg(   iBit == iBitOld
+              || (iBit / 64) == (iBitOld / 64), /* New algorithm will return trailing hit before middle. */
+              ("iBit=%#x (%#018RX64); iBitOld=%#x (%#018RX64); cReqUnits=%#x\n",
+               iBit, iBit != UINT32_MAX ? pbmAlloc[iBit / 64] : 0,
+               iBitOld, iBitOld != UINT32_MAX ? pbmAlloc[iBitOld / 64] : 0, cReqUnits));
+# endif
 #else
-            if (ppvExec)
-                *ppvExec = (uint8_t *)pChunk->pvChunkRx
-                         + ((idxFirst + (uint32_t)iBit) << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT);
-
-            RT_NOREF(pTb);
-            return pvMem;
+    uint32_t const iBit = iemExecMemAllocatorFindReqFreeUnitsOld(pbmAlloc, cToScan, cReqUnits);
 #endif
-        }
+    if (iBit != UINT32_MAX)
+    {
+        ASMBitSetRange(pbmAlloc, (uint32_t)iBit, (uint32_t)iBit + cReqUnits);
 
-        iBit = ASMBitNextClear(pbmAlloc, cToScan, iBit + idxAddBit - 1);
+        PIEMEXECMEMCHUNK const pChunk = &pExecMemAllocator->aChunks[idxChunk];
+        pChunk->cFreeUnits -= cReqUnits;
+        pChunk->idxFreeHint = (uint32_t)iBit + cReqUnits;
+
+        pExecMemAllocator->cAllocations += 1;
+        uint32_t const cbReq = cReqUnits << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT;
+        pExecMemAllocator->cbAllocated  += cbReq;
+        pExecMemAllocator->cbFree       -= cbReq;
+        pExecMemAllocator->idxChunkHint  = idxChunk;
+
+        void * const pvMemRw = (uint8_t *)pChunk->pvChunkRw
+                             + ((idxFirst + (uint32_t)iBit) << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT);
+
+        if (ppChunkCtx)
+            *ppChunkCtx = pChunk->pCtx;
+
+        /*
+         * Initialize the header and return.
+         */
+# ifdef IEMEXECMEM_ALT_SUB_WITH_ALLOC_HEADER
+        PIEMEXECMEMALLOCHDR const pHdr = (PIEMEXECMEMALLOCHDR)pvMemRw;
+        pHdr->uMagic   = IEMEXECMEMALLOCHDR_MAGIC;
+        pHdr->idxChunk = idxChunk;
+        pHdr->pTb      = pTb;
+
+        if (ppvExec)
+            *ppvExec = (uint8_t *)pChunk->pvChunkRx
+                     + ((idxFirst + (uint32_t)iBit) << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT)
+                     + sizeof(*pHdr);
+
+        return pHdr + 1;
+#else
+        if (ppvExec)
+            *ppvExec = (uint8_t *)pChunk->pvChunkRx
+                     + ((idxFirst + (uint32_t)iBit) << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT);
+
+        RT_NOREF(pTb);
+        return pvMem;
+#endif
     }
+
     return NULL;
 }
 
 
-static PIEMNATIVEINSTR
-iemExecMemAllocatorAllocInChunk(PIEMEXECMEMALLOCATOR pExecMemAllocator, uint32_t idxChunk, uint32_t cbReq, PIEMTB pTb,
-                                PIEMNATIVEINSTR *ppaExec, PCIEMNATIVEPERCHUNKCTX *ppChunkCtx)
+/**
+ * Converts requested number of bytes into a unit count.
+ */
+DECL_FORCE_INLINE(uint32_t) iemExecMemAllocBytesToUnits(uint32_t cbReq)
 {
-    /*
-     * Figure out how much to allocate.
-     */
 #ifdef IEMEXECMEM_ALT_SUB_WITH_ALLOC_HEADER
-    uint32_t const cReqUnits = (cbReq + sizeof(IEMEXECMEMALLOCHDR) + IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE - 1)
+    return (cbReq + sizeof(IEMEXECMEMALLOCHDR) + IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE - 1)
 #else
-    uint32_t const cReqUnits = (cbReq + IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE - 1)
+    return (cbReq + IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE - 1)
 #endif
-                            >> IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT;
-    if (cReqUnits <= pExecMemAllocator->aChunks[idxChunk].cFreeUnits)
+        >> IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT;
+}
+
+
+DECL_FORCE_INLINE(PIEMNATIVEINSTR)
+iemExecMemAllocatorAllocUnitsInChunkInner(PIEMEXECMEMALLOCATOR pExecMemAllocator, uint32_t idxChunk, uint32_t cReqUnits,
+                                          PIEMTB pTb, PIEMNATIVEINSTR *ppaExec, PCIEMNATIVEPERCHUNKCTX *ppChunkCtx)
+{
+    uint64_t * const pbmAlloc = &pExecMemAllocator->pbmAlloc[pExecMemAllocator->cBitmapElementsPerChunk * idxChunk];
+    uint32_t const   idxHint  = pExecMemAllocator->aChunks[idxChunk].idxFreeHint & ~(uint32_t)63;
+    if (idxHint + cReqUnits <= pExecMemAllocator->cUnitsPerChunk)
     {
-        uint64_t * const pbmAlloc = &pExecMemAllocator->pbmAlloc[pExecMemAllocator->cBitmapElementsPerChunk * idxChunk];
-        uint32_t const   idxHint  = pExecMemAllocator->aChunks[idxChunk].idxFreeHint & ~(uint32_t)63;
-        if (idxHint + cReqUnits <= pExecMemAllocator->cUnitsPerChunk)
-        {
-            void *pvRet = iemExecMemAllocatorAllocInChunkInt(pExecMemAllocator, pbmAlloc, idxHint,
-                                                             pExecMemAllocator->cUnitsPerChunk - idxHint,
-                                                             cReqUnits, idxChunk, pTb, (void **)ppaExec, ppChunkCtx);
-            if (pvRet)
-            {
-#ifdef VBOX_WITH_STATISTICS
-                pExecMemAllocator->cbUnusable += (cReqUnits << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT) - cbReq;
-#endif
-                return (PIEMNATIVEINSTR)pvRet;
-            }
-        }
-        void *pvRet = iemExecMemAllocatorAllocInChunkInt(pExecMemAllocator, pbmAlloc, 0,
-                                                         RT_MIN(pExecMemAllocator->cUnitsPerChunk,
-                                                              RT_ALIGN_32(idxHint + cReqUnits, 64)),
+        void *pvRet = iemExecMemAllocatorAllocInChunkInt(pExecMemAllocator, pbmAlloc, idxHint,
+                                                         pExecMemAllocator->cUnitsPerChunk - idxHint,
                                                          cReqUnits, idxChunk, pTb, (void **)ppaExec, ppChunkCtx);
-#ifdef VBOX_WITH_STATISTICS
         if (pvRet)
-            pExecMemAllocator->cbUnusable += (cReqUnits << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT) - cbReq;
-#endif
-        return (PIEMNATIVEINSTR)pvRet;
+            return (PIEMNATIVEINSTR)pvRet;
     }
+    void *pvRet = iemExecMemAllocatorAllocInChunkInt(pExecMemAllocator, pbmAlloc, 0,
+                                                     RT_MIN(pExecMemAllocator->cUnitsPerChunk,
+                                                            RT_ALIGN_32(idxHint + cReqUnits, 64*4)),
+                                                     cReqUnits, idxChunk, pTb, (void **)ppaExec, ppChunkCtx);
+    if (pvRet)
+        return (PIEMNATIVEINSTR)pvRet;
+
+    pExecMemAllocator->cFruitlessChunkScans += 1;
+    return NULL;
+}
+
+
+DECLINLINE(PIEMNATIVEINSTR)
+iemExecMemAllocatorAllocBytesInChunk(PIEMEXECMEMALLOCATOR pExecMemAllocator, uint32_t idxChunk, uint32_t cbReq,
+                                     PIEMNATIVEINSTR *ppaExec)
+{
+    uint32_t const cReqUnits = iemExecMemAllocBytesToUnits(cbReq);
+    if (cReqUnits <= pExecMemAllocator->aChunks[idxChunk].cFreeUnits)
+        return iemExecMemAllocatorAllocUnitsInChunkInner(pExecMemAllocator, idxChunk, cReqUnits, NULL /*pTb*/,
+                                                         ppaExec, NULL /*ppChunkCtx*/);
     return NULL;
 }
 
@@ -609,31 +976,56 @@ DECLHIDDEN(PIEMNATIVEINSTR) iemExecMemAllocatorAlloc(PVMCPU pVCpu, uint32_t cbRe
     AssertMsgReturn(cbReq > 32 && cbReq < _512K, ("%#x\n", cbReq), NULL);
     STAM_PROFILE_START(&pExecMemAllocator->StatAlloc, a);
 
+    uint32_t const cReqUnits = iemExecMemAllocBytesToUnits(cbReq);
+    STAM_COUNTER_INC(&pExecMemAllocator->aStatSizes[cReqUnits < RT_ELEMENTS(pExecMemAllocator->aStatSizes) ? cReqUnits : 0]);
     for (unsigned iIteration = 0;; iIteration++)
     {
-        if (cbReq <= pExecMemAllocator->cbFree)
+        if (   cbReq * 2 <= pExecMemAllocator->cbFree
+            || (cReqUnits == 1 || pExecMemAllocator->cbFree >= IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SIZE) )
         {
-            uint32_t const cChunks      = pExecMemAllocator->cChunks;
-            uint32_t const idxChunkHint = pExecMemAllocator->idxChunkHint < cChunks ? pExecMemAllocator->idxChunkHint : 0;
-            for (uint32_t idxChunk = idxChunkHint; idxChunk < cChunks; idxChunk++)
+            uint32_t const cChunks       = pExecMemAllocator->cChunks;
+            uint32_t const idxChunkHint  = pExecMemAllocator->idxChunkHint < cChunks ? pExecMemAllocator->idxChunkHint : 0;
+
+            /*
+             * We do two passes here, the first pass we skip chunks with fewer than cReqUnits * 16,
+             * the 2nd pass we skip chunks. The second pass checks the one skipped in the first pass.
+             */
+            for (uint32_t cMinFreePass = cReqUnits == 1 ? cReqUnits : cReqUnits * 16, cMaxFreePass = UINT32_MAX;;)
             {
-                PIEMNATIVEINSTR const pRet = iemExecMemAllocatorAllocInChunk(pExecMemAllocator, idxChunk, cbReq, pTb,
-                                                                             ppaExec, ppChunkCtx);
-                if (pRet)
-                {
-                    STAM_PROFILE_STOP(&pExecMemAllocator->StatAlloc, a);
-                    return pRet;
-                }
-            }
-            for (uint32_t idxChunk = 0; idxChunk < idxChunkHint; idxChunk++)
-            {
-                PIEMNATIVEINSTR const pRet = iemExecMemAllocatorAllocInChunk(pExecMemAllocator, idxChunk, cbReq, pTb,
-                                                                             ppaExec, ppChunkCtx);
-                if (pRet)
-                {
-                    STAM_PROFILE_STOP(&pExecMemAllocator->StatAlloc, a);
-                    return pRet;
-                }
+                for (uint32_t idxChunk = idxChunkHint; idxChunk < cChunks; idxChunk++)
+                    if (   pExecMemAllocator->aChunks[idxChunk].cFreeUnits >= cMinFreePass
+                        && pExecMemAllocator->aChunks[idxChunk].cFreeUnits <= cMaxFreePass)
+                    {
+                        PIEMNATIVEINSTR const pRet = iemExecMemAllocatorAllocUnitsInChunkInner(pExecMemAllocator, idxChunk,
+                                                                                               cReqUnits, pTb, ppaExec, ppChunkCtx);
+                        if (pRet)
+                        {
+                            STAM_PROFILE_STOP(&pExecMemAllocator->StatAlloc, a);
+#ifdef VBOX_WITH_STATISTICS
+                            pExecMemAllocator->cbUnusable += (cReqUnits << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT) - cbReq;
+#endif
+                            return pRet;
+                        }
+                    }
+                for (uint32_t idxChunk = 0; idxChunk < idxChunkHint; idxChunk++)
+                    if (   pExecMemAllocator->aChunks[idxChunk].cFreeUnits >= cMinFreePass
+                        && pExecMemAllocator->aChunks[idxChunk].cFreeUnits <= cMaxFreePass)
+                    {
+                        PIEMNATIVEINSTR const pRet = iemExecMemAllocatorAllocUnitsInChunkInner(pExecMemAllocator, idxChunk,
+                                                                                               cReqUnits, pTb, ppaExec, ppChunkCtx);
+                        if (pRet)
+                        {
+                            STAM_PROFILE_STOP(&pExecMemAllocator->StatAlloc, a);
+#ifdef VBOX_WITH_STATISTICS
+                            pExecMemAllocator->cbUnusable += (cReqUnits << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT) - cbReq;
+#endif
+                            return pRet;
+                        }
+                    }
+                if (cMinFreePass <= cReqUnits * 2)
+                    break;
+                cMaxFreePass = cMinFreePass - 1;
+                cMinFreePass = cReqUnits * 2;
             }
         }
 
@@ -646,11 +1038,14 @@ DECLHIDDEN(PIEMNATIVEINSTR) iemExecMemAllocatorAlloc(PVMCPU pVCpu, uint32_t cbRe
             AssertLogRelRCReturn(rc, NULL);
 
             uint32_t const idxChunk = pExecMemAllocator->cChunks - 1;
-            PIEMNATIVEINSTR const pRet = iemExecMemAllocatorAllocInChunk(pExecMemAllocator, idxChunk, cbReq, pTb,
-                                                                         ppaExec, ppChunkCtx);
+            PIEMNATIVEINSTR const pRet = iemExecMemAllocatorAllocUnitsInChunkInner(pExecMemAllocator, idxChunk, cReqUnits, pTb,
+                                                                                   ppaExec, ppChunkCtx);
             if (pRet)
             {
                 STAM_PROFILE_STOP(&pExecMemAllocator->StatAlloc, a);
+#ifdef VBOX_WITH_STATISTICS
+                pExecMemAllocator->cbUnusable += (cReqUnits << IEMEXECMEM_ALT_SUB_ALLOC_UNIT_SHIFT) - cbReq;
+#endif
                 return pRet;
             }
             AssertFailed();
@@ -685,12 +1080,96 @@ DECLHIDDEN(void) iemExecMemAllocatorReadyForUse(PVMCPUCC pVCpu, void *pv, size_t
 {
 #ifdef RT_OS_DARWIN
     /*
-     * Flush the instruction cache:
-     *      https://developer.apple.com/documentation/apple-silicon/porting-just-in-time-compilers-to-apple-silicon
+     * We need to synchronize the stuff we wrote to the data cache with the
+     * instruction cache, since these aren't coherent on arm (or at least not
+     * on Apple Mn CPUs).
+     *
+     * Note! Since we don't any share JIT'ed code with the other CPUs, we don't
+     *       really care whether the dcache is fully flushed back to memory. It
+     *       only needs to hit the level 2 cache, which the level 1 instruction
+     *       and data caches seems to be sharing.  In ARM terms, we need to reach
+     *       a point of unification (PoU), rather than a point of coherhency (PoC).
+     *
+     * https://developer.apple.com/documentation/apple-silicon/porting-just-in-time-compilers-to-apple-silicon
+     *
+     * https://developer.arm.com/documentation/den0013/d/Caches/Point-of-coherency-and-unification
+     *
+     * Experimenting with the approach used by sys_icache_invalidate() and
+     * tweaking it a little, could let us shave off a bit of effort.  The thing
+     * that slows the apple code down on an M2 (runing Sonoma 13.4), seems to
+     * the 'DSB ISH' instructions performed every 20 icache line flushes.
+     * Skipping these saves ~100ns or more per TB when profiling the native
+     * recompiler on the TBs from a win11 full boot-desktop-shutdow sequence.
+     * Thus we will leave DCACHE_ICACHE_SYNC_WITH_WITH_IVAU_DSB undefined if we
+     * can.
+     *
+     * There appears not to be much difference between DSB options 'ISH',
+     * 'ISHST', 'NSH' and 'NSHST'.  The latter is theoretically all we need, so
+     * we'll use that one.
+     *
+     * See https://developer.arm.com/documentation/100941/0101/Barriers for
+     * details on the barrier options.
+     *
+     * Note! The CFG value "/IEM/HostICacheInvalidationViaHostAPI" can be used
+     *       to disabling the experimental code should it misbehave.
      */
-    /* sys_dcache_flush(pv, cb); - not necessary */
-    sys_icache_invalidate(pv, cb);
-    RT_NOREF(pVCpu);
+    uint8_t const fHostICacheInvalidation = pVCpu->iem.s.fHostICacheInvalidation;
+    if (!(fHostICacheInvalidation & IEMNATIVE_ICACHE_F_USE_HOST_API))
+    {
+#  define DCACHE_ICACHE_SYNC_DSB_OPTION "nshst"
+/*#  define DCACHE_ICACHE_SYNC_WITH_WITH_IVAU_DSB*/
+
+        /* Skipping this is fine, but doesn't impact perf much. */
+        __asm__ __volatile__("dsb " DCACHE_ICACHE_SYNC_DSB_OPTION);
+
+        /* Invalidate the icache for the range [pv,pv+cb). */
+#  ifdef DCACHE_ICACHE_SYNC_WITH_WITH_IVAU_DSB
+        size_t const cIvauDsbEvery= 20;
+        unsigned     cDsb         = cIvauDsbEvery;
+#  endif
+        size_t const cbCacheLine  = 64;
+        size_t       cbInvalidate = cb + ((uintptr_t)pv & (cbCacheLine - 1)) ;
+        size_t       cCacheLines  = RT_ALIGN_Z(cbInvalidate, cbCacheLine) / cbCacheLine;
+        uintptr_t    uPtr         = (uintptr_t)pv & ~(uintptr_t)(cbCacheLine - 1);
+        for (;; uPtr += cbCacheLine)
+        {
+            __asm__ /*__volatile__*/("ic ivau, %0" : : "r" (uPtr));
+            cCacheLines -= 1;
+            if (!cCacheLines)
+                break;
+#  ifdef DCACHE_ICACHE_SYNC_WITH_WITH_IVAU_DSB
+            cDsb -= 1;
+            if (cDsb != 0)
+            { /* likely */ }
+            else
+            {
+                __asm__ __volatile__("dsb " DCACHE_ICACHE_SYNC_DSB_OPTION);
+                cDsb = cIvauDsbEvery;
+            }
+#  endif
+        }
+
+        /*
+         * The DSB here is non-optional it seems.
+         *
+         * The following ISB can be omitted on M2 without any obvious sideeffects,
+         * it produces better number in the above mention profiling scenario.
+         * This could be related to the kHasICDSB flag in cpu_capabilities.h,
+         * but it doesn't look like that flag is set here (M2, Sonoma 13.4).
+         *
+         * I've made the inclusion of the ISH barrier as configurable and with
+         * a default of skipping it.
+         */
+        if (!(fHostICacheInvalidation & IEMNATIVE_ICACHE_F_END_WITH_ISH))
+            __asm__ __volatile__("dsb " DCACHE_ICACHE_SYNC_DSB_OPTION
+                                  ::: "memory");
+        else
+            __asm__ __volatile__("dsb " DCACHE_ICACHE_SYNC_DSB_OPTION "\n\t"
+                                 "isb"
+                                 ::: "memory");
+    }
+    else
+        sys_icache_invalidate(pv, cb);
 
 #elif defined(RT_OS_LINUX) && defined(RT_ARCH_ARM64)
     RT_NOREF(pVCpu);
@@ -798,11 +1277,10 @@ iemExecMemAllocatorAllocFromChunk(PVMCPU pVCpu, uint32_t idxChunk, uint32_t cbRe
     PIEMEXECMEMALLOCATOR pExecMemAllocator = pVCpu->iem.s.pExecMemAllocatorR3;
     AssertReturn(idxChunk < pExecMemAllocator->cChunks, NULL);
     Assert(cbReq < _1M);
-    return iemExecMemAllocatorAllocInChunk(pExecMemAllocator, idxChunk, cbReq, NULL /*pTb*/, ppaExec, NULL /*ppChunkCtx*/);
+    return iemExecMemAllocatorAllocBytesInChunk(pExecMemAllocator, idxChunk, cbReq, ppaExec);
 }
 
 
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
 /**
  * For getting the per-chunk context detailing common code for a TB.
  *
@@ -822,7 +1300,6 @@ DECLHIDDEN(PCIEMNATIVEPERCHUNKCTX) iemExecMemGetTbChunkCtx(PVMCPU pVCpu, PCIEMTB
     }
     return NULL;
 }
-#endif
 
 
 #ifdef IN_RING3
@@ -890,7 +1367,7 @@ iemExecMemAllocatorInitAndRegisterUnwindInfoForChunk(PVMCPUCC pVCpu, PIEMEXECMEM
     unsigned const cbUnwindInfo     = sizeof(s_aOpcodes) + RT_UOFFSETOF(IMAGE_UNWIND_INFO, aOpcodes);
     unsigned const cbNeeded         = sizeof(IMAGE_RUNTIME_FUNCTION_ENTRY) * cFunctionEntries + cbUnwindInfo;
     PIMAGE_RUNTIME_FUNCTION_ENTRY const paFunctions
-        = (PIMAGE_RUNTIME_FUNCTION_ENTRY)iemExecMemAllocatorAllocInChunk(pExecMemAllocator, idxChunk, cbNeeded, NULL, NULL, NULL);
+        = (PIMAGE_RUNTIME_FUNCTION_ENTRY)iemExecMemAllocatorAllocBytesInChunk(pExecMemAllocator, idxChunk, cbNeeded, NULL);
     AssertReturn(paFunctions, VERR_INTERNAL_ERROR_5);
     pExecMemAllocator->aChunks[idxChunk].pvUnwindInfo = paFunctions;
 
@@ -1125,8 +1602,8 @@ iemExecMemAllocatorInitAndRegisterUnwindInfoForChunk(PVMCPUCC pVCpu, PIEMEXECMEM
      *
      * This seems to work best with ET_DYN.
      */
-    GDBJITSYMFILE * const pSymFile = (GDBJITSYMFILE *)iemExecMemAllocatorAllocInChunk(pExecMemAllocator, idxChunk,
-                                                                                      sizeof(GDBJITSYMFILE), NULL, NULL, NULL);
+    GDBJITSYMFILE * const pSymFile = (GDBJITSYMFILE *)iemExecMemAllocatorAllocBytesInChunk(pExecMemAllocator, idxChunk,
+                                                                                           sizeof(GDBJITSYMFILE), NULL);
     AssertReturn(pSymFile, VERR_INTERNAL_ERROR_5);
     unsigned const offSymFileInChunk = (uintptr_t)pSymFile - (uintptr_t)pvChunk;
 
@@ -1501,9 +1978,7 @@ static int iemExecMemAllocatorGrow(PVMCPUCC pVCpu, PIEMEXECMEMALLOCATOR pExecMem
 
     void *pvChunkRx = (void *)AddrRemapped;
 #else
-# if defined(IN_RING3) || defined(IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE)
     int   rc        = VINF_SUCCESS;
-# endif
     void *pvChunkRx = pvChunk;
 #endif
 
@@ -1530,20 +2005,15 @@ static int iemExecMemAllocatorGrow(PVMCPUCC pVCpu, PIEMEXECMEMALLOCATOR pExecMem
     pExecMemAllocator->cbFree      += pExecMemAllocator->cbChunk;
 
     /* If there is a chunk context init callback call it. */
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
-    pExecMemAllocator->aChunks[idxChunk].pCtx = iemNativeRecompileAttachExecMemChunkCtx(pVCpu, idxChunk);
-    if (pExecMemAllocator->aChunks[idxChunk].pCtx)
-#endif
-    {
+    rc = iemNativeRecompileAttachExecMemChunkCtx(pVCpu, idxChunk, &pExecMemAllocator->aChunks[idxChunk].pCtx);
 #ifdef IN_RING3
-        /*
-         * Initialize the unwind information (this cannot really fail atm).
-         * (This sets pvUnwindInfo.)
-         */
+    /*
+     * Initialize the unwind information (this cannot really fail atm).
+     * (This sets pvUnwindInfo.)
+     */
+    if (RT_SUCCESS(rc))
         rc = iemExecMemAllocatorInitAndRegisterUnwindInfoForChunk(pVCpu, pExecMemAllocator, pvChunkRx, idxChunk);
 #endif
-    }
-#if defined(IN_RING3) || defined(IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE)
     if (RT_SUCCESS(rc))
     { /* likely */ }
     else
@@ -1566,7 +2036,6 @@ static int iemExecMemAllocatorGrow(PVMCPUCC pVCpu, PIEMEXECMEMALLOCATOR pExecMem
         RTMemPageFree(pvChunk, pExecMemAllocator->cbChunk);
         return rc;
     }
-#endif
 
     return VINF_SUCCESS;
 }
@@ -1617,13 +2086,11 @@ int iemExecMemAllocatorInit(PVMCPU pVCpu, uint64_t cbMax, uint64_t cbInitial, ui
                 cbChunk = RT_BIT_32(ASMBitLastSetU32(cbChunk));
         }
     }
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
-# if   defined(RT_OS_AMD64)
+#if   defined(RT_OS_AMD64)
     Assert(cbChunk <= _2G);
-# elif defined(RT_OS_ARM64)
+#elif defined(RT_OS_ARM64)
     if (cbChunk > _128M)
         cbChunk = _128M; /* Max relative branch distance is +/-2^(25+2) = +/-0x8000000 (134 217 728). */
-# endif
 #endif
 
     if (cbChunk > cbMax)
@@ -1714,6 +2181,12 @@ int iemExecMemAllocatorInit(PVMCPU pVCpu, uint64_t cbMax, uint64_t cbInitial, ui
                      "Total number of bytes being unusable",    "/IEM/CPU%u/re/ExecMem/cbUnusable", pVCpu->idCpu);
     STAMR3RegisterFU(pUVM, &pExecMemAllocator->StatAlloc,       STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,
                      "Profiling the allocator",                 "/IEM/CPU%u/re/ExecMem/ProfAlloc", pVCpu->idCpu);
+    for (unsigned i = 1; i < RT_ELEMENTS(pExecMemAllocator->aStatSizes); i++)
+        STAMR3RegisterFU(pUVM, &pExecMemAllocator->aStatSizes[i], STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                         "Number of allocations of this number of allocation units",
+                         "/IEM/CPU%u/re/ExecMem/aSize%02u", pVCpu->idCpu, i);
+    STAMR3RegisterFU(pUVM, &pExecMemAllocator->aStatSizes[0], STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                     "Number of allocations 16 units or larger", "/IEM/CPU%u/re/ExecMem/aSize16OrLarger", pVCpu->idCpu);
 #endif
 #ifdef IEMEXECMEM_ALT_SUB_WITH_ALT_PRUNING
     STAMR3RegisterFU(pUVM, &pExecMemAllocator->StatPruneProf,   STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,
@@ -1721,6 +2194,8 @@ int iemExecMemAllocatorInit(PVMCPU pVCpu, uint64_t cbMax, uint64_t cbInitial, ui
     STAMR3RegisterFU(pUVM, &pExecMemAllocator->StatPruneRecovered, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES_PER_CALL,
                      "Bytes recovered while pruning",           "/IEM/CPU%u/re/ExecMem/PruningRecovered", pVCpu->idCpu);
 #endif
+    STAMR3RegisterFU(pUVM, &pExecMemAllocator->cFruitlessChunkScans, STAMTYPE_U64_RESET, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                     "Chunks fruitlessly scanned for free space", "/IEM/CPU%u/re/ExecMem/FruitlessChunkScans", pVCpu->idCpu);
 
     return VINF_SUCCESS;
 }

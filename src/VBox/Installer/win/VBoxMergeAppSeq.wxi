@@ -2,7 +2,7 @@
     VirtualBox Windows Installation Script (WiX)
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -25,6 +25,18 @@
 
 <Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
 
+    <Custom Action="ca_VBoxSupDrvInstParms" After="InstallFiles" Condition="NOT REMOVE" />
+    <Custom Action="ca_VBoxSupDrvInst" After="ca_VBoxSupDrvInstParms" Condition="NOT REMOVE" />
+
+    <!-- Start VBoxSUP.sys after installation. -->
+    <Custom Action="ca_VBoxSupDrvStartParms" After="ca_VBoxSupDrvInst" Condition="NOT REMOVE" />
+    <Custom Action="ca_VBoxSupDrvStart" After="ca_VBoxSupDrvStartParms" Condition="NOT REMOVE" />
+
+    <Custom Action="ca_VBoxSupDrvUninstParms" After="InstallInitialize"
+            Condition="NOT (UPGRADINGPRODUCTCODE) AND (Installed) AND (REMOVE=&quot;ALL&quot;)" />
+    <Custom Action="ca_VBoxSupDrvUninst" After="ca_VBoxSupDrvUninstParms"
+            Condition="NOT (UPGRADINGPRODUCTCODE) AND (Installed) AND (REMOVE=&quot;ALL&quot;)" />
+
 <?if $(env.VBOX_WITH_CRT_PACKING) = "no" ?>
     <Custom Action="ca_IsMSCRTInstalled" Before="LaunchConditions"/>
 <?endif?>
@@ -37,4 +49,3 @@
     <Custom Action="ca_IsWindows10" After="FileCost"/>
 
 </Include>
-

@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage clonemedium
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-clonemedium" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2023-04-21 23:59:02 +0200 (Fri, 21 Apr 2023) $</pubdate>
+    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
     <title>VBoxManage clonemedium</title>
   </refentryinfo>
 
@@ -97,7 +97,7 @@
       <varlistentry>
         <term><replaceable>uuid</replaceable> | <replaceable>source-medium</replaceable></term>
         <listitem><para>
-            Specifies the UUID or the absolute or relative file name of
+            Specifies the UUID or the absolute or relative pathname of
             the source medium to clone. You can specify the UUID of the
             medium only if it is registered. Use the <command>VBoxManage
             list hdds</command> command to list registered images.
@@ -106,7 +106,7 @@
       <varlistentry>
         <term><replaceable>uuid</replaceable> | <replaceable>target-medium</replaceable></term>
         <listitem><para>
-            Specifies the UUID or the absolute or relative file name of
+            Specifies the UUID or the absolute or relative pathname of
             the target (clone) medium. You can specify the UUID of the
             target medium only if it is registered. Use the
             <command>VBoxManage list hdds</command> command to list

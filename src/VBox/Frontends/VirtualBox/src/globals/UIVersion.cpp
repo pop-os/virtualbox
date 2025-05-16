@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -210,11 +210,7 @@ QString UIVersionInfo::vboxVersionStringNormalized()
 /* static */
 bool UIVersionInfo::isBeta()
 {
-#if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
-    return true;
-#else
     return vboxVersionString().contains(QRegularExpression("BETA|ALPHA", QRegularExpression::CaseInsensitiveOption));
-#endif
 }
 
 /* static */

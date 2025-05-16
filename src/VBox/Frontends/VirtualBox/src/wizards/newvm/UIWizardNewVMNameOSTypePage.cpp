@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -75,6 +75,8 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegularExpression("((Wi.*2003)|(W2K3)|(Win2K3)).*32", QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Windows2003") },
     { QRegularExpression("((Wi.*Vis)|(Vista)).*64",          QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("WindowsVista") },
     { QRegularExpression("((Wi.*Vis)|(Vista)).*32",          QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("WindowsVista") },
+    { QRegularExpression( "(Wi.*2025)|(W2K25)|(Win2K25)",    QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Windows2025") },
+    { QRegularExpression( "(Wi.*2022)|(W2K22)|(Win2K22)",    QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Windows2022") },
     { QRegularExpression( "(Wi.*2016)|(W2K16)|(Win2K16)",    QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Windows2016") },
     { QRegularExpression( "(Wi.*2012)|(W2K12)|(Win2K12)",    QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Windows2012") },
     { QRegularExpression("((Wi.*2008)|(W2K8)|(Win2k8)).*64", QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Windows2008") },
@@ -519,6 +521,8 @@ bool UIWizardNewVMNameOSTypePage::isComplete() const
     markWidgets();
     if (m_pNameAndSystemEditor->name().isEmpty())
         return false;
+    if (QDir(m_pNameAndSystemEditor->fullPath()).exists())
+        return false;
     return UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor);
 }
 
@@ -762,7 +766,12 @@ void UIWizardNewVMNameOSTypePage::markWidgets() const
 {
     if (m_pNameAndSystemEditor)
     {
-        m_pNameAndSystemEditor->markNameEditor(m_pNameAndSystemEditor->name().isEmpty());
+        m_pNameAndSystemEditor->markNameEditor(m_pNameAndSystemEditor->name().isEmpty(),
+                                               UIWizardNewVM::tr("Guest machine name cannot be empty"),
+                                               UIWizardNewVM::tr("Guest machine name is valid"));
+        m_pNameAndSystemEditor->markNameEditor((QDir(m_pNameAndSystemEditor->fullPath()).exists()),
+                                               UIWizardNewVM::tr("Guest machine path is not unique"),
+                                               UIWizardNewVM::tr("Guest machine name is valid"));
         m_pNameAndSystemEditor->markImageEditor(!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor),
                                                 UIWizardNewVM::tr("Invalid file path or unreadable file"),
                                                 UIWizardNewVM::tr("File path is valid"));

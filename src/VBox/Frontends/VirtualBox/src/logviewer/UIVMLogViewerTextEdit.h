@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -112,6 +112,7 @@ private:
     void setMouseCursorLine(int lineNumber);
     /** If bookmark exists this function removes it, if not it adds the bookmark. */
     void toggleBookmark(const UIVMLogBookmark& bookmark);
+    void repositionToBottomToUpButtons();
 
     UIVMLogBookmark  m_iContextMenuBookmark;
     QWidget             *m_pLineNumberArea;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -35,6 +35,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QGridLayout>
+#include <QLabel>
 #include <QPainter>
 #include <QPainterPath>
 #include <QProgressBar>
@@ -43,6 +44,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSlider>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QTimer>
 #include <QToolButton>
@@ -88,11 +90,11 @@ public:
     /** Returns text 1. */
     QString text1() const { return m_strText1; }
     /** Defines @a strText1. */
-    void setText1(const QString &strText1) { m_strText1 = strText1; }
+    void setText1(const QString &strText1);
     /** Returns text 2. */
     QString text2() const { return m_strText2; }
     /** Defines @a strText2. */
-    void setText2(const QString &strText2) { m_strText2 = strText2; }
+    void setText2(const QString &strText2);
 
 protected:
 
@@ -101,6 +103,9 @@ protected:
 
     /** Handles paint @a pEvent. */
     virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE;
+
+    /** Calculates and returns minimum size-hint. */
+    virtual QSize minimumSizeHint() const RT_OVERRIDE;
 
 private:
 
@@ -263,6 +268,18 @@ UIModeCheckBox::UIModeCheckBox(QWidget *pParent)
     setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 }
 
+void UIModeCheckBox::setText1(const QString &strText1)
+{
+    m_strText1 = strText1;
+    updateGeometry();
+}
+
+void UIModeCheckBox::setText2(const QString &strText2)
+{
+    m_strText2 = strText2;
+    updateGeometry();
+}
+
 bool UIModeCheckBox::event(QEvent *pEvent)
 {
     /* Handle desired events: */
@@ -347,26 +364,54 @@ void UIModeCheckBox::paintEvent(QPaintEvent *pEvent)
     painter.strokePath(painterPath2, uiCommon().isInDarkMode() ? backColor2.lighter(120) : backColor2.darker(110));
     painter.restore();
 
-    /* Prepare text1/text2: */
+    /* Prepare text stuff: */
     const QFont fnt = font();
     const QFontMetrics fm(fnt);
     const QColor foreground1 = suitableForegroundColor(pal, backColor1);
-    const QString strName1 = text1();
-    const QPoint point1 = QPoint(contentRect.left() + 5 /** @todo justify! */,
-                                 contentRect.height() / 2 + fm.ascent() / 2 - 1 /* base line */);
     const QColor foreground2 = suitableForegroundColor(pal, backColor2);
-    const QString strName2 = text2();
-    const QPoint point2 = QPoint(contentRect.width() / 2 + 1 + 5 /** @todo justify! */,
+    /* Calculate text1 position: */
+    const int iMaxSpace1 = contentRect.width() / 2 - 2 * fm.height();
+    const int iTextSize1 = fm.horizontalAdvance(m_strText1);
+    const int iIndent1 = iMaxSpace1 > iTextSize1 ? (iMaxSpace1 - iTextSize1) / 2 : 0;
+    const QPoint point1 = QPoint(contentRect.left() + 5 /* margin */ + iIndent1,
+                                 contentRect.height() / 2 + fm.ascent() / 2 - 1 /* base line */);
+    /* Calculate text2 position: */
+    const int iMaxSpace2 = contentRect.width() / 2 - 2 * fm.height();
+    const int iTextSize2 = fm.horizontalAdvance(m_strText2);
+    const int iIndent2 = iMaxSpace2 > iTextSize2 ? (iMaxSpace2 - iTextSize2) / 2 : 0;
+    const QPoint point2 = QPoint(contentRect.width() / 2 + iIndent2,
                                  contentRect.height() / 2 + fm.ascent() / 2 - 1 /* base line */);
 
     /* Paint text: */
     painter.save();
     painter.setFont(fnt);
     painter.setPen(foreground1);
-    painter.drawText(point1, strName1);
+    painter.drawText(point1, text1());
     painter.setPen(foreground2);
-    painter.drawText(point2, strName2);
+    painter.drawText(point2, text2());
     painter.restore();
+}
+
+QSize UIModeCheckBox::minimumSizeHint() const
+{
+    /* Acquire metrics: */
+    const QFontMetrics fm(font());
+
+    /* Looking for a max text size among those two: */
+    int iMaxLength = 0;
+    iMaxLength = qMax(iMaxLength, fm.horizontalAdvance(m_strText1));
+    iMaxLength = qMax(iMaxLength, fm.horizontalAdvance(m_strText2));
+
+    /* Composing result: */
+    QSize result(  5               /* left margin */
+                 + iMaxLength + 2  /* padding */
+                 + 2 * fm.height() /* spacing */
+                 + iMaxLength + 2  /* padding */
+                 + 2 * fm.height() /* right marging */,
+                   2 * fm.height() /* vertical hint */);
+    //printf("UIModeCheckBox::minimumSizeHint(%dx%d)\n",
+    //       result.width(), result.height());
+    return result;
 }
 
 
@@ -735,6 +780,7 @@ UIAdvancedSettingsDialog::UIAdvancedSettingsDialog(QWidget *pParent,
     , m_enmConfigurationAccessLevel(ConfigurationAccessLevel_Null)
     , m_pSerializeProcess(0)
     , m_fPolished(false)
+    , m_fFirstSerializationDone(false)
     , m_fSerializationIsInProgress(false)
     , m_fSerializationClean(false)
     , m_fClosed(false)
@@ -744,6 +790,7 @@ UIAdvancedSettingsDialog::UIAdvancedSettingsDialog(QWidget *pParent,
     , m_pWarningPane(0)
     , m_fValid(true)
     , m_fSilent(true)
+    , m_pTimerDisabledLookAndFeel(0)
     , m_pLayoutMain(0)
     , m_pCheckBoxMode(0)
     , m_pEditorFilter(0)
@@ -798,9 +845,7 @@ void UIAdvancedSettingsDialog::sltCategoryChanged(int cId)
     /* Make sure corresponding page is visible: */
     m_pScrollArea->requestVerticalScrollBarPosition(iPosition);
 
-#ifndef VBOX_WS_MAC
     uiCommon().setHelpKeyword(m_pButtonBox->button(QDialogButtonBox::Help), m_pageHelpKeywords.value(cId));
-#endif
 }
 
 void UIAdvancedSettingsDialog::sltHandleSerializationStarted()
@@ -829,52 +874,133 @@ void UIAdvancedSettingsDialog::sltHandleSerializationFinished()
 
     /* Mark serialization finished: */
     m_fSerializationIsInProgress = false;
+
+    /* Finally make sure layouts freshly activated after
+     * all the pages loaded (as overall size-hint changed): */
+    foreach (QLayout *pLayout, findChildren<QLayout*>())
+        pLayout->activate();
+    /* Update scroll-area geometry finally: */
+    m_pScrollArea->updateGeometry();
+
+    /* For the 1st serialization we have some additional handling: */
+    if (!m_fFirstSerializationDone)
+    {
+        /* Which should be called just once: */
+        m_fFirstSerializationDone = true;
+
+        /* Make sure layout request processed before we resize widget to new size: */
+        QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
+        /* Resize to minimum size: */
+        resize(minimumSizeHint());
+        /* Explicit centering according to our parent: */
+        gpDesktop->centerWidget(this, parentWidget(), false);
+    }
 }
 
 bool UIAdvancedSettingsDialog::eventFilter(QObject *pObject, QEvent *pEvent)
 {
-    /* Ignore other than wheel events in this handler: */
-    if (pEvent->type() != QEvent::Wheel)
-        return QMainWindow::eventFilter(pObject, pEvent);
-    /* Ignore events to anything but widgets in this handler: */
-    QWidget *pWidget = qobject_cast<QWidget*>(pObject);
-    if (!pWidget)
-        return QMainWindow::eventFilter(pObject, pEvent);
-
-    /* Do not touch wheel events for m_pScrollArea or it's children: */
-    if (   pWidget == m_pScrollArea
-        || pWidget->parent() == m_pScrollArea)
-        return QMainWindow::eventFilter(pWidget, pEvent);
-
-    /* Unconditionally and for good
-     * redirect wheel event for widgets of following types to m_pScrollViewport: */
-    if (   qobject_cast<QAbstractButton*>(pWidget)
-        || qobject_cast<QAbstractSpinBox*>(pWidget)
-        || qobject_cast<QAbstractSpinBox*>(pWidget->parent())
-        || qobject_cast<QComboBox*>(pWidget)
-        || qobject_cast<QSlider*>(pWidget)
-        || qobject_cast<QTabWidget*>(pWidget)
-        || qobject_cast<QTabWidget*>(pWidget->parent()))
+    /* Handle wheel events: */
+    if (pEvent->type() == QEvent::Wheel)
     {
-        /* Check if redirected event was really handled, otherwise give it back: */
-        if (QCoreApplication::sendEvent(m_pScrollViewport, pEvent))
-            return true;
+        /* Ignore events to anything but widgets in this handler: */
+        QWidget *pWidget = qobject_cast<QWidget*>(pObject);
+        if (!pWidget)
+            return QMainWindow::eventFilter(pObject, pEvent);
+
+        /* Do not touch wheel events for m_pScrollArea or it's children: */
+        if (   pWidget == m_pScrollArea
+            || pWidget->parent() == m_pScrollArea)
+            return QMainWindow::eventFilter(pWidget, pEvent);
+
+        /* Unconditionally and for good
+         * redirect wheel event for widgets of following types to m_pScrollViewport: */
+        if (   qobject_cast<QAbstractButton*>(pWidget)
+            || qobject_cast<QAbstractSpinBox*>(pWidget)
+            || qobject_cast<QAbstractSpinBox*>(pWidget->parent())
+            || qobject_cast<QComboBox*>(pWidget)
+            || qobject_cast<QSlider*>(pWidget)
+            || qobject_cast<QTabWidget*>(pWidget)
+            || qobject_cast<QTabWidget*>(pWidget->parent()))
+        {
+            /* Check if redirected event was really handled, otherwise give it back: */
+            if (QCoreApplication::sendEvent(m_pScrollViewport, pEvent))
+                return true;
+        }
+
+        /* Unless widget of QAbstractScrollArea subclass is focused
+         * redirect it's wheel event to m_pScrollViewport: */
+        if (   (   qobject_cast<QAbstractScrollArea*>(pWidget)
+                || qobject_cast<QAbstractScrollArea*>(pWidget->parent()))
+            && !pWidget->hasFocus()
+            && !pWidget->parentWidget()->hasFocus())
+        {
+            /* Check if redirected event was really handled, otherwise give it back: */
+            if (QCoreApplication::sendEvent(m_pScrollViewport, pEvent))
+                return true;
+        }
     }
 
-    /* Unless widget of QAbstractScrollArea subclass is focused
-     * redirect it's wheel event to m_pScrollViewport: */
-    if (   (   qobject_cast<QAbstractScrollArea*>(pWidget)
-            || qobject_cast<QAbstractScrollArea*>(pWidget->parent()))
-        && !pWidget->hasFocus()
-        && !pWidget->parentWidget()->hasFocus())
+    /* Handle key-press events: */
+    if (pEvent->type() == QEvent::KeyPress)
     {
-        /* Check if redirected event was really handled, otherwise give it back: */
-        if (QCoreApplication::sendEvent(m_pScrollViewport, pEvent))
-            return true;
+        /* Convert to key-press event and acquire the key: */
+        QKeyEvent *pKeyEvent = static_cast<QKeyEvent*>(pEvent);
+        const int iKey = pKeyEvent->key();
+        /* Handle Alt+<NUMERIC> menemonics: */
+        if (   pKeyEvent->modifiers() & Qt::AltModifier
+            && iKey >= Qt::Key_1
+            && iKey <= Qt::Key_9)
+        {
+            /* Stop further event handling anyway: */
+            pEvent->accept();
+
+            /* Acquire current page: */
+            const int iCurrentId = m_pSelector->currentId();
+            QWidget *pPage = m_pSelector->idToPage(iCurrentId);
+            if (pPage)
+            {
+                /* Look the page for a suitable tab-widget: */
+                const QList<QTabWidget*> tabWidgets = pPage->findChildren<QTabWidget*>();
+                if (!tabWidgets.isEmpty())
+                {
+                    /* Look for a proper tab offset: */
+                    const int iShift = iKey - Qt::Key_1;
+                    QTabWidget *pTabWidget = tabWidgets.first();
+                    int iVisibleTabNumber = 0;
+                    for (int i = 0; i < pTabWidget->count(); ++i)
+                        if (pTabWidget->isTabVisible(i))
+                        {
+                            if (iVisibleTabNumber == iShift)
+                            {
+                                /* Activate proper tab and leave: */
+                                pTabWidget->setCurrentIndex(iVisibleTabNumber);
+                                break;
+                            }
+                            ++iVisibleTabNumber;
+                        }
+                }
+            }
+        }
+    }
+
+    /* We'd like to accumulate multiple events of the same type to
+     * process them the bundled way, once after the last one arrived. */
+    switch (pEvent->type())
+    {
+        /* Only enabled-change and resize events useful for us: */
+        case QEvent::EnabledChange:
+        case QEvent::Resize:
+        {
+            /* Start (or restart) corresponding timer: */
+            m_pTimerDisabledLookAndFeel->start();
+            break;
+        }
+        default:
+            break;
     }
 
     /* Call to base-class: */
-    return QMainWindow::eventFilter(pWidget, pEvent);
+    return QMainWindow::eventFilter(pObject, pEvent);
 }
 
 void UIAdvancedSettingsDialog::sltRetranslateUI()
@@ -904,10 +1030,7 @@ void UIAdvancedSettingsDialog::showEvent(QShowEvent *pEvent)
 {
     /* Polish stuff: */
     if (!m_fPolished)
-    {
-        m_fPolished = true;
         polishEvent();
-    }
 
     /* Call to base-class: */
     QMainWindow::showEvent(pEvent);
@@ -915,24 +1038,13 @@ void UIAdvancedSettingsDialog::showEvent(QShowEvent *pEvent)
 
 void UIAdvancedSettingsDialog::polishEvent()
 {
-    /* Install event-filters for all the required children.
-     * These children can be added together with pages. */
-    foreach (QWidget *pChild, findChildren<QWidget*>())
-    {
-        if (   qobject_cast<QAbstractButton*>(pChild)
-            || qobject_cast<QAbstractScrollArea*>(pChild)
-            || qobject_cast<QAbstractScrollArea*>(pChild->parent())
-            || qobject_cast<QAbstractSpinBox*>(pChild)
-            || qobject_cast<QAbstractSpinBox*>(pChild->parent())
-            || qobject_cast<QComboBox*>(pChild)
-            || qobject_cast<QSlider*>(pChild)
-            || qobject_cast<QTabWidget*>(pChild)
-            || qobject_cast<QTabWidget*>(pChild->parent()))
-            pChild->installEventFilter(this);
-    }
+    /* Prevent handler from calling twice: */
+    m_fPolished = true;
 
-    /* Resize to minimum size: */
-    resize(minimumSizeHint());
+    /* Install event-filters for all the widget children: */
+    foreach (QWidget *pChild, findChildren<QWidget*>())
+        if (qobject_cast<QWidget*>(pChild))
+            pChild->installEventFilter(this);
 
     /* Choose page/tab finally: */
     choosePageAndTab();
@@ -940,8 +1052,13 @@ void UIAdvancedSettingsDialog::polishEvent()
     /* Apply actual experience mode: */
     sltHandleExperienceModeChanged();
 
+    /* Resize to minimum size: */
+    resize(minimumSizeHint());
     /* Explicit centering according to our parent: */
     gpDesktop->centerWidget(this, parentWidget(), false);
+
+    /* Make sure widgets disabled initially have look&feel updated: */
+    sltUpdateDisabledWidgetsLookAndFeel();
 }
 
 void UIAdvancedSettingsDialog::closeEvent(QCloseEvent *pEvent)
@@ -1330,8 +1447,25 @@ void UIAdvancedSettingsDialog::sltHandleVerticalScrollAreaWheelEvent()
         m_pSelector->selectById(iActualKey, true /* silently */);
 }
 
+void UIAdvancedSettingsDialog::sltUpdateDisabledWidgetsLookAndFeel()
+{
+    /* Make sure all child widgets have look&feel updated: */
+    foreach (QWidget *pChild, findChildren<QWidget*>())
+        adjustLookAndFeelForDisabledWidget(pChild);
+}
+
 void UIAdvancedSettingsDialog::prepare()
 {
+    /* Create timer to update disabled widgets look&feel: */
+    m_pTimerDisabledLookAndFeel = new QTimer(this);
+    if (m_pTimerDisabledLookAndFeel)
+    {
+        m_pTimerDisabledLookAndFeel->setSingleShot(true);
+        m_pTimerDisabledLookAndFeel->setInterval(50);
+        connect(m_pTimerDisabledLookAndFeel, &QTimer::timeout,
+                this, &UIAdvancedSettingsDialog::sltUpdateDisabledWidgetsLookAndFeel);
+    }
+
     /* Prepare central-widget: */
     setCentralWidget(new QWidget);
     if (centralWidget())
@@ -1434,24 +1568,15 @@ void UIAdvancedSettingsDialog::prepareButtonBox()
     m_pButtonBox = new QIDialogButtonBox(centralWidget());
     if (m_pButtonBox)
     {
-#ifndef VBOX_WS_MAC
         m_pButtonBox->setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel |
                                          QDialogButtonBox::NoButton | QDialogButtonBox::Help);
         m_pButtonBox->button(QDialogButtonBox::Help)->setShortcut(UIShortcutPool::standardSequence(QKeySequence::HelpContents));
-#else
-        // WORKAROUND:
-        // No Help button on macOS for now, conflict with old Qt.
-        m_pButtonBox->setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel |
-                                         QDialogButtonBox::NoButton);
-#endif
         m_pButtonBox->button(QDialogButtonBox::Ok)->setShortcut(Qt::Key_Return);
         m_pButtonBox->button(QDialogButtonBox::Cancel)->setShortcut(Qt::Key_Escape);
         connect(m_pButtonBox, &QIDialogButtonBox::rejected, this, &UIAdvancedSettingsDialog::sltClose);
         connect(m_pButtonBox, &QIDialogButtonBox::accepted, this, &UIAdvancedSettingsDialog::accept);
-#ifndef VBOX_WS_MAC
         connect(m_pButtonBox->button(QDialogButtonBox::Help), &QAbstractButton::pressed,
                 m_pButtonBox, &QIDialogButtonBox::sltHandleHelpRequest);
-#endif
 
         /* Prepare status-bar: */
         m_pStatusBar = new QStackedWidget(m_pButtonBox);
@@ -1500,6 +1625,42 @@ void UIAdvancedSettingsDialog::cleanup()
 
     /* Delete selector early! */
     delete m_pSelector;
+}
+
+/* static */
+void UIAdvancedSettingsDialog::adjustLookAndFeelForDisabledWidget(QWidget *pWidget)
+{
+    /* Adjust font to be itelic for disabled widget: */
+    QFont font = pWidget->font();
+    font.setItalic(!pWidget->isEnabledTo(0));
+    pWidget->setFont(font);
+
+    /* If widget is disabled and non of his parents have mask assigned: */
+    if (!pWidget->isEnabledTo(0) && !isOneOfWidgetParentsHasMask(pWidget))
+    {
+        /* Compose striped mask using tricky QImage=>QBitmap conversion: */
+        QImage img(pWidget->width(), pWidget->height(), QImage::Format_Mono);
+        for (int j = 0; j < img.height(); ++j)
+            for (int i = 0; i < img.width(); ++i)
+                img.setPixel(i, j, (i+j) % 10 == 0 ? 1 : 0);
+        /* Adjust mask to be striped for disabled widget: */
+        pWidget->setMask(QBitmap::fromImage(img, Qt::MonoOnly));
+    }
+    else
+    {
+        /* Disable mask for good: */
+        pWidget->clearMask();
+    }
+    pWidget->update();
+}
+
+/* static */
+bool UIAdvancedSettingsDialog::isOneOfWidgetParentsHasMask(QWidget *pWidget)
+{
+    AssertPtrReturn(pWidget, false);
+    if (QWidget *pParent = pWidget->parentWidget())
+        return !pParent->mask().isNull() || isOneOfWidgetParentsHasMask(pParent);
+    return false;
 }
 
 #include "UIAdvancedSettingsDialog.moc"

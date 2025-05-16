@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2011-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -312,9 +312,9 @@ FNIEMOP_DEF(iemOp_vpermilpd_Vx_Hx_Wx)
             IEM_MC_REF_XREG_U128_CONST(puSrc1, IEM_GET_MODRM_REG(pVCpu, bRm)); \
             IEM_MC_REF_XREG_U128_CONST(puSrc2, IEM_GET_MODRM_RM(pVCpu, bRm)); \
             IEM_MC_REF_EFLAGS(pEFlags); \
-                IEM_MC_CALL_VOID_AIMPL_3(IEM_SELECT_HOST_OR_FALLBACK(fAvx, iemAImpl_ ## a_Instr ## _u128, \
-                                                                           iemAImpl_ ## a_Instr ## _u128_fallback), \
-                                         puSrc1, puSrc2, pEFlags); \
+            IEM_MC_CALL_VOID_AIMPL_3(IEM_SELECT_HOST_OR_FALLBACK(fAvx, iemAImpl_ ## a_Instr ## _u128, \
+                                                                       iemAImpl_ ## a_Instr ## _u128_fallback), \
+                                     puSrc1, puSrc2, pEFlags); \
             IEM_MC_ADVANCE_RIP_AND_FINISH(); \
             IEM_MC_END(); \
         } \
@@ -361,9 +361,9 @@ FNIEMOP_DEF(iemOp_vpermilpd_Vx_Hx_Wx)
             IEM_MC_FETCH_MEM_U128_NO_AC(uSrc2,  pVCpu->iem.s.iEffSeg, GCPtrEffSrc); \
             IEM_MC_REF_XREG_U128_CONST(puSrc1,  IEM_GET_MODRM_REG(pVCpu, bRm)); \
             IEM_MC_REF_EFLAGS(pEFlags); \
-                IEM_MC_CALL_VOID_AIMPL_3(IEM_SELECT_HOST_OR_FALLBACK(fAvx, iemAImpl_ ## a_Instr ## _u128, \
-                                                                           iemAImpl_ ## a_Instr ## _u128_fallback), \
-                                         puSrc1, puSrc2, pEFlags); \
+            IEM_MC_CALL_VOID_AIMPL_3(IEM_SELECT_HOST_OR_FALLBACK(fAvx, iemAImpl_ ## a_Instr ## _u128, \
+                                                                       iemAImpl_ ## a_Instr ## _u128_fallback), \
+                                     puSrc1, puSrc2, pEFlags); \
             IEM_MC_ADVANCE_RIP_AND_FINISH(); \
             IEM_MC_END(); \
         } \

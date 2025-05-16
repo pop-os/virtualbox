@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -74,6 +74,13 @@ RTDECL(int) RTCritSectInit(PRTCRITSECT pCritSect)
     return RTCritSectInitEx(pCritSect, 0, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_NONE, "RTCritSect");
 }
 RT_EXPORT_SYMBOL(RTCritSectInit);
+
+
+RTDECL(int) RTCritSectInitNamed(PRTCRITSECT pCritSect, const char *pszName)
+{
+    return RTCritSectInitEx(pCritSect, 0, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_NONE, "%s", pszName);
+}
+RT_EXPORT_SYMBOL(RTCritSectInitNamed);
 
 
 RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags, RTLOCKVALCLASS hClass, uint32_t uSubClass,

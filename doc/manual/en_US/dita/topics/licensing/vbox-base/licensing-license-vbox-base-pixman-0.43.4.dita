@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE topic PUBLIC "-//OASIS//DTD DITA Topic//EN" "topic.dtd">
-<topic xml:lang="en-us" id="license-pixman-0.40.0">
+<topic xml:lang="en-us" id="license-pixman-0.43.4">
   
  <title>pixman</title>
   
@@ -38,7 +38,7 @@ possible. They may also add themselves to the list below.
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED &#34;AS IS&#34;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -46,16 +46,6 @@ possible. They may also add themselves to the list below.
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- */
-
----
-
-New Copyright from version 0.40.0
-
-Copyright 2018, Basile Clement
-Copyright 2012, Red Hat, Inc.
-Copyright 2012, Soren Sandmann
-
-</pre>
+ */</pre>
   </body>
  </topic>

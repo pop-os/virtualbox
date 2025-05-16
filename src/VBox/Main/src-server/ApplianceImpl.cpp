@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -287,8 +287,9 @@ static struct
     { ovf::CIMOSType_CIMOS_WindowsServer2016,                    VBOXOSTYPE_Win2k16_x64 },
     { ovf::CIMOSType_CIMOS_Windows10,                            VBOXOSTYPE_Win10 },
     { ovf::CIMOSType_CIMOS_Windows10_64,                         VBOXOSTYPE_Win10_x64 },
-    { ovf::CIMOSType_CIMOS_Windows10_64,                         VBOXOSTYPE_Win10_x64 },
     { ovf::CIMOSType_CIMOS_WindowsServer2016,                    VBOXOSTYPE_Win2k19_x64 },      // no CIM type for this yet
+    { ovf::CIMOSType_CIMOS_WindowsServer2016,                    VBOXOSTYPE_Win2k22_x64 },      // no CIM type for this yet
+    { ovf::CIMOSType_CIMOS_WindowsServer2016,                    VBOXOSTYPE_Win2k25_x64 },      // no CIM type for this yet
 
     // there are no CIM types for these, so these turn to "other" on export:
     //      VBOXOSTYPE_OpenBSD
@@ -431,7 +432,7 @@ ovf::CIMOSType_T convertVBoxOSType2CIMOSType(const char *pcszVBox, BOOL fLongMod
                         return g_aOsTypes[j].cim;
                 if (i > 0)
                 {
-                    for (size_t j = i-1; j > 0; j++)
+                    for (size_t j = i-1; j > 0; j--)
                         if (g_aOsTypes[j].osType == enmDesiredOsType)
                             return g_aOsTypes[j].cim;
                 }

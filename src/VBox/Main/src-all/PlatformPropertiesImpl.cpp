@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -840,58 +840,46 @@ int PlatformProperties::s_getSupportedGraphicsControllerFeatures(PlatformArchite
 {
     vecSupportedGraphicsFeatures.clear();
 
+    /* Note! The legacy VHWA acceleration has been disabled completely (see @bugref{9691}). */
     switch (enmArchitecture)
     {
         case PlatformArchitecture_x86:
+        case PlatformArchitecture_ARM:
         {
             switch (enmController)
             {
-#ifdef VBOX_WITH_VMSVGA
+                case GraphicsControllerType_VMSVGA:
                 case GraphicsControllerType_VBoxSVGA:
-                {
-#if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_3D_ACCELERATION) /* Work around zero-sized arrays. */
-                    static const GraphicsFeature_T s_aGraphicsFeatures[] =
-                    {
-#  ifdef VBOX_WITH_VIDEOHWACCEL
-                        /* @bugref{9691} -- The legacy VHWA acceleration has been disabled completely. */
-                        //GraphicsFeature_Acceleration2DVideo,
-#  endif
-#  ifdef VBOX_WITH_3D_ACCELERATION
-                        GraphicsFeature_Acceleration3D
-#  endif
-                    };
-                    RT_CPP_VECTOR_ASSIGN_ARRAY(vecSupportedGraphicsFeatures, s_aGraphicsFeatures);
+#ifdef VBOX_WITH_VMSVGA
+# ifdef VBOX_WITH_3D_ACCELERATION
+                    vecSupportedGraphicsFeatures.push_back(GraphicsFeature_Acceleration3D);
 # endif
-                    break;
-                }
-#endif /* VBOX_WITH_VMSVGA */
-                case GraphicsControllerType_VBoxVGA:
-                    RT_FALL_THROUGH();
-                case GraphicsControllerType_QemuRamFB:
-                {
-                    /* None supported. */
-                    break;
-                }
+#endif
+                    return VINF_SUCCESS;
 
-                default:
-                    /* In case GraphicsControllerType_VBoxSVGA is not available. */
+                case GraphicsControllerType_VBoxVGA:
+                case GraphicsControllerType_QemuRamFB:
+                    /* None supported. */
+                    return VINF_SUCCESS;
+
+                /* (no default to get compiler warnings) */
+                case GraphicsControllerType_Null:
+#ifdef VBOX_WITH_XPCOM
+                case GraphicsControllerType_32BitHack:
+#endif
                     break;
             }
-
             break;
         }
 
-        case PlatformArchitecture_ARM:
-        {
-            /* None supported. */
-            break;
-        }
-
-        default:
+        /* (no default to get compiler warnings) */
+        case PlatformArchitecture_None:
+#ifdef VBOX_WITH_XPCOM
+        case PlatformArchitecture_32BitHack:
+#endif
             break;
     }
-
-    return VINF_SUCCESS;
+    return VERR_INVALID_PARAMETER;
 }
 
 /**
@@ -903,10 +891,13 @@ int PlatformProperties::s_getSupportedGraphicsControllerFeatures(PlatformArchite
  * @param   enmFeature              Feature to query.
  */
 /* static */
-bool PlatformProperties::s_isGraphicsControllerFeatureSupported(PlatformArchitecture_T enmArchitecture, GraphicsControllerType_T enmController, GraphicsFeature_T enmFeature)
+bool PlatformProperties::s_isGraphicsControllerFeatureSupported(PlatformArchitecture_T enmArchitecture,
+                                                                GraphicsControllerType_T enmController,
+                                                                GraphicsFeature_T enmFeature)
 {
     std::vector<GraphicsFeature_T> vecSupportedGraphicsFeatures;
-    int vrc = PlatformProperties::s_getSupportedGraphicsControllerFeatures(enmArchitecture, enmController, vecSupportedGraphicsFeatures);
+    int vrc = PlatformProperties::s_getSupportedGraphicsControllerFeatures(enmArchitecture, enmController,
+                                                                           vecSupportedGraphicsFeatures);
     if (RT_SUCCESS(vrc))
         return std::find(vecSupportedGraphicsFeatures.begin(),
                          vecSupportedGraphicsFeatures.end(), enmFeature) != vecSupportedGraphicsFeatures.end();
@@ -941,7 +932,6 @@ HRESULT PlatformProperties::s_getSupportedVRAMRange(GraphicsControllerType_T aGr
         }
 
         case GraphicsControllerType_VMSVGA:
-            RT_FALL_THROUGH();
         case GraphicsControllerType_VBoxSVGA:
         {
             if (fAccelerate3DEnabled)
@@ -1013,10 +1003,9 @@ HRESULT PlatformProperties::getSupportedGfxFeaturesForType(GraphicsControllerTyp
 {
     int vrc = PlatformProperties::s_getSupportedGraphicsControllerFeatures(mPlatformArchitecture,
                                                                            aGraphicsControllerType, aSupportedGraphicsFeatures);
-    if (RT_FAILURE(vrc))
-        return setError(E_INVALIDARG, tr("The graphics controller type (%d) is invalid"), aGraphicsControllerType);
-
-    return S_OK;
+    if (RT_SUCCESS(vrc))
+        return S_OK;
+    return setError(E_INVALIDARG, tr("The graphics controller type (%d) is invalid"), aGraphicsControllerType);
 }
 
 HRESULT PlatformProperties::getSupportedAudioControllerTypes(std::vector<AudioControllerType_T> &aSupportedAudioControllerTypes)
@@ -1125,6 +1114,11 @@ HRESULT PlatformProperties::getSupportedStorageBuses(std::vector<StorageBus_T> &
         {
             static const StorageBus_T aStorageBuses[] =
             {
+                StorageBus_SATA,
+                StorageBus_SCSI,
+                StorageBus_SAS,
+                StorageBus_USB,
+                StorageBus_PCIe,
                 StorageBus_VirtioSCSI
             };
             aSupportedStorageBuses.assign(aStorageBuses,
@@ -1169,6 +1163,11 @@ HRESULT PlatformProperties::getSupportedStorageControllerTypes(std::vector<Stora
         {
             static const StorageControllerType_T aStorageControllerTypes[] =
             {
+                StorageControllerType_IntelAhci,
+                StorageControllerType_LsiLogic,
+                StorageControllerType_LsiLogicSas,
+                StorageControllerType_USB,
+                StorageControllerType_NVMe,
                 StorageControllerType_VirtioSCSI
             };
             aSupportedStorageControllerTypes.assign(aStorageControllerTypes,

@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage export
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-export" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2023-04-21 23:59:02 +0200 (Fri, 21 Apr 2023) $</pubdate>
+    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
     <title>VBoxManage export</title>
   </refentryinfo>
 
@@ -113,23 +113,23 @@
     <title>Description</title>
     <para>
       The <command>VBoxManage export</command> command enables you to
-      export one or more virtual machines (VMs) from &product-name;. You
-      can export the VM to one of the following:
+      export one or more virtual machines (VMs) from &product-name; into
+      to one of the following formats:
     </para>
     <itemizedlist>
       <listitem><para>
-          <emphasis role="bold">Virtual appliance in OVF
-          format.</emphasis> Includes the copying of its virtual disk
+          <emphasis role="bold">A virtual appliance in OVF
+          format.</emphasis> This includes copying the VM's virtual disk
           images to compressed VMDK.
         </para></listitem>
       <listitem><para>
-          <emphasis role="bold">Cloud service such as &oci;.</emphasis>
+          <emphasis role="bold">A cloud service such as &oci;.</emphasis>
           Exports a single VM.
         </para></listitem>
     </itemizedlist>
     <para>
       For more information about exporting VMs from &product-name;, see
-      <xref linkend="ovf" />
+      <xref linkend="ovf" />.
     </para>
     <refsect2 id="vboxmanage-export-ovf">
       <title>Export a Virtual Machine to an OVF Virtual Appliance</title>
@@ -234,7 +234,7 @@
         <varlistentry>
           <term><option>--eula=<replaceable>license-text</replaceable></option></term>
           <listitem><para>
-              Specifies end-user license text.
+              Specifies an end-user license text.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -276,7 +276,7 @@
         <varlistentry>
           <term><option>--vmname=<replaceable>vmname</replaceable></option></term>
           <listitem><para>
-              Specifies the name of the exported VM.
+              Specifies the name of the VM to export.
             </para></listitem>
         </varlistentry>
         <varlistentry>

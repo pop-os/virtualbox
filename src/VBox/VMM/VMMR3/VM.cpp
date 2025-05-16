@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -488,10 +488,10 @@ static int vmR3CreateUVM(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods, PUV
         }
         if (RT_SUCCESS(rc))
         {
-            rc = RTCritSectInit(&pUVM->vm.s.AtStateCritSect);
+            rc = RTCritSectInitNamed(&pUVM->vm.s.AtStateCritSect, "VM-AtStateCritSect");
             if (RT_SUCCESS(rc))
             {
-                rc = RTCritSectInit(&pUVM->vm.s.AtErrorCritSect);
+                rc = RTCritSectInitNamed(&pUVM->vm.s.AtErrorCritSect, "VM-AtErrorCritSect");
                 if (RT_SUCCESS(rc))
                 {
                     /*

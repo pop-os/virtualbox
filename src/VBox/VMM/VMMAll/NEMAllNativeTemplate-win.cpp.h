@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -346,6 +346,9 @@ NEM_TMPL_STATIC int nemHCWinCopyStateToHyperV(PVMCC pVM, PVMCPUCC pVCpu)
             ADD_REG64(WHvX64RegisterMsrMtrrFix4kE8000,  pCtxMsrs->msr.MtrrFix4K_E8000);
             ADD_REG64(WHvX64RegisterMsrMtrrFix4kF0000,  pCtxMsrs->msr.MtrrFix4K_F0000);
             ADD_REG64(WHvX64RegisterMsrMtrrFix4kF8000,  pCtxMsrs->msr.MtrrFix4K_F8000);
+            if (pVM->nem.s.fDoIa32SpecCtrl)
+                ADD_REG64(WHvX64RegisterSpecCtrl, pCtxMsrs->msr.SpecCtrl);
+
 #if 0 /** @todo these registers aren't available? Might explain something.. .*/
             const CPUMCPUVENDOR enmCpuVendor = CPUMGetHostCpuVendor(pVM);
             if (enmCpuVendor != CPUMCPUVENDOR_AMD)
@@ -617,6 +620,8 @@ NEM_TMPL_STATIC int nemHCWinCopyStateFromHyperV(PVMCC pVM, PVMCPUCC pVCpu, uint6
         aenmNames[iReg++] = WHvX64RegisterMsrMtrrFix4kE8000;
         aenmNames[iReg++] = WHvX64RegisterMsrMtrrFix4kF0000;
         aenmNames[iReg++] = WHvX64RegisterMsrMtrrFix4kF8000;
+        if (pVM->nem.s.fDoIa32SpecCtrl)
+            aenmNames[iReg++] = WHvX64RegisterSpecCtrl;
         /** @todo look for HvX64RegisterIa32MiscEnable and HvX64RegisterIa32FeatureControl? */
 //#ifdef LOG_ENABLED
 //        if (enmCpuVendor != CPUMCPUVENDOR_AMD)
@@ -975,6 +980,8 @@ NEM_TMPL_STATIC int nemHCWinCopyStateFromHyperV(PVMCC pVM, PVMCPUCC pVCpu, uint6
             GET_REG64_LOG7(pCtxMsrs->msr.MtrrFix4K_E8000,  WHvX64RegisterMsrMtrrFix4kE8000,  "MSR MTRR_FIX_4K_E8000");
             GET_REG64_LOG7(pCtxMsrs->msr.MtrrFix4K_F0000,  WHvX64RegisterMsrMtrrFix4kF0000,  "MSR MTRR_FIX_4K_F0000");
             GET_REG64_LOG7(pCtxMsrs->msr.MtrrFix4K_F8000,  WHvX64RegisterMsrMtrrFix4kF8000,  "MSR MTRR_FIX_4K_F8000");
+            if (pVM->nem.s.fDoIa32SpecCtrl)
+                GET_REG64_LOG7(pCtxMsrs->msr.SpecCtrl,     WHvX64RegisterSpecCtrl,           "MSR IA32_SPEC_CTRL");
             /** @todo look for HvX64RegisterIa32MiscEnable and HvX64RegisterIa32FeatureControl? */
         }
     }
@@ -1105,6 +1112,16 @@ VMM_INT_DECL(int) NEMHCResumeCpuTickOnAll(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uP
     VMCPU_ASSERT_EMT_RETURN(pVCpu, VERR_VM_THREAD_NOT_EMT);
     AssertReturn(VM_IS_NEM_ENABLED(pVM), VERR_NEM_IPE_9);
 
+    /** @todo Do this WHvSuspendPartitionTime call to when the VM is suspended. */
+    HRESULT hrcSuspend = E_FAIL;
+    if (WHvSuspendPartitionTime && WHvResumePartitionTime)
+    {
+        hrcSuspend = WHvSuspendPartitionTime(pVM->nem.s.hPartition);
+        AssertLogRelMsg(SUCCEEDED(hrcSuspend),
+                        ("WHvSuspendPartitionTime(%p) -> %Rhrc (Last=%#x/%u)\n",
+                         pVM->nem.s.hPartition, hrcSuspend, RTNtLastStatusValue(), RTNtLastErrorValue()));
+    }
+
     /*
      * Call the offical API to do the job.
      */
@@ -1127,12 +1144,21 @@ VMM_INT_DECL(int) NEMHCResumeCpuTickOnAll(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uP
     for (VMCPUID iCpu = 1; iCpu < pVM->cCpus; iCpu++)
     {
         Assert(enmName == WHvX64RegisterTsc);
-        const uint64_t offDelta = (ASMReadTSC() - uFirstTsc);
+        const uint64_t offDelta = SUCCEEDED(hrcSuspend) ? 0 : ASMReadTSC() - uFirstTsc;
         Value.Reg64 = uPausedTscValue + offDelta;
         hrc = WHvSetVirtualProcessorRegisters(pVM->nem.s.hPartition, iCpu, &enmName, 1, &Value);
         AssertLogRelMsgReturn(SUCCEEDED(hrc),
                               ("WHvSetVirtualProcessorRegisters(%p, 0,{tsc},2,%#RX64 + %#RX64) -> %Rhrc (Last=%#x/%u)\n",
                                pVM->nem.s.hPartition, iCpu, uPausedTscValue, offDelta, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                              , VERR_NEM_SET_TSC);
+    }
+
+    if (SUCCEEDED(hrcSuspend))
+    {
+        hrc = WHvResumePartitionTime(pVM->nem.s.hPartition);
+        AssertLogRelMsgReturn(SUCCEEDED(hrc),
+                              ("WHvResumePartitionTime(%p) -> %Rhrc (Last=%#x/%u)\n",
+                               pVM->nem.s.hPartition, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
                               , VERR_NEM_SET_TSC);
     }
 

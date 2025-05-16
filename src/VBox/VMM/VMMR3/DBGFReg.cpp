@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1914,7 +1914,9 @@ static DECLCALLBACK(int) dbgfR3RegNmQueryExWorkerOnCpu(PUVM pUVM, PCDBGFREGLOOKU
     paRegs[0].u.uInfo   = 0;
     paRegs[0].u.s.fMain = true;
     int rc = pDesc->pfnGet(pSet->uUserArg.pv, pDesc, &paRegs[0].Val);
-    AssertRCReturn(rc, rc);
+    AssertMsg(rc == VINF_SUCCESS || rc == VERR_CPUM_RAISE_GP_0, ("rc=%Rrc reg=%s\n", rc, paRegs[0].pszName));
+    if (RT_FAILURE(rc))
+        return rc;
     DBGFREGVAL const MainValue = paRegs[0].Val;
     uint32_t iReg = 1;
 
@@ -2203,7 +2205,7 @@ static void dbgfR3RegNmQueryAllInSet(PCDBGFREGSET pSet, size_t cRegsToQuery, PDB
         paRegs[iReg].u.s.fMain = true;
         dbgfR3RegValClear(&paRegs[iReg].Val);
         int rc2 = pSet->paDescs[iReg].pfnGet(pSet->uUserArg.pv, &pSet->paDescs[iReg], &paRegs[iReg].Val);
-        AssertRCSuccess(rc2);
+        AssertMsg(rc2 == VINF_SUCCESS || rc2 == VERR_CPUM_RAISE_GP_0, ("rc2=%Rrc iReg=%u %s\n", rc2, iReg, paRegs[iReg].pszName));
         if (RT_FAILURE(rc2))
             dbgfR3RegValClear(&paRegs[iReg].Val);
     }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2018,6 +2018,8 @@ typedef enum DBGFREG
     DBGFREG_MSR_IA32_SYSENTER_EIP,
     DBGFREG_MSR_IA32_SYSENTER_ESP,
     DBGFREG_MSR_IA32_TSC,
+    DBGFREG_MSR_IA32_ARCH_CAPABILITIES,
+    DBGFREG_MSR_IA32_SPEC_CTRL,
     DBGFREG_MSR_K6_EFER,
     DBGFREG_MSR_K6_STAR,
     DBGFREG_MSR_K8_CSTAR,

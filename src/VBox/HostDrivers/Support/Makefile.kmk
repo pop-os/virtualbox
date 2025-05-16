@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2023 Oracle and/or its affiliates.
+# Copyright (C) 2006-2024 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -119,6 +119,7 @@ VBOX_SUP_WIN_CERTS := \
 	TimeRootOracle0=Timestamp-VBoxLegacyWinCA.taf \
 	TimeRootOracle1=Timestamp-VBoxLegacyWinSha1CA.taf \
 	TrustedCertVBox0=Trusted-OracleCorporationVirtualBox-05308b76ac2e15b29720fb4395f65f38.taf \
+	TrustedCertVBox1=Trusted-OracleAmerica-060e2f8f9e1b8be518d5fe2b69cfccb1.taf \
 	AppleRoot0=AppleRoot-2bd06947947609fef46b8d2e40a6f7474d7f085e.taf \
 	AppleRoot1=AppleRoot-G2-c499136c1803c27bc0a3a00d7f72807a1c77268d.taf
 # Hack Alert! Because the DigiCert cross signing certificate we use expired 2020-04-15, we add it as a trusted NT kernel
@@ -132,12 +133,12 @@ VBOX_SUP_WIN_CERT_NAMES := $(foreach cert,$(VBOX_SUP_WIN_CERTS),$(firstword $(su
 # 1=name, 2=filter, 3=buildcert?.
 if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING)
  VBOX_SUP_GEN_CERT_MACRO = 'SUPTAENTRY const g_aSUP$(1)TAs[] =' '{' \
- 	$(if-expr "$(3)" == "",,'    SUPTAENTRY_GEN(g_abSUPBuildCert),') \
- 	$(foreach certnm,$(filter $(2),$(VBOX_SUP_WIN_CERT_NAMES)), '    SUPTAENTRY_GEN(g_abSUP$(certnm)),') \
+ 	$(if-expr "$(3)" == "",,'    SUPTAENTRY_CER(g_abSUPBuildCert),') \
+ 	$(foreach certnm,$(filter $(2),$(VBOX_SUP_WIN_CERT_NAMES)), '    SUPTAENTRY_TAF(g_abSUP$(certnm)),') \
  	'};' 'unsigned const g_cSUP$(1)TAs = RT_ELEMENTS(g_aSUP$(1)TAs);' '' ''
 else
  VBOX_SUP_GEN_CERT_MACRO = 'SUPTAENTRY const g_aSUP$(1)TAs[] =' '{' \
- 	$(foreach certnm,$(filter $(2),$(VBOX_SUP_WIN_CERT_NAMES)), '    SUPTAENTRY_GEN(g_abSUP$(certnm)),') \
+ 	$(foreach certnm,$(filter $(2),$(VBOX_SUP_WIN_CERT_NAMES)), '    SUPTAENTRY_TAF(g_abSUP$(certnm)),') \
  	'};' 'unsigned const g_cSUP$(1)TAs = RT_ELEMENTS(g_aSUP$(1)TAs);' '' ''
 endif
 
@@ -160,6 +161,7 @@ $$(VBOX_SUP_WIN_CERTS_FILE): $(MAKEFILE_CURRENT) \
 	$(QUIET)$(APPEND) -n "$@" \
        	'' \
        	'#include <VBox/sup.h>' \
+       	'#include <iprt/crypto/store.h>' \
                ''
 	$(foreach cert,$(VBOX_SUP_WIN_CERTS), $(NLTAB)$(VBOX_BIN2C) -ascii --append --static --no-size \
 		"SUP$(firstword $(subst =,$(SP) ,$(cert)))" \

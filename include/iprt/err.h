@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -407,6 +407,12 @@
 #define VERR_FLOAT_OVERFLOW                 (-22427)
 /** Floating pointer overflow. */
 #define VWRN_FLOAT_OVERFLOW                 (22427)
+/** A reboot is needed. */
+#define VERR_REBOOT_NEEDED                  (-22428)
+/** A reboot is needed. */
+#define VINF_REBOOT_NEEDED                  (22428)
+/** Installation has failed. */
+#define VERR_INSTALLATION_FAILED            (-22429)
 /** @} */
 
 

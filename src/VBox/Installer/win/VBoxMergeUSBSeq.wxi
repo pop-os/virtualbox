@@ -2,7 +2,7 @@
     VirtualBox Windows Installation Script (WiX)
 -->
 <!--
-    Copyright (C) 2014-2023 Oracle and/or its affiliates.
+    Copyright (C) 2014-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -24,5 +24,29 @@
 -->
 
 <Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+    <Custom Action="ca_VBoxUSBDevDrvInstParms" After="InstallFiles"
+            Condition="NOT REMOVE AND (&amp;VBoxUSB=3)" />
+    <Custom Action="ca_VBoxUSBDevDrvInst" After="ca_VBoxUSBDevDrvInstParms"
+            Condition="NOT REMOVE AND (&amp;VBoxUSB=3)" />
+
+    <Custom Action="ca_VBoxUSBDevDrvUninstParms" Before="ca_VBoxSupDrvUninst"
+            Condition="NOT (UPGRADINGPRODUCTCODE) AND (Installed) AND (REMOVE=&quot;ALL&quot;)"/>
+    <Custom Action="ca_VBoxUSBDevDrvUninst" After="ca_VBoxUSBDevDrvUninstParms"
+            Condition="NOT (UPGRADINGPRODUCTCODE) AND (Installed) AND (REMOVE=&quot;ALL&quot;)"/>
+
+    <Custom Action="ca_VBoxUSBMonDrvInstParms" After="InstallFiles"
+            Condition="NOT REMOVE AND (&amp;VBoxUSB=3)" />
+    <Custom Action="ca_VBoxUSBMonDrvInst" After="ca_VBoxUSBMonDrvInstParms"
+            Condition="NOT REMOVE AND (&amp;VBoxUSB=3)" />
+
+    <!-- Start VBoxUSBMon after installation. -->
+    <Custom Action="ca_VBoxUSBMonDrvStartParms" After="ca_VBoxUSBMonDrvInst" Condition="NOT REMOVE AND (&amp;VBoxUSB=3)" />
+    <Custom Action="ca_VBoxUSBMonDrvStart" After="ca_VBoxUSBMonDrvStartParms" Condition="NOT REMOVE AND (&amp;VBoxUSB=3)" />
+
+    <Custom Action="ca_VBoxUSBMonDrvUninstParms" Before="ca_VBoxSupDrvUninst"
+            Condition="NOT (UPGRADINGPRODUCTCODE) AND (Installed) AND (REMOVE=&quot;ALL&quot;)" />
+    <Custom Action="ca_VBoxUSBMonDrvUninst" After="ca_VBoxUSBMonDrvUninstParms"
+            Condition="NOT (UPGRADINGPRODUCTCODE) AND (Installed) AND (REMOVE=&quot;ALL&quot;)" />
 
 </Include>

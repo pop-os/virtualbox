@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2015-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -138,11 +138,6 @@ public:
     static double devicePixelRatio(int iHostScreenIndex = -1);
     /** Returns device-pixel-ratio of the host-screen which contains @a pWidget. */
     static double devicePixelRatio(QWidget *pWidget);
-
-    /** Returns actual device-pixel-ratio of the host-screen with @a iHostScreenIndex. */
-    static double devicePixelRatioActual(int iHostScreenIndex = -1);
-    /** Returns actual device-pixel-ratio of the host-screen which contains @a pWidget. */
-    static double devicePixelRatioActual(QWidget *pWidget);
 
     /** Search position for @a rectangle to make sure it is fully
       * contained within @a boundRegion, performing resize if allowed. */

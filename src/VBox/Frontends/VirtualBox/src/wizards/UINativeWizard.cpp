@@ -28,6 +28,7 @@
 /* Qt includes: */
 #include <QApplication>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QPainter>
 #include <QPushButton>
@@ -203,6 +204,7 @@ void UINativeWizard::sltRetranslateUI()
     {
         pButtonHelp->setText(tr("&Help"));
         pButtonHelp->setToolTip(tr("Open corresponding Help topic."));
+        pButtonHelp->setShortcut(UIShortcutPool::standardSequence(QKeySequence::HelpContents));
     }
 
     /* Translate Back button: */
@@ -540,7 +542,6 @@ void UINativeWizard::prepare()
                 {
                     connect(wizardButton(WizardButtonType_Help), &QPushButton::clicked,
                             this, &UINativeWizard::sltHandleHelpRequest);
-                    wizardButton(WizardButtonType_Help)->setShortcut(UIShortcutPool::standardSequence(QKeySequence::HelpContents));
                     uiCommon().setHelpKeyword(this, m_strHelpKeyword);
                 }
                 connect(wizardButton(WizardButtonType_Back), &QPushButton::clicked,

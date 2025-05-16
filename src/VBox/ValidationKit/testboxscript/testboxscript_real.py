@@ -8,7 +8,7 @@ TestBox Script - main().
 
 __copyright__ = \
 """
-Copyright (C) 2012-2023 Oracle and/or its affiliates.
+Copyright (C) 2012-2024 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 162092 $"
+__version__ = "$Revision: 165070 $"
 
 
 # Standard python imports.
@@ -969,7 +969,7 @@ class TestBoxScript(object):
                               help='The type of server, cifs (default) or nfs. If empty, we won\'t try mount anything.');
             parser.add_option('--' + sLower + '-server-name',
                               dest=sPrefix + 'ServerName',   metavar='<server>',
-                              default='vboxstor.de.oracle.com' if sLower == 'builds' else 'teststor.de.oracle.com',
+                              default='10.165.98.144' if sLower == 'builds' else 'teststor.de.oracle.com',
                               help='The name of the server with the builds.');
             parser.add_option('--' + sLower + '-server-share',
                               dest=sPrefix + 'ServerShare',  metavar='<share>',    default=sLower,

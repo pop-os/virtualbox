@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -193,10 +193,6 @@ void QIManagerDialog::prepareButtonBox()
         m_buttons[ButtonType_Embed] = m_pButtonBox->button(QDialogButtonBox::Cancel);
         m_buttons[ButtonType_Close] = m_pButtonBox->button(QDialogButtonBox::Close);
         m_buttons[ButtonType_Help] = m_pButtonBox->button(QDialogButtonBox::Help);
-
-        /* Assign shortcuts: */
-        button(ButtonType_Close)->setShortcut(Qt::Key_Escape);
-        button(ButtonType_Help)->setShortcut(UIShortcutPool::standardSequence(QKeySequence::HelpContents));
 
         /* Hide some of buttons initially: */
         button(ButtonType_Reset)->hide();

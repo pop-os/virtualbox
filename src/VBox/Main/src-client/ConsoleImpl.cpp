@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2005-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -430,7 +430,7 @@ Console::Console()
     , mUsbCardReader(NULL)
 #endif
     , mBusMgr(NULL)
-    , mLedLock(LOCKCLASS_LISTOFOTHEROBJECTS /* must be higher than LOCKCLASS_OTHEROBJECT */)
+    , mLedLock(LOCKCLASS_LISTOFOTHEROBJECTS /* must be higher than LOCKCLASS_OTHEROBJECT */, "LedLock")
     , muLedGen(0)
     , muLedTypeGen(0)
     , mcLedSets(0)
@@ -4647,57 +4647,35 @@ HRESULT Console::i_onNATDnsChanged()
     /*
      * Notify all the NAT drivers.
      */
-    /** @todo r=bird: This is the worst way of "enumerating" network devices
-     *        ever conceived. */
-    ComPtr<IPlatform> ptrPlatform;
-    hrc = mMachine->COMGETTER(Platform)(ptrPlatform.asOutParam());
-    AssertComRCReturn(hrc, hrc);
-
-    ChipsetType_T enmChipsetType;
-    hrc = ptrPlatform->COMGETTER(ChipsetType)(&enmChipsetType);
-    AssertComRCReturn(hrc, hrc);
-
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
-    {
-        ULONG const ulInstanceMax = PlatformProperties::s_getMaxNetworkAdapters(enmChipsetType);
-
-        notifyNatDnsChange(ptrVM.rawUVM(), ptrVM.vtable(), "pcnet", ulInstanceMax, &DnsConfig.Core);
-        notifyNatDnsChange(ptrVM.rawUVM(), ptrVM.vtable(), "e1000", ulInstanceMax, &DnsConfig.Core);
-        notifyNatDnsChange(ptrVM.rawUVM(), ptrVM.vtable(), "virtio-net", ulInstanceMax, &DnsConfig.Core);
-    }
+        ptrVM.vtable()->pfnPDMR3DriverEnumInstances(ptrVM.rawUVM(), "NAT", Console::notifyNatDnsChangeCallback, &DnsConfig.Core);
 
     return S_OK;
 }
 
-
 /**
- * This routine walks over all network device instances, checking if
- * device instance has DrvNAT attachment and triggering DrvNAT DNS
- * change callback.
+ * @callback_method_impl{FNPDMENUMDRVINS,Helper for Console::i_onNATDnsChanged.}
  */
-void Console::notifyNatDnsChange(PUVM pUVM, PCVMMR3VTABLE pVMM, const char *pszDevice, ULONG ulInstanceMax,
-                                 PCPDMINETWORKNATDNSCONFIG pDnsConfig)
+/*static*/ DECLCALLBACK(int)
+Console::notifyNatDnsChangeCallback(PPDMIBASE pIBase, uint32_t uDrvInstance, bool fUsbDev, const char *pszDevice,
+                                    uint32_t uDevInstance, unsigned uLun, void *pvUser)
 {
-    Log(("notifyNatDnsChange: looking for DrvNAT attachment on %s device instances\n", pszDevice));
-    for (ULONG ulInstance = 0; ulInstance < ulInstanceMax; ulInstance++)
+    PPDMINETWORKNATCONFIG const pINetNatCfg = (PPDMINETWORKNATCONFIG)pIBase->pfnQueryInterface(pIBase, PDMINETWORKNATCONFIG_IID);
+    if (pINetNatCfg && pINetNatCfg->pfnNotifyDnsChanged)
     {
-        PPDMIBASE pBase;
-        int vrc = pVMM->pfnPDMR3QueryDriverOnLun(pUVM, pszDevice, ulInstance, 0 /* iLun */, "NAT", &pBase);
-        if (RT_FAILURE(vrc))
-            continue;
-
-        Log(("Instance %s#%d has DrvNAT attachment; do actual notify\n", pszDevice, ulInstance));
-        if (pBase)
-        {
-            PPDMINETWORKNATCONFIG pNetNatCfg = NULL;
-            pNetNatCfg = (PPDMINETWORKNATCONFIG)pBase->pfnQueryInterface(pBase, PDMINETWORKNATCONFIG_IID);
-            if (pNetNatCfg && pNetNatCfg->pfnNotifyDnsChanged)
-                pNetNatCfg->pfnNotifyDnsChanged(pNetNatCfg, pDnsConfig);
-        }
+        LogFunc(("Notifying instance #%u attached to %s%s#%u on lun #%u...\n",
+                 uDrvInstance, fUsbDev ? "usb device " : "", pszDevice, uDevInstance, uLun));
+        pINetNatCfg->pfnNotifyDnsChanged(pINetNatCfg, (PCPDMINETWORKNATDNSCONFIG)pvUser);
     }
-}
+    else
+        LogFunc(("Not notifying instance #%u attached to %s%s#%u on lun #%u: pINetNatCfg=%p pfnNotifyDnsChanged=%p\n",
+                 uDrvInstance, fUsbDev ? "usb device " : "",  pszDevice, uDevInstance, uLun,
+                 pINetNatCfg, pINetNatCfg ? pINetNatCfg->pfnNotifyDnsChanged : NULL));
 
+    RT_NOREF(uDrvInstance, fUsbDev, pszDevice, uDevInstance, uLun);
+    return VINF_SUCCESS;
+}
 
 VMMDevMouseInterface *Console::i_getVMMDevMouseInterface()
 {
@@ -5349,13 +5327,13 @@ HRESULT Console::i_doNetworkAdapterChange(PUVM pUVM, PCVMMR3VTABLE pVMM, const c
  * @note Locks the Console object for writing.
  * @note The VM must not be running.
  */
-DECLCALLBACK(int) Console::i_changeNetworkAttachment(Console *pThis,
-                                                     PUVM pUVM,
-                                                     PCVMMR3VTABLE pVMM,
-                                                     const char *pszDevice,
-                                                     unsigned uInstance,
-                                                     unsigned uLun,
-                                                     INetworkAdapter *aNetworkAdapter)
+/*static*/ DECLCALLBACK(int) Console::i_changeNetworkAttachment(Console *pThis,
+                                                                PUVM pUVM,
+                                                                PCVMMR3VTABLE pVMM,
+                                                                const char *pszDevice,
+                                                                unsigned uInstance,
+                                                                unsigned uLun,
+                                                                INetworkAdapter *aNetworkAdapter)
 {
     LogFlowFunc(("pThis=%p pszDevice=%p:{%s} uInstance=%u uLun=%u aNetworkAdapter=%p\n",
                  pThis, pszDevice, pszDevice, uInstance, uLun, aNetworkAdapter));
@@ -5365,6 +5343,7 @@ DECLCALLBACK(int) Console::i_changeNetworkAttachment(Console *pThis,
     AutoCaller autoCaller(pThis);
     AssertComRCReturn(autoCaller.hrc(), VERR_ACCESS_DENIED);
 
+#ifdef VBOX_STRICT
     ComPtr<IPlatform> pPlatform;
     HRESULT hrc = pThis->mMachine->COMGETTER(Platform)(pPlatform.asOutParam());
     AssertComRC(hrc);
@@ -5387,21 +5366,18 @@ DECLCALLBACK(int) Console::i_changeNetworkAttachment(Console *pThis,
     ULONG maxNetworkAdapters = 0;
     hrc = pPlatformProperties->GetMaxNetworkAdapters(chipsetType, &maxNetworkAdapters);
     AssertComRC(hrc);
-    AssertMsg(   (   !strcmp(pszDevice, "pcnet")
-                  || !strcmp(pszDevice, "e1000")
-                  || !strcmp(pszDevice, "virtio-net"))
-              && uLun == 0
-              && uInstance < maxNetworkAdapters,
+    AssertMsg(uLun == 0 && uInstance < maxNetworkAdapters,
               ("pszDevice=%s uLun=%d uInstance=%d\n", pszDevice, uLun, uInstance));
+#endif
     Log(("pszDevice=%s uLun=%d uInstance=%d\n", pszDevice, uLun, uInstance));
 
     /*
      * Check the VM for correct state.
      */
-    PCFGMNODE pCfg = NULL;          /* /Devices/Dev/.../Config/ */
+    PCFGMNODE pCfg   = NULL;        /* /Devices/Dev/.../Config/ */
     PCFGMNODE pLunL0 = NULL;        /* /Devices/Dev/0/LUN#0/ */
-    PCFGMNODE pInst = pVMM->pfnCFGMR3GetChildF(pVMM->pfnCFGMR3GetRootU(pUVM), "Devices/%s/%d/", pszDevice, uInstance);
-    AssertRelease(pInst);
+    PCFGMNODE pInst  = pVMM->pfnCFGMR3GetChildF(pVMM->pfnCFGMR3GetRootU(pUVM), "Devices/%s/%d/", pszDevice, uInstance);
+    AssertLogRelMsgReturn(pInst, ("pszDevices=%s uInstance=%u\n", pszDevice, uInstance), VERR_CFGM_CHILD_NOT_FOUND);
 
     int vrc = pThis->i_configNetwork(pszDevice, uInstance, uLun, aNetworkAdapter, pCfg, pLunL0, pInst,
                                      true /*fAttachDetach*/, false /*fIgnoreConnectFailure*/, pUVM, pVMM);
@@ -6613,7 +6589,7 @@ HRESULT Console::i_onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
                         int vrc = VINF_SUCCESS;
                         if (enmType == BandwidthGroupType_Disk)
                             vrc = ptrVM.vtable()->pfnPDMR3AsyncCompletionBwMgrSetMaxForFile(ptrVM.rawUVM(), strName.c_str(),
-                                                                                            (uint32_t)cMax);
+                                                                                            (uint64_t)cMax);
 #ifdef VBOX_WITH_NETSHAPER
                         else if (enmType == BandwidthGroupType_Network)
                             vrc = ptrVM.vtable()->pfnPDMR3NsBwGroupSetLimit(ptrVM.rawUVM(), strName.c_str(), cMax);
@@ -10063,6 +10039,7 @@ Console::i_vmstateChangeCallback(PUVM pUVM, PCVMMR3VTABLE pVMM, VMSTATE enmState
                     stopCloudGateway(pVirtualBox, that->mGateway);
             }
 #endif /* VBOX_WITH_CLOUD_NET */
+
             /* Terminate host interface networking. If pUVM is NULL, we've been
              * manually called from powerUpThread() either before calling
              * VMR3Create() or after VMR3Create() failed, so no need to touch
@@ -10881,8 +10858,9 @@ HRESULT Console::i_powerDownHostInterfaces()
     /* sanity check */
     AssertReturn(isWriteLockOnCurrentThread(), E_FAIL);
 
+#if (defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)) && !defined(VBOX_WITH_NETFLT)
     /*
-     * host interface termination handling
+     * Host TAP interface termination handling.
      */
     ComPtr<IVirtualBox> pVirtualBox;
     mMachine->COMGETTER(Parent)(pVirtualBox.asOutParam());
@@ -10922,15 +10900,18 @@ HRESULT Console::i_powerDownHostInterfaces()
         pNetworkAdapter->COMGETTER(AttachmentType)(&attachment);
         if (attachment == NetworkAttachmentType_Bridged)
         {
-#if ((defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)) && !defined(VBOX_WITH_NETFLT))
             HRESULT hrc2 = i_detachFromTapInterface(pNetworkAdapter);
             if (FAILED(hrc2) && SUCCEEDED(hrc))
                 hrc = hrc2;
-#endif /* (RT_OS_LINUX || RT_OS_FREEBSD) && !VBOX_WITH_NETFLT */
         }
     }
 
     return hrc;
+
+#else
+    /* Nothing to do here. */
+    return S_OK;
+#endif
 }
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -200,6 +200,8 @@ static const char *figureCMemberName(MYMEMBER const *pMember)
  */
 static void generateHeader(PRTSTREAM pOut)
 {
+    const char *pszYear = __DATE__;
+    pszYear += strlen(pszYear) - 4;
     RTStrmPrintf(pOut,
                  "/* $" "I" "d" ": $ */\n" /* avoid it being expanded */
                  "/** @file\n"
@@ -207,7 +209,7 @@ static void generateHeader(PRTSTREAM pOut)
                  " */\n"
                  "\n"
                  "/*\n"
-                 " * Copyright (C) 2013-2023 Oracle and/or its affiliates.\n"
+                 " * Copyright (C) 2013-%s Oracle and/or its affiliates.\n"
                  " *\n"
                  " * This file is part of VirtualBox base platform packages, as\n"
                  " * available from https://www.virtualbox.org.\n"
@@ -243,7 +245,7 @@ static void generateHeader(PRTSTREAM pOut)
                  "\n"
                  "#include \"r0drv/nt/symdb.h\"\n"
                  "\n"
-                 );
+                 , pszYear);
 
     /*
      * Generate types.
@@ -1175,7 +1177,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 155249 $");
+                RTPrintf("$Revision: 164831 $");
                 break;
 
             case 'h':

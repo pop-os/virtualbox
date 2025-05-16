@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2006-2023 Oracle and/or its affiliates.
+# Copyright (C) 2006-2024 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -562,7 +562,7 @@ TESTBOXSCRIPT_DEFAULT_TEST_MANAGER=""
 TESTBOXSCRIPT_DEFAULT_SCRATCH_ROOT=""
 TESTBOXSCRIPT_DEFAULT_BUILDS_PATH=""
 TESTBOXSCRIPT_DEFAULT_BUILDS_TYPE="cifs"
-TESTBOXSCRIPT_DEFAULT_BUILDS_NAME="vboxstor.de.oracle.com"
+TESTBOXSCRIPT_DEFAULT_BUILDS_NAME="10.165.98.144"
 TESTBOXSCRIPT_DEFAULT_BUILDS_SHARE="builds"
 TESTBOXSCRIPT_DEFAULT_BUILDS_USER="guestr"
 TESTBOXSCRIPT_DEFAULT_BUILDS_PASSWD="guestr"
@@ -600,7 +600,7 @@ fi;
 TESTBOXSCRIPT_DIR=`dirname "${DIR}"`
 
 # Storage server replacement trick.
-if [ "${TESTBOXSCRIPT_BUILDS_NAME}" = "solserv.de.oracle.com" ]; then
+if [ "${TESTBOXSCRIPT_BUILDS_NAME}" = "vboxstor.de.oracle.com" ]; then
     TESTBOXSCRIPT_BUILDS_NAME=${TESTBOXSCRIPT_DEFAULT_BUILDS_NAME}
 fi
 if [ "${TESTBOXSCRIPT_TESTRSRC_NAME}" = "solserv.de.oracle.com" ]; then
@@ -624,7 +624,7 @@ do
             exit 0;
             ;;
         -V|--version)
-            echo '$Revision: 161568 $'
+            echo '$Revision: 165013 $'
             exit 0;
             ;;
 

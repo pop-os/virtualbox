@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -104,11 +104,16 @@
 
 /** Fetches the near return address from the stack, sets RIP and RSP (may trigger
  * \#GP or \#SS), finishes the instruction and returns. */
-#define IEM_MC_RETN_AND_FINISH(a_u16Pop) \
-    return iemRegRipNearReturnAndFinishClearingRF((pVCpu), IEM_GET_INSTR_LEN(pVCpu), (a_u16Pop), pVCpu->iem.s.enmEffOpSize)
+#define IEM_MC_RETN_AND_FINISH(a_cbPopArgs) \
+    return iemRegRipNearReturnAndFinishClearingRF((pVCpu), IEM_GET_INSTR_LEN(pVCpu), (a_cbPopArgs), pVCpu->iem.s.enmEffOpSize)
 
 
-#define IEM_MC_RAISE_DIVIDE_ERROR()                     return iemRaiseDivideError(pVCpu)
+#define IEM_MC_RAISE_DIVIDE_ERROR_IF_LOCAL_IS_ZERO(a_uVar) \
+    do { \
+        if (RT_LIKELY((a_uVar) != 0)) \
+        { /* probable */ } \
+        else return iemRaiseDivideError(pVCpu); \
+    } while (0)
 #define IEM_MC_MAYBE_RAISE_DEVICE_NOT_AVAILABLE()       \
     do { \
         if (RT_LIKELY(!(pVCpu->cpum.GstCtx.cr0 & (X86_CR0_EM | X86_CR0_TS)))) \
@@ -3309,6 +3314,36 @@ AssertCompile(X86_CR4_FSGSBASE > UINT8_MAX);
 
 /** Recompiler debugging: Flush guest register shadow copies. */
 #define IEM_MC_HINT_FLUSH_GUEST_SHADOW(g_fGstShwFlush)  ((void)0)
+
+/** Recompiler liveness info: input GPR */
+#define IEM_MC_LIVENESS_GREG_INPUT(a_iGReg)             ((void)0)
+/** Recompiler liveness info: clobbered GPR */
+#define IEM_MC_LIVENESS_GREG_CLOBBER(a_iGReg)           ((void)0)
+/** Recompiler liveness info: modified GPR register (i.e. input & output)  */
+#define IEM_MC_LIVENESS_GREG_MODIFY(a_iGReg)            ((void)0)
+
+/** Recompiler liveness info: input MM register */
+#define IEM_MC_LIVENESS_MREG_INPUT(a_iMReg)             ((void)0)
+/** Recompiler liveness info: clobbered MM register */
+#define IEM_MC_LIVENESS_MREG_CLOBBER(a_iMReg)           ((void)0)
+/** Recompiler liveness info: modified MM register (i.e. input & output)  */
+#define IEM_MC_LIVENESS_MREG_MODIFY(a_iMReg)            ((void)0)
+
+/** Recompiler liveness info: input SSE register */
+#define IEM_MC_LIVENESS_XREG_INPUT(a_iXReg)             ((void)0)
+/** Recompiler liveness info: clobbered SSE register */
+#define IEM_MC_LIVENESS_XREG_CLOBBER(a_iXReg)           ((void)0)
+/** Recompiler liveness info: modified SSE register (i.e. input & output)  */
+#define IEM_MC_LIVENESS_XREG_MODIFY(a_iXReg)            ((void)0)
+
+/** Recompiler liveness info: input MXCSR */
+#define IEM_MC_LIVENESS_MXCSR_INPUT()                   ((void)0)
+/** Recompiler liveness info: clobbered MXCSR */
+#define IEM_MC_LIVENESS_MXCSR_CLOBBER()                 ((void)0)
+/** Recompiler liveness info: modified MXCSR (i.e. input & output)  */
+#define IEM_MC_LIVENESS_MXCSR_MODIFY()                  ((void)0)
+
+/** @todo add more as needed. */
 
 /** @}  */
 

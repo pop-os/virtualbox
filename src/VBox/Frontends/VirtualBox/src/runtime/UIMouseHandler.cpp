@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1092,14 +1092,11 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
             }
 
             /* Take the device-pixel-ratio into account: */
-            const double dDevicePixelRatioFormal = pFrameBuffer->devicePixelRatio();
-            const double dDevicePixelRatioActual = pFrameBuffer->devicePixelRatioActual();
-            cpnt.setX(cpnt.x() * dDevicePixelRatioFormal);
-            cpnt.setY(cpnt.y() * dDevicePixelRatioFormal);
-            if (!pFrameBuffer->useUnscaledHiDPIOutput())
+            const double dDevicePixelRatio = pFrameBuffer->devicePixelRatio();
+            if (pFrameBuffer->useUnscaledHiDPIOutput())
             {
-                cpnt.setX(cpnt.x() / dDevicePixelRatioActual);
-                cpnt.setY(cpnt.y() / dDevicePixelRatioActual);
+                cpnt.setX(cpnt.x() * dDevicePixelRatio);
+                cpnt.setY(cpnt.y() * dDevicePixelRatio);
             }
 
 #ifdef VBOX_WITH_DRAG_AND_DROP

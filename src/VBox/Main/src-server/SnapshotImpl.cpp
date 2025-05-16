@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -781,7 +781,7 @@ bool Snapshot::i_sharesSavedStateFile(const Utf8Str &strPath,
         llSnapshotsTodo.pop_front();
         const Utf8Str &path = pSnapshot->m->pMachine->mSSData->strStateFilePath;
 
-        if ((!pSnapshotToIgnore || pSnapshotToIgnore != this) && path.isNotEmpty())
+        if ((!pSnapshotToIgnore || pSnapshotToIgnore != pSnapshot) && path.isNotEmpty())
             if (path == strPath)
                 return true;
 
@@ -852,7 +852,7 @@ void Snapshot::i_updateNVRAMPaths(const Utf8Str &strOldPath,
     AutoWriteLock alock(m->pMachine COMMA_LOCKVAL_SRC_POS);
 
     // call the implementation under the tree lock
-    i_updateSavedStatePathsImpl(strOldPath, strNewPath);
+    i_updateNVRAMPathsImpl(strOldPath, strNewPath);
 }
 
 /**
@@ -1922,7 +1922,10 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
         // Handle NVRAM file snapshotting
         Utf8Str strNVRAM = mNvramStore->i_getNonVolatileStorageFile();
         Utf8Str strNVRAMSnap = pSnapshotMachine->i_getSnapshotNVRAMFilename();
-        if (strNVRAM.isNotEmpty() && strNVRAMSnap.isNotEmpty() && RTFileExists(strNVRAM.c_str()))
+        if (   strNVRAM.isNotEmpty()
+            && strNVRAMSnap.isNotEmpty()
+            && RTFileExists(strNVRAM.c_str())
+            && mFirmwareSettings->i_getFirmwareType() != FirmwareType_BIOS)
         {
             Utf8Str strNVRAMSnapAbs;
             i_calculateFullPath(strNVRAMSnap, strNVRAMSnapAbs);

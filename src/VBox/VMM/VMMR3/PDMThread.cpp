@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -682,7 +682,7 @@ VMMR3DECL(int) PDMR3ThreadIAmSuspending(PPDMTHREAD pThread)
         }
     }
 
-    AssertMsgFailed(("rc=%d enmState=%d\n", rc, pThread->enmState));
+    AssertLogRelMsgFailed(("rc=%d enmState=%d thread=%s\n", rc, pThread->enmState, RTThreadGetName(pThread->Thread)));
     pdmR3ThreadBailMeOut(pThread);
     return rc;
 }
@@ -718,7 +718,7 @@ VMMR3DECL(int) PDMR3ThreadIAmRunning(PPDMTHREAD pThread)
             return rc;
     }
 
-    AssertMsgFailed(("rc=%d enmState=%d\n", rc, pThread->enmState));
+    AssertLogRelMsgFailed(("rc=%d enmState=%d thread=%s\n", rc, pThread->enmState, RTThreadGetName(pThread->Thread)));
     pdmR3ThreadBailMeOut(pThread);
     return rc;
 }
@@ -839,7 +839,11 @@ static DECLCALLBACK(int) pdmR3ThreadMain(RTTHREAD Thread, void *pvUser)
     }
 
     if (RT_FAILURE(rc))
-        LogRel(("PDMThread: Thread '%s' (%RTthrd) quit unexpectedly with rc=%Rrc.\n", RTThreadGetName(Thread), Thread, rc));
+        LogRel(("PDMThread: Thread '%s' (%RTthrd) quit unexpectedly with rc=%Rrc in state %d.\n",
+                RTThreadGetName(Thread), Thread, rc, pThread->enmState));
+    else if (pThread->enmState != PDMTHREADSTATE_TERMINATING)
+        LogRel(("PDMThread: Thread '%s' (%RTthrd) is quitting in state %d (expected %d).\n",
+                RTThreadGetName(Thread), Thread, pThread->enmState, PDMTHREADSTATE_TERMINATING));
 
     /*
      * Advance the state to terminating and then on to terminated.

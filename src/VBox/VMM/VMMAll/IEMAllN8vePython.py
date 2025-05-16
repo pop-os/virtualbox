@@ -14,7 +14,7 @@ from __future__ import print_function;
 
 __copyright__ = \
 """
-Copyright (C) 2023 Oracle and/or its affiliates.
+Copyright (C) 2023-2024 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -34,7 +34,7 @@ along with this program; if not, see <https://www.gnu.org/licenses>.
 
 SPDX-License-Identifier: GPL-3.0-only
 """
-__version__ = "$Revision: 164572 $"
+__version__ = "$Revision: 164901 $"
 
 # Standard python imports:
 import copy;
@@ -594,12 +594,15 @@ class NativeRecompFunctionVariation(object):
             if oStmt.sName == 'IEM_MC_BEGIN':
                 oNewStmt = copy.deepcopy(oStmt);
                 oNewStmt.sName = 'IEM_MC_BEGIN_EX';
-                fWithoutFlags = (    self.oVariation.isWithFlagsCheckingAndClearingVariation()
-                                 and self.oVariation.oParent.hasWithFlagsCheckingAndClearingVariation());
-                if fWithoutFlags or self.oVariation.oParent.dsCImplFlags:
+                fWithFlags    = self.oVariation.isWithFlagsCheckingAndClearingVariation();
+                fWithoutFlags = not fWithFlags and self.oVariation.oParent.hasWithFlagsCheckingAndClearingVariation();
+                if fWithFlags or fWithoutFlags or self.oVariation.oParent.dsCImplFlags:
                     if fWithoutFlags:
                         oNewStmt.asParams[0] = ' | '.join(sorted(  list(self.oVariation.oParent.oMcBlock.dsMcFlags.keys())
                                                                  + ['IEM_MC_F_WITHOUT_FLAGS',] ));
+                    else:
+                        oNewStmt.asParams[0] = ' | '.join(sorted(  list(self.oVariation.oParent.oMcBlock.dsMcFlags.keys())
+                                                                 + ['IEM_MC_F_WITH_FLAGS',] ));
                     if self.oVariation.oParent.dsCImplFlags:
                         oNewStmt.asParams[1] = ' | '.join(sorted(self.oVariation.oParent.dsCImplFlags.keys()));
                     if 'IEM_CIMPL_F_CALLS_CIMPL' in self.oVariation.oParent.dsCImplFlags:

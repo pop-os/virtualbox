@@ -119,12 +119,8 @@ RT_C_DECLS_BEGIN
 # define IEMNATIVE_WITH_DELAYED_PC_UPDATING_DEBUG
 #endif
 
-/** Enables the SIMD register allocator @bugref{10614}.  */
-#if defined(DOXYGEN_RUNNING) || 1
-# define IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
-#endif
 /** Enables access to even callee saved registers. */
-//# define IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS
+/*# define IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS*/
 
 #if defined(DOXYGEN_RUNNING) || 1
 /** @def IEMNATIVE_WITH_DELAYED_REGISTER_WRITEBACK
@@ -142,6 +138,15 @@ RT_C_DECLS_BEGIN
  * Enable this to use native emitters for certain SIMD FP operations. */
 #if 1 || defined(DOXYGEN_RUNNING)
 # define IEMNATIVE_WITH_SIMD_FP_NATIVE_EMITTERS
+#endif
+
+/** @def VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING
+ * Enable this to create a saved state file with the threaded translation
+ * blocks fed to the native recompiler on VCPU \#0.  The resulting file can
+ * then be fed into the native recompiler for code profiling purposes.
+ * This is not a feature that should be normally be enabled! */
+#if 0 || defined(DOXYGEN_RUNNING)
+# define VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING
 #endif
 
 /** @def VBOX_WITH_IEM_NATIVE_RECOMPILER_LONGJMP
@@ -351,6 +356,15 @@ typedef IEMINSTRSTATS *PIEMINSTRSTATS;
 #else
 # define IEM_SELECT_HOST_OR_FALLBACK(a_fCpumFeatureMember, a_pfnNative, a_pfnFallback) (a_pfnFallback)
 #endif
+
+/** @name Helpers for passing C++ template arguments to an
+ *        IEM_MC_NATIVE_EMIT_3/4/5 style macro.
+ * @{
+ */
+#define IEM_TEMPL_ARG_1(a1)             <a1>
+#define IEM_TEMPL_ARG_2(a1, a2)         <a1,a2>
+#define IEM_TEMPL_ARG_3(a1, a2, a3)     <a1,a2,a3>
+/** @} */
 
 
 /**
@@ -930,11 +944,14 @@ typedef IEMTLBTRACEENTRY const *PCIEMTLBTRACEENTRY;
 #define IEM_MC_F_MIN_CORE           IEM_MC_F_MIN_PENTIUM
 #define IEM_MC_F_64BIT              RT_BIT_32(6)
 #define IEM_MC_F_NOT_64BIT          RT_BIT_32(7)
+/** This is set by IEMAllN8vePython.py to indicate a variation with the
+ * flags-clearing-and-checking. */
+#define IEM_MC_F_WITH_FLAGS         RT_BIT_32(8)
 /** This is set by IEMAllN8vePython.py to indicate a variation without the
  * flags-clearing-and-checking, when there is also a variation with that.
- * @note Do not use this manully, it's only for python and for testing in
+ * @note Do not set this manully, it's only for python and for testing in
  *       the native recompiler! */
-#define IEM_MC_F_WITHOUT_FLAGS      RT_BIT_32(8)
+#define IEM_MC_F_WITHOUT_FLAGS      RT_BIT_32(9)
 /** @} */
 
 /** @name IEM_CIMPL_F_XXX - State change clues for CIMPL calls.
@@ -1325,191 +1342,6 @@ typedef FNIEMTBNATIVE *PFNIEMTBNATIVE;
 
 
 /**
- * Translation block debug info entry type.
- */
-typedef enum IEMTBDBGENTRYTYPE
-{
-    kIemTbDbgEntryType_Invalid = 0,
-    /** The entry is for marking a native code position.
-     * Entries following this all apply to this position. */
-    kIemTbDbgEntryType_NativeOffset,
-    /** The entry is for a new guest instruction. */
-    kIemTbDbgEntryType_GuestInstruction,
-    /** Marks the start of a threaded call. */
-    kIemTbDbgEntryType_ThreadedCall,
-    /** Marks the location of a label. */
-    kIemTbDbgEntryType_Label,
-    /** Info about a host register shadowing a guest register. */
-    kIemTbDbgEntryType_GuestRegShadowing,
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
-    /** Info about a host SIMD register shadowing a guest SIMD register. */
-    kIemTbDbgEntryType_GuestSimdRegShadowing,
-#endif
-#ifdef IEMNATIVE_WITH_DELAYED_PC_UPDATING
-    /** Info about a delayed RIP update. */
-    kIemTbDbgEntryType_DelayedPcUpdate,
-#endif
-#if defined(IEMNATIVE_WITH_DELAYED_REGISTER_WRITEBACK) || defined(IEMNATIVE_WITH_SIMD_REG_ALLOCATOR)
-    /** Info about a shadowed guest register becoming dirty. */
-    kIemTbDbgEntryType_GuestRegDirty,
-    /** Info about register writeback/flush oepration. */
-    kIemTbDbgEntryType_GuestRegWriteback,
-#endif
-    kIemTbDbgEntryType_End
-} IEMTBDBGENTRYTYPE;
-
-/**
- * Translation block debug info entry.
- */
-typedef union IEMTBDBGENTRY
-{
-    /** Plain 32-bit view. */
-    uint32_t u;
-
-    /** Generic view for getting at the type field. */
-    struct
-    {
-        /** IEMTBDBGENTRYTYPE */
-        uint32_t    uType : 4;
-        uint32_t    uTypeSpecific : 28;
-    } Gen;
-
-    struct
-    {
-        /** kIemTbDbgEntryType_ThreadedCall1. */
-        uint32_t    uType      : 4;
-        /** Native code offset. */
-        uint32_t    offNative  : 28;
-    } NativeOffset;
-
-    struct
-    {
-        /** kIemTbDbgEntryType_GuestInstruction. */
-        uint32_t    uType      : 4;
-        uint32_t    uUnused    : 4;
-        /** The IEM_F_XXX flags. */
-        uint32_t    fExec      : 24;
-    } GuestInstruction;
-
-    struct
-    {
-        /* kIemTbDbgEntryType_ThreadedCall. */
-        uint32_t    uType       : 4;
-        /** Set if the call was recompiled to native code, clear if just calling
-         *  threaded function. */
-        uint32_t    fRecompiled : 1;
-        uint32_t    uUnused     : 11;
-        /** The threaded call number (IEMTHREADEDFUNCS). */
-        uint32_t    enmCall     : 16;
-    } ThreadedCall;
-
-    struct
-    {
-        /* kIemTbDbgEntryType_Label. */
-        uint32_t    uType      : 4;
-        uint32_t    uUnused    : 4;
-        /** The label type (IEMNATIVELABELTYPE).   */
-        uint32_t    enmLabel   : 8;
-        /** The label data. */
-        uint32_t    uData      : 16;
-    } Label;
-
-    struct
-    {
-        /* kIemTbDbgEntryType_GuestRegShadowing. */
-        uint32_t    uType         : 4;
-        uint32_t    uUnused       : 4;
-        /** The guest register being shadowed (IEMNATIVEGSTREG). */
-        uint32_t    idxGstReg     : 8;
-        /** The host new register number, UINT8_MAX if dropped. */
-        uint32_t    idxHstReg     : 8;
-        /** The previous host register number, UINT8_MAX if new.   */
-        uint32_t    idxHstRegPrev : 8;
-    } GuestRegShadowing;
-
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
-    struct
-    {
-        /* kIemTbDbgEntryType_GuestSimdRegShadowing. */
-        uint32_t    uType             : 4;
-        uint32_t    uUnused           : 4;
-        /** The guest register being shadowed (IEMNATIVEGSTSIMDREG). */
-        uint32_t    idxGstSimdReg     : 8;
-        /** The host new register number, UINT8_MAX if dropped. */
-        uint32_t    idxHstSimdReg     : 8;
-        /** The previous host register number, UINT8_MAX if new.   */
-        uint32_t    idxHstSimdRegPrev : 8;
-    } GuestSimdRegShadowing;
-#endif
-
-#ifdef IEMNATIVE_WITH_DELAYED_PC_UPDATING
-    struct
-    {
-        /* kIemTbDbgEntryType_DelayedPcUpdate. */
-        uint32_t    uType         : 4;
-        /** Number of instructions skipped. */
-        uint32_t    cInstrSkipped : 8;
-        /* The instruction offset added to the program counter. */
-        int32_t     offPc         : 20;
-    } DelayedPcUpdate;
-#endif
-
-#if defined(IEMNATIVE_WITH_DELAYED_REGISTER_WRITEBACK) || defined(IEMNATIVE_WITH_SIMD_REG_ALLOCATOR)
-    struct
-    {
-        /* kIemTbDbgEntryType_GuestRegDirty. */
-        uint32_t    uType         : 4;
-        uint32_t    uUnused       : 11;
-        /** Flag whether this is about a SIMD (true) or general (false) register. */
-        uint32_t    fSimdReg      : 1;
-        /** The guest register index being marked as dirty. */
-        uint32_t    idxGstReg     : 8;
-        /** The host register number this register is shadowed in .*/
-        uint32_t    idxHstReg     : 8;
-    } GuestRegDirty;
-
-    struct
-    {
-        /* kIemTbDbgEntryType_GuestRegWriteback. */
-        uint32_t    uType         : 4;
-        /** Flag whether this is about a SIMD (true) or general (false) register flush. */
-        uint32_t    fSimdReg      : 1;
-        /** The mask shift. */
-        uint32_t    cShift        : 2;
-        /** The guest register mask being written back. */
-        uint32_t    fGstReg       : 25;
-    } GuestRegWriteback;
-#endif
-
-} IEMTBDBGENTRY;
-AssertCompileSize(IEMTBDBGENTRY, sizeof(uint32_t));
-/** Pointer to a debug info entry. */
-typedef IEMTBDBGENTRY *PIEMTBDBGENTRY;
-/** Pointer to a const debug info entry. */
-typedef IEMTBDBGENTRY const *PCIEMTBDBGENTRY;
-
-/**
- * Translation block debug info.
- */
-typedef struct IEMTBDBG
-{
-    /** This is the flat PC corresponding to IEMTB::GCPhysPc. */
-    RTGCPTR         FlatPc;
-    /** Number of entries in aEntries. */
-    uint32_t        cEntries;
-    /** The offset of the last kIemTbDbgEntryType_NativeOffset record. */
-    uint32_t        offNativeLast;
-    /** Debug info entries. */
-    RT_FLEXIBLE_ARRAY_EXTENSION
-    IEMTBDBGENTRY   aEntries[RT_FLEXIBLE_ARRAY];
-} IEMTBDBG;
-/** Pointer to TB debug info. */
-typedef IEMTBDBG *PIEMTBDBG;
-/** Pointer to const TB debug info. */
-typedef IEMTBDBG const *PCIEMTBDBG;
-
-
-/**
  * Translation block.
  *
  * The current plan is to just keep TBs and associated lookup hash table private
@@ -1592,10 +1424,10 @@ typedef struct IEMTB
     {
         /** Native recompilation debug info if enabled.
          * This is only generated by the native recompiler. */
-        PIEMTBDBG       pDbgInfo;
+        struct IEMTBDBG    *pDbgInfo;
         /** For threaded TBs and natives when debug info is disabled, this is the flat
          * PC corresponding to GCPhysPc. */
-        RTGCPTR         FlatPc;
+        RTGCPTR             FlatPc;
     };
 
     /* --- 64 byte cache line end --- */
@@ -2280,9 +2112,19 @@ typedef struct IEMCPU
      * didn't do delayed PC updating.  When CPUMCTX::rip is finally updated,
      * the result is compared with this value. */
     uint64_t                uPcUpdatingDebug;
+#elif defined(VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING)
+    /** The SSM handle used for saving threaded TBs for recompiler profiling. */
+    R3PTRTYPE(PSSMHANDLE)   pSsmThreadedTbsForProfiling;
 #else
     uint64_t                u64Placeholder;
 #endif
+    /**
+     *  Whether we should use the host instruction invalidation APIs of the
+     *  host OS or our own version of it (macOS).  */
+    uint8_t                 fHostICacheInvalidation;
+#define IEMNATIVE_ICACHE_F_USE_HOST_API     UINT8_C(0x01) /**< Use the host API (macOS) instead of our code. */
+#define IEMNATIVE_ICACHE_F_END_WITH_ISH     UINT8_C(0x02) /**< Whether to end with a ISH barrier (arm). */
+    bool                    afRecompilerStuff2[7];
     /** @} */
 
     /** Dummy TLB entry used for accesses to pages with databreakpoints. */
@@ -2362,8 +2204,27 @@ typedef struct IEMCPU
 
     /** Native recompiler: Number of times status flags calc has been skipped. */
     STAMCOUNTER             StatNativeEflSkippedArithmetic;
+    /** Native recompiler: Number of times status flags calc has been postponed. */
+    STAMCOUNTER             StatNativeEflPostponedArithmetic;
+    /** Native recompiler: Total number instructions in this category. */
+    STAMCOUNTER             StatNativeEflTotalArithmetic;
+
     /** Native recompiler: Number of times status flags calc has been skipped. */
     STAMCOUNTER             StatNativeEflSkippedLogical;
+    /** Native recompiler: Number of times status flags calc has been postponed. */
+    STAMCOUNTER             StatNativeEflPostponedLogical;
+    /** Native recompiler: Total number instructions in this category. */
+    STAMCOUNTER             StatNativeEflTotalLogical;
+
+    /** Native recompiler: Number of times status flags calc has been skipped. */
+    STAMCOUNTER             StatNativeEflSkippedShift;
+    /** Native recompiler: Number of times status flags calc has been postponed. */
+    STAMCOUNTER             StatNativeEflPostponedShift;
+    /** Native recompiler: Total number instructions in this category. */
+    STAMCOUNTER             StatNativeEflTotalShift;
+
+    /** Native recompiler: Number of emits per postponement. */
+    STAMPROFILE             StatNativeEflPostponedEmits;
 
     /** Native recompiler: Number of opportunities to skip EFLAGS.CF updating. */
     STAMCOUNTER             StatNativeLivenessEflCfSkippable;
@@ -2411,7 +2272,6 @@ typedef struct IEMCPU
      *  register situations with the other branch in IEM_MC_ENDIF. */
     STAMCOUNTER             StatNativeEndIfOtherBranchDirty;
 
-//#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
     /** Native recompiler: Number of calls to iemNativeSimdRegAllocFindFree. */
     STAMCOUNTER             StatNativeSimdRegFindFree;
     /** Native recompiler: Number of times iemNativeSimdRegAllocFindFree needed
@@ -2444,7 +2304,6 @@ typedef struct IEMCPU
     STAMCOUNTER             StatNativeMaybeSseXcptCheckOmitted;
     /** Native recompiler: Number of IEM_MC_MAYBE_RAISE_AVX_RELATED_XCPT() checks omitted. */
     STAMCOUNTER             StatNativeMaybeAvxXcptCheckOmitted;
-//#endif
 
     /** Native recompiler: The TB finished executing completely without jumping to a an exit label.
      * Not availabe in release builds. */
@@ -2535,10 +2394,13 @@ typedef struct IEMCPU
     STAMPROFILE             StatTimerPollFactorMultiplication;
     /** @} */
 
+
+    STAMCOUNTER             aStatAdHoc[8];
+
 #ifdef IEM_WITH_TLB_TRACE
-    uint64_t                au64Padding[4];
+    /*uint64_t                au64Padding[0];*/
 #else
-    uint64_t                au64Padding[6];
+    uint64_t                au64Padding[2];
 #endif
 
 #ifdef IEM_WITH_TLB_TRACE
@@ -3111,6 +2973,25 @@ DECLCALLBACK(FNPGMRZPHYSPFHANDLER)  iemVmxApicAccessPagePfHandler;
 #define IEMOP_VERIFICATION_UNDEFINED_EFLAGS(a_fEfl) do { } while (0)
 
 
+/** @def IEM_DECL_MSC_GUARD_IGNORE
+ * Disables control flow guards checks inside a method and any function pointers
+ * referenced by it. */
+#if defined(_MSC_VER) && !defined(IN_RING0)
+# define IEM_DECL_MSC_GUARD_IGNORE  __declspec(guard(ignore))
+#else
+# define IEM_DECL_MSC_GUARD_IGNORE
+#endif
+
+/** @def IEM_DECL_MSC_GUARD_NONE
+ * Disables control flow guards checks inside a method and but continue track
+ * function pointers references by it. */
+#if defined(_MSC_VER) && !defined(IN_RING0)
+# define IEM_DECL_MSC_GUARD_NONE    __declspec(guard(nocf))
+#else
+# define IEM_DECL_MSC_GUARD_NONE
+#endif
+
+
 /** @def IEM_DECL_IMPL_TYPE
  * For typedef'ing an instruction implementation function.
  *
@@ -3139,25 +3020,25 @@ DECLCALLBACK(FNPGMRZPHYSPFHANDLER)  iemVmxApicAccessPagePfHandler;
 # define IEM_DECL_IMPL_TYPE(a_RetType, a_Name, a_ArgList) \
     a_RetType (__fastcall a_Name) a_ArgList
 # define IEM_DECL_IMPL_DEF(a_RetType, a_Name, a_ArgList) \
-    a_RetType __fastcall a_Name a_ArgList RT_NOEXCEPT
+    IEM_DECL_MSC_GUARD_IGNORE a_RetType __fastcall a_Name a_ArgList RT_NOEXCEPT
 # define IEM_DECL_IMPL_PROTO(a_RetType, a_Name, a_ArgList) \
-    a_RetType __fastcall a_Name a_ArgList RT_NOEXCEPT
+    IEM_DECL_MSC_GUARD_IGNORE a_RetType __fastcall a_Name a_ArgList RT_NOEXCEPT
 
 #elif __cplusplus >= 201700 /* P0012R1 support */
 # define IEM_DECL_IMPL_TYPE(a_RetType, a_Name, a_ArgList) \
     a_RetType (VBOXCALL a_Name) a_ArgList RT_NOEXCEPT
 # define IEM_DECL_IMPL_DEF(a_RetType, a_Name, a_ArgList) \
-    DECL_HIDDEN_ONLY(a_RetType) VBOXCALL a_Name a_ArgList RT_NOEXCEPT
+    IEM_DECL_MSC_GUARD_IGNORE DECL_HIDDEN_ONLY(a_RetType) VBOXCALL a_Name a_ArgList RT_NOEXCEPT
 # define IEM_DECL_IMPL_PROTO(a_RetType, a_Name, a_ArgList) \
-    DECL_HIDDEN_ONLY(a_RetType) VBOXCALL a_Name a_ArgList RT_NOEXCEPT
+    IEM_DECL_MSC_GUARD_IGNORE DECL_HIDDEN_ONLY(a_RetType) VBOXCALL a_Name a_ArgList RT_NOEXCEPT
 
 #else
 # define IEM_DECL_IMPL_TYPE(a_RetType, a_Name, a_ArgList) \
     a_RetType (VBOXCALL a_Name) a_ArgList
 # define IEM_DECL_IMPL_DEF(a_RetType, a_Name, a_ArgList) \
-    DECL_HIDDEN_ONLY(a_RetType) VBOXCALL a_Name a_ArgList
+    IEM_DECL_MSC_GUARD_IGNORE DECL_HIDDEN_ONLY(a_RetType) VBOXCALL a_Name a_ArgList
 # define IEM_DECL_IMPL_PROTO(a_RetType, a_Name, a_ArgList) \
-    DECL_HIDDEN_ONLY(a_RetType) VBOXCALL a_Name a_ArgList
+    IEM_DECL_MSC_GUARD_IGNORE DECL_HIDDEN_ONLY(a_RetType) VBOXCALL a_Name a_ArgList
 
 #endif
 
@@ -3524,28 +3405,28 @@ FNIEMAIMPLSHIFTU64 iemAImpl_sar_u64, iemAImpl_sar_u64_amd, iemAImpl_sar_u64_inte
 
 /** @name Multiplication and division operations.
  * @{ */
-typedef IEM_DECL_IMPL_TYPE(int, FNIEMAIMPLMULDIVU8,(uint16_t *pu16AX, uint8_t u8FactorDivisor, uint32_t *pEFlags));
+typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMULDIVU8,(uint16_t *pu16AX, uint8_t u8FactorDivisor, uint32_t fEFlags));
 typedef FNIEMAIMPLMULDIVU8  *PFNIEMAIMPLMULDIVU8;
 FNIEMAIMPLMULDIVU8 iemAImpl_mul_u8,  iemAImpl_mul_u8_amd,  iemAImpl_mul_u8_intel;
 FNIEMAIMPLMULDIVU8 iemAImpl_imul_u8, iemAImpl_imul_u8_amd, iemAImpl_imul_u8_intel;
 FNIEMAIMPLMULDIVU8 iemAImpl_div_u8,  iemAImpl_div_u8_amd,  iemAImpl_div_u8_intel;
 FNIEMAIMPLMULDIVU8 iemAImpl_idiv_u8, iemAImpl_idiv_u8_amd, iemAImpl_idiv_u8_intel;
 
-typedef IEM_DECL_IMPL_TYPE(int, FNIEMAIMPLMULDIVU16,(uint16_t *pu16AX, uint16_t *pu16DX, uint16_t u16FactorDivisor, uint32_t *pEFlags));
+typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMULDIVU16,(uint16_t *pu16AX, uint16_t *pu16DX, uint16_t u16FactorDivisor, uint32_t fEFlags));
 typedef FNIEMAIMPLMULDIVU16  *PFNIEMAIMPLMULDIVU16;
 FNIEMAIMPLMULDIVU16 iemAImpl_mul_u16,  iemAImpl_mul_u16_amd,  iemAImpl_mul_u16_intel;
 FNIEMAIMPLMULDIVU16 iemAImpl_imul_u16, iemAImpl_imul_u16_amd, iemAImpl_imul_u16_intel;
 FNIEMAIMPLMULDIVU16 iemAImpl_div_u16,  iemAImpl_div_u16_amd,  iemAImpl_div_u16_intel;
 FNIEMAIMPLMULDIVU16 iemAImpl_idiv_u16, iemAImpl_idiv_u16_amd, iemAImpl_idiv_u16_intel;
 
-typedef IEM_DECL_IMPL_TYPE(int, FNIEMAIMPLMULDIVU32,(uint32_t *pu32EAX, uint32_t *pu32EDX, uint32_t u32FactorDivisor, uint32_t *pEFlags));
+typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMULDIVU32,(uint32_t *pu32EAX, uint32_t *pu32EDX, uint32_t u32FactorDivisor, uint32_t fEFlags));
 typedef FNIEMAIMPLMULDIVU32  *PFNIEMAIMPLMULDIVU32;
 FNIEMAIMPLMULDIVU32 iemAImpl_mul_u32,  iemAImpl_mul_u32_amd,  iemAImpl_mul_u32_intel;
 FNIEMAIMPLMULDIVU32 iemAImpl_imul_u32, iemAImpl_imul_u32_amd, iemAImpl_imul_u32_intel;
 FNIEMAIMPLMULDIVU32 iemAImpl_div_u32,  iemAImpl_div_u32_amd,  iemAImpl_div_u32_intel;
 FNIEMAIMPLMULDIVU32 iemAImpl_idiv_u32, iemAImpl_idiv_u32_amd, iemAImpl_idiv_u32_intel;
 
-typedef IEM_DECL_IMPL_TYPE(int, FNIEMAIMPLMULDIVU64,(uint64_t *pu64RAX, uint64_t *pu64RDX, uint64_t u64FactorDivisor, uint32_t *pEFlags));
+typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMULDIVU64,(uint64_t *pu64RAX, uint64_t *pu64RDX, uint64_t u64FactorDivisor, uint32_t fEFlags));
 typedef FNIEMAIMPLMULDIVU64  *PFNIEMAIMPLMULDIVU64;
 FNIEMAIMPLMULDIVU64 iemAImpl_mul_u64,  iemAImpl_mul_u64_amd,  iemAImpl_mul_u64_intel;
 FNIEMAIMPLMULDIVU64 iemAImpl_imul_u64, iemAImpl_imul_u64_amd, iemAImpl_imul_u64_intel;
@@ -5528,11 +5409,11 @@ typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
 typedef VBOXSTRICTRC (* PFNIEMOP)(PVMCPUCC pVCpu);
 typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
 # define FNIEMOP_DEF(a_Name) \
-    IEM_STATIC VBOXSTRICTRC a_Name(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP
+    IEM_STATIC IEM_DECL_MSC_GUARD_IGNORE VBOXSTRICTRC a_Name(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP
 # define FNIEMOP_DEF_1(a_Name, a_Type0, a_Name0) \
-    IEM_STATIC VBOXSTRICTRC a_Name(PVMCPUCC pVCpu, a_Type0 a_Name0) IEM_NOEXCEPT_MAY_LONGJMP
+    IEM_STATIC IEM_DECL_MSC_GUARD_IGNORE VBOXSTRICTRC a_Name(PVMCPUCC pVCpu, a_Type0 a_Name0) IEM_NOEXCEPT_MAY_LONGJMP
 # define FNIEMOP_DEF_2(a_Name, a_Type0, a_Name0, a_Type1, a_Name1) \
-    IEM_STATIC VBOXSTRICTRC a_Name(PVMCPUCC pVCpu, a_Type0 a_Name0, a_Type1 a_Name1) IEM_NOEXCEPT_MAY_LONGJMP
+    IEM_STATIC IEM_DECL_MSC_GUARD_IGNORE VBOXSTRICTRC a_Name(PVMCPUCC pVCpu, a_Type0 a_Name0, a_Type1 a_Name1) IEM_NOEXCEPT_MAY_LONGJMP
 
 #endif
 #define FNIEMOPRM_DEF(a_Name) FNIEMOP_DEF_1(a_Name, uint8_t, bRm)
@@ -6838,8 +6719,13 @@ void                iemThreadedTbObsolete(PVMCPUCC pVCpu, PIEMTB pTb, bool fSafe
 DECLHIDDEN(void)    iemTbAllocatorFree(PVMCPUCC pVCpu, PIEMTB pTb);
 void                iemTbAllocatorProcessDelayedFrees(PVMCPUCC pVCpu, PIEMTBALLOCATOR pTbAllocator);
 void                iemTbAllocatorFreeupNativeSpace(PVMCPUCC pVCpu, uint32_t cNeededInstrs);
+DECLHIDDEN(PIEMTBALLOCATOR) iemTbAllocatorFreeBulkStart(PVMCPUCC pVCpu);
+DECLHIDDEN(void)    iemTbAllocatorFreeBulk(PVMCPUCC pVCpu, PIEMTBALLOCATOR pTbAllocator, PIEMTB pTb);
 DECLHIDDEN(const char *) iemTbFlagsToString(uint32_t fFlags, char *pszBuf, size_t cbBuf) RT_NOEXCEPT;
 DECLHIDDEN(void)    iemThreadedDisassembleTb(PCIEMTB pTb, PCDBGFINFOHLP pHlp) RT_NOEXCEPT;
+#if defined(VBOX_WITH_IEM_NATIVE_RECOMPILER) && defined(VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING)
+DECLHIDDEN(void)    iemThreadedSaveTbForProfilingCleanup(PVMCPU pVCpu);
+#endif
 
 
 /** @todo FNIEMTHREADEDFUNC and friends may need more work... */
@@ -6855,9 +6741,9 @@ typedef FNIEMTHREADEDFUNC *PFNIEMTHREADEDFUNC;
 typedef VBOXSTRICTRC (FNIEMTHREADEDFUNC)(PVMCPU pVCpu, uint64_t uParam0, uint64_t uParam1, uint64_t uParam2);
 typedef FNIEMTHREADEDFUNC *PFNIEMTHREADEDFUNC;
 # define IEM_DECL_IEMTHREADEDFUNC_DEF(a_Name) \
-    VBOXSTRICTRC a_Name(PVMCPU pVCpu, uint64_t uParam0, uint64_t uParam1, uint64_t uParam2) IEM_NOEXCEPT_MAY_LONGJMP
+    IEM_DECL_MSC_GUARD_IGNORE VBOXSTRICTRC a_Name(PVMCPU pVCpu, uint64_t uParam0, uint64_t uParam1, uint64_t uParam2) IEM_NOEXCEPT_MAY_LONGJMP
 # define IEM_DECL_IEMTHREADEDFUNC_PROTO(a_Name) \
-    VBOXSTRICTRC a_Name(PVMCPU pVCpu, uint64_t uParam0, uint64_t uParam1, uint64_t uParam2) IEM_NOEXCEPT_MAY_LONGJMP
+    IEM_DECL_MSC_GUARD_IGNORE VBOXSTRICTRC a_Name(PVMCPU pVCpu, uint64_t uParam0, uint64_t uParam1, uint64_t uParam2) IEM_NOEXCEPT_MAY_LONGJMP
 #endif
 
 
@@ -6920,7 +6806,7 @@ DECLHIDDEN(void)    iemExecMemAllocatorReadyForUse(PVMCPUCC pVCpu, void *pv, siz
 void                iemExecMemAllocatorFree(PVMCPU pVCpu, void *pv, size_t cb) RT_NOEXCEPT;
 DECLASM(DECL_NO_RETURN(void)) iemNativeTbLongJmp(void *pvFramePointer, int rc) RT_NOEXCEPT;
 DECLHIDDEN(struct IEMNATIVEPERCHUNKCTX const *) iemExecMemGetTbChunkCtx(PVMCPU pVCpu, PCIEMTB pTb);
-DECLHIDDEN(struct IEMNATIVEPERCHUNKCTX const *) iemNativeRecompileAttachExecMemChunkCtx(PVMCPU pVCpu, uint32_t idxChunk);
+DECLHIDDEN(int) iemNativeRecompileAttachExecMemChunkCtx(PVMCPU pVCpu, uint32_t idxChunk, struct IEMNATIVEPERCHUNKCTX const **ppCtx);
 
 /** Packed 32-bit argument for iemCImpl_vpgather_worker_xx. */
 typedef union IEMGATHERARGS

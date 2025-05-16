@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2023 Oracle and/or its affiliates.
+; Copyright (C) 2006-2024 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -275,4 +275,5 @@ endstruc
 %define HM_WSF_IBPB_ENTRY           RT_BIT_32(1)
 %define HM_WSF_L1D_ENTRY            RT_BIT_32(2)
 %define HM_WSF_MDS_ENTRY            RT_BIT_32(3)
+%define HM_WSF_SPEC_CTRL            RT_BIT_32(4)
 

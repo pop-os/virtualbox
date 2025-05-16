@@ -255,9 +255,7 @@
             <topicref href="topics/guestadd-dnd-formats.dita"/>
             <topicref href="topics/guestadd-dnd-limitations.dita"/>
          </topicref>
-         <topicref href="topics/guestadd-video.dita">
-            <topicref href="topics/guestadd-3d.dita"/>
-         </topicref>
+    <topicref href="topics/guestadd-video.dita"/>
          <topicref href="topics/seamlesswindows.dita"/>
          <topicref href="topics/guestadd-guestprops.dita">
             <topicref href="topics/guestadd-guestprops-waits.dita"/>
@@ -343,7 +341,6 @@
       <topicref href="topics/vboxmanage-intro.dita"/>
       <!-- Commands Overview -->
       <topicref href="topics/vboxmanage-cmd-overview.dita"/>
-      <topicref href="topics/vboxmanage-general.dita"/>
       <!-- The remainder of the topics in this chapter are generated from docbook XML files.-->
       <topicref format="ditamap" href="topics/man_VBoxManage-common.ditamap"/>
       <!-- Note! We sort these alphabetical unless someone can define a
@@ -616,10 +613,10 @@
          <topicref href="topics/security-model.dita"/>
          <topicref href="topics/secure-config-vms.dita">
             <topicref href="topics/security-networking.dita"/>
+        <topicref href="topics/security-of-remote-vms.dita"/>
             <topicref href="topics/security-vrdp-auth.dita"/>
             <topicref href="topics/security_clipboard.dita"/>
             <topicref href="topics/security-shared-folders.dita"/>
-            <topicref href="topics/security-3d-graphics.dita"/>
             <topicref href="topics/security-cd-dvd-passthrough.dita"/>
             <topicref href="topics/security-usb-passthrough.dita"/>
          </topicref>

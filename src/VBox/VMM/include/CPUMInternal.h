@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -105,8 +105,8 @@ typedef uint64_t STAMCOUNTER;
 /** @name CPUM Saved State Version.
  * @{ */
 /** The current saved state version.
- *  @todo When bumping to next version, add CPUMCTX::enmHwVirt to the saved
- *        state. */
+ *  @todo When bumping to next version, add CPUMCTX::enmHwVirt and
+ *        uMicrocodeRevision to the saved state. */
 #define CPUM_SAVED_STATE_VERSION                CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_4
 /** The saved state version with u32RestoreProcCtls2 for Nested Microsoft
  *  Hyper-V. */
@@ -188,6 +188,12 @@ typedef struct CPUMINFO
 
     /** Scalable bus frequency used for reporting other frequencies. */
     uint64_t                    uScalableBusFreq;
+
+    /** The microcode revision.
+     * UINT32_MAX if the one from the CPU database entry is to be used.
+     * @see /CPUM/GuestMicrocodeRevision in CFGM. */
+    uint32_t                    uMicrocodeRevision;
+    uint32_t                    uPadding;
 
     /** Pointer to the MSR ranges (for compatibility with old hyper heap code). */
     R3PTRTYPE(PCPUMMSRRANGE)    paMsrRangesR3;
@@ -480,6 +486,7 @@ typedef struct CPUMCPU
 } CPUMCPU;
 #ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileMemberAlignment(CPUMCPU, Host, 64);
+AssertCompileAdjacentMembers(CPUMCPU, Guest, GuestMsrs); /* HACK ALERT! HMR0A.asm makes this ASSUMPTION in the SVM RUN code! */
 #endif
 /** Pointer to the CPUMCPU instance data residing in the shared VMCPU structure. */
 typedef CPUMCPU *PCPUMCPU;
@@ -496,6 +503,8 @@ void                cpumCpuIdAssertOrder(PCPUMCPUIDLEAF paLeaves, uint32_t cLeav
 # endif
 int                 cpumCpuIdExplodeFeaturesX86(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPUMMSRS pMsrs,
                                                 PCPUMFEATURES pFeatures);
+void                cpumCpuIdExplodeFeaturesX86SetSummaryBits(PCPUMFEATURES pFeatures);
+void                cpumCpuIdExplodeArchCapabilities(PCPUMFEATURES pFeatures, bool fHasArchCap, uint64_t fArchVal);
 
 # ifdef IN_RING3
 int                 cpumR3DbgInit(PVM pVM);
@@ -510,7 +519,7 @@ DECLCALLBACK(void)  cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *psz
 
 int                 cpumR3DbGetCpuInfo(const char *pszName, PCPUMINFO pInfo);
 int                 cpumR3MsrRangesInsert(PVM pVM, PCPUMMSRRANGE *ppaMsrRanges, uint32_t *pcMsrRanges, PCCPUMMSRRANGE pNewRange);
-int                 cpumR3MsrReconcileWithCpuId(PVM pVM);
+DECLHIDDEN(int)     cpumR3MsrReconcileWithCpuId(PVM pVM, bool fForceFlushCmd, bool fForceSpecCtrl);
 int                 cpumR3MsrApplyFudge(PVM pVM);
 int                 cpumR3MsrRegStats(PVM pVM);
 int                 cpumR3MsrStrictInitChecks(void);

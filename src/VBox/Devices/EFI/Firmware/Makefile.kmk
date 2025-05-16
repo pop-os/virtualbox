@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright (C) 2013-2023 Oracle and/or its affiliates.
+# Copyright (C) 2013-2024 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -281,9 +281,11 @@ VBOX_EFI_BUILD_CMD += \
 	-- $(VBOX_BLD_PYTHON) "$(VBOX_PATH_EFI_FIRMWARE)/BaseTools/Source/Python/build/build.py" \
 	-D VBOX=1 \
 	-D VBOX_WITH_OVMF=1 \
+	-D NETWORK_IP6_ENABLE=1 -D NETWORK_ISCSI_ENABLE=1 \
 	$(if $(VBOX_WITH_EFI_SECURE_BOOT),-D "SECURE_BOOT_ENABLE=1") \
 	$(if $(VBOX_WITH_EFI_TPM),-D "TPM_ENABLE=1" -D "TPM1_ENABLE" -D "TPM2_ENABLE") \
 	$(if $(VBOX_WITH_EFI_TPM),-D "TPM_CONFIG_ENABLE=1") \
+	$(if $(VBOX_WITH_LSILOGIC),-D "MPT_SCSI_ENABLE=1") \
 	-D BUILD_NEW_SHELL=1 \
 	-D VBOX_REV=$(VBOX_SVN_REV) \
 	-D "VBOX_OUTPUT_BASE_DIR=$(VBoxEfiFirmware_0_OUTDIR)" \

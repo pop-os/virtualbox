@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -301,9 +301,8 @@ void UIMachineView::applyMachineViewScaleFactor()
 
     /* Take the device-pixel-ratio into account: */
     frameBuffer()->setDevicePixelRatio(UIDesktopWidgetWatchdog::devicePixelRatio(machineWindow()));
-    frameBuffer()->setDevicePixelRatioActual(UIDesktopWidgetWatchdog::devicePixelRatioActual(machineWindow()));
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    const bool fUseUnscaledHiDPIOutput = dScaleFactor != dDevicePixelRatioActual;
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    const bool fUseUnscaledHiDPIOutput = dScaleFactor != dDevicePixelRatio;
     dScaleFactor = fUseUnscaledHiDPIOutput ? dScaleFactor : 1.0;
 
     /* Assign frame-buffer with new values: */
@@ -321,7 +320,7 @@ void UIMachineView::applyMachineViewScaleFactor()
         // On Windows and Linux opposing to macOS it's only Qt which can auto scale up,
         // not 3D overlay itself, so for auto scale-up mode we have to take that into account.
         if (!fUseUnscaledHiDPIOutput)
-            dScaleFactorFor3D *= dDevicePixelRatioActual;
+            dScaleFactorFor3D *= dDevicePixelRatio;
 #endif /* VBOX_WS_WIN || VBOX_WS_NIX */
         uimachine()->notifyScaleFactorChange(m_uScreenId,
                                              (uint32_t)(dScaleFactorFor3D * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
@@ -388,15 +387,12 @@ QPoint UIMachineView::viewportToContents(const QPoint &viewportPoint) const
     int iContentsY = contentsY();
 
     /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    if (!frameBuffer()->useUnscaledHiDPIOutput())
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    if (frameBuffer()->useUnscaledHiDPIOutput())
     {
-        iContentsX *= dDevicePixelRatioActual;
-        iContentsY *= dDevicePixelRatioActual;
+        iContentsX /= dDevicePixelRatio;
+        iContentsY /= dDevicePixelRatio;
     }
-    iContentsX /= dDevicePixelRatioFormal;
-    iContentsY /= dDevicePixelRatioFormal;
 
     /* Return point shifted according scroll-bars: */
     return QPoint(viewportPoint.x() + iContentsX, viewportPoint.y() + iContentsY);
@@ -445,7 +441,9 @@ QSize UIMachineView::maximumGuestSize()
 
 void UIMachineView::updateViewport()
 {
-    uimachine()->viewportChanged(screenId(), contentsX(), contentsY(), visibleWidth(), visibleHeight());
+    uimachine()->viewportChanged(screenId(),
+                                 (ulong)contentsX(), (ulong)contentsY(),
+                                 (ulong)visibleWidth(), (ulong)visibleHeight());
 }
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
@@ -699,11 +697,9 @@ void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
     {
         /* Assign new frame-buffer logical-size: */
         QSize scaledSize = size();
-        const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
-        const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-        scaledSize *= dDevicePixelRatioFormal;
-        if (!frameBuffer()->useUnscaledHiDPIOutput())
-            scaledSize /= dDevicePixelRatioActual;
+        const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+        if (frameBuffer()->useUnscaledHiDPIOutput())
+            scaledSize *= dDevicePixelRatio;
         frameBuffer()->setScaledSize(scaledSize);
 
         /* Forget the last full-screen size: */
@@ -801,25 +797,19 @@ void UIMachineView::sltHandleNotifyUpdate(int iX, int iY, int iWidth, int iHeigh
     rect.translate(-contentsX(), -contentsY());
 
     /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatioActual != 1.0)
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    if (frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatio != 1.0)
     {
-        rect.moveTo((int)floor((double)rect.x() * dDevicePixelRatioActual) - 1,
-                    (int)floor((double)rect.y() * dDevicePixelRatioActual) - 1);
-        rect.setSize(QSize((int)ceil((double)rect.width()  * dDevicePixelRatioActual) + 2,
-                           (int)ceil((double)rect.height() * dDevicePixelRatioActual) + 2));
-    }
-    if (dDevicePixelRatioFormal != 1.0)
-    {
-        rect.moveTo((int)floor((double)rect.x() / dDevicePixelRatioFormal) - 1,
-                    (int)floor((double)rect.y() / dDevicePixelRatioFormal) - 1);
-        rect.setSize(QSize((int)ceil((double)rect.width()  / dDevicePixelRatioFormal) + 2,
-                           (int)ceil((double)rect.height() / dDevicePixelRatioFormal) + 2));
+        rect.moveTo((int)floor((double)rect.x() / dDevicePixelRatio) - 1,
+                    (int)floor((double)rect.y() / dDevicePixelRatio) - 1);
+        rect.setSize(QSize((int)ceil((double)rect.width()  / dDevicePixelRatio) + 2,
+                           (int)ceil((double)rect.height() / dDevicePixelRatio) + 2));
     }
 
     /* Limit the resulting part by the viewport rectangle: */
     rect &= viewport()->rect();
+    if (rect.isEmpty())
+        return;
 
     /* Update corresponding viewport part: */
     viewport()->update(rect);
@@ -881,7 +871,7 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
                                               uimachine()->isScreenVisible(screenId()),
                                               false /* change origin? */,
                                               0 /* origin x */, 0 /* origin y */,
-                                              size.width(), size.height(),
+                                              (ulong)size.width(), (ulong)size.height(),
                                               0 /* bits per pixel */,
                                               true /* notify? */);
             }
@@ -897,7 +887,7 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
                                               true /* enabled? */,
                                               false /* change origin? */,
                                               0 /* origin x */, 0 /* origin y */,
-                                              size.width(), size.height(),
+                                              (ulong)size.width(), (ulong)size.height(),
                                               0 /* bits per pixel */,
                                               true /* notify? */);
             }
@@ -943,7 +933,7 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
                                           uimachine()->isScreenVisible(screenId()),
                                           false /* change origin? */,
                                           0 /* origin x */, 0 /* origin y */,
-                                          size.width(), size.height(),
+                                          (ulong)size.width(), (ulong)size.height(),
                                           0 /* bits per pixel */,
                                           true /* notify? */);
             m_lastSizeHint = size;
@@ -1064,8 +1054,8 @@ void UIMachineView::sltHandleScaleFactorChange(const QUuid &uMachineID)
     double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), m_uScreenId);
 
     /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    const bool fUseUnscaledHiDPIOutput = dScaleFactor != dDevicePixelRatioActual;
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    const bool fUseUnscaledHiDPIOutput = dScaleFactor != dDevicePixelRatio;
     dScaleFactor = fUseUnscaledHiDPIOutput ? dScaleFactor : 1.0;
 
     /* Assign frame-buffer with new values: */
@@ -1083,7 +1073,7 @@ void UIMachineView::sltHandleScaleFactorChange(const QUuid &uMachineID)
         // On Windows and Linux opposing to macOS it's only Qt which can auto scale up,
         // not 3D overlay itself, so for auto scale-up mode we have to take that into account.
         if (!fUseUnscaledHiDPIOutput)
-            dScaleFactorFor3D *= frameBuffer()->devicePixelRatioActual();
+            dScaleFactorFor3D *= frameBuffer()->devicePixelRatio();
 #endif /* VBOX_WS_WIN || VBOX_WS_NIX */
         uimachine()->notifyScaleFactorChange(m_uScreenId,
                                              (uint32_t)(dScaleFactorFor3D * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
@@ -1599,11 +1589,9 @@ void UIMachineView::handleScaleChange()
         {
             /* Assign new frame-buffer logical-size: */
             QSize scaledSize = size();
-            const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
-            const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-            scaledSize *= dDevicePixelRatioFormal;
-            if (!frameBuffer()->useUnscaledHiDPIOutput())
-                scaledSize /= dDevicePixelRatioActual;
+            const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+            if (frameBuffer()->useUnscaledHiDPIOutput())
+                scaledSize *= dDevicePixelRatio;
             frameBuffer()->setScaledSize(scaledSize);
         }
         /* For other than 'scale' mode: */
@@ -1650,12 +1638,14 @@ void UIMachineView::takePausePixmapLive()
     screenShot.fill(0);
 
     /* Acquire screen-shot image: */
-    uimachine()->acquireScreenShot(screenId(), screenShot.width(), screenShot.height(), KBitmapFormat_BGR0, screenShot.bits());
+    uimachine()->acquireScreenShot(screenId(),
+                                   (ulong)screenShot.width(), (ulong)screenShot.height(),
+                                   KBitmapFormat_BGR0, screenShot.bits());
 
     /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatioActual != 1.0)
-        screenShot = screenShot.scaled(screenShot.size() * dDevicePixelRatioActual,
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatio != 1.0)
+        screenShot = screenShot.scaled(screenShot.size() * dDevicePixelRatio,
                                        Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 
     /* Dim screen-shot if it is Ok: */
@@ -1691,9 +1681,9 @@ void UIMachineView::takePausePixmapSnapshot()
     QSize effectiveSize = uGuestWidth > 0 ? QSize(uGuestWidth, uGuestHeight) : storedGuestScreenSizeHint();
 
     /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatioActual != 1.0)
-        effectiveSize *= dDevicePixelRatioActual;
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatio != 1.0)
+        effectiveSize *= dDevicePixelRatio;
 
     /* Create a screen-shot on the basis of the screen-data we have in saved-state: */
     QImage screenShot = QImage::fromData(screenData.data(), screenData.size(), "PNG").scaled(effectiveSize);
@@ -1724,9 +1714,9 @@ void UIMachineView::updateScaledPausePixmap()
         return;
 
     /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatioActual != 1.0)
-        scaledSize *= dDevicePixelRatioActual;
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatio != 1.0)
+        scaledSize *= dDevicePixelRatio;
 
     /* Update pause pixmap finally: */
     m_pausePixmapScaled = pausePixmap().scaled(scaledSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
@@ -1760,14 +1750,11 @@ void UIMachineView::updateSliders()
     int yRange = frameBufferSize.height() - curViewportSize.height();
 
     /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    xRange *= dDevicePixelRatioFormal;
-    yRange *= dDevicePixelRatioFormal;
-    if (!frameBuffer()->useUnscaledHiDPIOutput())
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    if (frameBuffer()->useUnscaledHiDPIOutput())
     {
-        xRange /= dDevicePixelRatioActual;
-        yRange /= dDevicePixelRatioActual;
+        xRange *= dDevicePixelRatio;
+        yRange *= dDevicePixelRatio;
     }
 
     /* Configure scroll-bars: */
@@ -2166,11 +2153,9 @@ QSize UIMachineView::scaledForward(QSize size) const
         size = QSize((int)(size.width() * dScaleFactor), (int)(size.height() * dScaleFactor));
 
     /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    if (!frameBuffer()->useUnscaledHiDPIOutput())
-        size = QSize(size.width() * dDevicePixelRatioActual, size.height() * dDevicePixelRatioActual);
-    size = QSize(size.width() / dDevicePixelRatioFormal, size.height() / dDevicePixelRatioFormal);
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    if (frameBuffer()->useUnscaledHiDPIOutput())
+        size = QSize((int)(size.width() / dDevicePixelRatio), (int)(size.height() / dDevicePixelRatio));
 
     /* Return result: */
     return size;
@@ -2179,11 +2164,9 @@ QSize UIMachineView::scaledForward(QSize size) const
 QSize UIMachineView::scaledBackward(QSize size) const
 {
     /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    size = QSize(size.width() * dDevicePixelRatioFormal, size.height() * dDevicePixelRatioFormal);
-    if (!frameBuffer()->useUnscaledHiDPIOutput())
-        size = QSize(size.width() / dDevicePixelRatioActual, size.height() / dDevicePixelRatioActual);
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    if (frameBuffer()->useUnscaledHiDPIOutput())
+        size = QSize((int)(size.width() * dDevicePixelRatio), (int)(size.height() * dDevicePixelRatio));
 
     /* Take the scale-factor into account: */
     const double dScaleFactor = frameBuffer()->scaleFactor();
@@ -2204,7 +2187,7 @@ void UIMachineView::updateMousePointerPixmapScaling(QPixmap &pixmap, uint &uXHot
     if (dScaleFactor > 1.0)
     {
         /* Scale the pixmap up: */
-        pixmap = pixmap.scaled(pixmap.width() * dScaleFactor, pixmap.height() * dScaleFactor,
+        pixmap = pixmap.scaled((int)(pixmap.width() * dScaleFactor), (int)(pixmap.height() * dScaleFactor),
                                Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
         uXHot *= dScaleFactor;
         uYHot *= dScaleFactor;
@@ -2235,15 +2218,10 @@ void UIMachineView::updateMousePointerPixmapScaling(QPixmap &pixmap, uint &uXHot
         dScaleMultiplier *= dScaleFactor;
 
     /* Take into account device-pixel-ratio if necessary: */
-# ifdef VBOX_WS_WIN
     const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
-# endif
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
     const bool fUseUnscaledHiDPIOutput = frameBuffer()->useUnscaledHiDPIOutput();
-    //printf("Device-pixel-ratio/actual: %f/%f, Unscaled HiDPI Output: %d\n",
-    //       dDevicePixelRatio, dDevicePixelRatioActual, fUseUnscaledHiDPIOutput);
-    if (dDevicePixelRatioActual > 1.0 && !fUseUnscaledHiDPIOutput)
-        dScaleMultiplier *= dDevicePixelRatioActual;
+    if (dDevicePixelRatio > 1.0 && !fUseUnscaledHiDPIOutput)
+        dScaleMultiplier *= dDevicePixelRatio;
 
     /* If scale multiplier was set: */
     if (dScaleMultiplier > 1.0)

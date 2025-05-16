@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2017-2023 Oracle and/or its affiliates.
+# Copyright (C) 2017-2024 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -179,6 +179,7 @@ if [ "${MY_DEBUG}" = "yes" ]; then
 fi
 
 
+@@VBOX_COND[${AVOID_UPDATES_OVER_NETWORK} == false]@@
 #
 # Add EPEL repository
 #
@@ -224,6 +225,8 @@ log_command_in_target yum -y install perl
 #Package cloud-init is needed for possible automation the initial setup of virtual machine
 #
 log_command_in_target yum -y install cloud-init
+@@VBOX_COND_END@@
+
 log_command_in_target systemctl enable cloud-init-local.service
 log_command_in_target systemctl enable cloud-init.service
 log_command_in_target systemctl enable cloud-config.service

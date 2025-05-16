@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -586,10 +586,7 @@ bool UISession::putMouseEvent(long iDx, long iDy, long iDz, long iDw, long iButt
     if (comMouse.isNull())
         return false;
     comMouse.PutMouseEvent(iDx, iDy, iDz, iDw, iButtonState);
-    const bool fSuccess = comMouse.isOk();
-    if (!fSuccess)
-        UINotificationMessage::cannotChangeMouseParameter(comMouse);
-    return fSuccess;
+    return comMouse.isOk();
 }
 
 bool UISession::putMouseEventAbsolute(long iX, long iY, long iDz, long iDw, long iButtonState)
@@ -598,10 +595,7 @@ bool UISession::putMouseEventAbsolute(long iX, long iY, long iDz, long iDw, long
     if (comMouse.isNull())
         return false;
     comMouse.PutMouseEventAbsolute(iX, iY, iDz, iDw, iButtonState);
-    const bool fSuccess = comMouse.isOk();
-    if (!fSuccess)
-        UINotificationMessage::cannotChangeMouseParameter(comMouse);
-    return fSuccess;
+    return comMouse.isOk();
 }
 
 bool UISession::putEventMultiTouch(long iCount, const QVector<LONG64> &contacts, bool fIsTouchScreen, ulong uScanTime)
@@ -610,10 +604,7 @@ bool UISession::putEventMultiTouch(long iCount, const QVector<LONG64> &contacts,
     if (comMouse.isNull())
         return false;
     comMouse.PutEventMultiTouch(iCount, contacts, fIsTouchScreen, uScanTime);
-    const bool fSuccess = comMouse.isOk();
-    if (!fSuccess)
-        UINotificationMessage::cannotChangeMouseParameter(comMouse);
-    return fSuccess;
+    return comMouse.isOk();
 }
 
 bool UISession::acquireClipboardMode(KClipboardMode &enmMode)
@@ -2809,7 +2800,7 @@ bool UISession::preprocessInitialization()
         if (!failedInterfaceNames.isEmpty())
         {
             if (msgCenter().warnAboutNetworkInterfaceNotFound(machineName(), failedInterfaceNames.join(", ")))
-                machineLogic()->openNetworkSettingsDialog();
+                machineLogic()->openNetworkSettingsDialogTheModalWay();
             else
             {
                 LogRel(("GUI: Aborting startup due to preprocess initialization issue detected...\n"));

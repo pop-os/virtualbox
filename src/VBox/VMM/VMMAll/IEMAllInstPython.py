@@ -14,7 +14,7 @@ from __future__ import print_function;
 
 __copyright__ = \
 """
-Copyright (C) 2017-2023 Oracle and/or its affiliates.
+Copyright (C) 2017-2024 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -43,7 +43,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 164572 $"
+__version__ = "$Revision: 164965 $"
 
 # pylint: disable=anomalous-backslash-in-string,too-many-lines
 
@@ -2924,6 +2924,46 @@ class McBlock(object):
                     return sRet;
         return None;
 
+    koReRefEflIllegalMemRough   = re.compile(r'^IEM_MC_.*(MEM|PUSH_U|POP_GREG|RETN|IND_CALL|REL_CALL)');
+    koReRefEflIllegalMemExclude = re.compile(r'^IEM_MC_.*(MEM_COMMIT|MEM_OP|FPU_|UPDATE_FSW)');
+    koReRefEflIllegalRaise      = re.compile(r'^IEM_MC_(RAISE|MAYBE_RAISE)');
+
+    def checkRefEFlagsUse(self, aoStmts, asState):
+        """
+        Checks that EFLAGS references comes after memory fetches and that there
+        are no memory stores or conditional raises afterwards.
+
+        The problem is postponed EFLAGS calculation management.  This gets a
+        lot easier if we can jettison any postponements when EFLAGS are
+        referenced.  If we had to deal with potential TB exits / exceptions
+        after they are referenced, this means it would have to delay the
+        cleanup until the IEM_MC_..._AND_FINISH statement which is kind of
+        complicated and not very efficient.
+        """
+        fSeenIt = asState.get('fSeenIt', False);
+        for iStmt, oStmt in enumerate(aoStmts):
+            if not oStmt.isCppStmt():
+                if oStmt.sName in ('IEM_MC_REF_EFLAGS', 'IEM_MC_REF_EFLAGS_EX',):
+                    fSeenIt = True;
+                elif (    fSeenIt
+                      and (    (    self.koReRefEflIllegalMemRough.match(oStmt.sName)
+                                and not self.koReRefEflIllegalMemExclude.match(oStmt.sName))
+                           or self.koReRefEflIllegalRaise.match(oStmt.sName) )):
+                    return "statement #%u: %s following REF_EFLAGS! That'll mess up EFLAGS calculation postponing" \
+                         % (iStmt + 1, oStmt.sName,);
+
+            # Go into branches.
+            if isinstance(oStmt, McStmtCond):
+                asState['fSeenIt'] = fSeenIt;
+                sRet = self.checkRefEFlagsUse(oStmt.aoIfBranch, asState);
+                if sRet:
+                    return sRet;
+                sRet = self.checkRefEFlagsUse(oStmt.aoElseBranch, asState);
+                if sRet:
+                    return sRet;
+                fSeenIt = asState['fSeenIt'];
+        return None;
+
     def check(self):
         """
         Performs some sanity checks on the block.
@@ -2941,6 +2981,10 @@ class McBlock(object):
             asRet.append(sRet);
 
         sRet = self.checkForFetchAfterRef(aoStmts, {});
+        if sRet:
+            asRet.append(sRet);
+
+        sRet = self.checkRefEFlagsUse(aoStmts, {});
         if sRet:
             asRet.append(sRet);
 
@@ -3203,6 +3247,18 @@ g_dMcStmtParsers = {
     'IEM_MC_IND_CALL_U32_AND_FINISH':                            (McBlock.parseMcGeneric,           True,  True,  False, ),
     'IEM_MC_IND_CALL_U64_AND_FINISH':                            (McBlock.parseMcGeneric,           True,  True,  False, ),
     'IEM_MC_INT_CLEAR_ZMM_256_UP':                               (McBlock.parseMcGeneric,           True,  True,  False, ),
+    'IEM_MC_LIVENESS_GREG_INPUT':                                (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_GREG_CLOBBER':                              (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_GREG_MODIFY':                               (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_MREG_INPUT':                                (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_MREG_CLOBBER':                              (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_MREG_MODIFY':                               (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_XREG_INPUT':                                (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_XREG_CLOBBER':                              (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_XREG_MODIFY':                               (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_MXCSR_INPUT':                               (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_MXCSR_CLOBBER':                             (McBlock.parseMcGeneric,           False, False, True,  ),
+    'IEM_MC_LIVENESS_MXCSR_MODIFY':                              (McBlock.parseMcGeneric,           False, False, True,  ),
     'IEM_MC_LOCAL':                                              (McBlock.parseMcLocal,             False, False, True,  ),
     'IEM_MC_LOCAL_ASSIGN':                                       (McBlock.parseMcLocalAssign,       False, False, True,  ),
     'IEM_MC_LOCAL_CONST':                                        (McBlock.parseMcLocalConst,        False, False, True,  ),
@@ -3291,7 +3347,7 @@ g_dMcStmtParsers = {
     'IEM_MC_PUSH_U32':                                           (McBlock.parseMcGeneric,           True,  True,  True,  ),
     'IEM_MC_PUSH_U32_SREG':                                      (McBlock.parseMcGeneric,           True,  True,  True,  ),
     'IEM_MC_PUSH_U64':                                           (McBlock.parseMcGeneric,           True,  True,  True,  ),
-    'IEM_MC_RAISE_DIVIDE_ERROR':                                 (McBlock.parseMcGeneric,           True,  True,  True,  ),
+    'IEM_MC_RAISE_DIVIDE_ERROR_IF_LOCAL_IS_ZERO':                (McBlock.parseMcGeneric,           True,  True,  True,  ),
     'IEM_MC_RAISE_GP0_IF_CPL_NOT_ZERO':                          (McBlock.parseMcGeneric,           True,  True,  False, ),
     'IEM_MC_RAISE_GP0_IF_EFF_ADDR_UNALIGNED':                    (McBlock.parseMcGeneric,           True,  True,  True,  ),
     'IEM_MC_REF_EFLAGS':                                         (McBlock.parseMcGeneric,           False, False, True,  ),

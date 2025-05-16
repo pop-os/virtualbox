@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2024 Oracle and/or its affiliates.
  * This file is based on ast_drv.c
  * Copyright 2012 Red Hat Inc.
  *
@@ -43,7 +43,7 @@
 # include <drm/drm_probe_helper.h>
 #endif
 
-#if RTLNX_VER_MIN(5,14,0) || RTLNX_RHEL_RANGE(8,6, 8,99)
+#if RTLNX_VER_RANGE(5,14,0, 6,13,0) || RTLNX_RHEL_RANGE(8,6, 8,99)
 # include <drm/drm_aperture.h>
 #endif
 
@@ -84,7 +84,17 @@ static int vbox_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	struct drm_device *dev = NULL;
 	int ret = 0;
 
-# if RTLNX_VER_MIN(5,14,0) || RTLNX_RHEL_RANGE(8,6, 8,99)
+#if RTLNX_VER_MIN(6,0,0)
+	static bool fWarned = false;
+	if (!fWarned)
+	{
+		printk(KERN_ERR "vboxvideo: VM is using legacy graphics controller, "
+				"please consider to configure this guest to use VMSVGA instead\n");
+		fWarned = true;
+	}
+#endif
+
+# if RTLNX_VER_RANGE(5,14,0, 6,13,0) || RTLNX_RHEL_RANGE(8,6, 8,99)
 #  if RTLNX_VER_MIN(5,15,0) || RTLNX_RHEL_RANGE(8,7, 8,99) || RTLNX_RHEL_MIN(9,1) || RTLNX_SUSE_MAJ_PREREQ(15,4)
 	ret = drm_aperture_remove_conflicting_pci_framebuffers(pdev, &driver);
 #  else
@@ -294,6 +304,9 @@ static const struct file_operations vbox_fops = {
 	.compat_ioctl = drm_compat_ioctl,
 #endif
 	.read = drm_read,
+#if RTLNX_VER_MIN(6,12,0)
+	.fop_flags = FOP_UNSIGNED_OFFSET,
+#endif
 };
 
 #if RTLNX_VER_MIN(5,9,0) || RTLNX_RHEL_MIN(8,4) || RTLNX_SUSE_MAJ_PREREQ(15,3)
@@ -359,7 +372,9 @@ static struct drm_driver driver = {
 	.load = vbox_driver_load,
 	.unload = vbox_driver_unload,
 #endif
+#if RTLNX_VER_MAX(6,12,0) && !RTLNX_RHEL_RANGE(9,7, 9,99)
 	.lastclose = vbox_driver_lastclose,
+#endif
 	.master_set = vbox_master_set,
 	.master_drop = vbox_master_drop,
 #if RTLNX_VER_MIN(3,18,0) || RTLNX_RHEL_MAJ_PREREQ(7,2)
@@ -374,7 +389,9 @@ static struct drm_driver driver = {
 #endif
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
+#if RTLNX_VER_MAX(6,14,0)
 	.date = DRIVER_DATE,
+#endif
 	.major = DRIVER_MAJOR,
 	.minor = DRIVER_MINOR,
 	.patchlevel = DRIVER_PATCHLEVEL,

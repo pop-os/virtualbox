@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -196,6 +196,23 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
     rc = CFGMR3QueryU32Def(pIem, "NativeRecompileAtUsedCount", &uTbNativeRecompileAtUsedCount, 16);
     AssertLogRelRCReturn(rc, rc);
 
+    /** @cfgm{/IEM/HostICacheInvalidationViaHostAPI, bool, false}
+     * Whether to use any available host OS API for flushing the instruction cache
+     * after completing an translation block. */
+    bool fFlag = false;
+    rc = CFGMR3QueryBoolDef(pIem, "HostICacheInvalidationViaHostAPI", &fFlag, false);
+    AssertLogRelRCReturn(rc, rc);
+    uint8_t fHostICacheInvalidation = fFlag ? IEMNATIVE_ICACHE_F_USE_HOST_API : 0;
+
+    /** @cfgm{/IEM/HostICacheInvalidationEndWithIsb, bool, false}
+     * Whether to include an ISB in the instruction cache invalidation sequence
+     * after completing an translation block. */
+    fFlag = false;
+    rc = CFGMR3QueryBoolDef(pIem, "HostICacheInvalidationEndWithIsb", &fFlag, false);
+    AssertLogRelRCReturn(rc, rc);
+    if (fFlag)
+        fHostICacheInvalidation |= IEMNATIVE_ICACHE_F_END_WITH_ISH;
+
 #endif /* VBOX_WITH_IEM_RECOMPILER*/
 
     /*
@@ -300,6 +317,7 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
          */
         pVCpu->iem.s.uRegFpCtrl                    = IEMNATIVE_SIMD_FP_CTRL_REG_NOT_MODIFIED;
         pVCpu->iem.s.uTbNativeRecompileAtUsedCount = uTbNativeRecompileAtUsedCount;
+        pVCpu->iem.s.fHostICacheInvalidation       = fHostICacheInvalidation;
 #endif
 
 #ifdef IEM_WITH_TLB_TRACE
@@ -730,84 +748,117 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
                         "Times liveness info helped finding the return register in iemNativeRegAllocFindFree.",
                         "/IEM/CPU%u/re/NativeRegFindFreeLivenessHelped", idCpu);
 
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeEflSkippedArithmetic,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
-                        "Skipped all status flag updating, arithmetic instructions",
-                        "/IEM/CPU%u/re/NativeEFlagsSkippedArithmetic", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeEflSkippedLogical,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
-                        "Skipped all status flag updating, logical instructions",
-                        "/IEM/CPU%u/re/NativeEFlagsSkippedLogical", idCpu);
+#   define REG_NATIVE_EFL_GROUP(a_Lower, a_Camel) do { \
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeEflPostponed ## a_Camel, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, \
+                        "Postponed all status flag updating, " #a_Lower " instructions", \
+                        "/IEM/CPU%u/re/NativeEFlags/" #a_Camel "Postponed", idCpu); \
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeEflSkipped ## a_Camel,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, \
+                        "Skipped all status flag updating, " #a_Lower " instructions", \
+                        "/IEM/CPU%u/re/NativeEFlags/" #a_Camel "Skipped", idCpu); \
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeEflTotal ## a_Camel,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, \
+                        "Total number of " #a_Lower " intructions with status flag updating", \
+                        "/IEM/CPU%u/re/NativeEFlags/" #a_Camel "Total", idCpu); \
+        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeEFlags/" #a_Camel "Total", idCpu); \
+        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativeEFlags/" #a_Camel "Postponed", idCpu); \
+        STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, false, szPat, \
+                               "Postponed all status flag updating, " #a_Lower " instructions, percentage", \
+                               "/IEM/CPU%u/re/NativeEFlags/" #a_Camel "PostponedPct", idCpu); \
+        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativeEFlags/" #a_Camel "Skipped", idCpu); \
+        STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, false, szPat, \
+                               "Skipped all status flag updating, " #a_Lower " instructions, percentage", \
+                               "/IEM/CPU%u/re/NativeEFlags/" #a_Camel "SkippedPct", idCpu); \
+    } while (0)
+        REG_NATIVE_EFL_GROUP(arithmetic, Arithmetic);
+        REG_NATIVE_EFL_GROUP(logical,    Logical);
+        REG_NATIVE_EFL_GROUP(shift,      Shift);
+#   undef REG_NATIVE_EFL_GROUP
 
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflCfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.CF updating",       "/IEM/CPU%u/re/NativeLivenessEFlagsCfSkippable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflPfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.PF updating",       "/IEM/CPU%u/re/NativeLivenessEFlagsPfSkippable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflAfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.AF updating",       "/IEM/CPU%u/re/NativeLivenessEFlagsAfSkippable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflZfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.ZF updating",       "/IEM/CPU%u/re/NativeLivenessEFlagsZfSkippable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflSfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.SF updating",       "/IEM/CPU%u/re/NativeLivenessEFlagsSfSkippable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflOfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.OF updating",       "/IEM/CPU%u/re/NativeLivenessEFlagsOfSkippable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeEflPostponedEmits, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_NONE,
+                        "Postponed EFLAGS calculation emits", "/IEM/CPU%u/re/NativeEFlags/ZZEmits", idCpu);
 
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflCfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.CF updating",        "/IEM/CPU%u/re/NativeLivenessEFlagsCfRequired", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflPfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.PF updating",        "/IEM/CPU%u/re/NativeLivenessEFlagsPfRequired", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflAfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.AF updating",        "/IEM/CPU%u/re/NativeLivenessEFlagsAfRequired", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflZfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.ZF updating",        "/IEM/CPU%u/re/NativeLivenessEFlagsZfRequired", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflSfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.SF updating",        "/IEM/CPU%u/re/NativeLivenessEFlagsSfRequired", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflOfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.OF updating",        "/IEM/CPU%u/re/NativeLivenessEFlagsOfRequired", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflCfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.CF updating",       "/IEM/CPU%u/re/NativeLivenessEFlags/CfSkippable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflPfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.PF updating",       "/IEM/CPU%u/re/NativeLivenessEFlags/PfSkippable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflAfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.AF updating",       "/IEM/CPU%u/re/NativeLivenessEFlags/AfSkippable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflZfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.ZF updating",       "/IEM/CPU%u/re/NativeLivenessEFlags/ZfSkippable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflSfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.SF updating",       "/IEM/CPU%u/re/NativeLivenessEFlags/SfSkippable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflOfSkippable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Skippable EFLAGS.OF updating",       "/IEM/CPU%u/re/NativeLivenessEFlags/OfSkippable", idCpu);
+
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflCfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.CF updating",        "/IEM/CPU%u/re/NativeLivenessEFlags/CfRequired", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflPfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.PF updating",        "/IEM/CPU%u/re/NativeLivenessEFlags/PfRequired", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflAfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.AF updating",        "/IEM/CPU%u/re/NativeLivenessEFlags/AfRequired", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflZfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.ZF updating",        "/IEM/CPU%u/re/NativeLivenessEFlags/ZfRequired", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflSfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.SF updating",        "/IEM/CPU%u/re/NativeLivenessEFlags/SfRequired", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflOfRequired,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Required EFLAGS.OF updating",        "/IEM/CPU%u/re/NativeLivenessEFlags/OfRequired", idCpu);
 
 #   ifdef IEMLIVENESS_EXTENDED_LAYOUT
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflCfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.CF updating", "/IEM/CPU%u/re/NativeLivenessEFlagsCfDelayable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflPfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.PF updating", "/IEM/CPU%u/re/NativeLivenessEFlagsPfDelayable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflAfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.AF updating", "/IEM/CPU%u/re/NativeLivenessEFlagsAfDelayable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflZfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.ZF updating", "/IEM/CPU%u/re/NativeLivenessEFlagsZfDelayable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflSfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.SF updating", "/IEM/CPU%u/re/NativeLivenessEFlagsSfDelayable", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflOfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.OF updating", "/IEM/CPU%u/re/NativeLivenessEFlagsOfDelayable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflCfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.CF updating", "/IEM/CPU%u/re/NativeLivenessEFlags/CfDelayable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflPfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.PF updating", "/IEM/CPU%u/re/NativeLivenessEFlags/PfDelayable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflAfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.AF updating", "/IEM/CPU%u/re/NativeLivenessEFlags/AfDelayable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflZfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.ZF updating", "/IEM/CPU%u/re/NativeLivenessEFlags/ZfDelayable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflSfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.SF updating", "/IEM/CPU%u/re/NativeLivenessEFlags/SfDelayable", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeLivenessEflOfDelayable,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Maybe delayable EFLAGS.OF updating", "/IEM/CPU%u/re/NativeLivenessEFlags/OfDelayable", idCpu);
 #   endif
 
         /* Sum up all status bits ('_' is a sorting hack). */
-        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags?fSkippable*", idCpu);
+        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags/?fSkippable*", idCpu);
         STAMR3RegisterSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, szPat, "Total skippable EFLAGS status bit updating",
-                          "/IEM/CPU%u/re/NativeLivenessEFlags_StatusSkippable", idCpu);
+                          "/IEM/CPU%u/re/NativeLivenessEFlags/totalSkippable", idCpu);
 
-        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags?fRequired*", idCpu);
+        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags/?fRequired*", idCpu);
         STAMR3RegisterSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, szPat, "Total required STATUS status bit updating",
-                          "/IEM/CPU%u/re/NativeLivenessEFlags_StatusRequired", idCpu);
+                          "/IEM/CPU%u/re/NativeLivenessEFlags/totalRequired", idCpu);
 
 #   ifdef IEMLIVENESS_EXTENDED_LAYOUT
-        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags?fDelayable*", idCpu);
+        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags/?fDelayable*", idCpu);
         STAMR3RegisterSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, szPat, "Total potentially delayable STATUS status bit updating",
-                          "/IEM/CPU%u/re/NativeLivenessEFlags_StatusDelayable", idCpu);
+                          "/IEM/CPU%u/re/NativeLivenessEFlags/totalDelayable", idCpu);
 #   endif
 
-        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags?f*", idCpu);
+        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags/?f*", idCpu);
         STAMR3RegisterSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, szPat, "Total STATUS status bit events of any kind",
-                          "/IEM/CPU%u/re/NativeLivenessEFlags_StatusTotal", idCpu);
+                          "/IEM/CPU%u/re/NativeLivenessEFlags/totalTotal", idCpu);
 
-        /* Ratio of the status bit skippables. */
-        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags_StatusTotal", idCpu);
-        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativeLivenessEFlags_StatusSkippable", idCpu);
+        /* Corresponding ratios / percentages of the totals. */
+        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags/totalTotal", idCpu);
+        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativeLivenessEFlags/totalSkippable", idCpu);
         STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, false, szPat,
                                "Total skippable EFLAGS status bit updating percentage",
-                               "/IEM/CPU%u/re/NativeLivenessEFlags_StatusSkippablePct", idCpu);
+                               "/IEM/CPU%u/re/NativeLivenessEFlags/totalSkippablePct", idCpu);
+
+        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags/totalTotal", idCpu);
+        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativeLivenessEFlags/totalRequired", idCpu);
+        STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, false, szPat,
+                               "Total required EFLAGS status bit updating percentage",
+                               "/IEM/CPU%u/re/NativeLivenessEFlags/totalRequiredPct", idCpu);
 
 #   ifdef IEMLIVENESS_EXTENDED_LAYOUT
-        /* Ratio of the status bit skippables. */
-        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativeLivenessEFlags_StatusDelayable", idCpu);
+        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativeLivenessEFlags/totalDelayable", idCpu);
         STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, false, szPat,
                                "Total potentially delayable EFLAGS status bit updating percentage",
-                               "/IEM/CPU%u/re/NativeLivenessEFlags_StatusDelayablePct", idCpu);
+                               "/IEM/CPU%u/re/NativeLivenessEFlags/totalDelayablePct", idCpu);
 #   endif
 
         /* Ratios of individual bits. */
-        size_t const offFlagChar = RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlagsCf*", idCpu) - 3;
+        size_t const offFlagChar = RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativeLivenessEFlags/Cf*", idCpu) - 3;
         Assert(szPat[offFlagChar] == 'C');
-        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativeLivenessEFlagsCfSkippable", idCpu);
+        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativeLivenessEFlags/CfSkippable", idCpu);
         Assert(szVal[offFlagChar] == 'C');
-        szPat[offFlagChar] = szVal[offFlagChar] = 'C'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.CF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlagsCfSkippablePct", idCpu);
-        szPat[offFlagChar] = szVal[offFlagChar] = 'P'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.PF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlagsPfSkippablePct", idCpu);
-        szPat[offFlagChar] = szVal[offFlagChar] = 'A'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.AF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlagsAfSkippablePct", idCpu);
-        szPat[offFlagChar] = szVal[offFlagChar] = 'Z'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.ZF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlagsZfSkippablePct", idCpu);
-        szPat[offFlagChar] = szVal[offFlagChar] = 'S'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.SF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlagsSfSkippablePct", idCpu);
-        szPat[offFlagChar] = szVal[offFlagChar] = 'O'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.OF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlagsOfSkippablePct", idCpu);
+        szPat[offFlagChar] = szVal[offFlagChar] = 'C'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.CF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlags/CfSkippablePct", idCpu);
+        szPat[offFlagChar] = szVal[offFlagChar] = 'P'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.PF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlags/PfSkippablePct", idCpu);
+        szPat[offFlagChar] = szVal[offFlagChar] = 'A'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.AF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlags/AfSkippablePct", idCpu);
+        szPat[offFlagChar] = szVal[offFlagChar] = 'Z'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.ZF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlags/ZfSkippablePct", idCpu);
+        szPat[offFlagChar] = szVal[offFlagChar] = 'S'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.SF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlags/SfSkippablePct", idCpu);
+        szPat[offFlagChar] = szVal[offFlagChar] = 'O'; STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, true, szPat, "Skippable EFLAGS.OF updating percentage", "/IEM/CPU%u/re/NativeLivenessEFlags/OfSkippablePct", idCpu);
 
+        /* PC updates total and skipped, with PCT ratio. */
         STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativePcUpdateTotal,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Total RIP updates",   "/IEM/CPU%u/re/NativePcUpdateTotal", idCpu);
         STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativePcUpdateDelayed, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Delayed RIP updates", "/IEM/CPU%u/re/NativePcUpdateDelayed", idCpu);
+        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativePcUpdateTotal", idCpu);
+        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativePcUpdateDelayed", idCpu);
+        STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, false, szPat,
+                               "Delayed RIP updating percentage",
+                               "/IEM/CPU%u/re/NativePcUpdateDelayed_StatusDelayedPct", idCpu);
+
 #  endif /* VBOX_WITH_STATISTICS */
 #  ifdef IEMNATIVE_WITH_DELAYED_REGISTER_WRITEBACK
         STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeEndIfOtherBranchDirty, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
@@ -815,7 +866,6 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
                         "/IEM/CPU%u/re/NativeEndIfOtherBranchDirty", idCpu);
 #  endif
 #  ifdef VBOX_WITH_STATISTICS
-#   ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
         STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeSimdRegFindFree, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
                         "Number of calls to iemNativeSimdRegAllocFindFree.",
                         "/IEM/CPU%u/re/NativeSimdRegFindFree", idCpu);
@@ -849,14 +899,6 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
                         "/IEM/CPU%u/re/NativeMaybeSseXcptCheckOmitted", idCpu);
         STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeMaybeAvxXcptCheckOmitted,              STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "IEM_MC_MAYBE_RAISE_AVX_RELATED_XCPT() checks omitted",
                         "/IEM/CPU%u/re/NativeMaybeAvxXcptCheckOmitted", idCpu);
-#   endif
-
-        /* Ratio of the status bit skippables. */
-        RTStrPrintf(szPat, sizeof(szPat), "/IEM/CPU%u/re/NativePcUpdateTotal", idCpu);
-        RTStrPrintf(szVal, sizeof(szVal), "/IEM/CPU%u/re/NativePcUpdateDelayed", idCpu);
-        STAMR3RegisterPctOfSum(pVM->pUVM, STAMVISIBILITY_ALWAYS, STAMUNIT_PCT, szVal, false, szPat,
-                               "Delayed RIP updating percentage",
-                               "/IEM/CPU%u/re/NativePcUpdateDelayed_StatusDelayedPct", idCpu);
 
         STAMR3RegisterF(pVM, &pVCpu->iem.s.StatNativeTbFinished, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
                         "Number of times the TB finishes execution completely",
@@ -1018,6 +1060,11 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
                             STAMUNIT_COUNT, NULL, "/IEM/CPU%u/ThrdFuncs/%s", idCpu, g_apszIemThreadedFunctionStats[i]);
 # endif
 
+
+        for (unsigned i = 1; i < RT_ELEMENTS(pVCpu->iem.s.aStatAdHoc); i++)
+            STAMR3RegisterF(pVM, &pVCpu->iem.s.aStatAdHoc[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED,
+                            STAMUNIT_COUNT, NULL, "/IEM/CPU%u/AdHoc/%02u", idCpu, i);
+
 #endif /* !defined(VBOX_VMM_TARGET_ARMV8) && defined(VBOX_WITH_NESTED_HWVIRT_VMX) - quick fix for stupid structure duplication non-sense */
     }
 
@@ -1062,6 +1109,10 @@ VMMR3DECL(int)      IEMR3Term(PVM pVM)
         RTMemPageFree(pVCpu->iem.s.paTlbTraceEntries,
                       RT_BIT_Z(pVCpu->iem.s.cTlbTraceEntriesShift) * sizeof(*pVCpu->iem.s.paTlbTraceEntries));
     }
+#endif
+#if defined(VBOX_WITH_IEM_NATIVE_RECOMPILER) && defined(VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        iemThreadedSaveTbForProfilingCleanup(pVM->apCpusR3[idCpu]);
 #endif
     return VINF_SUCCESS;
 }
@@ -2308,7 +2359,7 @@ static DECLCALLBACK(void) iemR3InfoTbTop(PVM pVM, PCDBGFINFOHLP pHlp, int cArgs,
                 break;
 
             default:
-                pHlp->pfnPrintf(pHlp, "TB#%#zx:%zu: PC=%RGp (%%%RGv) cUsed=%u msLastUsed=%u fFlags=%#010x - ???\n",
+                pHlp->pfnPrintf(pHlp, "TB#%#zx: PC=%RGp (%%%RGv) cUsed=%u msLastUsed=%u fFlags=%#010x - ???\n",
                                 idxTbNo, pTb->GCPhysPc, pTb->FlatPc, pTb->cUsed, pTb->msLastUsed, pTb->fFlags);
                 break;
         }

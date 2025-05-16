@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1040,7 +1040,7 @@ HRESULT SystemProperties::getSupportedPlatformArchitectures(std::vector<Platform
 
 #ifdef VBOX_WITH_VIRT_ARMV8
     Bstr bstrEnableX86OnArm;
-    HRESULT hrc =mParent->GetExtraData(Bstr("VBoxInternal2/EnableX86OnArm").raw(), bstrEnableX86OnArm.asOutParam());
+    HRESULT hrc = mParent->GetExtraData(Bstr("VBoxInternal2/EnableX86OnArm").raw(), bstrEnableX86OnArm.asOutParam());
     if (FAILED(hrc) || !bstrEnableX86OnArm.equals("1"))
     {
         Assert(aSupportedPlatformArchitectures[0] == PlatformArchitecture_x86);

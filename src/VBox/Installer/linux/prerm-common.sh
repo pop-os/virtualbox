@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2015-2023 Oracle and/or its affiliates.
+# Copyright (C) 2015-2024 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -47,7 +47,7 @@ MY_PATH="${TARGET%/[!/]*}"
 cd "${MY_PATH}"
 . "./routines.sh"
 
-# Stop the ballon control service
+# Stop the balloon control service
 stop_init_script vboxballoonctrl-service >/dev/null 2>&1
 # Stop the autostart service
 stop_init_script vboxautostart-service >/dev/null 2>&1

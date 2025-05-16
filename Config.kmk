@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright (C) 2006-2023 Oracle and/or its affiliates.
+# Copyright (C) 2006-2024 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -341,6 +341,8 @@ else
 endif
 ifeq ($(KBUILD_TARGET_ARCH),x86)
  VBOX_PACKAGE_ARCH  = 32BITS
+else ifeq ($(KBUILD_TARGET_ARCH),arm64)
+ VBOX_PACKAGE_ARCH  = ARM64
 else
  VBOX_PACKAGE_ARCH  = 64BITS
 endif
@@ -781,6 +783,11 @@ endif
 ## @{
 # Build the installer.
 VBOX_WITH_INSTALLER = 1
+# Show license pages for non-OSE versions by default.
+# This is required for e.g. the Windows host installer.
+ifndef VBOX_OSE
+ VBOX_WITH_LICENSE_DISPLAY = 1
+endif
 VBOX_WITH_GUEST_INSTALLER_UNICODE = 1
 # The kernel driver/module and related runtime libraries.
 # On Linux we build this as a test case instead.
@@ -830,8 +837,6 @@ VBOX_WITH_QTGUI = 1
 ifeq ($(KBUILD_TARGET),darwin)
  VBOX_WITH_COCOA_QT = 1
 endif
-# Use Qt6 instead of Qt5.
-VBOX_WITH_QT6 := 1
 
 # VBox Ballooning Control frontend.
 VBOX_WITH_FE_BALLOONCTRL = 1
@@ -2650,7 +2655,7 @@ VBOX_MAKESELF  ?= $(KBUILD_DEVTOOLS)/common/makeself/v2.4.5-r2/makeself.sh
 VBOX_PATH_HTML_HELP_WORKSHOP ?= $(KBUILD_DEVTOOLS)/win.x86/HTML_Help_Workshop/v1.3/
 
 # Path to the null soft installer.
-VBOX_PATH_NSIS ?= $(KBUILD_DEVTOOLS)/win.x86/nsis/v3.09-log
+VBOX_PATH_NSIS ?= $(KBUILD_DEVTOOLS)/win.x86/nsis/v3.10-log-r1
 
 # Windows Installer XML (WIX) toolset.
 VBOX_PATH_WIX       ?= $(KBUILD_DEVTOOLS)/win.x86/wix/v4.0.5
@@ -2666,7 +2671,6 @@ else
  VBOX_PATH_WISUBSTG ?= $(KBUILD_DEVTOOLS)/win.x86/sdk/v7.1/Samples/sysmgmt/msi/scripts/WiSubStg.vbs
  VBOX_PATH_WISUMINFO ?= $(KBUILD_DEVTOOLS)/win.x86/sdk/v7.1/Samples/sysmgmt/msi/scripts/WiSumInf.vbs
 endif
-VBOX_PATH_DIFX      ?= $(KBUILD_DEVTOOLS)/win.$(KBUILD_TARGET_ARCH)/DIFx/v2.1-r3
 
 ifdef VBOX_OSE ## @todo try get rid of this crap! People can use the latest and greatest Yasm release, no need to check in the binary for OSE.
  # We need to export YASM for OSE, but since it was converted to .zip we need to
@@ -3948,11 +3952,7 @@ endif
 # Microsoft Visual C++.  We've been avoiding the native type for ever,
 # but now that is causing issues with Qt 6.x.
 #
-ifndef VBOX_WITH_QT6
- VBOX_VCC_WCHAR_T_VARIANT = -Zc:wchar_t-
-else
- VBOX_VCC_WCHAR_T_VARIANT = -Zc:wchar_t
-endif
+VBOX_VCC_WCHAR_T_VARIANT = -Zc:wchar_t
 
 
 #
@@ -4506,16 +4506,16 @@ ifdef VBOX_SIGNING_MODE
   	"$(1)" \
   	$(if-expr "$4" == "2",$$(NLTAB),$(NLTAB))$(call VBOX_CCS_SIGN_CMD,driver$(if-expr "$3" == "/ph",_pagehash,),$1,,-digest_algo SHA2)
 
-  ## Sign an executable image.
+  ## Sign an executable image, normal method.
   # @param 1  The file to sign.
   # @param 2  File description. Optional.
   # @param 3  Set to 2 if the expression will be expanded twice before chopped into commands (for _CMDS).
   if1of (win_with_ev, $(VBOX_WITH_CORP_CODE_SIGNING))
-   VBOX_SIGN_IMAGE_FN        ?= $(call VBOX_SIGN_IMAGE_WITH_EV_FN,$(1),$(2),/ph,$(3))
-   VBOX_SIGN_IMAGE_ORDERDEPS ?= $(VBOX_RTSIGNTOOL) $(VBOX_SIGNTOOL_ORDERDEPS)
+   VBOX_SIGN_IMAGE_NORMAL_FN        ?= $(call VBOX_SIGN_IMAGE_WITH_EV_FN,$(1),$(2),/ph,$(3))
+   VBOX_SIGN_IMAGE_NORMAL_ORDERDEPS ?= $(VBOX_RTSIGNTOOL) $(VBOX_SIGNTOOL_ORDERDEPS)
   else
-   VBOX_SIGN_IMAGE_FN        ?= $(call VBOX_SIGN_FILE_FN,$(1),$(2),/ph,$(3))
-   VBOX_SIGN_IMAGE_ORDERDEPS ?= $(VBOX_SIGNTOOL_ORDERDEPS)
+   VBOX_SIGN_IMAGE_NORMAL_FN        ?= $(call VBOX_SIGN_FILE_FN,$(1),$(2),/ph,$(3))
+   VBOX_SIGN_IMAGE_NORMAL_ORDERDEPS ?= $(VBOX_SIGNTOOL_ORDERDEPS)
   endif
 
   ## Commands for signing a driver image after link.
@@ -4523,11 +4523,11 @@ ifdef VBOX_SIGNING_MODE
    VBOX_SIGN_DRIVER_CMDS      ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_PLAN_B_FN,$(out),,/ph,2))
    VBOX_SIGN_DRIVER_ORDERDEPS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(VBOX_RTSIGNTOOL) $(VBOX_SIGNTOOL_ORDERDEPS))
   else if $(intersects win_planc,$(VBOX_WITH_CORP_CODE_SIGNING))
-   VBOX_SIGN_DRIVER_CMDS      ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out),,2,nodual))
+   VBOX_SIGN_DRIVER_CMDS      ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_NORMAL_FN,$(out),,2,nodual))
    VBOX_SIGN_DRIVER_ORDERDEPS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(VBOX_RTSIGNTOOL) $(VBOX_SIGNTOOL_ORDERDEPS))
   else
-   VBOX_SIGN_DRIVER_CMDS      ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out),,2))
-   VBOX_SIGN_DRIVER_ORDERDEPS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(VBOX_SIGN_IMAGE_ORDERDEPS))
+   VBOX_SIGN_DRIVER_CMDS      ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_NORMAL_FN,$(out),,2))
+   VBOX_SIGN_DRIVER_ORDERDEPS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(VBOX_SIGN_IMAGE_NORMAL_ORDERDEPS))
   endif
 
   ## Create a security catalog file.
@@ -4553,6 +4553,18 @@ ifdef VBOX_SIGNING_MODE
    VBOX_MAKE_CAT_FN    ?= $(call VBOX_MAKE_CAT64_FN,$(1),$(2))
   endif
 
+  ## Functions + deps for signing an executable or a dll image. See VBOX_SIGN_IMAGE_NORMAL_FN for parameters.
+  if defined(VBOX_CERTIFICATE_SUBJECT_NAME) && $(intersects win_planb,$(VBOX_WITH_CORP_CODE_SIGNING))
+   VBOX_SIGN_IMAGE_FN             ?= $(call VBOX_SIGN_IMAGE_PLAN_B_FN,$(1),$(2),/ph,$(3))
+   VBOX_SIGN_IMAGE_ORDERDEPS      ?= $(VBOX_RTSIGNTOOL) $(VBOX_SIGNTOOL_ORDERDEPS)
+  else if defined(VBOX_CERTIFICATE_SUBJECT_NAME) && $(intersects win_planc,$(VBOX_WITH_CORP_CODE_SIGNING))
+   VBOX_SIGN_IMAGE_FN             ?= $(call VBOX_SIGN_IMAGE_PLAN_C_FN,$(1),$(2),/ph,$(3))
+   VBOX_SIGN_IMAGE_ORDERDEPS      ?= $(VBOX_RTSIGNTOOL) $(VBOX_SIGNTOOL_ORDERDEPS)
+  else
+   VBOX_SIGN_IMAGE_FN             ?= $(call VBOX_SIGN_IMAGE_NORMAL_FN,$(1),$(2),$(3))
+   VBOX_SIGN_IMAGE_ORDERDEPS      ?= $(VBOX_SIGN_IMAGE_NORMAL_ORDERDEPS)
+  endif
+
   # Go nuts, sign everything.
   if "$(VBOX_SIGNING_MODE)" == "release" || defined(VBOX_WITH_HARDENING)
    ## Commands for signing an executable or a dll image after link.
@@ -4563,8 +4575,8 @@ ifdef VBOX_SIGNING_MODE
     VBOX_SIGN_IMAGE_CMDS           ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_PLAN_C_FN,$(out),,/ph,2))
     VBOX_SIGN_IMAGE_CMDS_ORDERDEPS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(VBOX_RTSIGNTOOL) $(VBOX_SIGNTOOL_ORDERDEPS))
    else
-    VBOX_SIGN_IMAGE_CMDS           ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out),,2))
-    VBOX_SIGN_IMAGE_CMDS_ORDERDEPS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(VBOX_SIGN_IMAGE_ORDERDEPS))
+    VBOX_SIGN_IMAGE_CMDS           ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_NORMAL_FN,$(out),,2))
+    VBOX_SIGN_IMAGE_CMDS_ORDERDEPS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(VBOX_SIGN_IMAGE_NORMAL_ORDERDEPS))
    endif
   endif
   ## Enable signing of the additions drivers, i.e. create CAT files.
@@ -5119,18 +5131,18 @@ endif
 
 ifdef VBOX_WITH_LIBCURL
  SDK_VBoxLibCurl              := libcurl for dll linking.
- SDK_VBoxLibCurl_INCS         ?= $(PATH_ROOT)/src/libs/curl-8.7.1/include
+ SDK_VBoxLibCurl_INCS         ?= $(PATH_ROOT)/src/libs/curl-8.11.1/include
  SDK_VBoxLibCurl_LIBS         ?= $(PATH_STAGE_LIB)/VBox-libcurl$(VBOX_SUFF_LIB)
  SDK_VBoxLibCurl_DEFS         ?= BUILDING_LIBCURL
 
  SDK_VBoxLibCurl-x86           = libcurl/x86 for dll linking.
- SDK_VBoxLibCurl-x86_INCS     ?= $(PATH_ROOT)/src/libs/curl-8.7.1/include
+ SDK_VBoxLibCurl-x86_INCS     ?= $(PATH_ROOT)/src/libs/curl-8.11.1/include
  SDK_VBoxLibCurl-x86_LIBS.x86 ?= $(PATH_STAGE_LIB)/VBox-libcurl-x86$(VBOX_SUFF_LIB)
  SDK_VBoxLibCurl-x86_DEFS     ?= BUILDING_LIBCURL
 endif
 
 SDK_VBoxLibPng                := protable network graphics (png) library for dll linking.
-SDK_VBoxLibPng_INCS           ?= $(PATH_ROOT)/src/libs/libpng-1.6.43
+SDK_VBoxLibPng_INCS           ?= $(PATH_ROOT)/src/libs/libpng-1.6.45
 SDK_VBoxLibPng_LIBS           ?= $(PATH_STAGE_LIB)/VBox-libpng$(VBOX_SUFF_LIB)
 
 # lzf
@@ -5150,7 +5162,7 @@ endif
 
 # openssl
 SDK_VBoxOpenSslStatic                        := OpenSSL - Only for VBoxRT and/or statically linked programs.
-SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS      := $(PATH_OUT)/obj/crypto-3.1.7-headers/include
+SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS      := $(PATH_OUT)/obj/crypto-3.3.2-headers/include
 SDK_VBoxOpenSslStatic_INCS                   ?= $(SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS)
 SDK_VBoxOpenSslStatic_ORDERDEPS              ?= $(crypto-headers_1_TARGET)
 if   !defined(VBOX_ONLY_SDK) \
@@ -5164,7 +5176,7 @@ SDK_VBoxOpenSslStatic_LIBS                   ?= \
 	$(PATH_STAGE_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB)
 
 SDK_VBoxOpenSslStatic-x86                    := OpenSSL/x86 - Only for VBoxRT and/or statically linked programs.
-SDK_VBoxOpenSslStatic-x86_VBOX_DEFAULT_INCS  := $(PATH_OUT)/obj/crypto-3.1.7-headers/include
+SDK_VBoxOpenSslStatic-x86_VBOX_DEFAULT_INCS  := $(PATH_OUT)/obj/crypto-3.3.2-headers/include
 SDK_VBoxOpenSslStatic-x86_INCS               ?= $(SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS)
 SDK_VBoxOpenSslStatic-x86_ORDERDEPS          ?= $(crypto-headers_1_TARGET)
 if ("$(SDK_VBoxOpenSslStatic_INCS)" == "$(SDK_VBoxOpenSslStatic_VBOX_DEFAULT_INCS)")
@@ -5292,7 +5304,7 @@ SDK_VBoxLibXml2_DEFS.win      ?= WIN32 _WINDOWS _MBCS HAVE_WIN32_THREADS HAVE_CO
 # zlib
 SDK_VBoxZlib                  := zlib for dll linking.
 if1of ($(KBUILD_TARGET), os2 solaris win)
- SDK_VBoxZlib_INCS            ?= $(PATH_ROOT)/src/libs/zlib-1.2.13
+ SDK_VBoxZlib_INCS            ?= $(PATH_ROOT)/src/libs/zlib-1.3.1
  SDK_VBoxZlib_LIBS            ?= $(PATH_STAGE_LIB)/VBox-zlib$(VBOX_SUFF_LIB)
 else
  SDK_VBoxZlib_INCS            ?=
@@ -7889,7 +7901,7 @@ if defined(VBOX_WITH_QTGUI) || defined(VBOX_WITH_NLS)
  #
  ifeq ($(VBOX_PATH_QT),)
   ifeq ($(KBUILD_TARGET),darwin)
-   VBOX_PATH_QT := $(lastword $(sort $(wildcard $(KBUILD_DEVTOOLS_TRG)/qt/v5*)))
+   VBOX_PATH_QT := $(lastword $(sort $(wildcard $(KBUILD_DEVTOOLS_TRG)/qt/v6*)))
    ifeq ($(VBOX_PATH_QT),)
     ifneq ($(wildcard /Library/Frameworks/QtCore.framework),)
      # Using the global installation (for OSE).
@@ -7899,29 +7911,15 @@ if defined(VBOX_WITH_QTGUI) || defined(VBOX_WITH_NLS)
    endif
   else if1of ($(KBUILD_TARGET), win)
    ## @todo kBuild: Use qfilter[-out] here once kmk.exe is updated.
-   ifndef VBOX_WITH_QT6
-    VBOX_PATH_QT := $(rversortfiles $(qwildcard ,$(KBUILD_DEVTOOLS_TRG)/qt/v5*))
-    VBOX_PATH_QT := $(firstfile $(filter %-$(tolower $(VBOX_VCC_TOOL_STEM)),$(VBOX_PATH_QT)) \
-    		$(filter-out %-vcc100 %-vcc110 %-vcc120 %-vcc140 %-vcc141 %-vcc142 %-vcc143 %-vcc150, $(VBOX_PATH_QT)))
-    ifdef VBOX_PATH_QT
-     PATH_SDK_QT5  := $(VBOX_PATH_QT)
-     PATH_TOOL_QT5 := $(VBOX_PATH_QT)
-    endif
-   else # qt6
-    VBOX_PATH_QT := $(rversortfiles $(qwildcard ,$(KBUILD_DEVTOOLS_TRG)/qt/v6*))
-    VBOX_PATH_QT := $(firstfile $(filter %-$(tolower $(VBOX_VCC_TOOL_STEM)),$(VBOX_PATH_QT)) \
-    		$(filter-out %-vcc100 %-vcc110 %-vcc120 %-vcc140 %-vcc141 %-vcc142 %-vcc143 %-vcc150, $(VBOX_PATH_QT)))
-    ifdef VBOX_PATH_QT
-     PATH_SDK_QT6  := $(VBOX_PATH_QT)
-     PATH_TOOL_QT6 := $(VBOX_PATH_QT)
-    endif
-   endif # qt6
-  else if1of ($(KBUILD_TARGET), linux solaris)
-   ifndef VBOX_WITH_QT6
-    VBOX_PATH_QT ?= $(firstfile $(versortfiles $(qwildcard ,$(KBUILD_DEVTOOLS_TRG)/qt/v5*)))
-   else
-    VBOX_PATH_QT ?= $(firstfile $(versortfiles $(qwildcard ,$(KBUILD_DEVTOOLS_TRG)/qt/v6*)))
+   VBOX_PATH_QT := $(rversortfiles $(qwildcard ,$(KBUILD_DEVTOOLS_TRG)/qt/v6*))
+   VBOX_PATH_QT := $(firstfile $(filter %-$(tolower $(VBOX_VCC_TOOL_STEM)),$(VBOX_PATH_QT)) \
+   		$(filter-out %-vcc100 %-vcc110 %-vcc120 %-vcc140 %-vcc141 %-vcc142 %-vcc143 %-vcc150, $(VBOX_PATH_QT)))
+   ifdef VBOX_PATH_QT
+    PATH_SDK_QT6  := $(VBOX_PATH_QT)
+    PATH_TOOL_QT6 := $(VBOX_PATH_QT)
    endif
+  else if1of ($(KBUILD_TARGET), linux solaris)
+   VBOX_PATH_QT ?= $(firstfile $(versortfiles $(qwildcard ,$(KBUILD_DEVTOOLS_TRG)/qt/v6*)))
    ifneq ($(VBOX_PATH_QT),)
     VBOX_WITH_ORACLE_QT = 1
    endif
@@ -7931,7 +7929,7 @@ if defined(VBOX_WITH_QTGUI) || defined(VBOX_WITH_NLS)
  VBOX_PATH_QT_LIB ?= $(VBOX_PATH_QT)/lib
 
  ifdef VBOX_WITH_ORACLE_QT
-  if !defined(VBOX_WITH_QT6) || "$(KBUILD_TARGET)" != "darwin"
+  if "$(KBUILD_TARGET)" != "darwin"
    VBOX_QT_INFIX := VBox$(VBOX_QT_DBG)
   endif
   VBOX_QT_POSTFIX := VBox
@@ -7946,41 +7944,22 @@ if defined(VBOX_WITH_QTGUI) || defined(VBOX_WITH_NLS)
  endif
 
  ifeq ($(KBUILD_TARGET),darwin)
-  VBOX_QT_MOD := QtCore QtGui QtWidgets QtPrintSupport QtHelp QtNetwork QtSql
-  ifdef VBOX_WITH_QT6
-   VBOX_QT_MOD += QtStateMachine
-  else
-   VBOX_QT_MOD += QtMacExtras
-  endif
+  VBOX_QT_MOD := QtCore QtGui QtWidgets QtPrintSupport QtHelp QtNetwork QtSql QtStateMachine
  else if1of ($(KBUILD_TARGET), linux freebsd netbsd openbsd solaris win)
   if1of ($(KBUILD_TARGET), linux freebsd netbsd openbsd solaris)
-   ifndef VBOX_WITH_QT6
-    VBOX_QT_MOD += Qt5Core Qt5Gui Qt5Widgets Qt5PrintSupport $(if $(VBOX_GUI_USE_QGL),Qt5OpenGL,)
-    VBOX_QT_MOD += Qt5DBus Qt5Xml Qt5XcbQpa Qt5X11Extras Qt5Help Qt5Network Qt5Sql
-    VBOX_QT_PLUGINS = \
-    	plugins/platforms/libqxcb.so \
-    	plugins/platformthemes/libqgtk2.so \
-    	plugins/platformthemes/libqgtk3.so \
-    	plugins/sqldrivers/libqsqlite.so \
-    	plugins/styles/libqgtk2style.so \
-    	plugins/xcbglintegrations/libqxcb-glx-integration.so
-   else # qt6
-    VBOX_QT_MOD += Qt6Core Qt6Gui Qt6Widgets Qt6PrintSupport Qt6StateMachine
-    VBOX_QT_MOD += Qt6DBus Qt6Xml Qt6XcbQpa Qt6Help Qt6Network Qt6Sql
-    VBOX_QT_PLUGINS = \
-    	plugins/platforms/libqxcbVBox.so \
-    	plugins/platformthemes/libqgtk2VBox.so \
-    	plugins/platformthemes/libqgtk3VBox.so \
-    	plugins/sqldrivers/libqsqliteVBox.so \
-    	plugins/styles/libqgtk2styleVBox.so
-   endif # qt6
+   VBOX_QT_MOD += Qt6Core Qt6Gui Qt6Widgets Qt6PrintSupport Qt6StateMachine
+   VBOX_QT_MOD += Qt6DBus Qt6Xml Qt6XcbQpa Qt6Help Qt6Network Qt6Sql
+   VBOX_QT_PLUGINS = \
+   	plugins/platforms/libqxcb$(VBOX_QT_POSTFIX).so \
+   	plugins/platformthemes/libqgtk3$(VBOX_QT_POSTFIX).so \
+   	plugins/sqldrivers/libqsqlite$(VBOX_QT_POSTFIX).so
+   ifdef VBOX_WITH_ORACLE_QT
+    VBOX_QT_PLUGINS += \
+    	plugins/platformthemes/libqgtk2$(VBOX_QT_POSTFIX).so \
+    	plugins/styles/libqgtk2style$(VBOX_QT_POSTFIX).so
+   endif
   else ifeq ($(KBUILD_TARGET),win)
-   ifndef VBOX_WITH_QT6
-    VBOX_QT_MOD += Qt5Core Qt5Gui Qt5Widgets Qt5PrintSupport $(if $(VBOX_GUI_USE_QGL),Qt5OpenGL,)
-    VBOX_QT_MOD += Qt5WinExtras Qt5Help Qt5Network Qt5Sql
-   else # qt6
-    VBOX_QT_MOD += Qt6Core Qt6Gui Qt6Widgets Qt6PrintSupport Qt6StateMachine Qt6Help Qt6Network Qt6Sql
-   endif # qt6
+   VBOX_QT_MOD += Qt6Core Qt6Gui Qt6Widgets Qt6PrintSupport Qt6StateMachine Qt6Help Qt6Network Qt6Sql
   endif # win
  endif # linux freebsd netbsd openbsd solaris win
 
@@ -8008,23 +7987,13 @@ ifdef VBOX_WITH_QTGUI
  # Template for building Qt GUI executables.
  #
  TEMPLATE_VBoxQtGuiExe = VBox Qt GUI Executable
- ifndef VBOX_WITH_QT6
-  TEMPLATE_VBoxQtGuiExe_USES    := qt5
-  TEMPLATE_VBoxQtGuiExe_QTTOOL  := QT5
-  TEMPLATE_VBoxQtGuiExe_MOCTOOL := QT5
-  TEMPLATE_VBoxQtGuiExe_UICTOOL := QT5
-  TEMPLATE_VBoxQtGuiExe_RCCTOOL := QT5
-  TEMPLATE_VBoxQtGuiExe_LRCTOOL := QT5
-  TEMPLATE_VBoxQtGuiExe_SDKS    := QT5
- else
-  TEMPLATE_VBoxQtGuiExe_USES    := qt6
-  TEMPLATE_VBoxQtGuiExe_QTTOOL  := QT6
-  TEMPLATE_VBoxQtGuiExe_MOCTOOL := QT6
-  TEMPLATE_VBoxQtGuiExe_UICTOOL := QT6
-  TEMPLATE_VBoxQtGuiExe_RCCTOOL := QT6
-  TEMPLATE_VBoxQtGuiExe_LRCTOOL := QT6
-  TEMPLATE_VBoxQtGuiExe_SDKS    := QT6
- endif
+ TEMPLATE_VBoxQtGuiExe_USES    := qt6
+ TEMPLATE_VBoxQtGuiExe_QTTOOL  := QT6
+ TEMPLATE_VBoxQtGuiExe_MOCTOOL := QT6
+ TEMPLATE_VBoxQtGuiExe_UICTOOL := QT6
+ TEMPLATE_VBoxQtGuiExe_RCCTOOL := QT6
+ TEMPLATE_VBoxQtGuiExe_LRCTOOL := QT6
+ TEMPLATE_VBoxQtGuiExe_SDKS    := QT6
  TEMPLATE_VBoxQtGuiExe_QT_INFIX = $(VBOX_QT_INFIX)
  TEMPLATE_VBoxQtGuiExe_DEFS = IN_RING3 QT_NO_DEBUG QT_THREAD_SUPPORT QT_SHARED HAVE_CONFIG_H $(ARCH_BITS_DEFS)
  TEMPLATE_VBoxQtGuiExe_RCDEFS = $(TEMPLATE_VBoxR3Exe_RCDEFS)
@@ -8150,9 +8119,7 @@ ifdef VBOX_WITH_QTGUI
   ifn1of ($(USERNAME), dsen serkan) # Bunch of stuff deprecated after 5.6.*. These guys knows how to deal with it. :)
    TEMPLATE_VBoxQtGuiExe_CXXFLAGS += $(VBOX_GCC_Wno-deprecated-declarations)
   endif
-  ifdef VBOX_WITH_QT6
-   TEMPLATE_VBoxQtGuiExe_CXXFLAGS += -std=gnu++17
-  endif
+  TEMPLATE_VBoxQtGuiExe_CXXFLAGS += -std=gnu++17
   TEMPLATE_VBoxQtGuiExe_CXXFLAGS.x86 = -m32
   TEMPLATE_VBoxQtGuiExe_CXXFLAGS.amd64 = -m64
   TEMPLATE_VBoxQtGuiExe_CXXFLAGS.linux = -pthread
@@ -8171,9 +8138,7 @@ ifdef VBOX_WITH_QTGUI
   ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
    TEMPLATE_VBoxQtGuiExe_OBJCXXFLAGS += $(VBOX_GCC_WERR)
   endif
-  ifdef VBOX_WITH_QT6
-   TEMPLATE_VBoxQtGuiExe_OBJCXXFLAGS += -std=gnu++17
-  endif
+  TEMPLATE_VBoxQtGuiExe_OBJCXXFLAGS += -std=gnu++17
   TEMPLATE_VBoxQtGuiExe_OBJCXXFLAGS.x86 = $(TEMPLATE_VBoxQtGuiExe_CXXFLAGS.x86)
   TEMPLATE_VBoxQtGuiExe_OBJCXXFLAGS.amd64 = $(TEMPLATE_VBoxQtGuiExe_CXXFLAGS.amd64)
   TEMPLATE_VBoxQtGuiExe_LDFLAGS = $(VBOX_GCC_SANITIZER_FLAGS) $(VBOX_GCC_SANITIZER_LDFLAGS)
@@ -8185,7 +8150,7 @@ ifdef VBOX_WITH_QTGUI
 
   ifeq ($(KBUILD_TARGET),linux)
    TEMPLATE_VBoxQtGuiExe_LDFLAGS += -Wl,-z,noexecstack,-z,relro $(VBOX_LD_as_needed)
-   TEMPLATE_VBOXQTGUIEXE_LDFLAGS += -Wl,-rpath,$(PATH_SDK_QT5_LIB)
+   TEMPLATE_VBOXQTGUIEXE_LDFLAGS += -Wl,-rpath,$(PATH_SDK_QT6_LIB)
    TEMPLATE_VBoxQtGuiExe_LIBS += \
    	$(VBOX_XCURSOR_LIBS) \
    	Xext \
@@ -8199,11 +8164,7 @@ ifdef VBOX_WITH_QTGUI
    TEMPLATE_VBoxQtGuiExe_CXXFLAGS.darwin    += $(VBOX_DARWIN_DEF_SDK_CXXFLAGS)
    TEMPLATE_VBoxQtGuiExe_PCHFLAGS.darwin    += $(TEMPLATE_VBoxQtGuiExe_CXXFLAGS.darwin)
    TEMPLATE_VBoxQtGuiExe_OBJCFLAGS.darwin   += $(VBOX_DARWIN_DEF_SDK_OBJCFLAGS)
-   ifdef VBOX_WITH_QT6
-    TEMPLATE_VBoxQtGuiExe_OBJCXXFLAGS.darwin += $(VBOX_DARWIN_DEF_SDK_OBJCXXFLAGS)
-   else
-    TEMPLATE_VBoxQtGuiExe_OBJCXXFLAGS.darwin += $(VBOX_DARWIN_DEF_SDK_OBJCXXFLAGS)  $(VBOX_GCC_std)
-   endif
+   TEMPLATE_VBoxQtGuiExe_OBJCXXFLAGS.darwin += $(VBOX_DARWIN_DEF_SDK_OBJCXXFLAGS)
    TEMPLATE_VBoxQtGuiExe_LDFLAGS.darwin     += $(VBOX_DARWIN_DEF_SDK_LDFLAGS) -bind_at_load -Wl,-headerpad_max_install_names
    TEMPLATE_VBoxQtGuiExe_LIBS +=
    TEMPLATE_VBoxQtGuiExe_LIBPATH +=
@@ -8276,17 +8237,10 @@ ifdef VBOX_WITH_QTGUI
  endif # not darwin, os2 or win
 
  ifeq ($(KBUILD_TARGET),darwin)
-  ifndef VBOX_WITH_QT6
-   TEMPLATE_VBoxQtGuiExe_POST_CMDS = $(QUIET)install_name_tool $(foreach qtmod, $(VBOX_QT_MOD_NAMES), \
-   		$(foreach prefix, @executable_path/../Frameworks/ $(VBOX_PATH_QT)/Frameworks/ $(PATH_SDK_QT5)/, \
-   			-change "$(prefix)$(qtmod).framework/Versions/5/$(qtmod)" \
-   			"$(if $(VBOX_WITH_HARDENING),/Applications/VirtualBox.app/Contents/Frameworks,@rpath)/$(qtmod).framework/Versions/5/$(qtmod)" ) ) "$(out)"
-  else
-   TEMPLATE_VBoxQtGuiExe_POST_CMDS = $(QUIET)install_name_tool $(foreach qtmod, $(VBOX_QT_MOD_NAMES), \
-   		$(foreach prefix, @executable_path/../Frameworks/ $(VBOX_PATH_QT)/Frameworks/ $(PATH_SDK_QT6)/, \
-   			-change "$(prefix)$(qtmod).framework/Versions/A/$(qtmod)" \
-   			"$(if $(VBOX_WITH_HARDENING),/Applications/VirtualBox.app/Contents/Frameworks,@rpath)/$(qtmod).framework/Versions/A/$(qtmod)" ) ) "$(out)"
-  endif
+  TEMPLATE_VBoxQtGuiExe_POST_CMDS = $(QUIET)install_name_tool $(foreach qtmod, $(VBOX_QT_MOD_NAMES), \
+  		$(foreach prefix, @executable_path/../Frameworks/ $(VBOX_PATH_QT)/Frameworks/ $(PATH_SDK_QT6)/, \
+  			-change "$(prefix)$(qtmod).framework/Versions/A/$(qtmod)" \
+  			"$(if $(VBOX_WITH_HARDENING),/Applications/VirtualBox.app/Contents/Frameworks,@rpath)/$(qtmod).framework/Versions/A/$(qtmod)" ) ) "$(out)"
  endif
 
  #
@@ -8318,13 +8272,8 @@ ifdef VBOX_WITH_NLS
  #
  TEMPLATE_VBoxNLS = VBox NLS template for installing translation files
  TEMPLATE_VBoxNLS_EXTENDS = VBoxR3Static
- ifndef VBOX_WITH_QT6
-  TEMPLATE_VBoxNLS_USES   := qt5
-  TEMPLATE_VBoxNLS_QTTOOL := QT5
- else
-  TEMPLATE_VBoxNLS_USES   := qt6
-  TEMPLATE_VBoxNLS_QTTOOL := QT6
- endif
+ TEMPLATE_VBoxNLS_USES   := qt6
+ TEMPLATE_VBoxNLS_QTTOOL := QT6
  TEMPLATE_VBoxNLS_QT_INFIX = $(VBOX_QT_INFIX)
  TEMPLATE_VBoxNLS_INSTTYPE = none
  TEMPLATE_VBoxNLS_LRCFLAGS += -silent
@@ -9338,7 +9287,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 164726 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 168374 $  )
  VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)

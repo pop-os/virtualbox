@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -74,6 +74,8 @@ private:
     HRESULT getHostIP(com::Utf8Str &aBindIP);
     HRESULT setLocalhostReachable(BOOL fLocalhostReachable);
     HRESULT getLocalhostReachable(BOOL *pfLocalhostReachable);
+    HRESULT setForwardBroadcast(BOOL fForwardBroadcast);
+    HRESULT getForwardBroadcast(BOOL *pfForwardBroadcast);
     /* TFTP properties */
     HRESULT setTFTPPrefix(const com::Utf8Str &aTFTPPrefix);
     HRESULT getTFTPPrefix(com::Utf8Str &aTFTPPrefix);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -449,6 +449,7 @@ void UIWizardNewVMExpertPage::initializePage()
     {
         m_pGAInstallationISOContainer->blockSignals(true);
         m_pGAInstallationISOContainer->setChecked(pWizard->installGuestAdditions());
+        m_pGAInstallationISOContainer->setPath(pWizard->guestAdditionsISOPath());
         m_pGAInstallationISOContainer->blockSignals(false);
     }
 
@@ -467,10 +468,15 @@ void UIWizardNewVMExpertPage::markWidgets() const
 {
     if (m_pNameAndSystemEditor)
     {
-        m_pNameAndSystemEditor->markNameEditor(m_pNameAndSystemEditor->name().isEmpty());
+        m_pNameAndSystemEditor->markNameEditor(m_pNameAndSystemEditor->name().isEmpty(),
+                                               UIWizardNewVM::tr("Guest machine name cannot be empty"),
+                                               UIWizardNewVM::tr("Guest machine name is valid"));
         m_pNameAndSystemEditor->markImageEditor(!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor),
                                                 UIWizardNewVM::tr("Invalid file path or unreadable file"),
                                                 UIWizardNewVM::tr("File path is valid"));
+        m_pNameAndSystemEditor->markNameEditor((QDir(m_pNameAndSystemEditor->fullPath()).exists()),
+                                               UIWizardNewVM::tr("Guest machine path is not unique"),
+                                               UIWizardNewVM::tr("Guest machine name is valid"));
     }
     UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
     if (pWizard && pWizard->installGuestAdditions() && m_pGAInstallationISOContainer)
@@ -507,6 +513,7 @@ QWidget *UIWizardNewVMExpertPage::createNewDiskWidgets()
 {
     QWidget *pNewDiskContainerWidget = new QWidget;
     QGridLayout *pDiskContainerLayout = new QGridLayout(pNewDiskContainerWidget);
+    pDiskContainerLayout->setContentsMargins(0, 0, 0, 0);
 
     m_pSizeAndLocationGroup = new UIMediumSizeAndPathGroupBox(true, 0 /* parent */, _4M /* minimum size */);
     pDiskContainerLayout->addWidget(m_pSizeAndLocationGroup, 0, 0, 2, 2);
@@ -550,12 +557,12 @@ QWidget *UIWizardNewVMExpertPage::createDiskWidgets()
         m_pDiskSelectionButton->setAutoRaise(true);
         m_pDiskSelectionButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_disabled_16px.png"));
     }
-    pDiskLayout->addWidget(m_pDiskNew, 0, 0, 1, 6);
-    pDiskLayout->addWidget(createNewDiskWidgets(), 1, 2, 3, 4);
-    pDiskLayout->addWidget(m_pDiskExisting, 4, 0, 1, 6);
-    pDiskLayout->addWidget(m_pDiskSelector, 5, 2, 1, 3);
+    pDiskLayout->addWidget(m_pDiskNew,             0, 0, 1, 6);
+    pDiskLayout->addWidget(createNewDiskWidgets(), 1, 1, 3, 5);
+    pDiskLayout->addWidget(m_pDiskExisting,        4, 0, 1, 6);
+    pDiskLayout->addWidget(m_pDiskSelector,        5, 1, 1, 4);
     pDiskLayout->addWidget(m_pDiskSelectionButton, 5, 5, 1, 1);
-    pDiskLayout->addWidget(m_pDiskEmpty, 6, 0, 1, 6);
+    pDiskLayout->addWidget(m_pDiskEmpty,           6, 0, 1, 6);
     return pDiskContainer;
 }
 
@@ -627,6 +634,13 @@ bool UIWizardNewVMExpertPage::isComplete() const
             m_pToolBox->setPageTitleIcon(ExpertToolboxItems_NameAndOSType,
                                          UIIconPool::iconSet(":/status_error_16px.png"),
                                          UIWizardNewVM::tr("Invalid ISO file"));
+            fIsComplete = false;
+        }
+        if (QDir(m_pNameAndSystemEditor->fullPath()).exists())
+        {
+            m_pToolBox->setPageTitleIcon(ExpertToolboxItems_NameAndOSType,
+                                         UIIconPool::iconSet(":/status_error_16px.png"),
+                                         UIWizardNewVM::tr("Guest machine path is not unique"));
             fIsComplete = false;
         }
     }
