@@ -8,6 +8,7 @@ virtualbox (7.1.8-dfsg-1) unstable; urgency=medium
   * Bump copyright years for Debian packaging
   * Bump std-version to 4.7.2
   * Also try to build arm64 and armhf
+  * Add a source lintian override for dita file licensing not used in build
 
   [ Tobias Frost ]
   * Fix broken watchfile (Closes: #1094801)
@@ -19,7 +20,7 @@ virtualbox (7.1.8-dfsg-1) unstable; urgency=medium
   * Add python3-setuptools to B-D.
   * Add conflict on virtualbox-7.1 
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 16 May 2025 15:19:13 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 16 May 2025 17:55:04 +0200
 
 virtualbox (7.0.26-dfsg-1) unstable; urgency=medium
 
