@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2023 Oracle and/or its affiliates.
+# Copyright (C) 2006-2024 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -777,6 +777,8 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   VBoxDD_DEFS   += VBOX_WITH_LIBSLIRP
   VBoxDD_SOURCES += \
   	Network/DrvNATlibslirp.cpp
+  VBoxDD_SOURCES.win += \
+  	Network/RTWinSocketPair.cpp
   Network/DrvNATlibslirp.cpp_INCS   += \
   	$(PATH_ROOT)/src/libs/libslirp-4.8.0/src \
   	$(PATH_OUT)/obj/VBox-libslirp

@@ -4,7 +4,7 @@
     VirtualBox.xidl for cut & paste into man_VBoxManage-dhcpserver.xml.
 -->
 <!--
-    Copyright (C) 2019-2023 Oracle and/or its affiliates.
+    Copyright (C) 2019-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -34,7 +34,11 @@
   <xsl:strip-space elements="*"/>
 
 
-<!-- Default operation is to supress output -->
+<!-- Global parameters. -->
+<xsl:param name="g_uVBoxCopyrightYear">2024</xsl:param>
+
+
+<!-- Default operation is to suppress output -->
 <xsl:template match="node()|@*">
   <xsl:apply-templates/>
 </xsl:template>
@@ -71,7 +75,7 @@ The work.
     DO NOT EDIT!
 --&gt;
 &lt;!--
-Copyright (C) 2019-2023 Oracle Corporation and/or its affiliates.
+Copyright (C) 2019-</xsl:text><xsl:value-of select="$g_uVBoxCopyrightYear"/><xsl:text> Oracle Corporation and/or its affiliates.
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from https://www.virtualbox.org.

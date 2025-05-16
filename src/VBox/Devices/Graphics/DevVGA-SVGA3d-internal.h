@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1075,6 +1075,8 @@ typedef struct VMSVGA3DSTATE
     PVMSVGA3DCONTEXT       *papContexts;
     /** Surfaces indexed by ID.  Grown as needed. */
     PVMSVGA3DSURFACE       *papSurfaces;
+
+    bool fVMSVGA2dGBO;
 #ifdef VMSVGA3D_DX
     /** DX contexts indexed by ID.  Grown as needed. */
     PVMSVGA3DDXCONTEXT     *papDXContexts;
@@ -1453,6 +1455,9 @@ void FormatConvReadTexture(PVMSVGA3DSTATE pState,
 
 int vmsvga3dShaderParse(SVGA3dShaderType type, uint32_t cbShaderData, uint32_t *pShaderData);
 void vmsvga3dShaderLogRel(char const *pszMsg, SVGA3dShaderType type, uint32_t cbShaderData, uint32_t const *pShaderData);
+
+int vmsvga3dSurfaceCopySysMem(PVMSVGA3DSTATE pState, SVGA3dSurfaceImageId dest, SVGA3dSurfaceImageId src,
+                               uint32_t cCopyBoxes, SVGA3dCopyBox *pBox);
 
 #endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_internal_h */
 

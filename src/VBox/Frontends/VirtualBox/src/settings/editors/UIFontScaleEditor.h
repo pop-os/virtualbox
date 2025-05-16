@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -51,9 +51,6 @@ public:
 
     /** Constructs editor passing @a pParent to the base-class. */
     UIFontScaleEditor(QWidget *pParent);
-
-    /** Defines minimum width @a iHint for internal spin-box. */
-    void setSpinBoxWidthHint(int iHint);
 
     /** Returns minimum layout hint. */
     int minimumLabelHorizontalHint() const;

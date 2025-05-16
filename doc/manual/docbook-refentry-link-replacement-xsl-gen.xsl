@@ -5,7 +5,7 @@
         to the user manual in the manpages.
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -43,7 +43,7 @@
   <xsl:variable name="sInManual" select="'in the User Guide'"/>
 
 
-<!-- Default operation is to supress output -->
+<!-- Default operation is to suppress output -->
 <xsl:template match="node()|@*">
   <xsl:apply-templates/>
 </xsl:template>

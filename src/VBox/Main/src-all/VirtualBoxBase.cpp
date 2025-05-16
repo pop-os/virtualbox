@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -194,7 +194,8 @@ RWLockHandle *VirtualBoxBase::lockHandle() const
 
     // getLockingClass() is overridden by many subclasses to return
     // one of the locking classes listed at the top of AutoLock.h
-    RWLockHandle *objLock = new RWLockHandle(getLockingClass());
+    // getComponentName() returns the class name by default.
+    RWLockHandle *objLock = new RWLockHandle(getLockingClass(), getComponentName());
     if (!ASMAtomicCmpXchgPtr(&mObjectLock, objLock, NULL))
     {
         delete objLock;

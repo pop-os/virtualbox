@@ -3,7 +3,7 @@
  * VMware SVGA device
  */
 /*
- * Copyright (C) 2013-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -362,7 +362,8 @@ typedef struct VMSVGAState
     bool                        fVBoxExtensions;
     /** Whether MSAA support is enabled. */
     bool                        fVMSVGA3dMSAA;
-    bool                        afPadding[2];
+    bool                        fVMSVGA2dGBO;
+    bool                        afPadding[1];
     uint32_t                    uWidth;
     uint32_t                    uHeight;
     uint32_t                    uBpp;

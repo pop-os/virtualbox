@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2005-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -438,8 +438,9 @@ private:
     HRESULT removeEncryptionPassword(const com::Utf8Str &aId);
     HRESULT clearAllEncryptionPasswords();
 
-    void notifyNatDnsChange(PUVM pUVM, PCVMMR3VTABLE pVMM, const char *pszDevice, ULONG ulInstanceMax,
-                            struct PDMINETWORKNATDNSCONFIG const *pDnsConfig);
+    static DECLCALLBACK(int) notifyNatDnsChangeCallback(PPDMIBASE pIBase, uint32_t uDrvInstance, bool fUsbDev,
+                                                        const char *pszDevice, uint32_t uDevInstance, unsigned uLun,
+                                                        void *pvUser);
     Utf8Str VRDPServerErrorToMsg(int vrc);
 
     /**

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -99,7 +99,7 @@ void UIGraphicsControllerEditor::handleFilterChange()
 
 void UIGraphicsControllerEditor::sltHandleCurrentIndexChanged()
 {
-    if (m_pCombo)
+    if (m_pCombo && m_pCombo->count())
         emit sigValueChanged(m_pCombo->itemData(m_pCombo->currentIndex()).value<KGraphicsControllerType>());
 }
 

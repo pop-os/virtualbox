@@ -649,6 +649,17 @@ void Console::i_configAudioDriver(IVirtualBox *pVirtualBox, IMachine *pMachine, 
         HRESULT hrc = pMachine->COMGETTER(Name)(bstrTmp.asOutParam());                          H();
         InsertConfigString(pCfg, "VmName", bstrTmp);
     }
+
+    /* Disabling caching code only is available for the HostAudioWas backend. */
+    if (strcmp(pszDrvName, "HostAudioWas") == 0)
+    {
+        GetExtraDataBoth(pVirtualBox, pMachine, "VBoxInternal2/Audio/CacheEnabled", &strTmp); /* Since VBox > 7.1.16. */
+        if (strTmp.isNotEmpty()) /* If value is not found, just skip. */
+        {
+            uint64_t const fCacheEnabled = strTmp.equalsIgnoreCase("true") || strTmp.equalsIgnoreCase("1");
+            InsertConfigInteger(pCfg, "CacheEnabled", fCacheEnabled);
+        }
+    }
 #endif
 
     LogFlowFunc(("szDrivName=%s\n", pszDrvName));
@@ -2323,6 +2334,11 @@ int Console::i_configNetwork(const char *pszDevice,
                 hrc = natEngine->COMGETTER(LocalhostReachable)(&fLocalhostReachable);       H();
                 InsertConfigInteger(pCfg, "LocalhostReachable", fLocalhostReachable);
 
+                /* forward broadcast packets */
+                BOOL fForwardBroadcast = FALSE;
+                hrc = natEngine->COMGETTER(ForwardBroadcast)(&fForwardBroadcast);           H();
+                InsertConfigInteger(pCfg, "ForwardBroadcast", fForwardBroadcast);
+
                 /* port-forwarding */
                 SafeArray<BSTR> pfs;
                 hrc = natEngine->COMGETTER(Redirects)(ComSafeArrayAsOutParam(pfs));         H();
@@ -3753,6 +3769,7 @@ int Console::i_configAudioCtrl(ComPtr<IVirtualBox> pVBox, ComPtr<IMachine> pMach
                             || strTmp.equalsIgnoreCase("wasapi")) )
                     {
                         /* Nothing to do here, fall through to WAS driver. */
+                        LogRel(("Audio: Using Windows Audio Session (WAS) backend instead of DirectSound for performance reasons\n"));
                     }
                     else
                     {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2545,13 +2545,6 @@ int UpdateAdditionsProcess::onOutputCallback(uint32_t uHandle, const BYTE *pbDat
             pstrLine->setNull();
             cch++;
         }
-
-        while (cbData)
-        {
-            pstrLine->append(*cch);
-            cch++;
-            cbData--;
-        }
     }
 
     return vrc;
@@ -2742,14 +2735,30 @@ int GuestSessionTaskUpdateAdditions::runFileOnGuest(GuestSession *pSession, Gues
     if (RT_SUCCESS(vrc))
     {
         if (RT_SUCCESS(vrcGuest))
+        {
             vrc = guestProc.wait(&vrcGuest);
-        if (RT_SUCCESS(vrc))
-            vrc = guestProc.getTerminationStatus();
+            if (RT_SUCCESS(vrc))
+                vrc = guestProc.getTerminationStatus();
+            else if (vrc == VERR_NOT_FOUND)
+                /** @todo Linux Guest Additions terminate VBoxService when updating (via uninstall.sh),
+                 *        which in turn terminates the Guest Control session this updater task was relying on.
+                 *        This leads into a VERR_NOT_FOUND error, as the Guest Session is not around anymore.
+                 *        Fend this off for now, but needs a clean(er) solution long-term. See @bugref{10776}. */
+                vrc = VINF_SUCCESS;
+        }
     }
 
     if (   RT_FAILURE(vrc)
         && !fSilent)
     {
+        Utf8Str cmdLine;
+        for (size_t iArg = 0; iArg < procInfo.mArguments.size(); iArg++)
+        {
+            cmdLine.append(procInfo.mArguments.at(iArg));
+            if (iArg < procInfo.mArguments.size() - 1)
+                cmdLine.append(" ");
+        }
+
         switch (vrc)
         {
             case VERR_GSTCTL_PROCESS_EXIT_CODE:
@@ -2759,13 +2768,13 @@ int GuestSessionTaskUpdateAdditions::runFileOnGuest(GuestSession *pSession, Gues
                 Assert(vrc == VERR_GSTCTL_PROCESS_EXIT_CODE);
                 setUpdateErrorMsg(VBOX_E_GSTCTL_GUEST_ERROR,
                                   Utf8StrFmt(tr("Running update file \"%s\" on guest failed with exit code %d"),
-                                             procInfo.mExecutable.c_str(), iExitCode));
+                                             cmdLine.c_str(), iExitCode));
                 break;
 
             }
             case VERR_GSTCTL_GUEST_ERROR:
                 setUpdateErrorMsg(VBOX_E_GSTCTL_GUEST_ERROR, tr("Running update file on guest failed"),
-                                  GuestErrorInfo(GuestErrorInfo::Type_Process, vrcGuest, procInfo.mExecutable.c_str()));
+                                  GuestErrorInfo(GuestErrorInfo::Type_Process, vrcGuest, cmdLine.c_str()));
                 break;
 
             case VERR_INVALID_STATE: /** @todo Special guest control vrc needed! */
@@ -2776,8 +2785,8 @@ int GuestSessionTaskUpdateAdditions::runFileOnGuest(GuestSession *pSession, Gues
 
             default:
                 setUpdateErrorMsg(VBOX_E_GSTCTL_GUEST_ERROR,
-                                  Utf8StrFmt(tr("Error while running update file \"%s\" on guest: %Rrc"),
-                                             procInfo.mExecutable.c_str(), vrc));
+                                  Utf8StrFmt(tr("Error while running update command \"%s\" on guest: %Rrc"),
+                                             cmdLine.c_str(), vrc));
                 break;
         }
     }
@@ -2804,6 +2813,7 @@ int GuestSessionTaskUpdateAdditions::checkGuestAdditionsStatus(GuestSession *pSe
 
         /* Check if Guest Additions kernel modules were loaded. */
         GuestProcessStartupInfo procInfo;
+        procInfo.mName = "Kernel modules status check";
         procInfo.mFlags = ProcessCreateFlag_None;
         procInfo.mExecutable = Utf8Str("/bin/sh");;
         procInfo.mArguments.push_back(procInfo.mExecutable); /* Set argv0. */
@@ -2815,6 +2825,7 @@ int GuestSessionTaskUpdateAdditions::checkGuestAdditionsStatus(GuestSession *pSe
         {
             /* Replace the last argument with corresponding value and check
              * if Guest Additions user services were started. */
+            procInfo.mName = "User services status check";
             procInfo.mArguments.pop_back();
             procInfo.mArguments.push_back("status-user");
 
@@ -2836,12 +2847,16 @@ int GuestSessionTaskUpdateAdditions::checkGuestAdditionsStatus(GuestSession *pSe
 /**
  * Helper function which waits until Guest Additions services started.
  *
+ * Newly created guest session needs to be closed by caller.
+ *
  * @returns 0 on success or VERR_TIMEOUT if guest services were not
  *          started on time.
- * @param   pGuest      Guest interface to use.
- * @param   osType      Guest type.
+ * @param   pGuest          Guest interface to use.
+ * @param   osType          Guest type.
+ * @param   pNewSession     Output parameter for newly established guest type.
  */
-int GuestSessionTaskUpdateAdditions::waitForGuestSession(ComObjPtr<Guest> pGuest, eOSType osType)
+int GuestSessionTaskUpdateAdditions::waitForGuestSession(ComObjPtr<Guest> pGuest, eOSType osType,
+                                                         ComObjPtr<GuestSession> &pNewSession)
 {
     int vrc                         = VERR_GSTCTL_GUEST_ERROR;
     int vrcRet                      = VERR_TIMEOUT;
@@ -2853,42 +2868,40 @@ int GuestSessionTaskUpdateAdditions::waitForGuestSession(ComObjPtr<Guest> pGuest
 
     do
     {
-        ComObjPtr<GuestSession> pSession;
         GuestCredentials        guestCreds;
         GuestSessionStartupInfo startupInfo;
 
-        startupInfo.mName           = "Guest Additions connection checker";
+        startupInfo.mName           = "Guest Additions connection check";
         startupInfo.mOpenTimeoutMS  = 100;
 
-        vrc = pGuest->i_sessionCreate(startupInfo, guestCreds, pSession);
+        vrc = pGuest->i_sessionCreate(startupInfo, guestCreds, pNewSession);
         if (RT_SUCCESS(vrc))
         {
-            Assert(!pSession.isNull());
+            Assert(!pNewSession.isNull());
 
             int vrcGuest = VERR_GSTCTL_GUEST_ERROR; /* unused. */
-            vrc = pSession->i_startSession(&vrcGuest);
+            vrc = pNewSession->i_startSession(&vrcGuest);
             if (RT_SUCCESS(vrc))
             {
                 /* Wait for VBoxService to start. */
                 GuestSessionWaitResult_T enmWaitResult = GuestSessionWaitResult_None;
                 int vrcGuest2 = VINF_SUCCESS; /* unused. */
-                vrc = pSession->i_waitFor(GuestSessionWaitForFlag_Start, 100 /* timeout, ms */, enmWaitResult, &vrcGuest2);
+                vrc = pNewSession->i_waitFor(GuestSessionWaitForFlag_Start, 100 /* timeout, ms */, enmWaitResult, &vrcGuest2);
                 if (RT_SUCCESS(vrc))
                 {
                     /* Make sure Guest Additions were reloaded on the guest side. */
-                    vrc = checkGuestAdditionsStatus(pSession, osType);
+                    vrc = checkGuestAdditionsStatus(pNewSession, osType);
                     if (RT_SUCCESS(vrc))
                         LogRel(("Guest Additions Update: Guest Additions were successfully reloaded after installation\n"));
                     else
                         LogRel(("Guest Additions Update: Guest Additions were failed to reload after installation, please consider rebooting the guest\n"));
 
-                    vrc = pSession->Close();
                     vrcRet = VINF_SUCCESS;
                     break;
                 }
             }
 
-            vrc = pSession->Close();
+            vrc = pNewSession->Close();
         }
 
         RTThreadSleep(100);
@@ -2896,6 +2909,40 @@ int GuestSessionTaskUpdateAdditions::waitForGuestSession(ComObjPtr<Guest> pGuest
     } while ((RTTimeSystemMilliTS() - tsStart) < cMsTimeout);
 
     return vrcRet;
+}
+
+/**
+ * Helper function which retrieves guest platform architecture information.
+ *
+ * @returns Platform architecture type or PlatformArchitecture_None if
+ *          architecture information cannot be retrieved.
+ */
+PlatformArchitecture_T GuestSessionTaskUpdateAdditions::getPlatformArch(void)
+{
+    HRESULT hrc;
+    PlatformArchitecture_T enmArch = PlatformArchitecture_None;
+
+    ComObjPtr<GuestSession> pSession = mSession;
+    Assert(!pSession.isNull());
+
+    ComObjPtr<Guest> pGuest(pSession->i_getParent());
+    Assert(!pGuest.isNull());
+
+    ComObjPtr<Console> pConsole = pGuest->i_getConsole();
+    Assert(!pConsole.isNull());
+
+    const ComPtr<IMachine> pMachine = pConsole->i_machine();
+    Assert(!pMachine.isNull());
+
+    ComPtr<IPlatform> pPlatform;
+
+    hrc = pMachine->COMGETTER(Platform)(pPlatform.asOutParam());
+    AssertComRCReturn(hrc, PlatformArchitecture_None);
+
+    hrc = pPlatform->COMGETTER(Architecture)(&enmArch);
+    AssertComRCReturn(hrc, PlatformArchitecture_None);
+
+    return enmArch;
 }
 
 /** @copydoc GuestSessionTask::Run */
@@ -3247,10 +3294,14 @@ int GuestSessionTaskUpdateAdditions::Run(void)
                         }
                         case eOSType_Linux:
                         {
+                            bool fIsArm = getPlatformArch() == PlatformArchitecture_ARM;
+
+                            const Utf8Str strInstallerBinUC("VBOXLINUXADDITIONS" + Utf8Str(fIsArm ? "-ARM64" : "") + ".RUN");
+                            const Utf8Str strInstallerBin  ("VBoxLinuxAdditions" + Utf8Str(fIsArm ? "-arm64" : "") + ".run");
+
                             /* Copy over the installer to the guest but don't execute it.
                              * Execution will be done by the shell instead. */
-                            mFiles.push_back(ISOFile("VBOXLINUXADDITIONS.RUN",
-                                                     strUpdateDir + "VBoxLinuxAdditions.run", ISOFILE_FLAG_COPY_FROM_ISO));
+                            mFiles.push_back(ISOFile(strInstallerBinUC, strUpdateDir + strInstallerBin, ISOFILE_FLAG_COPY_FROM_ISO));
 
                             UpdateAdditionsStartupInfo siInstaller;
                             siInstaller.mName = "VirtualBox Linux Guest Additions Installer";
@@ -3260,7 +3311,7 @@ int GuestSessionTaskUpdateAdditions::Run(void)
                             /* The argv[0] should contain full path to the shell we're using to execute the installer. */
                             siInstaller.mArguments.push_back("/bin/sh");
                             /* Now add the stuff we need in order to execute the installer.  */
-                            siInstaller.mArguments.push_back(strUpdateDir + "VBoxLinuxAdditions.run");
+                            siInstaller.mArguments.push_back(strUpdateDir + strInstallerBin);
                             /* Make sure to add "--nox11" to the makeself wrapper in order to not getting any blocking xterm
                              * window spawned when doing any unattended Linux GA installations. */
                             siInstaller.mArguments.push_back("--nox11");
@@ -3364,8 +3415,8 @@ int GuestSessionTaskUpdateAdditions::Run(void)
                         {
                             LogRel(("Guest Additions Update: Old guest session has terminated, waiting updated guest services to start\n"));
 
-                            /* Wait for VBoxService to restart. */
-                            vrc = waitForGuestSession(pSession->i_getParent(), osType);
+                            /* Wait for VBoxService to restart and re-establish guest session. */
+                            vrc = waitForGuestSession(pSession->i_getParent(), osType, pSession);
                             if (RT_FAILURE(vrc))
                                 hrc = setUpdateErrorMsg(VBOX_E_IPRT_ERROR,
                                                         Utf8StrFmt(tr("Guest services were not restarted, please reinstall Guest Additions manually")));
@@ -3377,6 +3428,16 @@ int GuestSessionTaskUpdateAdditions::Run(void)
                                                     Utf8StrFmt(tr("Old guest session is still active, guest services were not restarted "
                                                                   "after installation, please reinstall Guest Additions manually")));
                         }
+                    }
+
+                    /* Remove temporary update files on the guest side before reporting completion.
+                     * Only enabled for Linux guest for now. Windows has issues w/ deletting temporary
+                      * installation directory. */
+                    if ((osType == eOSType_Linux) && !pSession->i_isTerminated())
+                    {
+                        hrc = pSession->i_directoryRemove(strUpdateDir, DIRREMOVEREC_FLAG_RECURSIVE | DIRREMOVEREC_FLAG_CONTENT_AND_DIR, &vrc);
+                        LogRel(("Cleanup Guest Additions update directory '%s', hrc=%Rrc, vrc=%Rrc\n",
+                                strUpdateDir.c_str(), hrc, vrc));
                     }
 
                     if (RT_SUCCESS(vrc))

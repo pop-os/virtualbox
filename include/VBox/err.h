@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2950,6 +2950,9 @@
 #define VERR_SUP_VP_QUERY_HANDLE_TYPE               (-5677)
 /** NtSetInformationObject/NoInherit failed. */
 #define VERR_SUP_VP_SET_HANDLE_NOINHERIT            (-5678)
+/** The image is required to be signed with the same certificate as the rest
+ * of VirtualBox or one of the special trusted (Oracle) certificates. */
+#define VERR_SUP_VP_NOT_SIGNED_WITH_SPECIALLY_TRUSTED_CERT (-5679)
 
 /** We are in driverless mode. */
 #define VERR_SUP_DRIVERLESS                         (-5699)
@@ -3298,6 +3301,10 @@
 #define VERR_GCM_NOT_HANDLED                        (-7602)
 /** @} */
 
+/** A reboot is needed for completing driver (un)installation. */
+#define VERR_DRIVER_REBOOT_NEEDED                  (-1028)
+/** A reboot is needed for completing driver (un)installation. */
+#define VINF_DRIVER_REBOOT_NEEDED                  (1028)
 /* SED-END */
 
 /** @} */

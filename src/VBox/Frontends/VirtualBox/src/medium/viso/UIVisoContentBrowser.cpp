@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -421,6 +421,20 @@ void UIVisoContentBrowser::createVisoEntry(const QString &strPath, const QString
         m_entryMap.insert(strPath, cRemoveText);
 }
 
+/* static */
+QString UIVisoContentBrowser::sanitizePath(const QString &strOriginal)
+{
+    /* Look for white space and double quote: */
+    QRegularExpression regex("[\\s\"]");
+    if (!regex.match(strOriginal).hasMatch())
+        return strOriginal;
+    QString strNew(strOriginal);
+    strNew.replace("\"", "\\\"");
+    strNew.append("\"");
+    strNew.prepend("\"");
+    return strNew;
+}
+
 QStringList UIVisoContentBrowser::entryList()
 {
     QStringList entryList;
@@ -428,7 +442,7 @@ QStringList UIVisoContentBrowser::entryList()
     {
         if (iterator.value().isEmpty())
             continue;
-        QString strEntry = QString("%1=%2").arg(iterator.key()).arg(iterator.value());
+        QString strEntry = QString("%1=%2").arg(sanitizePath(iterator.key())).arg(sanitizePath(iterator.value()));
         entryList << strEntry;
     }
     return entryList;

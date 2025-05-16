@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage storageattach
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -125,10 +125,10 @@
   <refsect1 id="vboxmanage-storageattach-description">
     <title>Description</title>
     <para>
-      The <command>VBoxManage storageattach</command> command enables
-      you to manage a storage medium that you connected to a storage
-      controller by using the <command>VBoxManage storagectl</command>
-      command.
+      The <command>VBoxManage storageattach</command> command
+      attaches, modifies, or removes a storage medium connected to a
+      storage controller that was previously added with the
+      <command>VBoxManage storagectl</command> command.
     </para>
     <variablelist>
       <varlistentry>
@@ -188,7 +188,7 @@
               <listitem><para>
                   For a virtual DVD or floppy drive only.
                 </para><para>
-                  Makes the device slot behave like a removeable drive
+                  Makes the device slot behave like a removable drive
                   into which no media has been inserted.
                 </para></listitem>
             </varlistentry>
@@ -240,7 +240,7 @@
                 </para></listitem>
             </varlistentry>
           </variablelist><para>
-            For removeable media such as floppies and DVDs, you can make
+            For removable media such as floppies and DVDs, you can make
             configuration changes while a VM is running. Changes to
             devices or hard disk device slots require that the VM be
             powered off.
@@ -324,6 +324,10 @@
             virtual hard disk. When set to <literal>on</literal>, a VDI
             image is shrunk in response to a <command>trim</command>
             command from the guest OS.
+          </para><para>
+            This feature is experimental and has known bugs which can cause
+            hangs and other instabilities of the guest OS. Do not use if you
+            care about the integrity of data on the virtual hard disk.
           </para><para>
             The virtual hard disk must meet the following requirements:
           </para><itemizedlist>

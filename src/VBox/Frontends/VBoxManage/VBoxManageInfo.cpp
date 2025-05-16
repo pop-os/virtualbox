@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1112,17 +1112,6 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
     if (pSession)
         pSession->COMGETTER(Console)(pConsole.asOutParam());
 
-    ComPtr<IPlatform> platform;
-    CHECK_ERROR_RET(machine, COMGETTER(Platform)(platform.asOutParam()), hrc);
-    ComPtr<IPlatformProperties> platformProperties;
-    CHECK_ERROR_RET(platform, COMGETTER(Properties)(platformProperties.asOutParam()), hrc);
-
-    PlatformArchitecture_T platformArch;
-    CHECK_ERROR_RET(platform, COMGETTER(Architecture)(&platformArch), hrc);
-
-    ComPtr<IFirmwareSettings> firmwareSettings;
-    CHECK_ERROR_RET(machine, COMGETTER(FirmwareSettings)(firmwareSettings.asOutParam()), hrc);
-
     char szNm[80];
     char szValue[256];
 
@@ -1184,6 +1173,17 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
         }
         return S_OK;
     }
+
+    ComPtr<IPlatform> platform;
+    CHECK_ERROR_RET(machine, COMGETTER(Platform)(platform.asOutParam()), hrc);
+    ComPtr<IPlatformProperties> platformProperties;
+    CHECK_ERROR_RET(platform, COMGETTER(Properties)(platformProperties.asOutParam()), hrc);
+
+    PlatformArchitecture_T platformArch;
+    CHECK_ERROR_RET(platform, COMGETTER(Architecture)(&platformArch), hrc);
+
+    ComPtr<IFirmwareSettings> firmwareSettings;
+    CHECK_ERROR_RET(machine, COMGETTER(FirmwareSettings)(firmwareSettings.asOutParam()), hrc);
 
     if (details == VMINFO_COMPACT)
     {
@@ -1438,8 +1438,9 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
         || firmwareType == FirmwareType_EFI64 || firmwareType == FirmwareType_EFIDUAL)
     {
         ComPtr<IUefiVariableStore> uefiVarStore;
-        CHECK_ERROR_RET(nvramStore, COMGETTER(UefiVariableStore)(uefiVarStore.asOutParam()), hrc);
-        SHOW_BOOLEAN_PROP(uefiVarStore, SecureBootEnabled, "SecureBoot", Info::tr("UEFI Secure Boot:"));
+        hrc = nvramStore->COMGETTER(UefiVariableStore)(uefiVarStore.asOutParam());
+        if (SUCCEEDED(hrc))
+            SHOW_BOOLEAN_PROP(uefiVarStore, SecureBootEnabled, "SecureBoot", Info::tr("UEFI Secure Boot:"));
     }
     SHOW_BOOLEAN_PROP_EX(platform,   RTCUseUTC, "rtcuseutc", Info::tr("RTC:"), "UTC", Info::tr("local time"));
 
@@ -1519,6 +1520,13 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                 else
                     pszCtrl = "VBoxSVGA";
                 break;
+            case GraphicsControllerType_QemuRamFB:
+                if (details == VMINFO_MACHINEREADABLE)
+                    pszCtrl = "qemuramfb";
+                else
+                    pszCtrl = "QemuRamFB";
+                break;
+
             default:
                 if (details == VMINFO_MACHINEREADABLE)
                     pszCtrl = "unknown";

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -158,6 +158,8 @@ static DECLCALLBACK(int) audioTestDrvHlp_CFGMR3QueryBoolDef(PCFGMNODE pNode, con
         if (   strcmp(pDrvReg->szName, "AUDIO") == 0
             && strcmp(pszName, "DebugEnabled") == 0)
             *pf = g_fDrvAudioDebug;
+        else if (strcmp(pszName, "CacheEnabled") == 0)
+            *pf = g_fDrvHostAudioCacheEnabled;
 
         if (g_uVerbosity > 2)
             RTPrintf("debug: CFGMR3QueryBoolDef([%s], %s, %p, %RTbool) -> %RTbool\n", pDrvReg->szName, pszName, pf, fDef, *pf);
@@ -188,6 +190,15 @@ static DECLCALLBACK(int) audioTestDrvHlp_CFGMR3ValidateConfig(PCFGMNODE pNode, c
 {
     RT_NOREF(pNode, pszNode, pszValidValues, pszValidNodes, pszWho, uInstance);
     return VINF_SUCCESS;
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnVMState
+ */
+static DECLCALLBACK(VMSTATE) audioTestDrvHlp_VMState(PPDMDRVINS pDrvIns)
+{
+    RT_NOREF(pDrvIns);
+    return VMSTATE_RUNNING; /* For mocking we report the VM state as running here. */
 }
 
 /** @} */
@@ -289,6 +300,7 @@ static const PDMDRVHLPR3 *audioTestFakeGetDrvHlp(void)
         s_DrvHlp.pfnCFGMQueryU8                 = audioTestDrvHlp_CFGMR3QueryU8;
         s_DrvHlp.pfnCFGMQueryU32                = audioTestDrvHlp_CFGMR3QueryU32;
         s_DrvHlp.pfnCFGMValidateConfig          = audioTestDrvHlp_CFGMR3ValidateConfig;
+        s_DrvHlp.pfnVMState                     = audioTestDrvHlp_VMState;
     }
     return &s_DrvHlp;
 }

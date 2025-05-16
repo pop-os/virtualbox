@@ -19,7 +19,7 @@
  */
 
 /*
- * Copyright (C) 2011-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -113,8 +113,13 @@
 # error The setjmp approach must be enabled for the recompiler.
 #endif
 
-#if defined(IEMNATIVE_WITH_SIMD_FP_NATIVE_EMITTERS) && !defined(IEMNATIVE_WITH_SIMD_REG_ALLOCATOR)
-# error "IEMNATIVE_WITH_SIMD_FP_NATIVE_EMITTERS requires IEMNATIVE_WITH_SIMD_REG_ALLOCATOR"
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+#if defined(VBOX_WITH_IEM_NATIVE_RECOMPILER) && defined(VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING)
+static void iemThreadedSaveTbForProfiling(PVMCPU pVCpu, PCIEMTB pTb);
 #endif
 
 
@@ -439,6 +444,7 @@ RTGCPTR iemOpHlpCalcRmEffAddrJmpEx(PVMCPUCC pVCpu, uint8_t bRm, uint32_t cbImmAn
 }
 
 
+
 /*********************************************************************************************************************************
 *   Translation Block Cache.                                                                                                     *
 *********************************************************************************************************************************/
@@ -660,6 +666,9 @@ static PIEMTB iemTbCacheLookup(PVMCPUCC pVCpu, PIEMTBCACHE pTbCache,
                         return pTb;
                     }
                     Log10(("TB lookup: fFlags=%#x GCPhysPc=%RGp: %p (@ %p) - recompiling\n", fFlags, GCPhysPc, pTb, ppTbLookup));
+# ifdef VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING
+                    iemThreadedSaveTbForProfiling(pVCpu, pTb);
+# endif
                     return iemNativeRecompile(pVCpu, pTb);
 #else
                     Log10(("TB lookup: fFlags=%#x GCPhysPc=%RGp: %p (@ %p)\n", fFlags, GCPhysPc, pTb, ppTbLookup));
@@ -899,10 +908,19 @@ DECLCALLBACK(int) iemTbInit(PVMCC pVM, uint32_t cInitialTbs, uint32_t cMaxTbs,
 
 /**
  * Inner free worker.
+ *
+ * The @a a_fType parameter allows us to eliminate the type check when we know
+ * which type of TB is being freed.
  */
-static void iemTbAllocatorFreeInner(PVMCPUCC pVCpu, PIEMTBALLOCATOR pTbAllocator,
-                                    PIEMTB pTb, uint32_t idxChunk, uint32_t idxInChunk)
+template<uint32_t a_fType>
+DECL_FORCE_INLINE(void)
+iemTbAllocatorFreeInner(PVMCPUCC pVCpu, PIEMTBALLOCATOR pTbAllocator, PIEMTB pTb, uint32_t idxChunk, uint32_t idxInChunk)
 {
+#ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER
+    AssertCompile(a_fType == 0 || a_fType == IEMTB_F_TYPE_THREADED || a_fType == IEMTB_F_TYPE_NATIVE);
+#else
+    AssertCompile(a_fType == 0 || a_fType == IEMTB_F_TYPE_THREADED);
+#endif
     Assert(idxChunk < pTbAllocator->cAllocatedChunks); RT_NOREF(idxChunk);
     Assert(idxInChunk < pTbAllocator->cTbsPerChunk); RT_NOREF(idxInChunk);
     Assert((uintptr_t)(pTb - pTbAllocator->aChunks[idxChunk].paTbs) == idxInChunk);
@@ -919,22 +937,39 @@ static void iemTbAllocatorFreeInner(PVMCPUCC pVCpu, PIEMTBALLOCATOR pTbAllocator
     /*
      * Free the TB itself.
      */
-    switch (pTb->fFlags & IEMTB_F_TYPE_MASK)
-    {
-        case IEMTB_F_TYPE_THREADED:
-            pTbAllocator->cThreadedTbs -= 1;
-            RTMemFree(pTb->Thrd.paCalls);
-            break;
+    if RT_CONSTEXPR_IF(a_fType == 0)
+        switch (pTb->fFlags & IEMTB_F_TYPE_MASK)
+        {
+            case IEMTB_F_TYPE_THREADED:
+                pTbAllocator->cThreadedTbs -= 1;
+                RTMemFree(pTb->Thrd.paCalls);
+                break;
 #ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER
-        case IEMTB_F_TYPE_NATIVE:
-            pTbAllocator->cNativeTbs -= 1;
-            iemExecMemAllocatorFree(pVCpu, pTb->Native.paInstructions,
-                                    pTb->Native.cInstructions * sizeof(pTb->Native.paInstructions[0]));
-            pTb->Native.paInstructions = NULL; /* required by iemExecMemAllocatorPrune */
-            break;
+            case IEMTB_F_TYPE_NATIVE:
+                pTbAllocator->cNativeTbs -= 1;
+                iemExecMemAllocatorFree(pVCpu, pTb->Native.paInstructions,
+                                        pTb->Native.cInstructions * sizeof(pTb->Native.paInstructions[0]));
+                pTb->Native.paInstructions = NULL; /* required by iemExecMemAllocatorPrune */
+                break;
 #endif
-        default:
-            AssertFailed();
+            default:
+                AssertFailed();
+        }
+#ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER
+    else if RT_CONSTEXPR_IF(a_fType == IEMTB_F_TYPE_NATIVE)
+    {
+        Assert((pTb->fFlags & IEMTB_F_TYPE_MASK) == IEMTB_F_TYPE_NATIVE);
+        pTbAllocator->cNativeTbs -= 1;
+        iemExecMemAllocatorFree(pVCpu, pTb->Native.paInstructions,
+                                pTb->Native.cInstructions * sizeof(pTb->Native.paInstructions[0]));
+        pTb->Native.paInstructions = NULL; /* required by iemExecMemAllocatorPrune */
+    }
+#endif
+    else
+    {
+        Assert((pTb->fFlags & IEMTB_F_TYPE_MASK) == IEMTB_F_TYPE_THREADED);
+        pTbAllocator->cThreadedTbs -= 1;
+        RTMemFree(pTb->Thrd.paCalls);
     }
 
     RTMemFree(IEMTB_GET_TB_LOOKUP_TAB_ENTRY(pTb, 0)); /* Frees both the TB lookup table and opcode bytes. */
@@ -980,9 +1015,44 @@ DECLHIDDEN(void) iemTbAllocatorFree(PVMCPUCC pVCpu, PIEMTB pTb)
      * Invalidate the TB lookup pointer and call the inner worker.
      */
     pVCpu->iem.s.ppTbLookupEntryR3 = &pVCpu->iem.s.pTbLookupEntryDummyR3;
-    iemTbAllocatorFreeInner(pVCpu, pTbAllocator, pTb, idxChunk, (uint32_t)idxInChunk);
+    iemTbAllocatorFreeInner<0>(pVCpu, pTbAllocator, pTb, idxChunk, (uint32_t)idxInChunk);
 }
 
+#ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER
+
+/**
+ * Interface used by iemExecMemAllocatorPrune.
+ */
+DECLHIDDEN(void) iemTbAllocatorFreeBulk(PVMCPUCC pVCpu, PIEMTBALLOCATOR pTbAllocator, PIEMTB pTb)
+{
+    Assert(pTbAllocator->uMagic == IEMTBALLOCATOR_MAGIC);
+
+    uint8_t const idxChunk = pTb->idxAllocChunk;
+    AssertLogRelReturnVoid(idxChunk < pTbAllocator->cAllocatedChunks);
+    uintptr_t const idxInChunk = pTb - pTbAllocator->aChunks[idxChunk].paTbs;
+    AssertLogRelReturnVoid(idxInChunk < pTbAllocator->cTbsPerChunk);
+
+    iemTbAllocatorFreeInner<IEMTB_F_TYPE_NATIVE>(pVCpu, pTbAllocator, pTb, idxChunk, (uint32_t)idxInChunk);
+}
+
+
+/**
+ * Interface used by iemExecMemAllocatorPrune.
+ */
+DECLHIDDEN(PIEMTBALLOCATOR) iemTbAllocatorFreeBulkStart(PVMCPUCC pVCpu)
+{
+    PIEMTBALLOCATOR const pTbAllocator = pVCpu->iem.s.pTbAllocatorR3;
+    Assert(pTbAllocator && pTbAllocator->uMagic == IEMTBALLOCATOR_MAGIC);
+
+    iemTbAllocatorProcessDelayedFrees(pVCpu, pTbAllocator);
+
+    /* It should be sufficient to do this once. */
+    pVCpu->iem.s.ppTbLookupEntryR3 = &pVCpu->iem.s.pTbLookupEntryDummyR3;
+
+    return pTbAllocator;
+}
+
+#endif /* VBOX_WITH_IEM_NATIVE_RECOMPILER */
 
 /**
  * Schedules a TB for freeing when it's not longer being executed and/or part of
@@ -1070,7 +1140,7 @@ static int iemTbAllocatorFreeAll(PVMCPUCC pVCpu)
         {
             PIEMTB const pTb = &paTbs[idxTb];
             if (pTb->fFlags)
-                iemTbAllocatorFreeInner(pVCpu, pTbAllocator, pTb, idxChunk, idxTb);
+                iemTbAllocatorFreeInner<0>(pVCpu, pTbAllocator, pTb, idxChunk, idxTb);
         }
     }
 
@@ -1234,7 +1304,7 @@ static PIEMTB iemTbAllocatorAllocSlow(PVMCPUCC pVCpu, PIEMTBALLOCATOR const pTbA
         }
 
         /* Free the TB. */
-        iemTbAllocatorFreeInner(pVCpu, pTbAllocator, pTb, idxChunk, idxInChunk);
+        iemTbAllocatorFreeInner<0>(pVCpu, pTbAllocator, pTb, idxChunk, idxInChunk);
         cFreedTbs++; /* paranoia */
     }
     pTbAllocator->iPruneFrom = idxTbPruneFrom;
@@ -1280,6 +1350,7 @@ DECL_FORCE_INLINE(PIEMTB) iemTbAllocatorAlloc(PVMCPUCC pVCpu, bool fThreaded)
 }
 
 
+#if 0 /*def VBOX_WITH_IEM_NATIVE_RECOMPILER*/
 /**
  * This is called when we're out of space for native TBs.
  *
@@ -1357,7 +1428,7 @@ void iemTbAllocatorFreeupNativeSpace(PVMCPUCC pVCpu, uint32_t cNeededInstrs)
         if (cNativeTbs >= 2)
         {
             cMaxInstrs = RT_MAX(cMaxInstrs, pTb->Native.cInstructions);
-            iemTbAllocatorFreeInner(pVCpu, pTbAllocator, pTb, idxChunk, idxInChunk);
+            iemTbAllocatorFreeInner<IEMTB_F_TYPE_NATIVE>(pVCpu, pTbAllocator, pTb, idxChunk, idxInChunk);
             cFreedTbs++;
             if (cFreedTbs >= 8 && cMaxInstrs >= cNeededInstrs)
                 break;
@@ -1367,6 +1438,7 @@ void iemTbAllocatorFreeupNativeSpace(PVMCPUCC pVCpu, uint32_t cNeededInstrs)
 
     STAM_REL_PROFILE_STOP(&pTbAllocator->StatPruneNative, a);
 }
+#endif /* unused / VBOX_WITH_IEM_NATIVE_RECOMPILER */
 
 
 /*********************************************************************************************************************************
@@ -2779,7 +2851,8 @@ static bool iemThreadedCompileCheckIrqAfter(PVMCPUCC pVCpu, PIEMTB pTb)
  * @param   fExtraFlags Extra translation block flags: IEMTB_F_INHIBIT_SHADOW,
  *                      IEMTB_F_INHIBIT_NMI, IEMTB_F_CS_LIM_CHECKS.
  */
-static VBOXSTRICTRC iemThreadedCompile(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhysPc, uint32_t fExtraFlags) IEM_NOEXCEPT_MAY_LONGJMP
+static IEM_DECL_MSC_GUARD_IGNORE VBOXSTRICTRC
+iemThreadedCompile(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhysPc, uint32_t fExtraFlags) IEM_NOEXCEPT_MAY_LONGJMP
 {
     IEMTLBTRACE_TB_COMPILE(pVCpu, GCPhysPc);
     Assert(!(fExtraFlags & IEMTB_F_TYPE_MASK));
@@ -2933,6 +3006,313 @@ static VBOXSTRICTRC iemThreadedCompile(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhy
     return iemExecStatusCodeFiddling(pVCpu, rcStrict);
 }
 
+
+
+/*********************************************************************************************************************************
+*   Threaded Translation Block Saving and Restoring for Profiling the Native Recompiler                                          *
+*********************************************************************************************************************************/
+#if defined(VBOX_WITH_IEM_NATIVE_RECOMPILER) && defined(VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING)
+# include <iprt/message.h>
+
+static const SSMFIELD g_aIemThreadedTbFields[] =
+{
+    SSMFIELD_ENTRY(       IEMTB, cUsed),
+    SSMFIELD_ENTRY(       IEMTB, msLastUsed),
+    SSMFIELD_ENTRY_GCPHYS(IEMTB, GCPhysPc),
+    SSMFIELD_ENTRY(       IEMTB, fFlags),
+    SSMFIELD_ENTRY(       IEMTB, x86.fAttr),
+    SSMFIELD_ENTRY(       IEMTB, cRanges),
+    SSMFIELD_ENTRY(       IEMTB, cInstructions),
+    SSMFIELD_ENTRY(       IEMTB, Thrd.cCalls),
+    SSMFIELD_ENTRY(       IEMTB, cTbLookupEntries),
+    SSMFIELD_ENTRY(       IEMTB, cbOpcodes),
+    SSMFIELD_ENTRY(       IEMTB, FlatPc),
+    SSMFIELD_ENTRY_GCPHYS(IEMTB, aGCPhysPages[0]),
+    SSMFIELD_ENTRY_GCPHYS(IEMTB, aGCPhysPages[1]),
+    SSMFIELD_ENTRY_TERM()
+};
+
+/**
+ * Saves a threaded TB to a dedicated saved state file.
+ */
+static void iemThreadedSaveTbForProfiling(PVMCPU pVCpu, PCIEMTB pTb)
+{
+    /* Only VCPU #0 for now. */
+    if (pVCpu->idCpu != 0)
+        return;
+
+    /*
+     * Get the SSM handle, lazily opening the output file.
+     */
+    PSSMHANDLE const pNil = (PSSMHANDLE)~(uintptr_t)0; Assert(!RT_VALID_PTR(pNil));
+    PSSMHANDLE       pSSM = pVCpu->iem.s.pSsmThreadedTbsForProfiling;
+    if (pSSM && pSSM != pNil)
+    { /* likely */ }
+    else if (pSSM)
+        return;
+    else
+    {
+        pVCpu->iem.s.pSsmThreadedTbsForProfiling = pNil;
+        int rc = SSMR3Open("ThreadedTBsForRecompilerProfiling.sav", NULL, NULL, SSM_OPEN_F_FOR_WRITING, &pSSM);
+        AssertLogRelRCReturnVoid(rc);
+
+        rc = SSMR3WriteFileHeader(pSSM, 1);
+        AssertLogRelRCReturnVoid(rc); /* leaks SSM handle, but whatever. */
+
+        rc = SSMR3WriteUnitBegin(pSSM, "threaded-tbs", 1, 0);
+        AssertLogRelRCReturnVoid(rc); /* leaks SSM handle, but whatever. */
+        pVCpu->iem.s.pSsmThreadedTbsForProfiling = pSSM;
+    }
+
+    /*
+     * Do the actual saving.
+     */
+    SSMR3PutU32(pSSM, 0); /* Indicates that another TB follows. */
+
+    /* The basic structure. */
+    SSMR3PutStructEx(pSSM, pTb, sizeof(*pTb), 0 /*fFlags*/, g_aIemThreadedTbFields, NULL);
+
+    /* The ranges. */
+    for (uint32_t iRange = 0; iRange < pTb->cRanges; iRange++)
+    {
+        SSMR3PutU16(pSSM, pTb->aRanges[iRange].offOpcodes);
+        SSMR3PutU16(pSSM, pTb->aRanges[iRange].cbOpcodes);
+        SSMR3PutU16(pSSM, pTb->aRanges[iRange].offPhysPage | (pTb->aRanges[iRange].idxPhysPage << 14));
+    }
+
+    /* The opcodes. */
+    SSMR3PutMem(pSSM, pTb->pabOpcodes, pTb->cbOpcodes);
+
+    /* The threaded call table. */
+    int rc = SSMR3PutMem(pSSM, pTb->Thrd.paCalls, sizeof(*pTb->Thrd.paCalls) * pTb->Thrd.cCalls);
+    AssertLogRelMsgStmt(RT_SUCCESS(rc), ("rc=%Rrc\n", rc), pVCpu->iem.s.pSsmThreadedTbsForProfiling = pNil);
+}
+
+
+/**
+ * Called by IEMR3Term to finish any open profile files.
+ *
+ * @note This is not called on the EMT for @a pVCpu, but rather on the thread
+ *       driving the VM termination.
+ */
+DECLHIDDEN(void) iemThreadedSaveTbForProfilingCleanup(PVMCPU pVCpu)
+{
+    PSSMHANDLE const pSSM = pVCpu->iem.s.pSsmThreadedTbsForProfiling;
+    pVCpu->iem.s.pSsmThreadedTbsForProfiling = NULL;
+    if (RT_VALID_PTR(pSSM))
+    {
+        /* Indicate that this is the end.   */
+        SSMR3PutU32(pSSM, UINT32_MAX);
+
+        int rc = SSMR3WriteUnitComplete(pSSM);
+        AssertLogRelRC(rc);
+        rc = SSMR3WriteFileFooter(pSSM);
+        AssertLogRelRC(rc);
+        rc = SSMR3Close(pSSM);
+        AssertLogRelRC(rc);
+    }
+}
+
+#endif /* VBOX_WITH_IEM_NATIVE_RECOMPILER && VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING */
+
+#ifdef IN_RING3
+/**
+ * API use to process what iemThreadedSaveTbForProfiling() saved.
+ *
+ * @note Do not mix build types or revisions. Local changes between saving the
+ *       TBs and calling this API may cause unexpected trouble.
+ */
+VMMR3DECL(int) IEMR3ThreadedProfileRecompilingSavedTbs(PVM pVM, const char *pszFilename, uint32_t cMinTbs)
+{
+# if defined(VBOX_WITH_IEM_NATIVE_RECOMPILER) && defined(VBOX_WITH_SAVE_THREADED_TBS_FOR_PROFILING)
+    PVMCPU const pVCpu = pVM->apCpusR3[0];
+
+    /* We need to keep an eye on the TB allocator. */
+    PIEMTBALLOCATOR const pTbAllocator = pVCpu->iem.s.pTbAllocatorR3;
+
+    /*
+     * Load the TBs from the file.
+     */
+    PSSMHANDLE pSSM = NULL;
+    int rc = SSMR3Open(pszFilename, NULL, NULL, 0, &pSSM);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t cTbs     = 0;
+        PIEMTB   pTbHead  = NULL;
+        PIEMTB  *ppTbTail = &pTbHead;
+        uint32_t uVersion;
+        rc = SSMR3Seek(pSSM, "threaded-tbs", 0, &uVersion);
+        if (RT_SUCCESS(rc))
+        {
+            for (;; cTbs++)
+            {
+                /* Check for the end tag. */
+                uint32_t uTag = 0;
+                rc = SSMR3GetU32(pSSM, &uTag);
+                AssertRCBreak(rc);
+                if (uTag == UINT32_MAX)
+                    break;
+                AssertBreakStmt(uTag == 0, rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+
+                /* Do we have room for another TB? */
+                if (pTbAllocator->cInUseTbs + 2 >= pTbAllocator->cMaxTbs)
+                {
+                    RTMsgInfo("Too many TBs to load, stopping loading early.\n");
+                    break;
+                }
+
+                /* Allocate a new TB. */
+                PIEMTB pTb = iemTbAllocatorAlloc(pVCpu, true /*fThreaded*/);
+                AssertBreakStmt(uTag == 0, rc = VERR_OUT_OF_RESOURCES);
+
+                uint8_t const idxAllocChunk = pTb->idxAllocChunk;
+                RT_ZERO(*pTb);
+                pTb->idxAllocChunk = idxAllocChunk;
+
+                rc = SSMR3GetStructEx(pSSM, pTb, sizeof(*pTb), 0, g_aIemThreadedTbFields, NULL);
+                if (RT_SUCCESS(rc))
+                {
+                    AssertStmt(pTb->Thrd.cCalls      > 0 && pTb->Thrd.cCalls      <= _8K, rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+                    AssertStmt(pTb->cbOpcodes        > 0 && pTb->cbOpcodes        <= _8K, rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+                    AssertStmt(pTb->cRanges          > 0 && pTb->cRanges <= RT_ELEMENTS(pTb->aRanges), rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+                    AssertStmt(pTb->cTbLookupEntries > 0 && pTb->cTbLookupEntries <= 136, rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+
+                    if (RT_SUCCESS(rc))
+                        for (uint32_t iRange = 0; iRange < pTb->cRanges; iRange++)
+                        {
+                            SSMR3GetU16(pSSM, &pTb->aRanges[iRange].offOpcodes);
+                            SSMR3GetU16(pSSM, &pTb->aRanges[iRange].cbOpcodes);
+                            uint16_t uTmp = 0;
+                            rc = SSMR3GetU16(pSSM, &uTmp);
+                            AssertRCBreak(rc);
+                            pTb->aRanges[iRange].offPhysPage = uTmp & GUEST_PAGE_OFFSET_MASK;
+                            pTb->aRanges[iRange].idxPhysPage = uTmp >> 14;
+
+                            AssertBreakStmt(pTb->aRanges[iRange].idxPhysPage <= RT_ELEMENTS(pTb->aGCPhysPages),
+                                            rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+                            AssertBreakStmt(pTb->aRanges[iRange].offOpcodes  < pTb->cbOpcodes,
+                                            rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+                            AssertBreakStmt(pTb->aRanges[iRange].offOpcodes + pTb->aRanges[iRange].cbOpcodes <= pTb->cbOpcodes,
+                                            rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+                        }
+
+                    if (RT_SUCCESS(rc))
+                    {
+                        pTb->Thrd.paCalls = (PIEMTHRDEDCALLENTRY)RTMemAllocZ(sizeof(IEMTHRDEDCALLENTRY) * pTb->Thrd.cCalls);
+                        if (pTb->Thrd.paCalls)
+                        {
+                            size_t const cbTbLookup = pTb->cTbLookupEntries * sizeof(PIEMTB);
+                            Assert(cbTbLookup > 0);
+                            size_t const cbOpcodes  = pTb->cbOpcodes;
+                            Assert(cbOpcodes > 0);
+                            size_t const cbBoth     = cbTbLookup + RT_ALIGN_Z(cbOpcodes, sizeof(PIEMTB));
+                            uint8_t * const pbBoth  = (uint8_t *)RTMemAllocZ(cbBoth);
+                            if (pbBoth)
+                            {
+                                pTb->pabOpcodes = &pbBoth[cbTbLookup];
+                                SSMR3GetMem(pSSM, pTb->pabOpcodes, pTb->cbOpcodes);
+                                rc = SSMR3GetMem(pSSM, pTb->Thrd.paCalls, sizeof(IEMTHRDEDCALLENTRY) * pTb->Thrd.cCalls);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    *ppTbTail = pTb;
+                                    ppTbTail  = &pTb->pNext;
+                                    continue;
+                                }
+                            }
+                            else
+                                rc = VERR_NO_MEMORY;
+                            RTMemFree(pTb->Thrd.paCalls);
+                        }
+                        else
+                            rc = VERR_NO_MEMORY;
+                    }
+                }
+                iemTbAllocatorFree(pVCpu, pTb);
+                break;
+            }
+            if (RT_FAILURE(rc))
+                RTMsgError("Load error: %Rrc (cTbs=%u)", rc, cTbs);
+        }
+        else
+            RTMsgError("SSMR3Seek failed on '%s': %Rrc", pszFilename, rc);
+        SSMR3Close(pSSM);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Recompile the TBs.
+             */
+            if (pTbHead)
+            {
+                RTMsgInfo("Loaded %u TBs\n", cTbs);
+                if (cTbs < cMinTbs)
+                {
+                    RTMsgInfo("Duplicating TBs to reach %u TB target\n", cMinTbs);
+                    for (PIEMTB pTb = pTbHead;
+                         cTbs < cMinTbs && pTbAllocator->cInUseTbs + 2 <= pTbAllocator->cMaxTbs;
+                         pTb = pTb->pNext)
+                    {
+                        PIEMTB pTbCopy = iemThreadedTbDuplicate(pVM, pVCpu, pTb);
+                        if (!pTbCopy)
+                            break;
+                        *ppTbTail = pTbCopy;
+                        ppTbTail  = &pTbCopy->pNext;
+                        cTbs++;
+                    }
+                }
+
+                PIEMTB pTbWarmup = iemThreadedTbDuplicate(pVM, pVCpu, pTbHead);
+                if (pTbWarmup)
+                {
+                    iemNativeRecompile(pVCpu, pTbWarmup);
+                    RTThreadSleep(512); /* to make the start visible in the profiler. */
+                    RTMsgInfo("Ready, set, go!\n");
+
+                    if ((pTbWarmup->fFlags & IEMTB_F_TYPE_MASK) == IEMTB_F_TYPE_NATIVE)
+                    {
+                        uint32_t       cFailed = 0;
+                        uint64_t const nsStart = RTTimeNanoTS();
+                        for (PIEMTB pTb = pTbHead; pTb; pTb = pTb->pNext)
+                        {
+                            iemNativeRecompile(pVCpu, pTb);
+                            if ((pTb->fFlags & IEMTB_F_TYPE_MASK) != IEMTB_F_TYPE_NATIVE)
+                                cFailed++;
+                        }
+                        uint64_t const cNsElapsed = RTTimeNanoTS() - nsStart;
+                        RTMsgInfo("Recompiled %u TBs in %'RU64 ns - averaging %'RU64 ns/TB\n",
+                                  cTbs, cNsElapsed, (cNsElapsed + cTbs - 1) / cTbs);
+                        if (cFailed)
+                        {
+                            RTMsgError("Unforuntately %u TB failed!", cFailed);
+                            rc = VERR_GENERAL_FAILURE;
+                        }
+                        RTThreadSleep(128); /* Another gap in the profiler timeline.  */
+                    }
+                    else
+                    {
+                        RTMsgError("Failed to recompile the first TB!");
+                        rc = VERR_GENERAL_FAILURE;
+                    }
+                }
+                else
+                    rc = VERR_NO_MEMORY;
+            }
+            else
+            {
+                RTMsgError("'%s' contains no TBs!", pszFilename);
+                rc = VERR_NO_DATA;
+            }
+        }
+    }
+    else
+        RTMsgError("SSMR3Open failed on '%s': %Rrc", pszFilename, rc);
+    return rc;
+
+# else
+    RT_NOREF(pVM, pszFilename, cMinTbs);
+    return VERR_NOT_IMPLEMENTED;
+# endif
+}
+#endif /* IN_RING3 */
 
 
 /*********************************************************************************************************************************
@@ -3192,7 +3572,7 @@ DECL_FORCE_INLINE(PIEMTB *) iemTbGetTbLookupEntryWithRip(PCIEMTB pTb, uint8_t uT
  *                  thread.
  * @param   pTb     The translation block to execute.
  */
-static VBOXSTRICTRC iemTbExec(PVMCPUCC pVCpu, PIEMTB pTb) IEM_NOEXCEPT_MAY_LONGJMP
+static IEM_DECL_MSC_GUARD_IGNORE VBOXSTRICTRC iemTbExec(PVMCPUCC pVCpu, PIEMTB pTb) IEM_NOEXCEPT_MAY_LONGJMP
 {
     Assert(!(pVCpu->iem.s.GCPhysInstrBuf & (RTGCPHYS)GUEST_PAGE_OFFSET_MASK));
 
@@ -3214,21 +3594,13 @@ static VBOXSTRICTRC iemTbExec(PVMCPUCC pVCpu, PIEMTB pTb) IEM_NOEXCEPT_MAY_LONGJ
         iemThreadedLogCurInstr(pVCpu, "EXn", 0);
 # endif
 
-# ifndef IEMNATIVE_WITH_RECOMPILER_PROLOGUE_SINGLETON
-#  ifdef RT_ARCH_AMD64
-        VBOXSTRICTRC const rcStrict = ((PFNIEMTBNATIVE)pTb->Native.paInstructions)(pVCpu);
-#  else
-        VBOXSTRICTRC const rcStrict = ((PFNIEMTBNATIVE)pTb->Native.paInstructions)(pVCpu, &pVCpu->cpum.GstCtx);
-#  endif
-# else
-#  ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER_LONGJMP
+# ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER_LONGJMP
         AssertCompileMemberOffset(VMCPUCC, iem.s.pvTbFramePointerR3, 0x7c8); /* This is assumed in iemNativeTbEntry */
-#  endif
-#  ifdef RT_ARCH_AMD64
+# endif
+# ifdef RT_ARCH_AMD64
         VBOXSTRICTRC const rcStrict = iemNativeTbEntry(pVCpu, (uintptr_t)pTb->Native.paInstructions);
-#  else
+# else
         VBOXSTRICTRC const rcStrict = iemNativeTbEntry(pVCpu, &pVCpu->cpum.GstCtx, (uintptr_t)pTb->Native.paInstructions);
-#  endif
 # endif
 
 # ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER_LONGJMP

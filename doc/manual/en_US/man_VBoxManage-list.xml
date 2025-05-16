@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage list
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-list" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2024-02-28 18:17:55 +0100 (Wed, 28 Feb 2024) $</pubdate>
+    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
     <title>VBoxManage list</title>
   </refentryinfo>
 

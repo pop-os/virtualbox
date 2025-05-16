@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -353,6 +353,7 @@ static uint16_t ahci_cmd_data(bio_dsk_t __far *bios_dsk, uint8_t cmd)
     fis_d2h __far   *d2h;
     int             i;
 
+    DBG_AHCI("AHCI: Data block at %04X:%04X\n", FP_SEG(ahci), FP_OFF(ahci));
     _fmemset(&ahci->abCmd[0], 0, sizeof(ahci->abCmd));
 
     /* Prepare the FIS. */
@@ -494,7 +495,7 @@ static void ahci_port_init(ahci_t __far *ahci, uint8_t u8Port)
     _fmemset(&ahci->abFisRecv[0], 0, sizeof(ahci->abFisRecv));
 
     DBG_AHCI("AHCI: FIS receive area %lx from %x:%x\n",
-             ahci_addr_to_phys(&ahci->abFisRecv), FP_SEG(ahci->abFisRecv), FP_OFF(ahci->abFisRecv));
+             ahci_addr_to_phys(&ahci->abFisRecv), FP_SEG(&ahci->abFisRecv), FP_OFF(&ahci->abFisRecv));
     VBOXAHCI_PORT_WRITE_REG(ahci->iobase, u8Port, AHCI_REG_PORT_FB, ahci_addr_to_phys(&ahci->abFisRecv));
     VBOXAHCI_PORT_WRITE_REG(ahci->iobase, u8Port, AHCI_REG_PORT_FBU, 0);
 
@@ -537,9 +538,6 @@ int ahci_read_sectors(bio_dsk_t __far *bios_dsk)
     rc = ahci_cmd_data(bios_dsk, AHCI_CMD_READ_DMA_EXT);
     DBG_AHCI("%s: transferred %lu bytes\n", __func__, ((ahci_t __far *)(bios_dsk->ahci_seg :> 0))->aCmdHdr[1]);
     bios_dsk->drqp.trsfsectors = bios_dsk->drqp.nsect;
-#ifdef DMA_WORKAROUND
-    rep_movsw(bios_dsk->drqp.buffer, bios_dsk->drqp.buffer, bios_dsk->drqp.nsect * 512 / 2);
-#endif
     high_bits_restore(bios_dsk->ahci_seg :> 0);
     return rc;
 }
@@ -619,9 +617,6 @@ uint16_t ahci_cmd_packet(uint16_t device_id, uint8_t cmdlen, char __far *cmdbuf,
     ahci_cmd_data(bios_dsk, ATA_CMD_PACKET);
     DBG_AHCI("%s: transferred %lu bytes\n", __func__, ahci->aCmdHdr[1]);
     bios_dsk->drqp.trsfbytes = ahci->aCmdHdr[1];
-#ifdef DMA_WORKAROUND
-    rep_movsw(bios_dsk->drqp.buffer, bios_dsk->drqp.buffer, bios_dsk->drqp.trsfbytes / 2);
-#endif
     high_bits_restore(ahci);
 
     return ahci->aCmdHdr[1] == 0 ? 4 : 0;
@@ -824,29 +819,6 @@ void ahci_port_detect_device(ahci_t __far *ahci, uint8_t u8Port)
 }
 
 /**
- * Allocates 1K of conventional memory.
- */
-static uint16_t ahci_mem_alloc(void)
-{
-    uint16_t    base_mem_kb;
-    uint16_t    ahci_seg;
-
-    base_mem_kb = read_word(0x00, 0x0413);
-
-    DBG_AHCI("AHCI: %dK of base mem\n", base_mem_kb);
-
-    if (base_mem_kb == 0)
-        return 0;
-
-    base_mem_kb--; /* Allocate one block. */
-    ahci_seg = (((uint32_t)base_mem_kb * 1024) >> 4); /* Calculate start segment. */
-
-    write_word(0x00, 0x0413, base_mem_kb);
-
-    return ahci_seg;
-}
-
-/**
  * Initializes the AHCI HBA and detects attached devices.
  */
 static int ahci_hba_init(uint16_t io_base)
@@ -858,6 +830,17 @@ static int ahci_hba_init(uint16_t io_base)
     bio_dsk_t __far     *bios_dsk;
     ahci_t __far        *ahci;
 
+    /* Allocate 1K of base memory (this will move the EBDA).
+     * NB: The AHCI memory block must be 1K aligned. If the EBDA
+     * gets relocated, it will land on a paragraph aligned boundary;
+     * therefore the memory is allocated outside of the EBDA.
+     */
+    ahci_seg = conv_mem_alloc(1/*KB*/, 0/*in_ebda*/);
+    if (ahci_seg == 0)
+    {
+        DBG_AHCI("AHCI: Could not allocate 1K of memory\n");
+        return 0;
+    }
 
     ebda_seg = read_word(0x0040, 0x000E);
     bios_dsk = ebda_seg :> &EbdaData->bdisk;
@@ -867,18 +850,11 @@ static int ahci_hba_init(uint16_t io_base)
              ahci_ctrl_extract_bits(val, 0xffff0000, 16),
              ahci_ctrl_extract_bits(val, 0x0000ffff,  0));
 
-    /* Allocate 1K of base memory. */
-    ahci_seg = ahci_mem_alloc();
-    if (ahci_seg == 0)
-    {
-        DBG_AHCI("AHCI: Could not allocate 1K of memory, can't boot from controller\n");
-        return 0;
-    }
-    DBG_AHCI("AHCI: ahci_seg=%04x, size=%04x, pointer at EBDA:%04x (EBDA size=%04x)\n",
-             ahci_seg, sizeof(ahci_t), (uint16_t)&EbdaData->bdisk.ahci_seg, sizeof(ebda_data_t));
-
     bios_dsk->ahci_seg    = ahci_seg;
     bios_dsk->ahci_devcnt = 0;
+
+    DBG_AHCI("AHCI: ahci_seg=%04x, size=%04x, pointer at EBDA:%04x (EBDA size=%04x)\n",
+             bios_dsk->ahci_seg, sizeof(ahci_t), (uint16_t)&EbdaData->bdisk.ahci_seg, sizeof(ebda_data_t));
 
     ahci = ahci_seg :> 0;
     ahci->cur_port = 0xff;

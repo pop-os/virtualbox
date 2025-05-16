@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2024 Oracle and/or its affiliates.
  * This file is based on ast_mode.c
  * Copyright 2012 Red Hat Inc.
  * Parts based on xf86-video-ast
@@ -359,6 +359,28 @@ static void vbox_crtc_reset(struct drm_crtc *crtc)
 {
 }
 
+#if RTLNX_VER_MIN(4,12,0)
+static int vbox_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b,
+                        uint32_t size, struct drm_modeset_acquire_ctx *ctx)
+{
+    return 0;
+}
+#elif RTLNX_VER_MIN(4,8,0)
+static int vbox_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b, uint32_t size)
+{
+    return 0;
+}
+#elif RTLNX_VER_MIN(3,0,0)
+static void vbox_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b,
+                         uint32_t start, uint32_t size)
+{
+}
+#elif RTLNX_VER_MIN(2,6,29)
+static void vbox_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b, uint32_t size)
+{
+}
+#endif
+
 static void vbox_crtc_destroy(struct drm_crtc *crtc)
 {
     drm_crtc_cleanup(crtc);
@@ -370,7 +392,9 @@ static const struct drm_crtc_funcs vbox_crtc_funcs = {
     .cursor_set2 = vbox_cursor_set2,
     .reset = vbox_crtc_reset,
     .set_config = drm_crtc_helper_set_config,
-    /* .gamma_set = vbox_crtc_gamma_set, */
+#if RTLNX_VER_MIN(2,6,29)
+    .gamma_set = vbox_crtc_gamma_set,
+#endif
     .page_flip = vbox_crtc_page_flip,
     .destroy = vbox_crtc_destroy,
 };
@@ -869,7 +893,7 @@ static int vbox_cursor_set2(struct drm_crtc *crtc, struct drm_file *file_priv,
     vbox->cursor_data_size = data_size;
     dst = vbox->cursor_data;
 
-#if RTLNX_VER_MIN(6,4,0)
+#if RTLNX_VER_MIN(6,4,0) || RTLNX_RHEL_RANGE(9,7, 9,99)
     /* Make sure bo is in SYSTEM (main) memory, so we can access it directly. */
     ret = vbox_bo_pin(bo, VBOX_MEM_TYPE_SYSTEM, NULL);
     if (ret)
@@ -888,7 +912,11 @@ static int vbox_cursor_set2(struct drm_crtc *crtc, struct drm_file *file_priv,
 #endif
     if (ret) {
         vbox->cursor_data_size = 0;
+#if RTLNX_VER_MIN(6,4,0) || RTLNX_RHEL_RANGE(9,7, 9,99)
+        goto out_bo_unpin;
+#else
         goto out_unreserve_bo;
+#endif
     }
 
     src = ttm_kmap_obj_virtual(&uobj_map, &src_isiomem);
@@ -910,11 +938,12 @@ static int vbox_cursor_set2(struct drm_crtc *crtc, struct drm_file *file_priv,
 
 out_unmap_bo:
     ttm_bo_kunmap(&uobj_map);
-#if RTLNX_VER_MIN(6,4,0)
+#if RTLNX_VER_MIN(6,4,0) || RTLNX_RHEL_RANGE(9,7, 9,99)
 out_bo_unpin:
     vbox_bo_unpin(bo);
-#endif
+#else
 out_unreserve_bo:
+#endif
     vbox_bo_unreserve(bo);
 out_unref_obj:
 #if RTLNX_VER_MIN(5,9,0) || RTLNX_RHEL_MIN(8,4) || RTLNX_SUSE_MAJ_PREREQ(15,3)

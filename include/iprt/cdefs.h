@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1391,7 +1391,6 @@
 
 /** @def RT_NOEXCEPT
  * Wrapper for the C++11 noexcept keyword (only true form).
- * @note use RT_NOTHROW instead.
  */
 /** @def RT_NOEXCEPT_EX
  * Wrapper for the C++11 noexcept keyword with expression.
@@ -1462,6 +1461,7 @@
 /** @def RT_CACHELINE_SIZE
  * The typical cache line size for the target architecture.
  * @see RT_ALIGNAS_VAR, RT_ALIGNAS_TYPE, RT_ALIGNAS_MEMB
+ * @todo This is not correct for M1,M2,M3,M4,++, they have 128 byte cache lines.
  */
 #if  defined(RT_ARCH_X86)     || defined(RT_ARCH_AMD64) \
   || defined(RT_ARCH_ARM32)   || defined(RT_ARCH_ARM64) \
@@ -1471,6 +1471,26 @@
 #else
 # define RT_CACHELINE_SIZE  128     /* better overdo it */
 #endif
+
+
+/** @def RT_CONSTEXPR
+ * Wrapper for the C++11 constexpr keyword for use as per C++11.
+ */
+#if RT_CPLUSPLUS_PREREQ(201100)
+# define RT_CONSTEXPR                   constexpr
+#else
+# define RT_CONSTEXPR
+#endif
+
+/** @def RT_CONSTEXPR_IF
+ * Wrapper for the C++17 use of constexpr in combination with if statements.
+ */
+#if RT_CPLUSPLUS_PREREQ(201700)
+# define RT_CONSTEXPR_IF(a_CondExpr)    constexpr(a_CondExpr)
+#else
+# define RT_CONSTEXPR_IF(a_CondExpr)    (a_CondExpr)
+#endif
+
 
 /** @def RT_FALL_THROUGH
  * Tell the compiler that we're falling through to the next case in a switch.
@@ -2923,12 +2943,25 @@
  * @returns offset into the structure of the specified member. signed.
  * @param   type        Structure type.
  * @param   memberarray Member.
+ * @deprecated Use RT_UOFFSETOF_FLEX_ARRAY when possible.
  */
 #if defined(__cplusplus) && RT_GNUC_PREREQ(4, 4)
 # define RT_UOFFSETOF_DYN(type, memberarray)    ( (uintptr_t)&( ((type *)(void *)0x1000)->memberarray) - 0x1000 )
 #else
 # define RT_UOFFSETOF_DYN(type, memberarray)    ( (uintptr_t)&( ((type *)(void *)0)->memberarray) )
 #endif
+
+/** @def RT_UOFFSETOF_FLEX_ARRAY
+ * Calculates the size of a structure that ends with a flexible array.
+ *
+ * @returns offset into the structure of the specified member. signed.
+ * @param   a_Type          Structure type.
+ * @param   a_ArrayMember   The name of flexible array member.
+ * @param   a_cEntries      The number of array entries to include in the
+ *                          offset.
+ */
+#define RT_UOFFSETOF_FLEX_ARRAY(a_Type, a_ArrayMember, a_cEntries) \
+        ( RT_UOFFSETOF(a_Type, a_ArrayMember) + RT_SIZEOFMEMB(a_Type, a_ArrayMember[0]) * (a_cEntries) )
 
 
 /** @def RT_SIZEOFMEMB

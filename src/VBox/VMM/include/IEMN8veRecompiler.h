@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -49,7 +49,6 @@
  * Enables liveness analysis.  */
 #if 1 || defined(DOXYGEN_RUNNING)
 # define IEMNATIVE_WITH_LIVENESS_ANALYSIS
-/*# define IEMLIVENESS_EXTENDED_LAYOUT*/
 #endif
 
 /** @def IEMNATIVE_WITH_EFLAGS_SKIPPING
@@ -69,21 +68,35 @@
 # define IEMNATIVE_STRICT_EFLAGS_SKIPPING
 #endif
 
+/** @def IEMNATIVE_WITH_EFLAGS_POSTPONING
+ * Enables delaying EFLAGS calculations/updating to conditional code paths
+ * that are (hopefully) not taken so frequently.
+ *
+ * This can only help with case where there is an conditional
+ * call/exception/tbexit that needs the flag, but in the default code stream the
+ * flag will be clobbered.  Useful for TlbMiss scenarios and sequences of memory
+ * based instructions clobbering status flags. */
+#if defined(IEMNATIVE_WITH_LIVENESS_ANALYSIS) || defined(DOXYGEN_RUNNING)
+# if 1 || defined(DOXYGEN_RUNNING)
+#  define IEMNATIVE_WITH_EFLAGS_POSTPONING
+# endif
+#endif
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+# ifndef IEMNATIVE_WITH_EFLAGS_SKIPPING
+#  error "IEMNATIVE_WITH_EFLAGS_POSTPONING requires IEMNATIVE_WITH_EFLAGS_SKIPPING at present"
+# endif
+#endif
+
+/** @def IEMLIVENESS_EXTENDED_LAYOUT
+ * Enables the extended liveness data layout.  */
+#if defined(IEMNATIVE_WITH_EFLAGS_POSTPONING) || defined(DOXYGEN_RUNNING) || 0
+# define IEMLIVENESS_EXTENDED_LAYOUT
+#endif
+
+
 #ifdef VBOX_WITH_STATISTICS
 /** Always count instructions for now. */
 # define IEMNATIVE_WITH_INSTRUCTION_COUNTING
-#endif
-
-/** @def IEMNATIVE_WITH_RECOMPILER_PROLOGUE_SINGLETON
- * Enables having only a single prologue for native TBs. */
-#if 1 || defined(DOXYGEN_RUNNING)
-# define IEMNATIVE_WITH_RECOMPILER_PROLOGUE_SINGLETON
-#endif
-
-/** @def IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
- * Enable this to use common epilogue and tail code for all TBs in a chunk. */
-#if 1 || defined(DOXYGEN_RUNNING)
-# define IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
 #endif
 
 
@@ -190,13 +203,11 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
 /** @def IEMNATIVE_REG_FIXED_MASK
  * Mask GPRs with fixes assignments, either by us or dictated by the CPU/OS
  * architecture. */
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /** @def IEMNATIVE_SIMD_REG_FIXED_TMP0
  * Mask SIMD registers with fixes assignments, either by us or dictated by the CPU/OS
  * architecture. */
 /** @def IEMNATIVE_SIMD_REG_FIXED_TMP0
  * Dedicated temporary SIMD register. */
-#endif
 #if defined(RT_ARCH_ARM64) || defined(DOXYGEN_RUNNING) /* arm64 goes first because of doxygen */
 # define IEMNATIVE_REG_FIXED_PVMCPU         ARMV8_A64_REG_X28
 # define IEMNATIVE_REG_FIXED_PVMCPU_ASM     RT_CONCAT(x,IEMNATIVE_REG_FIXED_PVMCPU)
@@ -220,11 +231,10 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
                                              | RT_BIT_32(IEMNATIVE_REG_FIXED_TMP0) \
                                              | IEMNATIVE_REG_FIXED_MASK_ADD)
 
-# ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 # define IEMNATIVE_SIMD_REG_FIXED_TMP0      ARMV8_A64_REG_Q30
-#  if defined(IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS)
-#   define IEMNATIVE_SIMD_REG_FIXED_MASK    RT_BIT_32(ARMV8_A64_REG_Q30)
-#  else
+# if defined(IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS)
+#  define IEMNATIVE_SIMD_REG_FIXED_MASK     RT_BIT_32(ARMV8_A64_REG_Q30)
+# else
 /** @note
  * ARM64 has 32 registers, but they are only 128-bit wide.  So, in order to
  * support emulating 256-bit registers we pair two real registers statically to
@@ -237,7 +247,7 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
  * touch them in order to avoid having to save and restore them in the
  * prologue/epilogue.
  */
-#   define IEMNATIVE_SIMD_REG_FIXED_MASK    (  UINT32_C(0xff00) \
+#  define IEMNATIVE_SIMD_REG_FIXED_MASK     (  UINT32_C(0xff00) \
                                              | RT_BIT_32(ARMV8_A64_REG_Q31) \
                                              | RT_BIT_32(ARMV8_A64_REG_Q30) \
                                              | RT_BIT_32(ARMV8_A64_REG_Q29) \
@@ -255,7 +265,6 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
                                              | RT_BIT_32(ARMV8_A64_REG_Q5) \
                                              | RT_BIT_32(ARMV8_A64_REG_Q3) \
                                              | RT_BIT_32(ARMV8_A64_REG_Q1))
-#  endif
 # endif
 
 #elif defined(RT_ARCH_AMD64)
@@ -267,20 +276,18 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
                                              | RT_BIT_32(X86_GREG_xSP) \
                                              | RT_BIT_32(X86_GREG_xBP) )
 
-# ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
-#  define IEMNATIVE_SIMD_REG_FIXED_TMP0     5 /* xmm5/ymm5 */
-#  ifndef IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS
-#   ifndef _MSC_VER
-#    define IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS
-#   endif
+# define IEMNATIVE_SIMD_REG_FIXED_TMP0      5 /* xmm5/ymm5 */
+# ifndef IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS
+#  ifndef _MSC_VER
+#   define IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS
 #  endif
-#  ifdef IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS
-#   define IEMNATIVE_SIMD_REG_FIXED_MASK    (RT_BIT_32(IEMNATIVE_SIMD_REG_FIXED_TMP0))
-#  else
+# endif
+# ifdef IEMNATIVE_WITH_SIMD_REG_ACCESS_ALL_REGISTERS
+#  define IEMNATIVE_SIMD_REG_FIXED_MASK     (RT_BIT_32(IEMNATIVE_SIMD_REG_FIXED_TMP0))
+# else
 /** @note On Windows/AMD64 xmm6 through xmm15 are marked as callee saved. */
-#   define IEMNATIVE_SIMD_REG_FIXED_MASK    (  UINT32_C(0xffc0) \
+#  define IEMNATIVE_SIMD_REG_FIXED_MASK     (  UINT32_C(0xffc0) \
                                              | RT_BIT_32(IEMNATIVE_SIMD_REG_FIXED_TMP0))
-#  endif
 # endif
 
 #else
@@ -305,7 +312,7 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
 /** @def IEMNATIVE_CALL_VOLATILE_GREG_MASK
  * Mask of registers the callee will not save and may trash. */
 #ifdef RT_ARCH_AMD64
-# define IEMNATIVE_CALL_RET_GREG             X86_GREG_xAX
+# define IEMNATIVE_CALL_RET_GREG            X86_GREG_xAX
 
 # ifdef RT_OS_WINDOWS
 #  define IEMNATIVE_CALL_ARG_GREG_COUNT     4
@@ -324,10 +331,8 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
                                              | RT_BIT_32(X86_GREG_x9) \
                                              | RT_BIT_32(X86_GREG_x10) \
                                              | RT_BIT_32(X86_GREG_x11) )
-#  ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /* xmm0 - xmm5 are marked as volatile. */
-#   define IEMNATIVE_CALL_VOLATILE_SIMD_REG_MASK (UINT32_C(0x3f))
-#  endif
+#  define IEMNATIVE_CALL_VOLATILE_SIMD_REG_MASK (UINT32_C(0x3f))
 
 # else  /* !RT_OS_WINDOWS */
 #  define IEMNATIVE_CALL_ARG_GREG_COUNT     6
@@ -352,10 +357,8 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
                                              | RT_BIT_32(X86_GREG_x9) \
                                              | RT_BIT_32(X86_GREG_x10) \
                                              | RT_BIT_32(X86_GREG_x11) )
-#  ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /* xmm0 - xmm15 are marked as volatile. */
-#   define IEMNATIVE_CALL_VOLATILE_SIMD_REG_MASK (UINT32_C(0xffff))
-#  endif
+#  define IEMNATIVE_CALL_VOLATILE_SIMD_REG_MASK (UINT32_C(0xffff))
 # endif /* !RT_OS_WINDOWS */
 
 #elif defined(RT_ARCH_ARM64)
@@ -395,11 +398,9 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
                                              | RT_BIT_32(ARMV8_A64_REG_X15) \
                                              | RT_BIT_32(ARMV8_A64_REG_X16) \
                                              | RT_BIT_32(ARMV8_A64_REG_X17) )
-# ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /* The low 64 bits of v8 - v15 marked as callee saved but the rest is volatile,
  * so to simplify our life a bit we just mark everything as volatile. */
-#  define IEMNATIVE_CALL_VOLATILE_SIMD_REG_MASK (UINT32_C(0xffffffff))
-# endif
+# define IEMNATIVE_CALL_VOLATILE_SIMD_REG_MASK UINT32_C(0xffffffff)
 
 #endif
 
@@ -426,6 +427,11 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
 #else
 # define IEMNATIVE_CALL_VOLATILE_NOTMP_GREG_MASK    IEMNATIVE_CALL_VOLATILE_GREG_MASK
 #endif
+
+/** @def IEMNATIVE_CALL_NONVOLATILE_GREG_MASK
+ * The allocatable non-volatile general purpose register set.  */
+#define IEMNATIVE_CALL_NONVOLATILE_GREG_MASK \
+    (~IEMNATIVE_CALL_VOLATILE_GREG_MASK & ~IEMNATIVE_REG_FIXED_MASK & IEMNATIVE_HST_GREG_MASK)
 /** @} */
 
 
@@ -434,30 +440,24 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
 /** @def IEMNATIVE_HST_GREG_MASK
  * Mask corresponding to IEMNATIVE_HST_GREG_COUNT that can be applied to
  * inverted register masks and such to get down to a correct set of regs. */
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /** @def IEMNATIVE_HST_SIMD_REG_COUNT
  * Number of host SIMD registers we track. */
 /** @def IEMNATIVE_HST_SIMD_REG_MASK
  * Mask corresponding to IEMNATIVE_HST_SIMD_REG_COUNT that can be applied to
  * inverted register masks and such to get down to a correct set of regs. */
-#endif
 #ifdef RT_ARCH_AMD64
 # define IEMNATIVE_HST_GREG_COUNT           16
 # define IEMNATIVE_HST_GREG_MASK            UINT32_C(0xffff)
 
-# ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
-#  define IEMNATIVE_HST_SIMD_REG_COUNT      16
-#  define IEMNATIVE_HST_SIMD_REG_MASK       UINT32_C(0xffff)
-# endif
+# define IEMNATIVE_HST_SIMD_REG_COUNT       16
+# define IEMNATIVE_HST_SIMD_REG_MASK        UINT32_C(0xffff)
 
 #elif defined(RT_ARCH_ARM64)
 # define IEMNATIVE_HST_GREG_COUNT           32
 # define IEMNATIVE_HST_GREG_MASK            UINT32_MAX
 
-# ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
-#  define IEMNATIVE_HST_SIMD_REG_COUNT      32
-#  define IEMNATIVE_HST_SIMD_REG_MASK       UINT32_MAX
-# endif
+# define IEMNATIVE_HST_SIMD_REG_COUNT       32
+# define IEMNATIVE_HST_SIMD_REG_MASK        UINT32_MAX
 
 #else
 # error "Port me!"
@@ -471,11 +471,13 @@ AssertCompile(IEMNATIVE_FRAME_VAR_SLOTS == 32);
 typedef enum
 {
     kIemNativeLabelType_Invalid = 0,
-    /*
-     * Labels w/o data, only once instance per TB - aka exit reasons.
+    /** @name Exit reasons - Labels w/o data, only once instance per TB.
      *
-     * Note! Jumps to these requires instructions that are capable of spanning
-     *       the max TB length.
+     * The labels requiring register inputs are documented.
+     *
+     * @note Jumps to these requires instructions that are capable of spanning the
+     *       max TB length.
+     * @{
      */
     /* Simple labels comes first for indexing reasons. RaiseXx is order by the exception's numerical value(s). */
     kIemNativeLabelType_RaiseDe,                /**< Raise (throw) X86_XCPT_DE (00h). */
@@ -487,26 +489,42 @@ typedef enum
     kIemNativeLabelType_RaiseGp0,               /**< Raise (throw) X86_XCPT_GP (0dh) w/ errcd=0. */
     kIemNativeLabelType_RaiseMf,                /**< Raise (throw) X86_XCPT_MF (10h). */
     kIemNativeLabelType_RaiseXf,                /**< Raise (throw) X86_XCPT_XF (13h). */
-    kIemNativeLabelType_ObsoleteTb,
-    kIemNativeLabelType_NeedCsLimChecking,
-    kIemNativeLabelType_CheckBranchMiss,
+    kIemNativeLabelType_ObsoleteTb,             /**< Calls iemNativeHlpObsoleteTb (no inputs). */
+    kIemNativeLabelType_NeedCsLimChecking,      /**< Calls iemNativeHlpNeedCsLimChecking (no inputs). */
+    kIemNativeLabelType_CheckBranchMiss,        /**< Calls iemNativeHlpCheckBranchMiss (no inputs). */
     kIemNativeLabelType_LastSimple = kIemNativeLabelType_CheckBranchMiss,
-    /* Manually defined labels. */
-    kIemNativeLabelType_ReturnBreak,
-    kIemNativeLabelType_ReturnBreakFF,
-    kIemNativeLabelType_ReturnBreakViaLookup,
-    kIemNativeLabelType_ReturnBreakViaLookupWithIrq,
-    kIemNativeLabelType_ReturnBreakViaLookupWithTlb,
-    kIemNativeLabelType_ReturnBreakViaLookupWithTlbAndIrq,
+
+    /* Manually defined labels: */
+    /**< Returns with VINF_SUCCESS, no inputs. */
+    kIemNativeLabelType_ReturnSuccess,
+    /** Returns with VINF_IEM_REEXEC_FINISH_WITH_FLAGS, no inputs. */
     kIemNativeLabelType_ReturnWithFlags,
+    /** Returns with VINF_IEM_REEXEC_BREAK, no inputs. */
+    kIemNativeLabelType_ReturnBreak,
+    /** Returns with VINF_IEM_REEXEC_BREAK_FF, no inputs. */
+    kIemNativeLabelType_ReturnBreakFF,
+    /** The last TB exit label that doesn't have any input registers. */
+    kIemNativeLabelType_LastTbExitWithoutInputs = kIemNativeLabelType_ReturnBreakFF,
+
+    /** Argument registers 1, 2 & 3 are set up.  */
+    kIemNativeLabelType_ReturnBreakViaLookup,
+    /** Argument registers 1, 2 & 3 are set up.  */
+    kIemNativeLabelType_ReturnBreakViaLookupWithIrq,
+    /** Argument registers 1 & 2 are set up.  */
+    kIemNativeLabelType_ReturnBreakViaLookupWithTlb,
+    /** Argument registers 1 & 2 are set up.  */
+    kIemNativeLabelType_ReturnBreakViaLookupWithTlbAndIrq,
+    /** Return register holds the RC and the instruction number is in CL/RCX
+     * on amd64 and the 2rd argument register elsewhere. */
     kIemNativeLabelType_NonZeroRetOrPassUp,
-    kIemNativeLabelType_Return,
+
     /** The last fixup for branches that can span almost the whole TB length.
      * @note Whether kIemNativeLabelType_Return needs to be one of these is
      *       a bit questionable, since nobody jumps to it except other tail code. */
-    kIemNativeLabelType_LastWholeTbBranch = kIemNativeLabelType_Return,
+    kIemNativeLabelType_LastWholeTbBranch = kIemNativeLabelType_NonZeroRetOrPassUp,
     /** The last fixup for branches that exits the TB. */
-    kIemNativeLabelType_LastTbExit        = kIemNativeLabelType_Return,
+    kIemNativeLabelType_LastTbExit        = kIemNativeLabelType_NonZeroRetOrPassUp,
+    /** @} */
 
     /** Loop-jump target. */
     kIemNativeLabelType_LoopJumpTarget,
@@ -530,6 +548,37 @@ typedef enum
 #define IEMNATIVELABELTYPE_IS_EXIT_REASON(a_enmLabel) \
     ((a_enmLabel) <= kIemNativeLabelType_LastTbExit && (a_enmLabel) > kIemNativeLabelType_Invalid)
 
+#define IEMNATIVELABELTYPE_IS_EXIT_WITHOUT_INPUTS(a_enmLabel) \
+    ((a_enmLabel) <= kIemNativeLabelType_LastTbExitWithoutInputs && (a_enmLabel) > kIemNativeLabelType_Invalid)
+
+/**
+ * Get the mask of input registers for an TB exit label.
+ * This will return zero for any non-exit lable.
+ */
+#ifdef RT_ARCH_AMD64
+# define IEMNATIVELABELTYPE_GET_INPUT_REG_MASK(a_enmLabel) \
+    (     (a_enmLabel) == kIemNativeLabelType_ReturnBreakViaLookup \
+       || (a_enmLabel) == kIemNativeLabelType_ReturnBreakViaLookupWithIrq \
+     ? RT_BIT_32(IEMNATIVE_CALL_ARG1_GREG) | RT_BIT_32(IEMNATIVE_CALL_ARG2_GREG) | RT_BIT_32(IEMNATIVE_CALL_ARG3_GREG) \
+     :    (a_enmLabel) == kIemNativeLabelType_ReturnBreakViaLookupWithTlb \
+       || (a_enmLabel) == kIemNativeLabelType_ReturnBreakViaLookupWithTlbAndIrq \
+     ? RT_BIT_32(IEMNATIVE_CALL_ARG1_GREG) | RT_BIT_32(IEMNATIVE_CALL_ARG2_GREG) \
+     : (a_enmLabel) == kIemNativeLabelType_NonZeroRetOrPassUp \
+     ? RT_BIT_32(IEMNATIVE_CALL_RET_GREG)  | RT_BIT_32(X86_GREG_xCX) /* <-- the difference */ \
+     : 0)
+# else
+# define IEMNATIVELABELTYPE_GET_INPUT_REG_MASK(a_enmLabel) \
+    (     (a_enmLabel) == kIemNativeLabelType_ReturnBreakViaLookup \
+       || (a_enmLabel) == kIemNativeLabelType_ReturnBreakViaLookupWithIrq \
+     ? RT_BIT_32(IEMNATIVE_CALL_ARG1_GREG) | RT_BIT_32(IEMNATIVE_CALL_ARG2_GREG) | RT_BIT_32(IEMNATIVE_CALL_ARG3_GREG) \
+     :    (a_enmLabel) == kIemNativeLabelType_ReturnBreakViaLookupWithTlb \
+       || (a_enmLabel) == kIemNativeLabelType_ReturnBreakViaLookupWithTlbAndIrq \
+     ? RT_BIT_32(IEMNATIVE_CALL_ARG1_GREG) | RT_BIT_32(IEMNATIVE_CALL_ARG2_GREG) \
+     : (a_enmLabel) == kIemNativeLabelType_NonZeroRetOrPassUp \
+     ? RT_BIT_32(IEMNATIVE_CALL_RET_GREG)  | RT_BIT_32(IEMNATIVE_CALL_ARG2_GREG) \
+     : 0)
+#endif
+
 
 /** Native code generator label definition. */
 typedef struct IEMNATIVELABEL
@@ -544,6 +593,7 @@ typedef struct IEMNATIVELABEL
 } IEMNATIVELABEL;
 /** Pointer to a label. */
 typedef IEMNATIVELABEL *PIEMNATIVELABEL;
+
 
 
 /** Native code generator fixup types.  */
@@ -579,7 +629,7 @@ typedef struct IEMNATIVEFIXUP
 /** Pointer to a native code generator fixup. */
 typedef IEMNATIVEFIXUP *PIEMNATIVEFIXUP;
 
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
+
 
 /** Native code generator fixup to per chunk TB tail code. */
 typedef struct IEMNATIVEEXITFIXUP
@@ -605,7 +655,6 @@ typedef IEMNATIVEPERCHUNKCTX *PIEMNATIVEPERCHUNKCTX;
 /** Pointer to const per-chunk recompiler context. */
 typedef const IEMNATIVEPERCHUNKCTX *PCIEMNATIVEPERCHUNKCTX;
 
-#endif /* IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE */
 
 
 /**
@@ -621,24 +670,24 @@ typedef union IEMLIVENESSBIT
     RT_GCC_EXTENSION struct
     {                                     /*   bit no */
         uint64_t    bmGprs      : 16;   /**< 0x00 /  0: The 16 general purpose registers. */
-        uint64_t    fUnusedPc   :  1;   /**< 0x10 / 16: (PC in ) */
-        uint64_t    fCr0        :  1;   /**< 0x11 / 17: */
+        uint64_t    fCr0        :  1;   /**< 0x10 / 16: */
+        uint64_t    fCr4        :  1;   /**< 0x11 / 17: */
         uint64_t    fFcw        :  1;   /**< 0x12 / 18: */
         uint64_t    fFsw        :  1;   /**< 0x13 / 19: */
         uint64_t    bmSegBase   :  6;   /**< 0x14 / 20: */
         uint64_t    bmSegAttrib :  6;   /**< 0x1a / 26: */
         uint64_t    bmSegLimit  :  6;   /**< 0x20 / 32: */
         uint64_t    bmSegSel    :  6;   /**< 0x26 / 38: */
-        uint64_t    fCr4        :  1;   /**< 0x2c / 44: */
-        uint64_t    fXcr0       :  1;   /**< 0x2d / 45: */
-        uint64_t    fMxCsr      :  1;   /**< 0x2e / 46: */
-        uint64_t    fEflOther   :  1;   /**< 0x2f / 47: Other EFLAGS bits   (~X86_EFL_STATUS_BITS & X86_EFL_LIVE_MASK). First! */
-        uint64_t    fEflCf      :  1;   /**< 0x30 / 48: Carry flag          (X86_EFL_CF / 0). */
-        uint64_t    fEflPf      :  1;   /**< 0x31 / 49: Parity flag         (X86_EFL_PF / 2). */
-        uint64_t    fEflAf      :  1;   /**< 0x32 / 50: Auxilary carry flag (X86_EFL_AF / 4). */
-        uint64_t    fEflZf      :  1;   /**< 0x33 / 51: Zero flag           (X86_EFL_ZF / 6). */
-        uint64_t    fEflSf      :  1;   /**< 0x34 / 52: Signed flag         (X86_EFL_SF / 7). */
-        uint64_t    fEflOf      :  1;   /**< 0x35 / 53: Overflow flag       (X86_EFL_OF / 12). */
+        uint64_t    fXcr0       :  1;   /**< 0x2c / 44: */
+        uint64_t    fMxCsr      :  1;   /**< 0x2d / 45: */
+        uint64_t    fEflOther   :  1;   /**< 0x2e / 46: Other EFLAGS bits   (~X86_EFL_STATUS_BITS & X86_EFL_LIVE_MASK). First! */
+        uint64_t    fEflCf      :  1;   /**< 0x2f / 47: Carry flag          (X86_EFL_CF / 0). */
+        uint64_t    fEflPf      :  1;   /**< 0x30 / 48: Parity flag         (X86_EFL_PF / 2). */
+        uint64_t    fEflAf      :  1;   /**< 0x31 / 59: Auxilary carry flag (X86_EFL_AF / 4). */
+        uint64_t    fEflZf      :  1;   /**< 0x32 / 50: Zero flag           (X86_EFL_ZF / 6). */
+        uint64_t    fEflSf      :  1;   /**< 0x33 / 51: Signed flag         (X86_EFL_SF / 7). */
+        uint64_t    fEflOf      :  1;   /**< 0x34 / 52: Overflow flag       (X86_EFL_OF / 12). */
+        uint64_t    fUnusedPc   :  1;   /**< 0x35 / 53: (PC in ) */
         uint64_t    uUnused     : 10;     /* 0x36 / 54 -> 0x40/64 */
     };
 } IEMLIVENESSBIT;
@@ -651,6 +700,7 @@ AssertCompileSize(IEMLIVENESSBIT, 8);
 #define IEMLIVENESSBIT_IDX_EFL_ZF       ((unsigned)kIemNativeGstReg_EFlags + 4)
 #define IEMLIVENESSBIT_IDX_EFL_SF       ((unsigned)kIemNativeGstReg_EFlags + 5)
 #define IEMLIVENESSBIT_IDX_EFL_OF       ((unsigned)kIemNativeGstReg_EFlags + 6)
+#define IEMLIVENESSBIT_IDX_EFL_COUNT    7
 
 
 /**
@@ -701,7 +751,7 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
 
 /** @name 64-bit value masks for IEMLIVENESSENTRY.
  * @{ */                                      /*         0xzzzzyyyyxxxxwwww */
-#define IEMLIVENESSBIT_MASK                     UINT64_C(0x003ffffffffeffff)
+#define IEMLIVENESSBIT_MASK                     UINT64_C(0x001fffffffffffff)
 
 #ifndef IEMLIVENESS_EXTENDED_LAYOUT
 # define IEMLIVENESSBIT0_XCPT_OR_CALL           UINT64_C(0x0000000000000000)
@@ -711,8 +761,8 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
 # define IEMLIVENESSBIT1_ALL_UNUSED             UINT64_C(0x0000000000000000)
 #endif
 
-#define IEMLIVENESSBIT_ALL_EFL_MASK             UINT64_C(0x003f800000000000)
-#define IEMLIVENESSBIT_STATUS_EFL_MASK          UINT64_C(0x003f000000000000)
+#define IEMLIVENESSBIT_ALL_EFL_MASK             UINT64_C(0x001fc00000000000)
+#define IEMLIVENESSBIT_STATUS_EFL_MASK          UINT64_C(0x001f800000000000)
 
 #ifndef IEMLIVENESS_EXTENDED_LAYOUT
 # define IEMLIVENESSBIT0_ALL_EFL_INPUT          IEMLIVENESSBIT_ALL_EFL_MASK
@@ -736,6 +786,15 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
  * The mask entry (3rd one above) will be used both when updating the outgoing
  * state and when merging in incoming state for registers not touched by the
  * current call.
+ *
+ *
+ * Extended Layout:
+ *
+ * The extended layout variation differs from the above as it records the
+ * different register accesses as individual bits, and it is currently used for
+ * the delayed EFLAGS calculation experiments.   The latter means that
+ * calls/tb-exits and potential calls/exceptions/tb-exits are recorded
+ * separately so the latter can be checked for in combination with clobbering.
  *
  * @{ */
 #ifndef IEMLIVENESS_EXTENDED_LAYOUT
@@ -761,7 +820,7 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
  * IEMLIVENESS_STATE_INPUT values.  This latter means we have to do some extra
  * trickery to filter out IEMLIVENESS_STATE_UNUSED:
  *      1. r0 = old & ~mask;
- *      2. r0 = t1 & (t1 >> 1)'
+ *      2. r0 = t1 & (t1 >> 1);
  *      3. state |= r0 | 0b10;
  *      4. mask = ~0;
  */
@@ -782,37 +841,63 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
 # define IEMLIVENESS_STATE_MASK         3
 /** The number of bits per state.   */
 # define IEMLIVENESS_STATE_BIT_COUNT    2
-/** Check if we're expecting read & write accesses to a register with the given (previous) liveness state. */
+
+/** Check if we're expecting read & write accesses to a register with the given (previous) liveness state.
+ * @note only used in assertions. */
 # define IEMLIVENESS_STATE_IS_MODIFY_EXPECTED(a_uState)  ((uint32_t)((a_uState) - 1U) >= (uint32_t)(IEMLIVENESS_STATE_INPUT - 1U))
-/** Check if we're expecting read accesses to a register with the given (previous) liveness state. */
+/** Check if we're expecting read accesses to a register with the given (previous) liveness state.
+ * @note only used in assertions. */
 # define IEMLIVENESS_STATE_IS_INPUT_EXPECTED(a_uState)   IEMLIVENESS_STATE_IS_MODIFY_EXPECTED(a_uState)
 /** Check if a register clobbering is expected given the (previous) liveness state.
  * The state must be either CLOBBERED or XCPT_OR_CALL, but it may also
- * include INPUT if the register is used in more than one place. */
+ * include INPUT if the register is used in more than one place.
+ * @note only used in assertions. */
 # define IEMLIVENESS_STATE_IS_CLOBBER_EXPECTED(a_uState) ((uint32_t)(a_uState) != IEMLIVENESS_STATE_UNUSED)
 
 /** Check if all status flags are going to be clobbered and doesn't need
  *  calculating in the current step.
- * @param a_pCurEntry  The current liveness entry. */
-# define IEMLIVENESS_STATE_ARE_STATUS_EFL_TO_BE_CLOBBERED(a_pCurEntry)  \
+ * @param a_pCurEntry  The current liveness entry.
+ * @note  Used by actual code. */
+# define IEMLIVENESS_STATE_ARE_STATUS_EFL_TO_BE_CLOBBERED(a_pCurEntry) \
     ( (((a_pCurEntry)->Bit0.bm64 | (a_pCurEntry)->Bit1.bm64) & IEMLIVENESSBIT_STATUS_EFL_MASK) == 0 )
+
+/***
+ * Construct a mask of what will be clobbered and never used.
+ *
+ * This is mainly used with IEMLIVENESSBIT_STATUS_EFL_MASK to avoid
+ * unnecessary EFLAGS calculations.
+ *
+ * @param a_pCurEntry  The current liveness entry.
+ * @note  Used by actual code.
+ */
+# define IEMLIVENESS_STATE_GET_WILL_BE_CLOBBERED_SET(a_pCurEntry) \
+    ( ~((a_pCurEntry)->Bit0.bm64 | (a_pCurEntry)->Bit1.bm64) & IEMLIVENESSBIT_MASK )
+
+/** Construct a mask of the guest registers in the UNUSED and XCPT_OR_CALL
+ *  states, as these are no longer needed.
+ * @param a_pCurEntry  The current liveness entry.
+ * @note  Used by actual code. */
+AssertCompile(IEMLIVENESS_STATE_UNUSED == 1 && IEMLIVENESS_STATE_XCPT_OR_CALL == 2);
+# define IEMLIVENESS_STATE_GET_CAN_BE_FREED_SET(a_pCurEntry) \
+    ( (a_pCurEntry)->Bit0.bm64 ^ (a_pCurEntry)->Bit1.bm64 )
+
 
 #else  /* IEMLIVENESS_EXTENDED_LAYOUT */
 /** The register is not used any more. */
 # define IEMLIVENESS_STATE_UNUSED           0
-/** Flag: The register is required in a potential exception or call. */
-# define IEMLIVENESS_STATE_POT_XCPT_OR_CALL 1
-# define IEMLIVENESS_BIT_POT_XCPT_OR_CALL   0
+/** Flag: The register is required in a potential call or/and exception. */
+# define IEMLIVENESS_STATE_POTENTIAL_CALL   1
+# define IEMLIVENESS_BIT_POTENTIAL_CALL     0
 /** Flag: The register is read. */
 # define IEMLIVENESS_STATE_READ             2
 # define IEMLIVENESS_BIT_READ               1
 /** Flag: The register is written. */
 # define IEMLIVENESS_STATE_WRITE            4
 # define IEMLIVENESS_BIT_WRITE              2
-/** Flag: Unconditional call (not needed, can be redefined for research). */
+/** Flag: Unconditional call. */
 # define IEMLIVENESS_STATE_CALL             8
 # define IEMLIVENESS_BIT_CALL               3
-# define IEMLIVENESS_BIT_OTHER              3   /**< More convenient name for this one. */
+
 # define IEMLIVENESS_STATE_IS_MODIFY_EXPECTED(a_uState) \
     ( ((a_uState) & (IEMLIVENESS_STATE_WRITE | IEMLIVENESS_STATE_READ)) == (IEMLIVENESS_STATE_WRITE | IEMLIVENESS_STATE_READ) )
 # define IEMLIVENESS_STATE_IS_INPUT_EXPECTED(a_uState)   RT_BOOL((a_uState) & IEMLIVENESS_STATE_READ)
@@ -820,8 +905,56 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
 
 # define IEMLIVENESS_STATE_ARE_STATUS_EFL_TO_BE_CLOBBERED(a_pCurEntry)  \
     (   ((a_pCurEntry)->aBits[IEMLIVENESS_BIT_WRITE].bm64 & IEMLIVENESSBIT_STATUS_EFL_MASK) == IEMLIVENESSBIT_STATUS_EFL_MASK \
-     && !(  ((a_pCurEntry)->aBits[IEMLIVENESS_BIT_READ].bm64 | (a_pCurEntry)->aBits[IEMLIVENESS_BIT_POT_XCPT_OR_CALL].bm64) \
+     && !(  (  (a_pCurEntry)->aBits[IEMLIVENESS_BIT_POTENTIAL_CALL].bm64 \
+             | (a_pCurEntry)->aBits[IEMLIVENESS_BIT_READ].bm64 \
+             | (a_pCurEntry)->aBits[IEMLIVENESS_BIT_CALL].bm64) \
           & IEMLIVENESSBIT_STATUS_EFL_MASK) )
+
+/** Construct a mask of the registers not in the read or write state.
+ * @note  We could skips writes, if they aren't from us, as this is just a hack
+ *        to prevent trashing registers that have just been written or will be
+ *        written when we retire the current instruction.
+ * @param a_pCurEntry  The current liveness entry.
+ * @note  Used by actual code. */
+# define IEMLIVENESS_STATE_GET_CAN_BE_FREED_SET(a_pCurEntry) \
+    (  ~(a_pCurEntry)->aBits[IEMLIVENESS_BIT_READ].bm64 \
+     & ~(a_pCurEntry)->aBits[IEMLIVENESS_BIT_WRITE].bm64 \
+     & IEMLIVENESSBIT_MASK )
+
+/***
+ * Construct a mask of what will be clobbered and never used.
+ *
+ * This is mainly used with IEMLIVENESSBIT_STATUS_EFL_MASK to avoid
+ * unnecessary EFLAGS calculations.
+ *
+ * @param a_pCurEntry  The current liveness entry.
+ * @note  Used by actual code.
+ */
+# define IEMLIVENESS_STATE_GET_WILL_BE_CLOBBERED_SET(a_pCurEntry) \
+    (  (a_pCurEntry)->aBits[IEMLIVENESS_BIT_WRITE].bm64 \
+     & ~(  (a_pCurEntry)->aBits[IEMLIVENESS_BIT_POTENTIAL_CALL].bm64 \
+         | (a_pCurEntry)->aBits[IEMLIVENESS_BIT_READ].bm64 \
+         | (a_pCurEntry)->aBits[IEMLIVENESS_BIT_CALL].bm64) )
+
+/**
+ * Construct a mask of what (EFLAGS) which can be postponed.
+ *
+ * The postponement is for the avoiding EFLAGS status bits calculations in the
+ * primary code stream whenever possible, and instead only do these in the TLB
+ * load and TB exit code paths which shouldn't be traveled quite as often.
+ * A requirement, though, is that the status bits will be clobbered later in the
+ * TB.
+ *
+ * User need to apply IEMLIVENESSBIT_STATUS_EFL_MASK if appropriate/necessary.
+ *
+ * @param a_pCurEntry  The current liveness entry.
+ * @note  Used by actual code.
+ */
+# define IEMLIVENESS_STATE_GET_CAN_BE_POSTPONED_SET(a_pCurEntry) \
+    (  (a_pCurEntry)->aBits[IEMLIVENESS_BIT_POTENTIAL_CALL].bm64 \
+     & (a_pCurEntry)->aBits[IEMLIVENESS_BIT_WRITE].bm64 \
+     & ~(  (a_pCurEntry)->aBits[IEMLIVENESS_BIT_READ].bm64 \
+         | (a_pCurEntry)->aBits[IEMLIVENESS_BIT_CALL].bm64) )
 
 #endif /* IEMLIVENESS_EXTENDED_LAYOUT */
 /** @} */
@@ -829,7 +962,7 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
 /** @name Liveness helpers for builtin functions and similar.
  *
  * These are not used by IEM_MC_BEGIN/END blocks, IEMAllN8veLiveness.cpp has its
- * own set of manimulator macros for those.
+ * own set of manipulator macros for those.
  *
  * @{ */
 /** Initializing the state as all unused. */
@@ -842,29 +975,89 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
 #else
 # define IEM_LIVENESS_RAW_INIT_AS_UNUSED(a_pOutgoing) \
     do { \
-        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_POT_XCPT_OR_CALL].bm64 = 0; \
-        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_READ            ].bm64 = 0; \
-        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_WRITE           ].bm64 = 0; \
-        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_OTHER           ].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_POTENTIAL_CALL].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_READ          ].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_WRITE         ].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_CALL          ].bm64 = 0; \
     } while (0)
 #endif
 
 /** Initializing the outgoing state with a potential xcpt or call state.
- * This only works when all later changes will be IEMLIVENESS_STATE_INPUT. */
+ * This only works when all later changes will be IEMLIVENESS_STATE_INPUT.
+ *
+ * @note Must invoke IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL when done!
+ */
 #ifndef IEMLIVENESS_EXTENDED_LAYOUT
-# define IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(a_pOutgoing, a_pIncoming) \
+# define IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(a_pOutgoing, a_pIncoming) \
     do { \
         (a_pOutgoing)->Bit0.bm64 = (a_pIncoming)->Bit0.bm64 & (a_pIncoming)->Bit1.bm64; \
         (a_pOutgoing)->Bit1.bm64 = IEMLIVENESSBIT1_XCPT_OR_CALL; \
     } while (0)
 #else
-# define IEM_LIVENESS_RAW_INIT_WITH_XCPT_OR_CALL(a_pOutgoing, a_pIncoming) \
+# define IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL(a_pOutgoing, a_pIncoming) \
     do { \
-        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_POT_XCPT_OR_CALL].bm64 = IEMLIVENESSBIT_MASK; \
-        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_READ            ].bm64 = (a_pIncoming)->aBits[IEMLIVENESS_BIT_READ].bm64; \
-        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_WRITE           ].bm64 = 0; \
-        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_OTHER           ].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_POTENTIAL_CALL].bm64 = IEMLIVENESSBIT_MASK; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_READ          ].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_WRITE         ].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_CALL          ].bm64 = 0; \
     } while (0)
+#endif
+
+/** Completes IEM_LIVENESS_RAW_INIT_WITH_POTENTIAL_CALL after applying any
+ * other state modifications.
+ */
+#ifndef IEMLIVENESS_EXTENDED_LAYOUT
+# define IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(a_pOutgoing, a_pIncoming) ((void)0)
+#else
+# define IEM_LIVENESS_RAW_FINISH_WITH_POTENTIAL_CALL(a_pOutgoing, a_pIncoming) \
+    do { \
+        uint64_t const fInhMask = ~(  (a_pOutgoing)->aBits[IEMLIVENESS_BIT_CALL].bm64 \
+                                    | (a_pOutgoing)->aBits[IEMLIVENESS_BIT_WRITE].bm64); \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_POTENTIAL_CALL].bm64 |= (a_pIncoming)->aBits[IEMLIVENESS_BIT_POTENTIAL_CALL].bm64 & fInhMask; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_READ          ].bm64 |= (a_pIncoming)->aBits[IEMLIVENESS_BIT_READ].bm64  & fInhMask; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_WRITE         ].bm64 |= (a_pIncoming)->aBits[IEMLIVENESS_BIT_WRITE].bm64 & fInhMask; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_CALL          ].bm64 |= (a_pIncoming)->aBits[IEMLIVENESS_BIT_CALL].bm64  & fInhMask; \
+    } while (0)
+#endif
+
+/** Initializing the outgoing state with an unconditional call state.
+ * This should only really be used alone. */
+#ifndef IEMLIVENESS_EXTENDED_LAYOUT
+# define IEM_LIVENESS_RAW_INIT_WITH_CALL(a_pOutgoing, a_pIncoming) \
+    do { \
+        (a_pOutgoing)->Bit0.bm64 = (a_pIncoming)->Bit0.bm64 & (a_pIncoming)->Bit1.bm64; \
+        (a_pOutgoing)->Bit1.bm64 = IEMLIVENESSBIT1_XCPT_OR_CALL; \
+    } while (0)
+#else
+# define IEM_LIVENESS_RAW_INIT_WITH_CALL(a_pOutgoing, a_pIncoming) \
+    do { \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_CALL          ].bm64 = IEMLIVENESSBIT_MASK; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_POTENTIAL_CALL].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_READ          ].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_WRITE         ].bm64 = 0; \
+        RT_NOREF(a_pIncoming); \
+    } while (0)
+#endif
+
+#if 0 /* unused */
+/** Initializing the outgoing state with an unconditional call state as well as
+ *  an potential call/exception preceeding it.
+ * This should only really be used alone. */
+#ifndef IEMLIVENESS_EXTENDED_LAYOUT
+# define IEM_LIVENESS_RAW_INIT_WITH_CALL_AND_POTENTIAL_CALL(a_pOutgoing, a_pIncoming) \
+    do { \
+        (a_pOutgoing)->Bit0.bm64 = (a_pIncoming)->Bit0.bm64 & (a_pIncoming)->Bit1.bm64; \
+        (a_pOutgoing)->Bit1.bm64 = IEMLIVENESSBIT1_XCPT_OR_CALL; \
+    } while (0)
+#else
+# define IEM_LIVENESS_RAW_INIT_WITH_CALL_AND_POTENTIAL_CALL(a_pOutgoing, a_pIncoming) \
+    do { \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_POTENTIAL_CALL].bm64 = IEMLIVENESSBIT_MASK; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_CALL          ].bm64 = IEMLIVENESSBIT_MASK; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_READ          ].bm64 = 0; \
+        (a_pOutgoing)->aBits[IEMLIVENESS_BIT_WRITE         ].bm64 = 0; \
+    } while (0)
+#endif
 #endif
 
 /** Adds a segment base register as input to the outgoing state. */
@@ -916,6 +1109,49 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
 #endif
 /** @} */
 
+/** @def IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY
+ * Debug assertion that the required flags are available and not incorrectly skipped.
+ */
+#ifdef IEMNATIVE_WITH_EFLAGS_SKIPPING
+# define IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(a_pReNative, a_fEflNeeded) \
+    AssertMsg(!((a_pReNative)->fSkippingEFlags & (a_fEflNeeded)), \
+              ("%#x & %#x -> %#x\n", (a_pReNative)->fSkippingEFlags, \
+               a_fEflNeeded, (a_pReNative)->fSkippingEFlags & (a_fEflNeeded) ))
+#else
+# define IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(a_pReNative, a_fEflNeeded) ((void)0)
+#endif
+
+/** @def IEMNATIVE_ASSERT_EFLAGS_POSTPONING_ONLY
+ * Debug assertion that the required flags are available and not incorrectly postponed.
+ */
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+# define IEMNATIVE_ASSERT_EFLAGS_POSTPONING_ONLY(a_pReNative, a_fEflNeeded) \
+    AssertMsg(!((a_pReNative)->PostponedEfl.fEFlags & (a_fEflNeeded)), \
+              ("%#x & %#x -> %#x\n", (a_pReNative)->PostponedEfl.fEFlags, \
+               a_fEflNeeded, (a_pReNative)->PostponedEfl.fEFlags & (a_fEflNeeded) ))
+#else
+# define IEMNATIVE_ASSERT_EFLAGS_POSTPONING_ONLY(a_pReNative, a_fEflNeeded) ((void)0)
+#endif
+
+/** @def IEMNATIVE_ASSERT_EFLAGS_SKIPPING_AND_POSTPONING
+ * Debug assertion that the required flags are available and not incorrectly
+ * skipped or postponed.
+ */
+#if defined(IEMNATIVE_WITH_EFLAGS_SKIPPING) && defined(IEMNATIVE_WITH_EFLAGS_POSTPONING)
+# define IEMNATIVE_ASSERT_EFLAGS_SKIPPING_AND_POSTPONING(a_pReNative, a_fEflNeeded) \
+    AssertMsg(!(((a_pReNative)->fSkippingEFlags | (a_pReNative)->PostponedEfl.fEFlags) & (a_fEflNeeded)), \
+              ("(%#x | %#x) & %#x -> %#x\n", (a_pReNative)->fSkippingEFlags, (a_pReNative)->PostponedEfl.fEFlags, \
+               a_fEflNeeded, ((a_pReNative)->fSkippingEFlags | (a_pReNative)->PostponedEfl.fEFlags) & (a_fEflNeeded) ))
+#elif defined(IEMNATIVE_WITH_EFLAGS_SKIPPING)
+# define IEMNATIVE_ASSERT_EFLAGS_SKIPPING_AND_POSTPONING(a_pReNative, a_fEflNeeded) \
+    IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(a_pReNative, a_fEflNeeded)
+#elif defined(IEMNATIVE_WITH_EFLAGS_POSTPONING) \
+# define IEMNATIVE_ASSERT_EFLAGS_SKIPPING_AND_POSTPONING(a_pReNative, a_fEflNeeded) \
+    IEMNATIVE_ASSERT_EFLAGS_POSTPONING_ONLY(a_pReNative, a_fEflNeeded)
+#else
+# define IEMNATIVE_ASSERT_EFLAGS_SKIPPING_AND_POSTPONING(a_pReNative, a_fEflNeeded) ((void)0)
+#endif
+
 /** @def IEMNATIVE_STRICT_EFLAGS_SKIPPING_EMIT_CHECK
  * Checks that the EFLAGS bits specified by @a a_fEflNeeded are actually
  * calculated and up to date.  This is to double check that we haven't skipped
@@ -923,12 +1159,253 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
  * @note has to be placed in
  */
 #ifdef IEMNATIVE_STRICT_EFLAGS_SKIPPING
-# define IEMNATIVE_STRICT_EFLAGS_SKIPPING_EMIT_CHECK(a_pReNative, a_off, a_fEflNeeded) \
-    do { (a_off) = iemNativeEmitEFlagsSkippingCheck(a_pReNative, a_off, a_fEflNeeded); } while (0)
+# define IEMNATIVE_STRICT_EFLAGS_SKIPPING_EMIT_CHECK(a_pReNative, a_off, a_fEflNeeded) do { \
+        (a_off) = iemNativeEmitEFlagsSkippingCheck(a_pReNative, a_off, a_fEflNeeded); \
+    } while (0)
 #else
 # define IEMNATIVE_STRICT_EFLAGS_SKIPPING_EMIT_CHECK(a_pReNative, a_off, a_fEflNeeded) do { } while (0)
 #endif
 
+
+/** @def IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS
+ * Number of extra instructions to allocate for each TB exit to account for
+ * postponed EFLAGS calculations.
+ */
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+# ifdef RT_ARCH_AMD64
+#  ifdef VBOX_STRICT
+#   define IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS   64
+#  else
+#   define IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS   32
+#  endif
+# elif defined(RT_ARCH_ARM64) || defined(DOXYGEN_RUNNING)
+#  ifdef VBOX_STRICT
+#   define IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS   48
+#  else
+#   define IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS   32
+#  endif
+# else
+#  error "port me"
+# endif
+#else
+# define IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS    0
+#endif
+
+/** @def IEMNATIVE_CLEAR_POSTPONED_EFLAGS
+ * Helper macro function for calling iemNativeClearPostponedEFlags() when
+ * IEMNATIVE_WITH_EFLAGS_POSTPONING is enabled.
+ */
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+# define IEMNATIVE_CLEAR_POSTPONED_EFLAGS(a_pReNative, a_fEflClobbered) iemNativeClearPostponedEFlags<a_fEflClobbered>(a_pReNative)
+#else
+# define IEMNATIVE_CLEAR_POSTPONED_EFLAGS(a_pReNative, a_fEflClobbered) ((void)0)
+#endif
+
+/** @def IEMNATIVE_HAS_POSTPONED_EFLAGS_CALCS
+ * Macro for testing whether there are currently any postponed EFLAGS calcs w/o
+ * needing to \#ifdef the check.
+ */
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+# define IEMNATIVE_HAS_POSTPONED_EFLAGS_CALCS(a_pReNative) ((a_pReNative)->PostponedEfl.fEFlags != 0)
+#else
+# define IEMNATIVE_HAS_POSTPONED_EFLAGS_CALCS(a_pReNative) false
+#endif
+
+
+/**
+ * Translation block debug info entry type.
+ */
+typedef enum IEMTBDBGENTRYTYPE
+{
+    kIemTbDbgEntryType_Invalid = 0,
+    /** The entry is for marking a native code position.
+     * Entries following this all apply to this position. */
+    kIemTbDbgEntryType_NativeOffset,
+    /** The entry is for a new guest instruction. */
+    kIemTbDbgEntryType_GuestInstruction,
+    /** Marks the start of a threaded call. */
+    kIemTbDbgEntryType_ThreadedCall,
+    /** Marks the location of a label. */
+    kIemTbDbgEntryType_Label,
+    /** Info about a host register shadowing a guest register. */
+    kIemTbDbgEntryType_GuestRegShadowing,
+    /** Info about a host SIMD register shadowing a guest SIMD register. */
+    kIemTbDbgEntryType_GuestSimdRegShadowing,
+#ifdef IEMNATIVE_WITH_DELAYED_PC_UPDATING
+    /** Info about a delayed RIP update. */
+    kIemTbDbgEntryType_DelayedPcUpdate,
+#endif
+    /** Info about a shadowed guest register becoming dirty. */
+    kIemTbDbgEntryType_GuestRegDirty,
+    /** Info about register writeback/flush oepration. */
+    kIemTbDbgEntryType_GuestRegWriteback,
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    /** Info about a delayed EFLAGS calculation. */
+    kIemTbDbgEntryType_PostponedEFlagsCalc,
+#endif
+    kIemTbDbgEntryType_End
+} IEMTBDBGENTRYTYPE;
+
+/**
+ * Translation block debug info entry.
+ */
+typedef union IEMTBDBGENTRY
+{
+    /** Plain 32-bit view. */
+    uint32_t u;
+
+    /** Generic view for getting at the type field. */
+    struct
+    {
+        /** IEMTBDBGENTRYTYPE */
+        uint32_t    uType : 4;
+        uint32_t    uTypeSpecific : 28;
+    } Gen;
+
+    struct
+    {
+        /** kIemTbDbgEntryType_ThreadedCall1. */
+        uint32_t    uType      : 4;
+        /** Native code offset. */
+        uint32_t    offNative  : 28;
+    } NativeOffset;
+
+    struct
+    {
+        /** kIemTbDbgEntryType_GuestInstruction. */
+        uint32_t    uType      : 4;
+        uint32_t    uUnused    : 4;
+        /** The IEM_F_XXX flags. */
+        uint32_t    fExec      : 24;
+    } GuestInstruction;
+
+    struct
+    {
+        /* kIemTbDbgEntryType_ThreadedCall. */
+        uint32_t    uType       : 4;
+        /** Set if the call was recompiled to native code, clear if just calling
+         *  threaded function. */
+        uint32_t    fRecompiled : 1;
+        uint32_t    uUnused     : 11;
+        /** The threaded call number (IEMTHREADEDFUNCS). */
+        uint32_t    enmCall     : 16;
+    } ThreadedCall;
+
+    struct
+    {
+        /* kIemTbDbgEntryType_Label. */
+        uint32_t    uType      : 4;
+        uint32_t    uUnused    : 4;
+        /** The label type (IEMNATIVELABELTYPE).   */
+        uint32_t    enmLabel   : 8;
+        /** The label data. */
+        uint32_t    uData      : 16;
+    } Label;
+
+    struct
+    {
+        /* kIemTbDbgEntryType_GuestRegShadowing. */
+        uint32_t    uType         : 4;
+        uint32_t    uUnused       : 4;
+        /** The guest register being shadowed (IEMNATIVEGSTREG). */
+        uint32_t    idxGstReg     : 8;
+        /** The host new register number, UINT8_MAX if dropped. */
+        uint32_t    idxHstReg     : 8;
+        /** The previous host register number, UINT8_MAX if new.   */
+        uint32_t    idxHstRegPrev : 8;
+    } GuestRegShadowing;
+
+    struct
+    {
+        /* kIemTbDbgEntryType_GuestSimdRegShadowing. */
+        uint32_t    uType             : 4;
+        uint32_t    uUnused           : 4;
+        /** The guest register being shadowed (IEMNATIVEGSTSIMDREG). */
+        uint32_t    idxGstSimdReg     : 8;
+        /** The host new register number, UINT8_MAX if dropped. */
+        uint32_t    idxHstSimdReg     : 8;
+        /** The previous host register number, UINT8_MAX if new.   */
+        uint32_t    idxHstSimdRegPrev : 8;
+    } GuestSimdRegShadowing;
+
+#ifdef IEMNATIVE_WITH_DELAYED_PC_UPDATING
+    struct
+    {
+        /* kIemTbDbgEntryType_DelayedPcUpdate. */
+        uint32_t    uType         : 4;
+        /** Number of instructions skipped. */
+        uint32_t    cInstrSkipped : 8;
+        /* The instruction offset added to the program counter. */
+        int32_t     offPc         : 20;
+    } DelayedPcUpdate;
+#endif
+
+    struct
+    {
+        /* kIemTbDbgEntryType_GuestRegDirty. */
+        uint32_t    uType         : 4;
+        uint32_t    uUnused       : 11;
+        /** Flag whether this is about a SIMD (true) or general (false) register. */
+        uint32_t    fSimdReg      : 1;
+        /** The guest register index being marked as dirty. */
+        uint32_t    idxGstReg     : 8;
+        /** The host register number this register is shadowed in .*/
+        uint32_t    idxHstReg     : 8;
+    } GuestRegDirty;
+
+    struct
+    {
+        /* kIemTbDbgEntryType_GuestRegWriteback. */
+        uint32_t    uType         : 4;
+        /** Flag whether this is about a SIMD (true) or general (false) register flush. */
+        uint32_t    fSimdReg      : 1;
+        /** The mask shift. */
+        uint32_t    cShift        : 2;
+        /** The guest register mask being written back. */
+        uint32_t    fGstReg       : 25;
+    } GuestRegWriteback;
+
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    struct
+    {
+        /* kIemTbDbgEntryType_PostponedEFlagsCalc. */
+        uint32_t    uType         : 4;
+        /** The EFLAGS operation (IEMNATIVE_POSTPONED_EFL_OP_T). */
+        uint32_t    enmOp         : 4;
+        /** The mask shift. */
+        uint32_t    cOpBits       : 8;
+        /** The emit instance number (0-based). */
+        uint32_t    idxEmit       : 8;
+        /** Unused. */
+        uint32_t    uUnused       : 8;
+    } PostponedEflCalc;
+#endif
+} IEMTBDBGENTRY;
+AssertCompileSize(IEMTBDBGENTRY, sizeof(uint32_t));
+/** Pointer to a debug info entry. */
+typedef IEMTBDBGENTRY *PIEMTBDBGENTRY;
+/** Pointer to a const debug info entry. */
+typedef IEMTBDBGENTRY const *PCIEMTBDBGENTRY;
+
+/**
+ * Translation block debug info.
+ */
+typedef struct IEMTBDBG
+{
+    /** This is the flat PC corresponding to IEMTB::GCPhysPc. */
+    RTGCPTR         FlatPc;
+    /** Number of entries in aEntries. */
+    uint32_t        cEntries;
+    /** The offset of the last kIemTbDbgEntryType_NativeOffset record. */
+    uint32_t        offNativeLast;
+    /** Debug info entries. */
+    RT_FLEXIBLE_ARRAY_EXTENSION
+    IEMTBDBGENTRY   aEntries[RT_FLEXIBLE_ARRAY];
+} IEMTBDBG;
+/** Pointer to TB debug info. */
+typedef IEMTBDBG *PIEMTBDBG;
+/** Pointer to const TB debug info. */
+typedef IEMTBDBG const *PCIEMTBDBG;
 
 /**
  * Guest registers that can be shadowed in GPRs.
@@ -943,12 +1420,21 @@ typedef IEMLIVENESSENTRY const *PCIEMLIVENESSENTRY;
 typedef enum IEMNATIVEGSTREG : uint8_t
 {
     kIemNativeGstReg_GprFirst      = 0,
+    kIemNativeGstReg_Rax           = kIemNativeGstReg_GprFirst + 0,
+    kIemNativeGstReg_Rcx           = kIemNativeGstReg_GprFirst + 1,
+    kIemNativeGstReg_Rdx           = kIemNativeGstReg_GprFirst + 2,
+    kIemNativeGstReg_Rbx           = kIemNativeGstReg_GprFirst + 3,
+    kIemNativeGstReg_Rsp           = kIemNativeGstReg_GprFirst + 4,
+    kIemNativeGstReg_Rbp           = kIemNativeGstReg_GprFirst + 5,
+    kIemNativeGstReg_Rsi           = kIemNativeGstReg_GprFirst + 6,
+    kIemNativeGstReg_Rdi           = kIemNativeGstReg_GprFirst + 7,
     kIemNativeGstReg_GprLast       = kIemNativeGstReg_GprFirst + 15,
-    kIemNativeGstReg_Pc,
     kIemNativeGstReg_Cr0,
+    kIemNativeGstReg_Cr4,
     kIemNativeGstReg_FpuFcw,
     kIemNativeGstReg_FpuFsw,
     kIemNativeGstReg_SegBaseFirst,
+    kIemNativeGstReg_CsBase        = kIemNativeGstReg_SegBaseFirst + X86_SREG_CS,
     kIemNativeGstReg_SegBaseLast   = kIemNativeGstReg_SegBaseFirst + 5,
     kIemNativeGstReg_SegAttribFirst,
     kIemNativeGstReg_SegAttribLast = kIemNativeGstReg_SegAttribFirst + 5,
@@ -956,14 +1442,16 @@ typedef enum IEMNATIVEGSTREG : uint8_t
     kIemNativeGstReg_SegLimitLast  = kIemNativeGstReg_SegLimitFirst + 5,
     kIemNativeGstReg_SegSelFirst,
     kIemNativeGstReg_SegSelLast    = kIemNativeGstReg_SegSelFirst + 5,
-    kIemNativeGstReg_Cr4,
     kIemNativeGstReg_Xcr0,
     kIemNativeGstReg_MxCsr,
-    kIemNativeGstReg_EFlags,            /**< 32-bit, includes internal flags - last! */
+    kIemNativeGstReg_EFlags,            /**< 32-bit, includes internal flags. */
+    /* 6 entry gap for liveness EFlags subdivisions. */
+    kIemNativeGstReg_Pc            = kIemNativeGstReg_EFlags + 7,
     kIemNativeGstReg_End
 } IEMNATIVEGSTREG;
 AssertCompile((int)kIemNativeGstReg_SegLimitFirst == 32);
 AssertCompile((UINT64_C(0x7f) << kIemNativeGstReg_EFlags) == IEMLIVENESSBIT_ALL_EFL_MASK);
+AssertCompile(RT_BIT_64(kIemNativeGstReg_Pc) - UINT64_C(1) == IEMLIVENESSBIT_MASK);
 
 /** @name Helpers for converting register numbers to IEMNATIVEGSTREG values.
  * @{  */
@@ -974,7 +1462,6 @@ AssertCompile((UINT64_C(0x7f) << kIemNativeGstReg_EFlags) == IEMLIVENESSBIT_ALL_
 #define IEMNATIVEGSTREG_SEG_ATTRIB(a_iSegReg)   ((IEMNATIVEGSTREG)(kIemNativeGstReg_SegAttribFirst + (a_iSegReg) ))
 /** @} */
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 
 /**
  * Guest registers that can be shadowed in host SIMD registers.
@@ -1011,7 +1498,6 @@ typedef enum IEMNATIVEGSTSIMDREGLDSTSZ : uint8_t
     kIemNativeGstSimdRegLdStSz_End
 } IEMNATIVEGSTSIMDREGLDSTSZ;
 
-#endif /* IEMNATIVE_WITH_SIMD_REG_ALLOCATOR */
 
 /**
  * Intended use statement for iemNativeRegAllocTmpForGuestReg().
@@ -1076,38 +1562,46 @@ typedef enum IEMNATIVEVARKIND : uint8_t
 /** Variable or argument. */
 typedef struct IEMNATIVEVAR
 {
-    /** The kind of variable. */
-    IEMNATIVEVARKIND    enmKind;
-    /** The variable size in bytes. */
-    uint8_t             cbVar;
-    /** The first stack slot (uint64_t), except for immediate and references
-     *  where it usually is UINT8_MAX. This is allocated lazily, so if a variable
-     *  has a stack slot it has been initialized and has a value.  Unused variables
-     *  has neither a stack slot nor a host register assignment. */
-    uint8_t             idxStackSlot;
-    /** The host register allocated for the variable, UINT8_MAX if not. */
-    uint8_t             idxReg;
-    /** The argument number if argument, UINT8_MAX if regular variable. */
-    uint8_t             uArgNo;
-    /** If referenced, the index (unpacked) of the variable referencing this one,
-     * otherwise UINT8_MAX.  A referenced variable must only be placed on the stack
-     * and must be either kIemNativeVarKind_Stack or kIemNativeVarKind_Immediate. */
-    uint8_t             idxReferrerVar;
-    /** Guest register being shadowed here, kIemNativeGstReg_End(/UINT8_MAX) if not.
-     * @todo not sure what this really is for...   */
-    IEMNATIVEGSTREG     enmGstReg;
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
-    /** Flag whether this variable is held in a SIMD register (only supported for 128-bit and 256-bit variables),
-     * only valid when idxReg is not UINT8_MAX. */
-    bool                fSimdReg     : 1;
-    /** Set if the registered is currently used exclusively, false if the
-     *  variable is idle and the register can be grabbed. */
-    bool                fRegAcquired : 1;
-#else
-    /** Set if the registered is currently used exclusively, false if the
-     *  variable is idle and the register can be grabbed. */
-    bool                fRegAcquired;
-#endif
+    RT_GCC_EXTENSION
+    union
+    {
+        struct
+        {
+            /** The kind of variable. */
+            IEMNATIVEVARKIND    enmKind;
+            /** The variable size in bytes. */
+            uint8_t             cbVar;
+            /** Set if the registered is currently used exclusively, false if the
+             *  variable is idle and the register can be grabbed. */
+            bool                fRegAcquired;
+            /** Flag whether this variable is held in a SIMD register (only supported for
+             * 128-bit and 256-bit variables), only valid when idxReg is not UINT8_MAX. */
+            bool                fSimdReg;
+        };
+        uint32_t        u32Init0;   /**< Init optimzation - cbVar is set, the other are initialized with zeros. */
+    };
+
+    RT_GCC_EXTENSION
+    union
+    {
+        struct
+        {
+            /** The host register allocated for the variable, UINT8_MAX if not. */
+            uint8_t             idxReg;
+            /** The argument number if argument, UINT8_MAX if regular variable. */
+            uint8_t             uArgNo;
+            /** The first stack slot (uint64_t), except for immediate and references
+             *  where it usually is UINT8_MAX. This is allocated lazily, so if a variable
+             *  has a stack slot it has been initialized and has a value.  Unused variables
+             *  has neither a stack slot nor a host register assignment. */
+            uint8_t             idxStackSlot;
+            /** If referenced, the index (unpacked) of the variable referencing this one,
+             * otherwise UINT8_MAX.  A referenced variable must only be placed on the stack
+             * and must be either kIemNativeVarKind_Stack or kIemNativeVarKind_Immediate. */
+            uint8_t             idxReferrerVar;
+        };
+        uint32_t        u32Init1;   /**< Init optimization; all these are initialized to 0xff. */
+    };
 
     union
     {
@@ -1125,6 +1619,7 @@ typedef struct IEMNATIVEVAR
         } GstRegRef;
     } u;
 } IEMNATIVEVAR;
+AssertCompileSize(IEMNATIVEVAR, 16);
 /** Pointer to a variable or argument. */
 typedef IEMNATIVEVAR *PIEMNATIVEVAR;
 /** Pointer to a const variable or argument. */
@@ -1201,7 +1696,6 @@ typedef struct IEMNATIVEHSTREG
 } IEMNATIVEHSTREG;
 
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /**
  * Host SIMD register entry - this tracks a virtual 256-bit register split into two 128-bit
  * halves, on architectures where there is no 256-bit register available this entry will track
@@ -1230,7 +1724,6 @@ typedef struct IEMNATIVEHSTSIMDREG
     /** Alignment padding. */
     uint8_t                   abAlign[5];
 } IEMNATIVEHSTSIMDREG;
-#endif
 
 
 /**
@@ -1263,7 +1756,6 @@ typedef struct IEMNATIVECORESTATE
 # endif
 #endif
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
     /** Allocation bitmap for aHstSimdRegs. */
     uint32_t                    bmHstSimdRegs;
 
@@ -1276,7 +1768,6 @@ typedef struct IEMNATIVECORESTATE
     uint64_t                    bmGstSimdRegShadowDirtyLo128;
     /** Bitmap marking whether the high 128-bit of the shadowed guest register are dirty and need writeback. */
     uint64_t                    bmGstSimdRegShadowDirtyHi128;
-#endif
 
     union
     {
@@ -1296,20 +1787,16 @@ typedef struct IEMNATIVECORESTATE
      * (A shadow copy of a guest register can only be held in a one host register,
      * there are no duplicate copies or ambiguities like that). */
     uint8_t                     aidxGstRegShadows[kIemNativeGstReg_End];
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
     /** Maps a guest SIMD register to a host SIMD register (index by IEMNATIVEGSTSIMDREG).
      * Entries are only valid if the corresponding bit in bmGstSimdRegShadows is set.
      * (A shadow copy of a guest register can only be held in a one host register,
      * there are no duplicate copies or ambiguities like that). */
     uint8_t                     aidxGstSimdRegShadows[kIemNativeGstSimdReg_End];
-#endif
 
     /** Host register allocation tracking. */
     IEMNATIVEHSTREG             aHstRegs[IEMNATIVE_HST_GREG_COUNT];
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
     /** Host SIMD register allocation tracking. */
     IEMNATIVEHSTSIMDREG         aHstSimdRegs[IEMNATIVE_HST_SIMD_REG_COUNT];
-#endif
 
     /** Variables and arguments. */
     IEMNATIVEVAR                aVars[9];
@@ -1339,47 +1826,57 @@ typedef IEMNATIVECORESTATE const *PCIEMNATIVECORESTATE;
 #endif
 
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /** Clear the dirty state of the given guest SIMD register. */
-# define IEMNATIVE_SIMD_REG_STATE_CLR_DIRTY(a_pReNative, a_iSimdReg) \
+#define IEMNATIVE_SIMD_REG_STATE_CLR_DIRTY(a_pReNative, a_iSimdReg) \
     do { \
         (a_pReNative)->Core.bmGstSimdRegShadowDirtyLo128 &= ~RT_BIT_64(a_iSimdReg); \
         (a_pReNative)->Core.bmGstSimdRegShadowDirtyHi128 &= ~RT_BIT_64(a_iSimdReg); \
     } while (0)
 
 /** Returns whether the low 128-bits of the given guest SIMD register are dirty. */
-# define IEMNATIVE_SIMD_REG_STATE_IS_DIRTY_LO_U128(a_pReNative, a_iSimdReg) \
+#define IEMNATIVE_SIMD_REG_STATE_IS_DIRTY_LO_U128(a_pReNative, a_iSimdReg) \
     RT_BOOL((a_pReNative)->Core.bmGstSimdRegShadowDirtyLo128 & RT_BIT_64(a_iSimdReg))
 /** Returns whether the high 128-bits of the given guest SIMD register are dirty. */
-# define IEMNATIVE_SIMD_REG_STATE_IS_DIRTY_HI_U128(a_pReNative, a_iSimdReg) \
+#define IEMNATIVE_SIMD_REG_STATE_IS_DIRTY_HI_U128(a_pReNative, a_iSimdReg) \
     RT_BOOL((a_pReNative)->Core.bmGstSimdRegShadowDirtyHi128 & RT_BIT_64(a_iSimdReg))
 /** Returns whether the given guest SIMD register is dirty. */
-# define IEMNATIVE_SIMD_REG_STATE_IS_DIRTY_U256(a_pReNative, a_iSimdReg) \
+#define IEMNATIVE_SIMD_REG_STATE_IS_DIRTY_U256(a_pReNative, a_iSimdReg) \
     RT_BOOL(((a_pReNative)->Core.bmGstSimdRegShadowDirtyLo128 | (a_pReNative)->Core.bmGstSimdRegShadowDirtyHi128) & RT_BIT_64(a_iSimdReg))
 
 /** Set the low 128-bits of the given guest SIMD register to the dirty state. */
-# define IEMNATIVE_SIMD_REG_STATE_SET_DIRTY_LO_U128(a_pReNative, a_iSimdReg) \
+#define IEMNATIVE_SIMD_REG_STATE_SET_DIRTY_LO_U128(a_pReNative, a_iSimdReg) \
     ((a_pReNative)->Core.bmGstSimdRegShadowDirtyLo128 |= RT_BIT_64(a_iSimdReg))
 /** Set the high 128-bits of the given guest SIMD register to the dirty state. */
-# define IEMNATIVE_SIMD_REG_STATE_SET_DIRTY_HI_U128(a_pReNative, a_iSimdReg) \
+#define IEMNATIVE_SIMD_REG_STATE_SET_DIRTY_HI_U128(a_pReNative, a_iSimdReg) \
     ((a_pReNative)->Core.bmGstSimdRegShadowDirtyHi128 |= RT_BIT_64(a_iSimdReg))
 
 /** Flag for indicating that IEM_MC_MAYBE_RAISE_DEVICE_NOT_AVAILABLE() has emitted code in the current TB. */
-# define IEMNATIVE_SIMD_RAISE_XCPT_CHECKS_EMITTED_MAYBE_DEVICE_NOT_AVAILABLE        RT_BIT_32(0)
+#define IEMNATIVE_SIMD_RAISE_XCPT_CHECKS_EMITTED_MAYBE_DEVICE_NOT_AVAILABLE         RT_BIT_32(0)
     /** Flag for indicating that IEM_MC_MAYBE_RAISE_DEVICE_NOT_AVAILABLE() has emitted code in the current TB. */
-# define IEMNATIVE_SIMD_RAISE_XCPT_CHECKS_EMITTED_MAYBE_WAIT_DEVICE_NOT_AVAILABLE   RT_BIT_32(1)
+#define IEMNATIVE_SIMD_RAISE_XCPT_CHECKS_EMITTED_MAYBE_WAIT_DEVICE_NOT_AVAILABLE    RT_BIT_32(1)
 /** Flag for indicating that IEM_MC_MAYBE_RAISE_SSE_RELATED_XCPT() has emitted code in the current TB. */
-# define IEMNATIVE_SIMD_RAISE_XCPT_CHECKS_EMITTED_MAYBE_SSE                         RT_BIT_32(2)
+#define IEMNATIVE_SIMD_RAISE_XCPT_CHECKS_EMITTED_MAYBE_SSE                          RT_BIT_32(2)
 /** Flag for indicating that IEM_MC_MAYBE_RAISE_AVX_RELATED_XCPT() has emitted code in the current TB. */
-# define IEMNATIVE_SIMD_RAISE_XCPT_CHECKS_EMITTED_MAYBE_AVX                         RT_BIT_32(3)
+#define IEMNATIVE_SIMD_RAISE_XCPT_CHECKS_EMITTED_MAYBE_AVX                          RT_BIT_32(3)
 # ifdef IEMNATIVE_WITH_SIMD_FP_NATIVE_EMITTERS
 /** Flag indicating that the guest MXCSR was synced to the host floating point control register. */
-#  define IEMNATIVE_SIMD_HOST_FP_CTRL_REG_SYNCED                                    RT_BIT_32(4)
+# define IEMNATIVE_SIMD_HOST_FP_CTRL_REG_SYNCED                                     RT_BIT_32(4)
 /** Flag indicating whether the host floating point control register was saved before overwriting it. */
-#  define IEMNATIVE_SIMD_HOST_FP_CTRL_REG_SAVED                                     RT_BIT_32(5)
-# endif
+# define IEMNATIVE_SIMD_HOST_FP_CTRL_REG_SAVED                                      RT_BIT_32(5)
 #endif
 
+
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+typedef enum IEMNATIVE_POSTPONED_EFL_OP_T : uint8_t
+{
+    kIemNativePostponedEflOp_Invalid = 0,
+    /** Logical operation.
+     * Operands: result register.
+     * @note This clears OF, CF and (undefined) AF, thus no need for inputs. */
+    kIemNativePostponedEflOp_Logical,
+    kIemNativePostponedEflOp_End
+} IEMNATIVE_POSTPONED_EFL_OP_T;
+#endif /* IEMNATIVE_WITH_EFLAGS_POSTPONING */
 
 /**
  * Conditional stack entry.
@@ -1449,14 +1946,12 @@ typedef struct IEMRECOMPILERSTATE
     /** Buffer used by the recompiler for recording fixups when generating code. */
     PIEMNATIVEFIXUP             paFixups;
 
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
     /** Actual number of fixups in paTbExitFixups. */
     uint32_t                    cTbExitFixups;
     /** Max number of entries allowed in paTbExitFixups before reallocating it. */
     uint32_t                    cTbExitFixupsAlloc;
     /** Buffer used by the recompiler for recording fixups when generating code. */
     PIEMNATIVEEXITFIXUP         paTbExitFixups;
-#endif
 
 #if defined(IEMNATIVE_WITH_TB_DEBUG_INFO) || defined(VBOX_WITH_STATISTICS)
     /** Statistics: The idxInstr+1 value at the last PC update. */
@@ -1504,7 +1999,6 @@ typedef struct IEMRECOMPILERSTATE
     uint32_t                    fMc;
     /** The expected IEMCPU::fExec value for the current call/instruction. */
     uint32_t                    fExec;
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
     /** IEMNATIVE_SIMD_RAISE_XCPT_CHECKS_EMITTED_XXX flags for exception flags
      * we only emit once per TB (or when the cr0/cr4/xcr0 register changes).
      *
@@ -1513,9 +2007,32 @@ typedef struct IEMRECOMPILERSTATE
      * consisting of multiple SIMD instructions.
      */
     uint32_t                    fSimdRaiseXcptChecksEmitted;
-#endif
     /** The call number of the last CheckIrq, UINT32_MAX if not seen. */
     uint32_t                    idxLastCheckIrqCallNo;
+#ifdef IEMNATIVE_WITH_EFLAGS_SKIPPING
+    uint32_t                    fSkippingEFlags;
+#endif
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    struct
+    {
+        /** EFLAGS status bits that we're currently postponing the calculcation of. */
+        uint32_t                        fEFlags;
+        /** The postponed EFLAGS status bits calculation operation. */
+        IEMNATIVE_POSTPONED_EFL_OP_T    enmOp;
+        /** The bit-width of the postponed EFLAGS calculation. */
+        uint8_t                         cOpBits;
+        /** Host register holding result or first source for the delayed operation,
+         *  UINT8_MAX if not in use. */
+        uint8_t                         idxReg1;
+        /** Host register holding second source for the delayed operation,
+         *  UINT8_MAX if not in use. */
+        uint8_t                         idxReg2;
+# if defined(VBOX_WITH_STATISTICS) || defined(IEMNATIVE_WITH_TB_DEBUG_INFO)
+        /** Number of times the delayed calculation was emitted. */
+        uint8_t                         cEmits;
+# endif
+    } PostponedEfl;
+#endif
 
     /** Core state requiring care with branches. */
     IEMNATIVECORESTATE          Core;
@@ -1609,7 +2126,8 @@ typedef FNIEMNATIVERECOMPFUNC *PFNIEMNATIVERECOMPFUNC;
 /** Defines a native recompiler worker for a threaded function.
  * @see FNIEMNATIVERECOMPFUNC  */
 #define IEM_DECL_IEMNATIVERECOMPFUNC_DEF(a_Name) \
-    uint32_t VBOXCALL a_Name(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIEMTHRDEDCALLENTRY pCallEntry)
+    IEM_DECL_MSC_GUARD_IGNORE uint32_t VBOXCALL \
+    a_Name(PIEMRECOMPILERSTATE pReNative, uint32_t off, PCIEMTHRDEDCALLENTRY pCallEntry)
 
 /** Prototypes a native recompiler function for a threaded function.
  * @see FNIEMNATIVERECOMPFUNC  */
@@ -1631,7 +2149,8 @@ typedef FNIEMNATIVELIVENESSFUNC *PFNIEMNATIVELIVENESSFUNC;
 /** Defines a native recompiler liveness analysis worker for a threaded function.
  * @see FNIEMNATIVELIVENESSFUNC  */
 #define IEM_DECL_IEMNATIVELIVENESSFUNC_DEF(a_Name) \
-    DECLCALLBACK(void) a_Name(PCIEMTHRDEDCALLENTRY pCallEntry, PCIEMLIVENESSENTRY pIncoming, PIEMLIVENESSENTRY pOutgoing)
+    IEM_DECL_MSC_GUARD_IGNORE DECLCALLBACK(void) \
+    a_Name(PCIEMTHRDEDCALLENTRY pCallEntry, PCIEMLIVENESSENTRY pIncoming, PIEMLIVENESSENTRY pOutgoing)
 
 /** Prototypes a native recompiler liveness analysis function for a threaded function.
  * @see FNIEMNATIVELIVENESSFUNC  */
@@ -1653,20 +2172,21 @@ typedef FNIEMNATIVELIVENESSFUNC *PFNIEMNATIVELIVENESSFUNC;
 DECL_HIDDEN_THROW(void)     iemNativeDbgInfoAddNativeOffset(PIEMRECOMPILERSTATE pReNative, uint32_t off);
 DECL_HIDDEN_THROW(void)     iemNativeDbgInfoAddGuestRegShadowing(PIEMRECOMPILERSTATE pReNative, IEMNATIVEGSTREG enmGstReg,
                                                                  uint8_t idxHstReg = UINT8_MAX, uint8_t idxHstRegPrev = UINT8_MAX);
-# ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 DECL_HIDDEN_THROW(void)     iemNativeDbgInfoAddGuestSimdRegShadowing(PIEMRECOMPILERSTATE pReNative,
                                                                      IEMNATIVEGSTSIMDREG enmGstSimdReg,
                                                                      uint8_t idxHstSimdReg = UINT8_MAX,
                                                                      uint8_t idxHstSimdRegPrev = UINT8_MAX);
-# endif
-# if defined(IEMNATIVE_WITH_DELAYED_REGISTER_WRITEBACK) || defined(IEMNATIVE_WITH_SIMD_REG_ALLOCATOR)
 DECL_HIDDEN_THROW(void)     iemNativeDbgInfoAddGuestRegDirty(PIEMRECOMPILERSTATE pReNative, bool fSimdReg,
                                                              uint8_t idxGstReg, uint8_t idxHstReg);
 DECL_HIDDEN_THROW(void)     iemNativeDbgInfoAddGuestRegWriteback(PIEMRECOMPILERSTATE pReNative, bool fSimdReg,
                                                                  uint64_t fGstReg);
-# endif
 DECL_HIDDEN_THROW(void)     iemNativeDbgInfoAddDelayedPcUpdate(PIEMRECOMPILERSTATE pReNative,
                                                                uint64_t offPc, uint32_t cInstrSkipped);
+# ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+DECL_HIDDEN_THROW(void)     iemNativeDbgInfoAddPostponedEFlagsCalc(PIEMRECOMPILERSTATE pReNative, uint32_t off,
+                                                                   IEMNATIVE_POSTPONED_EFL_OP_T enmOp, uint8_t cOpBits,
+                                                                   uint8_t idxInstance);
+# endif
 #endif /* IEMNATIVE_WITH_TB_DEBUG_INFO */
 
 DECL_HIDDEN_THROW(uint32_t) iemNativeLabelCreate(PIEMRECOMPILERSTATE pReNative, IEMNATIVELABELTYPE enmType,
@@ -1676,42 +2196,62 @@ DECLHIDDEN(uint32_t)        iemNativeLabelFind(PIEMRECOMPILERSTATE pReNative, IE
                                                uint32_t offWhere = UINT32_MAX, uint16_t uData = 0) RT_NOEXCEPT;
 DECL_HIDDEN_THROW(void)     iemNativeAddFixup(PIEMRECOMPILERSTATE pReNative, uint32_t offWhere, uint32_t idxLabel,
                                               IEMNATIVEFIXUPTYPE enmType, int8_t offAddend = 0);
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
-DECL_HIDDEN_THROW(void)     iemNativeAddTbExitFixup(PIEMRECOMPILERSTATE pReNative, uint32_t offWhere, IEMNATIVELABELTYPE enmExitReason);
-#endif
+DECL_HIDDEN_THROW(void)     iemNativeAddTbExitFixup(PIEMRECOMPILERSTATE pReNative, uint32_t offWhere,
+                                                    IEMNATIVELABELTYPE enmExitReason);
 DECL_HIDDEN_THROW(PIEMNATIVEINSTR) iemNativeInstrBufEnsureSlow(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint32_t cInstrReq);
 
-DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmp(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, bool fPreferVolatile = true);
-DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpEx(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, uint32_t fRegMask,
-                                                   bool fPreferVolatile = true);
-DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpImm(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, uint64_t uImm,
-                                                    bool fPreferVolatile = true);
-DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestReg(PIEMRECOMPILERSTATE pReNative, uint32_t *poff,
-                                                            IEMNATIVEGSTREG enmGstReg,
-                                                            IEMNATIVEGSTREGUSE enmIntendedUse = kIemNativeGstRegUse_ReadOnly,
-                                                            bool fNoVolatileRegs = false, bool fSkipLivenessAssert = false);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmp(PIEMRECOMPILERSTATE pReNative, uint32_t *poff);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpPreferNonVolatile(PIEMRECOMPILERSTATE pReNative, uint32_t *poff);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpEx(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, uint32_t fRegMask);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpExPreferNonVolatile(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, uint32_t fRegMask);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpImm(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, uint64_t uImm);
+
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestRegReadOnly(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, IEMNATIVEGSTREG enmGstReg);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestRegUpdate(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, IEMNATIVEGSTREG enmGstReg);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestRegFullWrite(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, IEMNATIVEGSTREG enmGstReg);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestRegCalculation(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, IEMNATIVEGSTREG enmGstReg);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestRegReadOnlyNoVolatile(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, IEMNATIVEGSTREG enmGstReg);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestRegUpdateNoVolatile(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, IEMNATIVEGSTREG enmGstReg);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestRegFullWriteNoVolatile(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, IEMNATIVEGSTREG enmGstReg);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestRegCalculationNoVolatile(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, IEMNATIVEGSTREG enmGstReg);
+
+#if defined(IEMNATIVE_WITH_LIVENESS_ANALYSIS) && defined(VBOX_STRICT)
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestEFlagsReadOnly(PIEMRECOMPILERSTATE pReNative, uint32_t *poff,
+                                                                       uint64_t fRead, uint64_t fWrite = 0, uint64_t fPotentialCall = 0);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestEFlagsForUpdate(PIEMRECOMPILERSTATE pReNative, uint32_t *poff,
+                                                                        uint64_t fRead, uint64_t fWrite = 0, uint64_t fPotentialCall = 0);
+#endif
+
 DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestRegIfAlreadyPresent(PIEMRECOMPILERSTATE pReNative, uint32_t *poff,
                                                                             IEMNATIVEGSTREG enmGstReg);
+#if defined(IEMNATIVE_WITH_LIVENESS_ANALYSIS) && defined(VBOX_STRICT)
+DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAllocTmpForGuestEFlagsIfAlreadyPresent(PIEMRECOMPILERSTATE pReNative, uint32_t *poff,
+                                                                               uint64_t fRead, uint64_t fWrite = 0);
+#else
+DECL_FORCE_INLINE_THROW(uint8_t)
+iemNativeRegAllocTmpForGuestEFlagsIfAlreadyPresent(PIEMRECOMPILERSTATE pReNative, uint32_t *poff,
+                                                   uint64_t fRead, uint64_t fWrite = 0)
+{
+    RT_NOREF(fRead, fWrite);
+    return iemNativeRegAllocTmpForGuestRegIfAlreadyPresent(pReNative, poff, kIemNativeGstReg_EFlags);
+}
+#endif
 
 DECL_HIDDEN_THROW(uint32_t) iemNativeRegAllocArgs(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t cArgs);
 DECL_HIDDEN_THROW(uint8_t)  iemNativeRegAssignRc(PIEMRECOMPILERSTATE pReNative, uint8_t idxHstReg);
 #if (defined(IPRT_INCLUDED_x86_h) && defined(RT_ARCH_AMD64)) || (defined(IPRT_INCLUDED_armv8_h) && defined(RT_ARCH_ARM64))
 DECL_HIDDEN_THROW(uint32_t) iemNativeRegMoveOrSpillStackVar(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t idxVar,
                                                             uint32_t fForbiddenRegs = IEMNATIVE_CALL_VOLATILE_GREG_MASK);
-# ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 DECL_HIDDEN_THROW(uint32_t) iemNativeSimdRegMoveOrSpillStackVar(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t idxVar,
                                                                 uint32_t fForbiddenRegs = IEMNATIVE_CALL_VOLATILE_SIMD_REG_MASK);
-# endif
 #endif
 DECLHIDDEN(void)            iemNativeRegFree(PIEMRECOMPILERSTATE pReNative, uint8_t idxHstReg) RT_NOEXCEPT;
 DECLHIDDEN(void)            iemNativeRegFreeTmp(PIEMRECOMPILERSTATE pReNative, uint8_t idxHstReg) RT_NOEXCEPT;
 DECLHIDDEN(void)            iemNativeRegFreeTmpImm(PIEMRECOMPILERSTATE pReNative, uint8_t idxHstReg) RT_NOEXCEPT;
 DECLHIDDEN(void)            iemNativeRegFreeVar(PIEMRECOMPILERSTATE pReNative, uint8_t idxHstReg, bool fFlushShadows) RT_NOEXCEPT;
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 DECLHIDDEN(void)            iemNativeSimdRegFreeVar(PIEMRECOMPILERSTATE pReNative, uint8_t idxHstSimdReg, bool fFlushShadows) RT_NOEXCEPT;
-# ifdef IEMNATIVE_WITH_DELAYED_REGISTER_WRITEBACK
+#ifdef IEMNATIVE_WITH_DELAYED_REGISTER_WRITEBACK
 DECL_HIDDEN_THROW(uint32_t) iemNativeSimdRegFlushDirtyGuestByHostSimdRegShadow(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t idxHstReg);
-# endif
 #endif
 DECLHIDDEN(void)            iemNativeRegFreeAndFlushMask(PIEMRECOMPILERSTATE pReNative, uint32_t fHstRegMask) RT_NOEXCEPT;
 DECL_HIDDEN_THROW(uint32_t) iemNativeRegMoveAndFreeAndFlushAtCall(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t cArgs,
@@ -1743,7 +2283,6 @@ DECL_HIDDEN_THROW(uint32_t) iemNativeRegFlushDirtyGuestByHostRegShadow(PIEMRECOM
 #endif
 
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 DECL_HIDDEN_THROW(uint8_t)  iemNativeSimdRegAllocTmp(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, bool fPreferVolatile = true);
 DECL_HIDDEN_THROW(uint8_t)  iemNativeSimdRegAllocTmpEx(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, uint32_t fRegMask,
                                                        bool fPreferVolatile = true);
@@ -1759,7 +2298,6 @@ DECL_HIDDEN_THROW(uint32_t) iemNativeSimdRegFlushPendingWrite(PIEMRECOMPILERSTAT
 DECL_HIDDEN_THROW(uint32_t) iemNativeEmitLoadSimdRegWithGstShadowSimdReg(PIEMRECOMPILERSTATE pReNative, uint32_t off,
                                                                          uint8_t idxHstSimdReg, IEMNATIVEGSTSIMDREG enmGstSimdReg,
                                                                          IEMNATIVEGSTSIMDREGLDSTSZ enmLoadSz);
-#endif
 
 DECL_HIDDEN_THROW(uint8_t)  iemNativeArgAlloc(PIEMRECOMPILERSTATE pReNative, uint8_t iArgNo, uint8_t cbType);
 DECL_HIDDEN_THROW(uint8_t)  iemNativeArgAllocConst(PIEMRECOMPILERSTATE pReNative, uint8_t iArgNo, uint8_t cbType, uint64_t uValue);
@@ -1772,32 +2310,36 @@ DECL_HIDDEN_THROW(void)     iemNativeVarSetKindToConst(PIEMRECOMPILERSTATE pReNa
 DECL_HIDDEN_THROW(void)     iemNativeVarSetKindToGstRegRef(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar,
                                                            IEMNATIVEGSTREGREF enmRegClass, uint8_t idxReg);
 DECL_HIDDEN_THROW(uint8_t)  iemNativeVarGetStackSlot(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar);
-DECL_HIDDEN_THROW(uint8_t)  iemNativeVarRegisterAcquire(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar, uint32_t *poff,
-                                                        bool fInitialized = false, uint8_t idxRegPref = UINT8_MAX);
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
+DECL_HIDDEN_THROW(uint8_t)  iemNativeVarRegisterAcquireSlow(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar, uint32_t *poff);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeVarRegisterAcquireWithPrefSlow(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar,
+                                                                    uint32_t *poff, uint8_t idxRegPref);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeVarRegisterAcquireInitedSlow(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar, uint32_t *poff);
+DECL_HIDDEN_THROW(uint8_t)  iemNativeVarRegisterAcquireInitedWithPrefSlow(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar,
+                                                                          uint32_t *poff, uint8_t idxRegPref);
 DECL_HIDDEN_THROW(uint8_t)  iemNativeVarSimdRegisterAcquire(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar, uint32_t *poff,
                                                             bool fInitialized = false, uint8_t idxRegPref = UINT8_MAX);
-#endif
 DECL_HIDDEN_THROW(uint8_t)  iemNativeVarRegisterAcquireForGuestReg(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar,
                                                                    IEMNATIVEGSTREG enmGstReg, uint32_t *poff);
 DECL_HIDDEN_THROW(uint32_t) iemNativeVarSaveVolatileRegsPreHlpCall(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                                                   uint32_t fHstRegsNotToSave);
+                                                                   uint32_t fHstGprNotToSave);
 DECL_HIDDEN_THROW(uint32_t) iemNativeVarRestoreVolatileRegsPostHlpCall(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                                                       uint32_t fHstRegsNotToSave);
+                                                                       uint32_t fHstGprNotToSave);
 DECLHIDDEN(void)            iemNativeVarFreeOneWorker(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar);
 DECLHIDDEN(void)            iemNativeVarFreeAllSlow(PIEMRECOMPILERSTATE pReNative, uint32_t bmVars);
 
 DECL_HIDDEN_THROW(uint32_t) iemNativeEmitLoadGprWithGstShadowReg(PIEMRECOMPILERSTATE pReNative, uint32_t off,
                                                                  uint8_t idxHstReg, IEMNATIVEGSTREG enmGstReg);
+DECL_HIDDEN_THROW(uint32_t) iemNativeEmitLoadGprWithGstShadowRegEx(PIEMNATIVEINSTR pCodeBuf, uint32_t off,
+                                                                   uint8_t idxHstReg, IEMNATIVEGSTREG enmGstReg);
 #ifdef VBOX_STRICT
 DECL_HIDDEN_THROW(uint32_t) iemNativeEmitTop32BitsClearCheck(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t idxReg);
 DECL_HIDDEN_THROW(uint32_t) iemNativeEmitGuestRegValueCheck(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t idxReg,
                                                             IEMNATIVEGSTREG enmGstReg);
-# ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
+DECL_HIDDEN_THROW(uint32_t) iemNativeEmitGuestRegValueCheckEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf,
+                                                              uint32_t off, uint8_t idxReg, IEMNATIVEGSTREG enmGstReg);
 DECL_HIDDEN_THROW(uint32_t) iemNativeEmitGuestSimdRegValueCheck(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t idxSimdReg,
                                                                 IEMNATIVEGSTSIMDREG enmGstSimdReg,
                                                                 IEMNATIVEGSTSIMDREGLDSTSZ enmLoadSz);
-# endif
 DECL_HIDDEN_THROW(uint32_t) iemNativeEmitExecFlagsCheck(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint32_t fExec);
 #endif
 #ifdef IEMNATIVE_STRICT_EFLAGS_SKIPPING
@@ -1810,6 +2352,7 @@ DECL_HIDDEN_THROW(uint32_t) iemNativeEmitCImplCall(PIEMRECOMPILERSTATE pReNative
                                                    uint64_t uParam0, uint64_t uParam1, uint64_t uParam2);
 DECL_HIDDEN_THROW(uint32_t) iemNativeEmitThreadedCall(PIEMRECOMPILERSTATE pReNative, uint32_t off,
                                                       PCIEMTHRDEDCALLENTRY pCallEntry);
+IEM_DECL_IEMNATIVELIVENESSFUNC_PROTO(iemNativeLivenessFunc_ThreadedCall);
 DECL_HIDDEN_THROW(uint32_t) iemNativeEmitLeaGprByGstRegRef(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t idxGprDst,
                                                            IEMNATIVEGSTREGREF enmClass, uint8_t idxRegInClass);
 
@@ -1838,23 +2381,19 @@ IEM_DECL_NATIVE_HLP_PROTO(uint64_t, iemNativeHlpMemFetchDataU16_Sx_U64,(PVMCPUCC
 IEM_DECL_NATIVE_HLP_PROTO(uint64_t, iemNativeHlpMemFetchDataU32,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg));
 IEM_DECL_NATIVE_HLP_PROTO(uint64_t, iemNativeHlpMemFetchDataU32_Sx_U64,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg));
 IEM_DECL_NATIVE_HLP_PROTO(uint64_t, iemNativeHlpMemFetchDataU64,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg));
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFetchDataU128,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, PRTUINT128U pu128Dst));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFetchDataU128AlignedSse,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, PRTUINT128U pu128Dst));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFetchDataU128NoAc,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, PRTUINT128U pu128Dst));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFetchDataU256NoAc,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, PRTUINT256U pu256Dst));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFetchDataU256AlignedAvx,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, PRTUINT256U pu256Dst));
-#endif
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemStoreDataU8,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, uint8_t u8Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemStoreDataU16,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, uint16_t u16Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemStoreDataU32,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, uint32_t u32Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemStoreDataU64,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, uint64_t u64Value));
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemStoreDataU128AlignedSse,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, PCRTUINT128U pu128Src));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemStoreDataU128NoAc,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, PCRTUINT128U pu128Src));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemStoreDataU256NoAc,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, PCRTUINT256U pu256Src));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemStoreDataU256AlignedAvx,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t iSegReg, PCRTUINT256U pu256Src));
-#endif
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpStackStoreU16,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint16_t u16Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpStackStoreU32,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t u32Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpStackStoreU32SReg,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t u32Value));
@@ -1873,23 +2412,19 @@ IEM_DECL_NATIVE_HLP_PROTO(uint64_t, iemNativeHlpMemFlatFetchDataU16_Sx_U64,(PVMC
 IEM_DECL_NATIVE_HLP_PROTO(uint64_t, iemNativeHlpMemFlatFetchDataU32,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem));
 IEM_DECL_NATIVE_HLP_PROTO(uint64_t, iemNativeHlpMemFlatFetchDataU32_Sx_U64,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem));
 IEM_DECL_NATIVE_HLP_PROTO(uint64_t, iemNativeHlpMemFlatFetchDataU64,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem));
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatFetchDataU128,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, PRTUINT128U pu128Dst));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatFetchDataU128AlignedSse,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, PRTUINT128U pu128Dst));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatFetchDataU128NoAc,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, PRTUINT128U pu128Dst));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatFetchDataU256NoAc,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, PRTUINT256U pu256Dst));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatFetchDataU256AlignedAvx,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, PRTUINT256U pu256Dst));
-#endif
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatStoreDataU8,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint8_t u8Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatStoreDataU16,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint16_t u16Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatStoreDataU32,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t u32Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatStoreDataU64,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint64_t u64Value));
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatStoreDataU128AlignedSse,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, PCRTUINT128U pu128Src));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatStoreDataU128NoAc,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, PCRTUINT128U pu128Src));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatStoreDataU256NoAc,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, PCRTUINT256U pu256Src));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpMemFlatStoreDataU256AlignedAvx,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, PCRTUINT256U pu256Src));
-#endif
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpStackFlatStoreU16,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint16_t u16Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpStackFlatStoreU32,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t u32Value));
 IEM_DECL_NATIVE_HLP_PROTO(void,     iemNativeHlpStackFlatStoreU32SReg,(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t u32Value));
@@ -2088,13 +2623,143 @@ DECL_INLINE_THROW(void) iemNativeVarRegisterRelease(PIEMRECOMPILERSTATE pReNativ
 }
 
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 DECL_INLINE_THROW(void) iemNativeVarSimdRegisterRelease(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar)
 {
     Assert(pReNative->Core.aVars[IEMNATIVE_VAR_IDX_UNPACK(idxVar)].fSimdReg);
     iemNativeVarRegisterRelease(pReNative, idxVar);
 }
-#endif
+
+
+/**
+ * Makes sure variable @a idxVar has a register assigned to it and that it stays
+ * fixed till we call iemNativeVarRegisterRelease.
+ *
+ * @returns The host register number.
+ * @param   pReNative       The recompiler state.
+ * @param   idxVar          The variable.
+ * @param   poff            Pointer to the instruction buffer offset.
+ *                          In case a register needs to be freed up or the value
+ *                          loaded off the stack.
+ * @note    Must not modify the host status flags!
+ */
+DECL_INLINE_THROW(uint8_t) iemNativeVarRegisterAcquire(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar, uint32_t *poff)
+{
+    IEMNATIVE_ASSERT_VAR_IDX(pReNative, idxVar);
+    PIEMNATIVEVAR const pVar = &pReNative->Core.aVars[IEMNATIVE_VAR_IDX_UNPACK(idxVar)];
+    Assert(pVar->cbVar <= 8);
+    Assert(!pVar->fRegAcquired);
+    uint8_t const idxReg = pVar->idxReg;
+    if (idxReg < RT_ELEMENTS(pReNative->Core.aHstRegs))
+    {
+        Assert(   pVar->enmKind > kIemNativeVarKind_Invalid
+               && pVar->enmKind < kIemNativeVarKind_End);
+        pVar->fRegAcquired = true;
+        return idxReg;
+    }
+    return iemNativeVarRegisterAcquireSlow(pReNative, idxVar, poff);
+}
+
+
+/**
+ * Makes sure variable @a idxVar has a register assigned to it and that it stays
+ * fixed till we call iemNativeVarRegisterRelease.
+ *
+ * @returns The host register number.
+ * @param   pReNative       The recompiler state.
+ * @param   idxVar          The variable.
+ * @param   poff            Pointer to the instruction buffer offset.
+ *                          In case a register needs to be freed up or the value
+ *                          loaded off the stack.
+ * @param   idxRegPref      Preferred register number.
+ * @note    Must not modify the host status flags!
+ */
+DECL_INLINE_THROW(uint8_t)
+iemNativeVarRegisterAcquireWithPref(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar, uint32_t *poff, uint8_t idxRegPref)
+{
+    IEMNATIVE_ASSERT_VAR_IDX(pReNative, idxVar);
+    PIEMNATIVEVAR const pVar = &pReNative->Core.aVars[IEMNATIVE_VAR_IDX_UNPACK(idxVar)];
+    Assert(pVar->cbVar <= 8);
+    Assert(!pVar->fRegAcquired);
+    Assert(idxRegPref < RT_ELEMENTS(pReNative->Core.aHstRegs));
+    uint8_t const idxReg = pVar->idxReg;
+    if (idxReg < RT_ELEMENTS(pReNative->Core.aHstRegs))
+    {
+        Assert(   pVar->enmKind > kIemNativeVarKind_Invalid
+               && pVar->enmKind < kIemNativeVarKind_End);
+        pVar->fRegAcquired = true;
+        return idxReg;
+    }
+    return iemNativeVarRegisterAcquireWithPrefSlow(pReNative, idxVar, poff, idxRegPref);
+}
+
+
+/**
+ * Makes sure variable @a idxVar has a register assigned to it and that it stays
+ * fixed till we call iemNativeVarRegisterRelease.
+ *
+ * The variable must be initialized or VERR_IEM_VAR_NOT_INITIALIZED will be
+ * thrown.
+ *
+ * @returns The host register number.
+ * @param   pReNative       The recompiler state.
+ * @param   idxVar          The variable.
+ * @param   poff            Pointer to the instruction buffer offset.
+ *                          In case a register needs to be freed up or the value
+ *                          loaded off the stack.
+ * @note    Must not modify the host status flags!
+ */
+DECL_INLINE_THROW(uint8_t) iemNativeVarRegisterAcquireInited(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar, uint32_t *poff)
+{
+    IEMNATIVE_ASSERT_VAR_IDX(pReNative, idxVar);
+    PIEMNATIVEVAR const pVar = &pReNative->Core.aVars[IEMNATIVE_VAR_IDX_UNPACK(idxVar)];
+    Assert(pVar->cbVar <= 8);
+    Assert(!pVar->fRegAcquired);
+    uint8_t const idxReg = pVar->idxReg;
+    if (idxReg < RT_ELEMENTS(pReNative->Core.aHstRegs))
+    {
+        Assert(   pVar->enmKind > kIemNativeVarKind_Invalid
+               && pVar->enmKind < kIemNativeVarKind_End);
+        pVar->fRegAcquired = true;
+        return idxReg;
+    }
+    return iemNativeVarRegisterAcquireInitedSlow(pReNative, idxVar, poff);
+}
+
+
+/**
+ * Makes sure variable @a idxVar has a register assigned to it and that it stays
+ * fixed till we call iemNativeVarRegisterRelease.
+ *
+ * The variable must be initialized or VERR_IEM_VAR_NOT_INITIALIZED will be
+ * thrown.
+ *
+ * @returns The host register number.
+ * @param   pReNative       The recompiler state.
+ * @param   idxVar          The variable.
+ * @param   poff            Pointer to the instruction buffer offset.
+ *                          In case a register needs to be freed up or the value
+ *                          loaded off the stack.
+ * @param   idxRegPref      Preferred register number.
+ * @note    Must not modify the host status flags!
+ */
+DECL_INLINE_THROW(uint8_t)
+iemNativeVarRegisterAcquireInitedWithPref(PIEMRECOMPILERSTATE pReNative, uint8_t idxVar, uint32_t *poff, uint8_t idxRegPref)
+{
+    IEMNATIVE_ASSERT_VAR_IDX(pReNative, idxVar);
+    PIEMNATIVEVAR const pVar = &pReNative->Core.aVars[IEMNATIVE_VAR_IDX_UNPACK(idxVar)];
+    Assert(pVar->cbVar <= 8);
+    Assert(!pVar->fRegAcquired);
+    Assert(idxRegPref < RT_ELEMENTS(pReNative->Core.aHstRegs));
+    uint8_t const idxReg = pVar->idxReg;
+    if (idxReg < RT_ELEMENTS(pReNative->Core.aHstRegs))
+    {
+        Assert(   pVar->enmKind > kIemNativeVarKind_Invalid
+               && pVar->enmKind < kIemNativeVarKind_End);
+        pVar->fRegAcquired = true;
+        return idxReg;
+    }
+    return iemNativeVarRegisterAcquireInitedWithPrefSlow(pReNative, idxVar, poff, idxRegPref);
+}
 
 
 /**
@@ -2132,12 +2797,10 @@ DECL_FORCE_INLINE(uint64_t) iemNativeCImplFlagsToGuestShadowFlushMask(uint32_t f
 #endif
 
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /** Number of hidden arguments for SSE_AIMPL calls. */
-# define IEM_SSE_AIMPL_HIDDEN_ARGS 1
+#define IEM_SSE_AIMPL_HIDDEN_ARGS   1
 /** Number of hidden arguments for AVX_AIMPL calls. */
-# define IEM_AVX_AIMPL_HIDDEN_ARGS 1
-#endif
+#define IEM_AVX_AIMPL_HIDDEN_ARGS   1
 
 
 #ifdef IEMNATIVE_WITH_LIVENESS_ANALYSIS
@@ -2185,7 +2848,7 @@ iemNativeLivenessGetStateByGstRegEx(PCIEMLIVENESSENTRY pLivenessEntry, unsigned 
     return ( (pLivenessEntry->Bit0.bm64 >> enmGstRegEx)       & 1)
          | (((pLivenessEntry->Bit1.bm64 >> enmGstRegEx) << 1) & 2)
          | (((pLivenessEntry->Bit2.bm64 >> enmGstRegEx) << 2) & 4)
-         | (((pLivenessEntry->Bit3.bm64 >> enmGstRegEx) << 2) & 8);
+         | (((pLivenessEntry->Bit3.bm64 >> enmGstRegEx) << 3) & 8);
 # endif
 }
 
@@ -2219,16 +2882,24 @@ iemNativeLivenessGetStateByGstReg(PCIEMLIVENESSENTRY pLivenessEntry, IEMNATIVEGS
     return uRet;
 }
 
-
 # ifdef VBOX_STRICT
-/** For assertions only, user checks that idxCurCall isn't zerow. */
+
+/** For assertions only - caller checks that idxCurCall isn't zero. */
 DECL_FORCE_INLINE(uint32_t)
 iemNativeLivenessGetPrevStateByGstReg(PIEMRECOMPILERSTATE pReNative, IEMNATIVEGSTREG enmGstReg)
 {
     return iemNativeLivenessGetStateByGstReg(&pReNative->paLivenessEntries[pReNative->idxCurCall - 1], enmGstReg);
 }
-# endif /* VBOX_STRICT */
 
+
+/** For assertions only - caller checks that idxCurCall isn't zero. */
+DECL_FORCE_INLINE(uint32_t)
+iemNativeLivenessGetPrevStateByGstRegEx(PIEMRECOMPILERSTATE pReNative, IEMNATIVEGSTREG enmGstReg)
+{
+    return iemNativeLivenessGetStateByGstRegEx(&pReNative->paLivenessEntries[pReNative->idxCurCall - 1], enmGstReg);
+}
+
+# endif /* VBOX_STRICT */
 #endif /* IEMNATIVE_WITH_LIVENESS_ANALYSIS */
 
 
@@ -2261,6 +2932,11 @@ DECL_FORCE_INLINE(uint8_t) iemNativeRegMarkAllocated(PIEMRECOMPILERSTATE pReNati
 /*********************************************************************************************************************************
 *   Register Allocator (GPR)                                                                                                     *
 *********************************************************************************************************************************/
+
+#ifdef RT_ARCH_ARM64
+# include <iprt/armv8.h>
+#endif
+
 
 /**
  * Marks host register @a idxHstReg as containing a shadow copy of guest
@@ -2469,13 +3145,9 @@ iemNativeRegFlushPendingWrites(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint
 #else
     uint64_t const bmGstRegShadowDirty     = 0;
 #endif
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
     uint64_t const bmGstSimdRegShadowDirty = (  pReNative->Core.bmGstSimdRegShadowDirtyLo128
                                               | pReNative->Core.bmGstSimdRegShadowDirtyHi128)
                                            & ~fGstSimdShwExcept;
-#else
-    uint64_t const bmGstSimdRegShadowDirty = 0;
-#endif
     if (bmGstRegShadowDirty | bmGstSimdRegShadowDirty | fWritebackPc)
         return iemNativeRegFlushPendingWritesSlow(pReNative, off, fGstShwExcept, fGstSimdShwExcept);
 
@@ -2483,12 +3155,80 @@ iemNativeRegFlushPendingWrites(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint
 }
 
 
+/**
+ * Allocates a temporary host general purpose register for keeping a guest
+ * register value.
+ *
+ * Since we may already have a register holding the guest register value,
+ * code will be emitted to do the loading if that's not the case. Code may also
+ * be emitted if we have to free up a register to satify the request.
+ *
+ * @returns The host register number; throws VBox status code on failure, so no
+ *          need to check the return value.
+ * @param   pReNative       The native recompile state.
+ * @param   poff            Pointer to the variable with the code buffer
+ *                          position. This will be update if we need to move a
+ *                          variable from register to stack in order to satisfy
+ *                          the request.
+ * @param   enmGstReg       The guest register that will is to be updated.
+ * @param   enmIntendedUse  How the caller will be using the host register.
+ * @param   fNoVolatileRegs Set if no volatile register allowed, clear if any
+ *                          register is okay (default).  The ASSUMPTION here is
+ *                          that the caller has already flushed all volatile
+ *                          registers, so this is only applied if we allocate a
+ *                          new register.
+ * @sa      iemNativeRegAllocTmpForGuestEFlags
+ *          iemNativeRegAllocTmpForGuestRegIfAlreadyPresent
+ *          iemNativeRegAllocTmpForGuestRegInt
+ */
+DECL_FORCE_INLINE_THROW(uint8_t)
+iemNativeRegAllocTmpForGuestReg(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, IEMNATIVEGSTREG enmGstReg,
+                                IEMNATIVEGSTREGUSE const enmIntendedUse = kIemNativeGstRegUse_ReadOnly,
+                                bool const fNoVolatileRegs = false)
+{
+    if (enmIntendedUse == kIemNativeGstRegUse_ReadOnly)
+        return !fNoVolatileRegs
+             ? iemNativeRegAllocTmpForGuestRegReadOnly(pReNative, poff, enmGstReg)
+             : iemNativeRegAllocTmpForGuestRegReadOnlyNoVolatile(pReNative, poff, enmGstReg);
+    if (enmIntendedUse == kIemNativeGstRegUse_ForUpdate)
+        return !fNoVolatileRegs
+             ? iemNativeRegAllocTmpForGuestRegUpdate(pReNative, poff, enmGstReg)
+             : iemNativeRegAllocTmpForGuestRegUpdateNoVolatile(pReNative, poff, enmGstReg);
+    if (enmIntendedUse == kIemNativeGstRegUse_ForFullWrite)
+        return !fNoVolatileRegs
+             ? iemNativeRegAllocTmpForGuestRegFullWrite(pReNative, poff, enmGstReg)
+             : iemNativeRegAllocTmpForGuestRegFullWriteNoVolatile(pReNative, poff, enmGstReg);
+    Assert(enmIntendedUse == kIemNativeGstRegUse_Calculation);
+    return !fNoVolatileRegs
+         ? iemNativeRegAllocTmpForGuestRegCalculation(pReNative, poff, enmGstReg)
+         : iemNativeRegAllocTmpForGuestRegCalculationNoVolatile(pReNative, poff, enmGstReg);
+}
+
+#if !defined(IEMNATIVE_WITH_LIVENESS_ANALYSIS) || !defined(VBOX_STRICT)
+
+DECL_FORCE_INLINE_THROW(uint8_t)
+iemNativeRegAllocTmpForGuestEFlagsReadOnly(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, uint64_t fRead,
+                                           uint64_t fWrite = 0, uint64_t fPotentialCall = 0)
+{
+    RT_NOREF(fRead, fWrite, fPotentialCall);
+    return iemNativeRegAllocTmpForGuestRegReadOnly(pReNative, poff, kIemNativeGstReg_EFlags);
+}
+
+DECL_FORCE_INLINE_THROW(uint8_t)
+iemNativeRegAllocTmpForGuestEFlagsForUpdate(PIEMRECOMPILERSTATE pReNative, uint32_t *poff, uint64_t fRead,
+                                            uint64_t fWrite = 0, uint64_t fPotentialCall = 0)
+{
+    RT_NOREF(fRead, fWrite, fPotentialCall);
+    return iemNativeRegAllocTmpForGuestRegUpdate(pReNative, poff, kIemNativeGstReg_EFlags);
+}
+
+#endif
+
+
 
 /*********************************************************************************************************************************
 *   SIMD register allocator (largely code duplication of the GPR allocator for now but might diverge)                            *
 *********************************************************************************************************************************/
-
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 
 DECL_FORCE_INLINE(uint8_t)
 iemNativeSimdRegMarkAllocated(PIEMRECOMPILERSTATE pReNative, uint8_t idxSimdReg,
@@ -2609,7 +3349,6 @@ iemNativeSimdRegClearGstSimdRegShadowing(PIEMRECOMPILERSTATE pReNative, uint8_t 
     pReNative->Core.aHstSimdRegs[idxHstSimdReg].enmLoaded      = kIemNativeGstSimdRegLdStSz_Invalid;
 }
 
-#endif /* IEMNATIVE_WITH_SIMD_REG_ALLOCATOR */
 
 
 #ifdef IEMNATIVE_WITH_DELAYED_PC_UPDATING
@@ -2625,14 +3364,12 @@ DECL_INLINE_THROW(uint32_t) iemNativeEmitPcWriteback(PIEMRECOMPILERSTATE pReNati
 #endif /* IEMNATIVE_WITH_DELAYED_PC_UPDATING  */
 
 
-#ifdef IEMNATIVE_WITH_RECOMPILER_PROLOGUE_SINGLETON
 /** @note iemNativeTbEntry returns VBOXSTRICTRC, but we don't declare it as
  *        it saves us the trouble of a hidden parameter on MSC/amd64. */
-# ifdef RT_ARCH_AMD64
+#ifdef RT_ARCH_AMD64
 extern "C" IEM_DECL_NATIVE_HLP_DEF(int, iemNativeTbEntry, (PVMCPUCC pVCpu, uintptr_t pfnTbBody));
-# elif defined(RT_ARCH_ARM64)
+#elif defined(RT_ARCH_ARM64)
 extern "C" IEM_DECL_NATIVE_HLP_DEF(int, iemNativeTbEntry, (PVMCPUCC pVCpu, PCPUMCTX pCpumCtx, uintptr_t pfnTbBody));
-# endif
 #endif
 
 #ifdef IEMNATIVE_WITH_SIMD_FP_NATIVE_EMITTERS

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -387,6 +387,10 @@ VMMDECL(bool)           CPUMIsGuestIn64BitCode(PCVMCPU pVCpu);
 VMMDECL(CPUMCPUVENDOR)  CPUMGetHostCpuVendor(PVM pVM);
 VMMDECL(CPUMARCH)       CPUMGetHostArch(PCVM pVM);
 VMMDECL(CPUMMICROARCH)  CPUMGetHostMicroarch(PCVM pVM);
+
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
+VMM_INT_DECL(void)      CPUMCpuIdApplyX86HostArchCapabilities(PVMCC pVM, bool fHasArchCap, uint64_t fHostArchVal);
+#endif
 
 #ifdef IN_RING3
 /** @defgroup grp_cpum_r3    The CPUM ring-3 API

@@ -8,12 +8,8 @@
         conkeyref="vbox-conkeyref-phrases/product-name"/>. Unless marked otherwise, these issues are planned to be fixed
       in later releases. </p>
     <ul>
-      <li>
-        <p>The macOS installer packages for <ph conkeyref="vbox-conkeyref-phrases/product-name"/> 7 currently do not
-          include the Internal Networking feature, which is available on all other platforms. This will be addressed
-          with an update of <ph conkeyref="vbox-conkeyref-phrases/product-name"/> 7. For setups which depend on this
-          functionality it is best to keep using <ph conkeyref="vbox-conkeyref-phrases/product-name"/> 6.1. </p>
-      </li>
+      <li>Saved states and online snapshots created on Arm VMs in <ph conkeyref="vbox-conkeyref-phrases/product-name"/> 7.1 will not be usable in later releases. Saved states within 7.1 are working as expected.</li>
+      <li>Internal networking on macOS hosts doesn't work between VMs run by different users.</li>
       <li>
         <p>Poor performance when using <ph conkeyref="vbox-conkeyref-phrases/product-name"/> and <b outputclass="bold"
             >Hyper-V</b> on the same host. To fix this, certain Windows features like "Hyper-V Platform", "Virtual
@@ -101,10 +97,6 @@
             <p>Remote files using HTTP or other mechanisms are not yet supported. </p>
           </li>
         </ul>
-      </li>
-      <li>
-        <p>Neither <b outputclass="bold">scale mode</b> nor <b outputclass="bold">seamless mode</b> work correctly with
-          guests using OpenGL 3D features, such as with Compiz-enabled window managers. </p>
       </li>
       <li>
         <p>The RDP server in the <ph conkeyref="vbox-conkeyref-phrases/product-name"/> extension pack supports only

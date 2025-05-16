@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -107,8 +107,8 @@ public:
     /** Send machine-window(s) size-hint(s) to the guest. */
     virtual void sendMachineWindowsSizeHints();
 
-    /* Wrapper to open Machine settings / Network page: */
-    void openNetworkSettingsDialog() { sltOpenSettingsDialogNetwork(); }
+    /** Opens Machine settings / Network page the modal way. */
+    void openNetworkSettingsDialogTheModalWay();
 
 #ifdef VBOX_WS_MAC
     void updateDockIcon();
@@ -227,14 +227,12 @@ private slots:
     void sltHandleMenuPrepare(int iIndex, QMenu *pMenu);
 
     /* "Application" menu functionality: */
-    void sltOpenPreferencesDialog(const QString &strCategory = QString(), const QString &strControl = QString());
-    void sltOpenPreferencesDialogDefault() { sltOpenPreferencesDialog(); }
+    void sltOpenPreferencesDialogDefault() { openPreferencesDialog(); }
     void sltClosePreferencesDialog();
     void sltClose();
 
     /* "Machine" menu functionality: */
-    void sltOpenSettingsDialog(const QString &strCategory = QString(), const QString &strControl = QString());
-    void sltOpenSettingsDialogDefault() { sltOpenSettingsDialog(); }
+    void sltOpenSettingsDialogDefault() { openSettingsDialog(); }
     void sltCloseSettingsDialog();
     void sltTakeSnapshot();
     void sltShowInformationDialog();
@@ -354,6 +352,22 @@ private:
 
     /** Asks user for the disks encryption passwords. */
     void askUserForTheDiskEncryptionPasswords();
+
+    /** Opens Global preferences dialog.
+      * @param  strCategory  Brings the category to open.
+      * @param  strControl   Brings the name of control to choose.
+      * @param  fAppModal    Brings whether dialog should be app modal. */
+    void openPreferencesDialog(const QString &strCategory = QString(),
+                               const QString &strControl = QString(),
+                               bool fAppModal = false);
+
+    /** Opens VM settings dialog.
+      * @param  strCategory  Brings the category to open.
+      * @param  strControl   Brings the name of control to choose.
+      * @param  fAppModal    Brings whether dialog should be app modal. */
+    void openSettingsDialog(const QString &strCategory = QString(),
+                            const QString &strControl = QString(),
+                            bool fAppModal = false);
 
     /* Helpers: */
     void takeScreenshot(const QString &strFile, const QString &strFormat /* = "png" */) const;

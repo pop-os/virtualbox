@@ -7,7 +7,7 @@
  *  Common definitions
 -->
 <!--
-    Copyright (C) 2004-2023 Oracle and/or its affiliates.
+    Copyright (C) 2004-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -39,7 +39,7 @@
 <xsd:annotation>
   <xsd:documentation xml:lang="en">
     Oracle VirtualBox Settings Schema (common definitions).
-    Copyright (C) 2004-2023 Oracle and/or its affiliates.
+    Copyright (C) 2004-2024 Oracle and/or its affiliates.
   </xsd:documentation>
 </xsd:annotation>
 
@@ -1119,6 +1119,7 @@
   <xsd:attribute name="tcprcv" type="xsd:unsignedInt"/>
   <xsd:attribute name="tcpsnd" type="xsd:unsignedInt"/>
   <xsd:attribute name="localhost-reachable" type="xsd:boolean" default="true"/>
+  <xsd:attribute name="forward-broadcast" type="xsd:boolean" default="false" />
 </xsd:complexType>
 
 <xsd:complexType name="TNetNATNetwork">

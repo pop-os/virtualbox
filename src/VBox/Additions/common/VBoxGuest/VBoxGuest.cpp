@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1547,7 +1547,7 @@ void VGDrvCommonProcessOptionsFromHost(PVBOXGUESTDEVEXT pDevExt)
                     unsigned    iField;
                     for (iField = 0; iField < RT_ELEMENTS(apszFields); iField++)
                     {
-                        apszFields[0] = &pszzStrings[off];
+                        apszFields[iField] = &pszzStrings[off];
                         while (off < cbStrings)
                         {
                             char ch = pszzStrings[off++];
@@ -1575,7 +1575,7 @@ void VGDrvCommonProcessOptionsFromHost(PVBOXGUESTDEVEXT pDevExt)
                         {
                             if (fFlags & GUEST_PROP_F_RDONLYGUEST)
                             {
-                                apszFields[0] += sizeof(g_szzPattern) - 2;
+                                apszFields[0] += sizeof(g_szzPattern) - 3;
                                 VGDrvCommonProcessOption(pDevExt, apszFields[0], apszFields[1]);
                             }
                             else

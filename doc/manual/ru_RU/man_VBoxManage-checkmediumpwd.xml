@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage checkmediumpwd
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-checkmediumpwd" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2024-02-29 21:47:25 +0100 (Thu, 29 Feb 2024) $</pubdate>
+    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
     <title>VBoxManage checkmediumpwd</title>
   </refentryinfo>
 

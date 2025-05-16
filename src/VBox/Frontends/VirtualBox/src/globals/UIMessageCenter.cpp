@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -114,6 +114,7 @@
 #include <iprt/param.h>
 #include <iprt/path.h>
 
+#include <VBox/version.h>
 
 /* static */
 UIMessageCenter *UIMessageCenter::s_pInstance = 0;
@@ -2089,7 +2090,8 @@ void UIMessageCenter::sltShowOracle()
 
 void UIMessageCenter::sltShowOnlineDocumentation()
 {
-    uiCommon().openURL("https://docs.oracle.com/en/virtualization/virtualbox/7.0/user/index.html");
+    QString strUrl = QString("https://docs.oracle.com/en/virtualization/virtualbox/%1.%2/user/index.html").arg(VBOX_VERSION_MAJOR).arg(VBOX_VERSION_MINOR);
+    uiCommon().openURL(strUrl);
 }
 
 void UIMessageCenter::sltShowHelpAboutDialog()

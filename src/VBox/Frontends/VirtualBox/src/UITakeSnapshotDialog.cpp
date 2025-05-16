@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,7 +40,6 @@
 #include "VBoxUtils.h"
 #include "UICommon.h"
 #include "UIDesktopWidgetWatchdog.h"
-#include "UIHelpBrowserDialog.h"
 #include "UIShortcutPool.h"
 #include "UITakeSnapshotDialog.h"
 #include "UITranslationEventListener.h"
@@ -307,7 +306,6 @@ void UITakeSnapshotDialog::prepareContents()
                     this, &UITakeSnapshotDialog::reject);
             connect(m_pButtonBox->button(QIDialogButtonBox::Help), &QPushButton::pressed,
                     m_pButtonBox, &QIDialogButtonBox::sltHandleHelpRequest);
-            m_pButtonBox->button(QDialogButtonBox::Help)->setShortcut(UIShortcutPool::standardSequence(QKeySequence::HelpContents));
             uiCommon().setHelpKeyword(m_pButtonBox->button(QIDialogButtonBox::Help), "snapshots");
 
             /* Add into layout: */

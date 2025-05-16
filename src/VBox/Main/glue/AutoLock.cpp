@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -167,26 +167,30 @@ struct RWLockHandle::Data
 #endif
 };
 
-RWLockHandle::RWLockHandle(VBoxLockingClass lockClass)
+RWLockHandle::RWLockHandle(VBoxLockingClass lockClass, const char *pszName /*= NULL*/)
 {
+    Assert(!pszName || (!strchr(pszName, '%') && *pszName));
     m = new Data();
 
     m->lockClass = lockClass;
 #ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
-    m->strDescription.printf("r/w %RCv", this);
+    if (pszName)
+        m->strDescription.printf("r/w %RCv %s", this, pszName);
+    else
+        m->strDescription.printf("r/w %RCv", this);
 #endif
 
 #ifdef GLUE_USE_CRITSECTRW
 # ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
-    int vrc = RTCritSectRwInitEx(&m->CritSect, 0 /*fFlags*/, g_mapLockValidationClasses[lockClass], RTLOCKVAL_SUB_CLASS_ANY, NULL);
+    int vrc = RTCritSectRwInitEx(&m->CritSect, 0 /*fFlags*/, g_mapLockValidationClasses[lockClass], RTLOCKVAL_SUB_CLASS_ANY, pszName);
 # else
-    int vrc = RTCritSectRwInitEx(&m->CritSect, 0 /*fFlags*/, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_ANY, NULL);
+    int vrc = RTCritSectRwInitEx(&m->CritSect, 0 /*fFlags*/, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_ANY, pszName);
 # endif
 #else
 # ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
-    int vrc = RTSemRWCreateEx(&m->sem, 0 /*fFlags*/, g_mapLockValidationClasses[lockClass], RTLOCKVAL_SUB_CLASS_ANY, NULL);
+    int vrc = RTSemRWCreateEx(&m->sem, 0 /*fFlags*/, g_mapLockValidationClasses[lockClass], RTLOCKVAL_SUB_CLASS_ANY, pszName);
 # else
-    int vrc = RTSemRWCreateEx(&m->sem, 0 /*fFlags*/, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_ANY, NULL);
+    int vrc = RTSemRWCreateEx(&m->sem, 0 /*fFlags*/, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_ANY, pszName);
 # endif
 #endif
     AssertRC(vrc);

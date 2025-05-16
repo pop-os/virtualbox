@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -6479,6 +6479,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
                                             "|VMSVGA3dEnabled"
                                             "|VMSVGA3dOverlayEnabled"
                                             "|VMSVGA3dMSAA"
+                                            "|VMSVGA2dGBO"
 # endif
                                             "|SuppressNewYearSplash"
                                             "|3DEnabled";
@@ -6554,6 +6555,12 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "VMSVGA3dMSAA", &pThis->svga.fVMSVGA3dMSAA, true);
     AssertLogRelRCReturn(rc, rc);
     Log(("VMSVGA: VMSVGA3dMSAA = %d\n", pThis->svga.fVMSVGA3dMSAA));
+
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "VMSVGA2dGBO", &pThis->svga.fVMSVGA2dGBO, true);
+    AssertLogRelRCReturn(rc, rc);
+    if (pThis->svga.f3DEnabled || pThis->fVMSVGAPciId == 0) /* The fVMSVGA2dGBO is for 2D mode of vmwgfx.ko only*/
+        pThis->svga.fVMSVGA2dGBO = false;
+    Log(("VMSVGA: fVMSVGA2dGBO = %d\n", pThis->svga.fVMSVGA2dGBO));
 # endif
 
 # ifdef VBOX_WITH_VMSVGA

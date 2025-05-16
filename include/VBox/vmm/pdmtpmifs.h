@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2021-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -57,13 +57,16 @@ typedef struct PDMITPMPORT *PPDMITPMPORT;
 typedef struct PDMITPMPORT
 {
     /**
-     * @todo
+     * Queries the maximum buffer size supported by the upper device emulation.
+     *
+     * @returns Maximum buffer size in bytes.
+     * @param   pInterface          Pointer to the interface structure containing the called function pointer.
      */
-    DECLR3CALLBACKMEMBER(int, pfnDummy, (PPDMITPMPORT pInterface));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnGetMaxBufferSize, (PPDMITPMPORT pInterface));
 
 } PDMITPMPORT;
 /** PDMITPMPORT interface ID. */
-#define PDMITPMPORT_IID                       "1e57710f-f820-47ec-afa6-2713195f8f94"
+#define PDMITPMPORT_IID                       "919271f9-385b-442c-a33d-1469ec7dd97b"
 
 
 /**

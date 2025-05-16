@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2524,13 +2524,15 @@ static void hmR0VmxSetupVmcsMsrPermissions(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInf
      *
      * The IA32_SPEC_CTRL MSR is read/write and has state. We allow the guest to
      * read/write them. We swap the guest/host MSR value using the
-     * auto-load/store MSR area.
+     * auto-load/store MSR area. Since things keeps getting added here, we should
+     * technically intercept writes to prevent illegal bits from being set (raise
+     * #GP), but we don't currently do so for performance raisins/laziness.
      */
-    if (pVM->cpum.ro.GuestFeatures.fIbpb)
+    if (pVM->cpum.ro.GuestFeatures.fIbpb /*    && g_CpumHostFeatures.s.fIbpb*/)
         hmR0VmxSetMsrPermission(pVCpu, pVmcsInfo, false, MSR_IA32_PRED_CMD,  VMXMSRPM_ALLOW_RD_WR);
-    if (pVM->cpum.ro.GuestFeatures.fFlushCmd)
+    if (pVM->cpum.ro.GuestFeatures.fFlushCmd && g_CpumHostFeatures.s.fFlushCmd)
         hmR0VmxSetMsrPermission(pVCpu, pVmcsInfo, false, MSR_IA32_FLUSH_CMD, VMXMSRPM_ALLOW_RD_WR);
-    if (pVM->cpum.ro.GuestFeatures.fIbrs)
+    if (pVM->cpum.ro.GuestFeatures.fIbrs     && g_CpumHostFeatures.s.fIbrs)
         hmR0VmxSetMsrPermission(pVCpu, pVmcsInfo, false, MSR_IA32_SPEC_CTRL, VMXMSRPM_ALLOW_RD_WR);
 
     /*
@@ -4114,7 +4116,7 @@ static int hmR0VmxExportGuestMsrs(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTransient)
     {
         /* Speculation Control (R/W). */
         HMVMX_CPUMCTX_ASSERT(pVCpu, HM_CHANGED_GUEST_OTHER_MSRS);
-        if (pVM->cpum.ro.GuestFeatures.fIbrs)
+        if (pVM->cpum.ro.GuestFeatures.fIbrs && g_CpumHostFeatures.s.fIbrs)
         {
             int rc = hmR0VmxAddAutoLoadStoreMsr(pVCpu, pVmxTransient, MSR_IA32_SPEC_CTRL, CPUMGetGuestSpecCtrl(pVCpu),
                                                 false /* fSetReadWrite */, false /* fUpdateHostMsr */);

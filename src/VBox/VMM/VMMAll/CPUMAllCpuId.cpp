@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -880,7 +880,7 @@ static bool cpumIsEcxRelevantForCpuIdLeaf(uint32_t uLeaf, uint32_t *pcSubLeaves,
     }
 
     /* Count sub-leaves. */
-    uint32_t cMinLeaves = uLeaf == 0xd ? 64 : 0;
+    uint32_t cMinLeaves = uLeaf == 0xd ? 64 : uLeaf == 7 ? 2 : 0;
     uint32_t cRepeats = 0;
     uSubLeaf = 0;
     for (;;)
@@ -1389,6 +1389,21 @@ static void cpumExplodeVmxFeatures(PCVMXMSRS pVmxMsrs, PCPUMFEATURES pFeatures)
 }
 
 
+void cpumCpuIdExplodeFeaturesX86SetSummaryBits(PCPUMFEATURES pFeatures)
+{
+    /* Summary or all bits indicating the presence of the IA32_SPEC_CTRL MSR. */
+    pFeatures->fSpecCtrlMsr = pFeatures->fIbrs
+                            | pFeatures->fStibp
+                            | pFeatures->fSsbd
+                            | pFeatures->fPsfd
+                            | pFeatures->fIpredCtrl
+                            | pFeatures->fRrsbaCtrl
+                            | pFeatures->fDdpdU
+                            | pFeatures->fBhiCtrl
+                            ;
+}
+
+
 int cpumCpuIdExplodeFeaturesX86(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPUMMSRS pMsrs, PCPUMFEATURES pFeatures)
 {
     Assert(pMsrs);
@@ -1491,9 +1506,23 @@ int cpumCpuIdExplodeFeaturesX86(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCP
             pFeatures->fIbpb                = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB);
             pFeatures->fIbrs                = pFeatures->fIbpb;
             pFeatures->fStibp               = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_STIBP);
+            pFeatures->fSsbd                = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_SSBD);
             pFeatures->fFlushCmd            = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_FLUSH_CMD);
             pFeatures->fArchCap             = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP);
+            pFeatures->fCoreCap             = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_CORECAP);
             pFeatures->fMdsClear            = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_MD_CLEAR);
+        }
+        PCCPUMCPUIDLEAF const pSxfLeaf2 = cpumCpuIdFindLeafEx(paLeaves, cLeaves, 7, 2);
+        if (pSxfLeaf2)
+        {
+            pFeatures->fPsfd                = RT_BOOL(pSxfLeaf2->uEdx & X86_CPUID_STEXT_FEATURE_2_EDX_PSFD);
+            pFeatures->fIpredCtrl           = RT_BOOL(pSxfLeaf2->uEdx & X86_CPUID_STEXT_FEATURE_2_EDX_IPRED_CTRL);
+            pFeatures->fRrsbaCtrl           = RT_BOOL(pSxfLeaf2->uEdx & X86_CPUID_STEXT_FEATURE_2_EDX_RRSBA_CTRL);
+            pFeatures->fDdpdU               = RT_BOOL(pSxfLeaf2->uEdx & X86_CPUID_STEXT_FEATURE_2_EDX_DDPD_U);
+            pFeatures->fBhiCtrl             = RT_BOOL(pSxfLeaf2->uEdx & X86_CPUID_STEXT_FEATURE_2_EDX_BHI_CTRL);
+            pFeatures->fMcdtNo              = RT_BOOL(pSxfLeaf2->uEdx & X86_CPUID_STEXT_FEATURE_2_EDX_MCDT_NO);
+            pFeatures->fUcLockDis           = RT_BOOL(pSxfLeaf2->uEdx & X86_CPUID_STEXT_FEATURE_2_EDX_UC_LOCK_DIS);
+            pFeatures->fMonitorMitgNo       = RT_BOOL(pSxfLeaf2->uEdx & X86_CPUID_STEXT_FEATURE_2_EDX_MONITOR_MITG_NO);
         }
 
         /* MWAIT/MONITOR leaf. */
@@ -1537,11 +1566,27 @@ int cpumCpuIdExplodeFeaturesX86(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCP
             pFeatures->fFxSaveRstor    |= RT_BOOL(pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_FXSR);
             pFeatures->fMmx            |= RT_BOOL(pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_MMX);
             pFeatures->fTsc            |= RT_BOOL(pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_TSC);
-            pFeatures->fIbpb           |= pExtLeaf8 && (pExtLeaf8->uEbx & X86_CPUID_AMD_EFEID_EBX_IBPB);
             pFeatures->fAmdMmxExts      = RT_BOOL(pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_AXMMX);
             pFeatures->fXop             = RT_BOOL(pExtLeaf->uEcx & X86_CPUID_AMD_FEATURE_ECX_XOP);
             pFeatures->fTbm             = RT_BOOL(pExtLeaf->uEcx & X86_CPUID_AMD_FEATURE_ECX_TBM);
             pFeatures->fSvm             = RT_BOOL(pExtLeaf->uEcx & X86_CPUID_AMD_FEATURE_ECX_SVM);
+
+            if (pExtLeaf8)
+            {
+                pFeatures->fIbpb      |= RT_BOOL(pExtLeaf8->uEbx & X86_CPUID_AMD_EFEID_EBX_IBPB);
+                pFeatures->fIbrs      |= RT_BOOL(pExtLeaf8->uEbx & X86_CPUID_AMD_EFEID_EBX_IBRS);
+                pFeatures->fStibp     |= RT_BOOL(pExtLeaf8->uEbx & X86_CPUID_AMD_EFEID_EBX_STIBP);
+                pFeatures->fSsbd      |= RT_BOOL(pExtLeaf8->uEbx & X86_CPUID_AMD_EFEID_EBX_SPEC_CTRL_SSBD);
+                pFeatures->fPsfd      |= RT_BOOL(pExtLeaf8->uEbx & X86_CPUID_AMD_EFEID_EBX_PSFD);
+            }
+
+            PCCPUMCPUIDLEAF pExtLeaf21 = cpumCpuIdFindLeaf(paLeaves, cLeaves, 0x80000021);
+            if (pExtLeaf21)
+            {
+                /** @todo IBPB_BRTYPE is implied on Zen 1 & 2.
+                 *  https://www.amd.com/content/dam/amd/en/documents/corporate/cr/speculative-return-stack-overflow-whitepaper.pdf */
+            }
+
             if (pFeatures->fSvm)
             {
                 PCCPUMCPUIDLEAF pSvmLeaf = cpumCpuIdFindLeaf(paLeaves, cLeaves, 0x8000000a);
@@ -1627,6 +1672,101 @@ int cpumCpuIdExplodeFeaturesX86(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCP
     }
     else
         AssertLogRelReturn(cLeaves == 0, VERR_CPUM_IPE_1);
+
+    cpumCpuIdExplodeFeaturesX86SetSummaryBits(pFeatures);
     return VINF_SUCCESS;
 }
+
+
+/**
+ * Helper for extracting feature bits from IA32_ARCH_CAPABILITIES.
+ */
+void cpumCpuIdExplodeArchCapabilities(CPUMFEATURES *pFeatures, bool fHasArchCap, uint64_t fArchVal)
+{
+    Assert(fHasArchCap || fArchVal == 0);
+    pFeatures->fArchCap                = fHasArchCap;
+    pFeatures->fArchRdclNo             = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RDCL_NO);
+    pFeatures->fArchIbrsAll            = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_IBRS_ALL);
+    pFeatures->fArchRsbOverride        = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RSBO);
+    pFeatures->fArchVmmNeedNotFlushL1d = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_VMM_NEED_NOT_FLUSH_L1D);
+    pFeatures->fArchSsbNo              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_SSB_NO);
+    pFeatures->fArchMdsNo              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_MDS_NO);
+    pFeatures->fArchIfPschangeMscNo    = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_IF_PSCHANGE_MC_NO);
+    pFeatures->fArchTsxCtrl            = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_TSX_CTRL);
+    pFeatures->fArchTaaNo              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_TAA_NO);
+    pFeatures->fArchMiscPackageCtrls   = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_MISC_PACKAGE_CTRLS);
+    pFeatures->fArchEnergyFilteringCtl = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_ENERGY_FILTERING_CTL);
+    pFeatures->fArchDoitm              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_DOITM);
+    pFeatures->fArchSbdrSsdpNo         = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_SBDR_SSDP_NO);
+    pFeatures->fArchFbsdpNo            = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_FBSDP_NO);
+    pFeatures->fArchPsdpNo             = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_PSDP_NO);
+    pFeatures->fArchFbClear            = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_FB_CLEAR);
+    pFeatures->fArchFbClearCtrl        = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_FB_CLEAR_CTRL);
+    pFeatures->fArchRrsba              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RRSBA);
+    pFeatures->fArchBhiNo              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_BHI_NO);
+    pFeatures->fArchXapicDisableStatus = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_XAPIC_DISABLE_STATUS);
+    pFeatures->fArchOverclockingStatus = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_OVERCLOCKING_STATUS);
+    pFeatures->fArchPbrsbNo            = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_PBRSB_NO);
+    pFeatures->fArchGdsCtrl            = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_GDS_CTRL);
+    pFeatures->fArchGdsNo              = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_GDS_NO);
+    pFeatures->fArchRfdsNo             = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RFDS_NO);
+    pFeatures->fArchRfdsClear          = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_RFDS_CLEAR);
+    pFeatures->fArchIgnUmonitorSupport = RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_IGN_UMONITOR_SUPPORT);
+    pFeatures->fArchMonUmonMitigSupport= RT_BOOL(fArchVal & MSR_IA32_ARCH_CAP_F_MON_UMON_MITIG_SUPPORT);
+}
+
+
+# ifndef VBOX_VMM_TARGET_ARMV8 /* trunk: defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC) */
+/**
+ * Sets the guest IA32_ARCH_CAPABILITIES value and associated feature bits.
+ */
+void cpumCpuIdSetGuestArchCapabilities(PVMCC pVM, bool fHasArchCap, uint64_t fArchVal, bool fHasIbrs)
+{
+    if (!fHasArchCap)
+        fArchVal = 0;
+    else if (!fHasIbrs)
+        fArchVal &= ~MSR_IA32_ARCH_CAP_F_IBRS_ALL;
+    fArchVal &= ~(  RT_BIT_64(9)
+                  | MSR_IA32_ARCH_CAP_F_MISC_PACKAGE_CTRLS
+                  | MSR_IA32_ARCH_CAP_F_ENERGY_FILTERING_CTL
+                  | MSR_IA32_ARCH_CAP_F_DOITM
+                  | RT_BIT_64(16)
+                  | RT_BIT_64(22)
+                  | MSR_IA32_ARCH_CAP_F_FB_CLEAR_CTRL
+                    /** @todo mask off MSR_IA32_ARCH_CAP_F_RRSBA ? */
+                  | MSR_IA32_ARCH_CAP_F_XAPIC_DISABLE_STATUS
+                  | MSR_IA32_ARCH_CAP_F_OVERCLOCKING_STATUS /** @todo expose IA32_OVERCLOCKING_STATUS */
+                  | MSR_IA32_ARCH_CAP_F_GDS_CTRL
+                  | MSR_IA32_ARCH_CAP_F_IGN_UMONITOR_SUPPORT
+                  | MSR_IA32_ARCH_CAP_F_MON_UMON_MITIG_SUPPORT
+                  | ~(RT_BIT_64(31) - 1U)
+                  );
+    VMCC_FOR_EACH_VMCPU_STMT(pVM, pVCpu->cpum.s.GuestMsrs.msr.ArchCaps = fArchVal);
+
+    cpumCpuIdExplodeArchCapabilities(&pVM->cpum.s.GuestFeatures, fHasArchCap, fArchVal);
+    LogRel(("CPUM: Guest IA32_ARCH_CAPABILITIES = %#RX64\n", fArchVal));
+}
+# endif
+
+
+# if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
+/**
+ * Sets host & guest feature bits & MSRs related to IA32_ARCH_CAPABILITIES.
+ *
+ * ASSUMES this is called after the basic guest features has been exploded.
+ */
+VMM_INT_DECL(void) CPUMCpuIdApplyX86HostArchCapabilities(PVMCC pVM, bool fHasArchCap, uint64_t fHostArchVal)
+{
+    cpumCpuIdExplodeArchCapabilities(const_cast<CPUMFEATURES *>(&pVM->cpum.s.HostFeatures), fHasArchCap, fHostArchVal);
+    LogRel(("CPUM: Host IA32_ARCH_CAPABILITIES  = %#RX64\n", fHostArchVal));
+
+# if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
+#  ifdef VBOX_VMM_TARGET_AGNOSTIC
+    /** @todo arm on x86: check VM target. */
+#  endif
+    cpumCpuIdSetGuestArchCapabilities(pVM, fHasArchCap && pVM->cpum.s.GuestFeatures.fArchCap,
+                                      fHostArchVal, pVM->cpum.s.GuestFeatures.fIbrs);
+#  endif
+}
+# endif /* defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) */
 

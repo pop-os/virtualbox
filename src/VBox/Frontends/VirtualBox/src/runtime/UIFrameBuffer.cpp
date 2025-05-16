@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -142,11 +142,10 @@ public:
     /** Returns device-pixel-ratio set for HiDPI frame-buffer. */
     double devicePixelRatio() const { return m_dDevicePixelRatio; }
     /** Defines device-pixel-ratio set for HiDPI frame-buffer. */
-    void setDevicePixelRatio(double dDevicePixelRatio) { m_dDevicePixelRatio = dDevicePixelRatio; }
-    /** Returns actual device-pixel-ratio set for HiDPI frame-buffer. */
-    double devicePixelRatioActual() const { return m_dDevicePixelRatioActual; }
-    /** Defines actual device-pixel-ratio set for HiDPI frame-buffer. */
-    void setDevicePixelRatioActual(double dDevicePixelRatioActual) { m_dDevicePixelRatioActual = dDevicePixelRatioActual; }
+    void setDevicePixelRatio(double dDevicePixelRatio);
+
+    /** Returns smallest device-pixel-ratio denominator. */
+    int smallestDenominator() const { return m_iSmallestDenominator; }
 
     /** Returns whether frame-buffer should use unscaled HiDPI output. */
     bool useUnscaledHiDPIOutput() const { return m_fUseUnscaledHiDPIOutput; }
@@ -277,8 +276,6 @@ protected:
 
     /** Default paint routine. */
     void paintDefault(QPaintEvent *pEvent);
-    /** Paint routine for seamless mode. */
-    void paintSeamless(QPaintEvent *pEvent);
 
     /** Returns the transformation mode corresponding to the passed @a dScaleFactor and ScalingOptimizationType. */
     static Qt::TransformationMode transformationMode(ScalingOptimizationType type, double dScaleFactor = 0);
@@ -290,6 +287,11 @@ protected:
     static void drawImageRect(QPainter &painter, const QImage &image, const QRect &rect,
                               int iContentsShiftX, int iContentsShiftY,
                               double dDevicePixelRatio);
+
+    /** Finds greatest common divisor for @a a and @a b. */
+    static int greatestCommonDivisor(int a, int b);
+    /** Rounds passed iNumber up to @a iNearest @a fUp. */
+    static int roundNumberUpToNearest(int iNumber, int iNearest, bool fUp);
 
     /** Holds the screen-id. */
     ulong m_uScreenId;
@@ -358,11 +360,11 @@ protected:
     /** @name HiDPI screens related variables.
      * @{ */
     /** Holds device-pixel-ratio set for HiDPI frame-buffer. */
-    double m_dDevicePixelRatio;
-    /** Holds actual device-pixel-ratio set for HiDPI frame-buffer. */
-    double m_dDevicePixelRatioActual;
+    double  m_dDevicePixelRatio;
+    /** Holds the smallest device-pixel-ratio denominator. */
+    int     m_iSmallestDenominator;
     /** Holds whether frame-buffer should use unscaled HiDPI output. */
-    bool m_fUseUnscaledHiDPIOutput;
+    bool    m_fUseUnscaledHiDPIOutput;
     /** @} */
 
 private:
@@ -395,7 +397,7 @@ UIFrameBufferPrivate::UIFrameBufferPrivate()
     , m_dScaleFactor(1.0)
     , m_enmScalingOptimizationType(ScalingOptimizationType_None)
     , m_dDevicePixelRatio(1.0)
-    , m_dDevicePixelRatioActual(1.0)
+    , m_iSmallestDenominator(-1)
     , m_fUseUnscaledHiDPIOutput(false)
 {
     LogRel2(("GUI: UIFrameBufferPrivate::UIFrameBufferPrivate %p\n", this));
@@ -485,6 +487,30 @@ void UIFrameBufferPrivate::setMarkAsUnused(bool fUnused)
     lock();
     m_fUnused = fUnused;
     unlock();
+}
+
+void UIFrameBufferPrivate::setDevicePixelRatio(double dDevicePixelRatio)
+{
+    /* Make sure something changed: */
+    if (devicePixelRatio() == dDevicePixelRatio)
+        return;
+
+    /* Cache device-pixel-ratio (dpr): */
+    m_dDevicePixelRatio = dDevicePixelRatio;
+
+    /* For 100% host OS scale-factor we don't need denominator: */
+    if (devicePixelRatio() == 1.0)
+        m_iSmallestDenominator = -1;
+    else
+    {
+        /* Recalculate smallest dpr denominator: */
+        const int iDenominator = 100; // precision, cause scale-factor is percentage
+        const int iNumerator = static_cast<int>(devicePixelRatio() * iDenominator);
+        const int iGreatestCommonDivisor = greatestCommonDivisor(iNumerator, iDenominator);
+        /* We need smallest denominator after all: */
+        m_iSmallestDenominator = iDenominator / iGreatestCommonDivisor;
+    }
+    //printf("m_iSmallestDenominator = %d\n", m_iSmallestDenominator);
 }
 
 HRESULT UIFrameBufferPrivate::FinalConstruct()
@@ -977,16 +1003,8 @@ void UIFrameBufferPrivate::handlePaintEvent(QPaintEvent *pEvent)
         return;
     }
 
-    /* Depending on visual-state type: */
-    switch (m_pMachineView->machineLogic()->visualStateType())
-    {
-        case UIVisualStateType_Seamless:
-            paintSeamless(pEvent);
-            break;
-        default:
-            paintDefault(pEvent);
-            break;
-    }
+    /* Handle paint-event: */
+    paintDefault(pEvent);
 
     /* Unlock access to frame-buffer: */
     unlock();
@@ -1159,7 +1177,7 @@ void UIFrameBufferPrivate::sltMousePointerShapeOrPositionChange()
         cursorHotspot /= scaleFactor();
         /* Take the device-pixel-ratio into account: */
         if (!useUnscaledHiDPIOutput())
-            cursorHotspot /= devicePixelRatioActual();
+            cursorHotspot /= devicePixelRatio();
 
         /* Acquire cursor position and size: */
         QPoint cursorPosition = m_pMachineView->uimachine()->cursorPosition() - cursorHotspot;
@@ -1168,13 +1186,11 @@ void UIFrameBufferPrivate::sltMousePointerShapeOrPositionChange()
         cursorPosition *= scaleFactor();
         cursorSize *= scaleFactor();
         /* Take the device-pixel-ratio into account: */
-        if (!useUnscaledHiDPIOutput())
+        if (useUnscaledHiDPIOutput())
         {
-            cursorPosition *= devicePixelRatioActual();
-            cursorSize *= devicePixelRatioActual();
+            cursorPosition /= devicePixelRatio();
+            cursorSize /= devicePixelRatio();
         }
-        cursorPosition /= devicePixelRatio();
-        cursorSize /= devicePixelRatio();
 
         /* Call for a viewport update, we need to update cumulative
          * region containing previous and current cursor rectagles. */
@@ -1240,9 +1256,8 @@ void UIFrameBufferPrivate::updateCoordinateSystem()
         m_transform = m_transform.scale(scaleFactor(), scaleFactor());
 
     /* Take the device-pixel-ratio into account: */
-    if (!useUnscaledHiDPIOutput())
-        m_transform = m_transform.scale(devicePixelRatioActual(), devicePixelRatioActual());
-    m_transform = m_transform.scale(1.0 / devicePixelRatio(), 1.0 / devicePixelRatio());
+    if (useUnscaledHiDPIOutput())
+        m_transform = m_transform.scale(1.0 / devicePixelRatio(), 1.0 / devicePixelRatio());
 }
 
 void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
@@ -1256,13 +1271,13 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
 
     /* But if we should scale image by some reason: */
     if (   scaledSize().isValid()
-        || (!useUnscaledHiDPIOutput() && devicePixelRatioActual() != 1.0))
+        || (!useUnscaledHiDPIOutput() && devicePixelRatio() != 1.0))
     {
         /* Calculate final scaled size: */
         QSize effectiveSize = !scaledSize().isValid() ? pSourceImage->size() : scaledSize();
         /* Take the device-pixel-ratio into account: */
-        if (!useUnscaledHiDPIOutput() && devicePixelRatioActual() != 1.0)
-            effectiveSize *= devicePixelRatioActual();
+        if (!useUnscaledHiDPIOutput() && devicePixelRatio() != 1.0)
+            effectiveSize *= devicePixelRatio();
         /* We scale the image to requested size and retain it
          * by making heap shallow copy of that temporary object: */
         switch (m_pMachineView->visualStateType())
@@ -1273,16 +1288,21 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
                 break;
             default:
                 pSourceImage = new QImage(pSourceImage->scaled(effectiveSize, Qt::IgnoreAspectRatio,
-                                                               transformationMode(scalingOptimizationType(), m_dScaleFactor)));
+                                                               transformationMode(scalingOptimizationType(), scaleFactor())));
                 break;
         }
     }
 
-    /* Take the device-pixel-ratio into account: */
-    pSourceImage->setDevicePixelRatio(devicePixelRatio());
-
     /* Prepare the base and hidpi paint rectangles: */
-    const QRect paintRect = pEvent->rect();
+    QRect paintRect = pEvent->rect();
+    /* Adjust original rectangle the way that it can be fractionally upscaled to int values: */
+    if (smallestDenominator() != -1)
+    {
+        paintRect.setLeft(roundNumberUpToNearest(paintRect.left(), smallestDenominator(), false /* up */));
+        paintRect.setTop(roundNumberUpToNearest(paintRect.top(), smallestDenominator(), false /* up */));
+        paintRect.setWidth(roundNumberUpToNearest(paintRect.width(), smallestDenominator(), true /* up */));
+        paintRect.setHeight(roundNumberUpToNearest(paintRect.height(), smallestDenominator(), true /* up */));
+    }
     QRect paintRectHiDPI = paintRect;
 
     /* Take the device-pixel-ratio into account: */
@@ -1290,129 +1310,59 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
     paintRectHiDPI.setSize(paintRectHiDPI.size() * devicePixelRatio());
 
     /* Make sure hidpi paint rectangle is within the image boundary: */
-    paintRectHiDPI = paintRectHiDPI.intersected(pSourceImage->rect());
+    paintRectHiDPI &= pSourceImage->rect();
     if (paintRectHiDPI.isEmpty())
         return;
 
     /* Create painter: */
     QPainter painter(m_pMachineView->viewport());
 
+    /* Depending on visual-state type: */
+    switch (m_pMachineView->visualStateType())
+    {
+        case UIVisualStateType_Normal:
+        case UIVisualStateType_Fullscreen:
+        case UIVisualStateType_Scale:
+        {
 #ifdef VBOX_WS_MAC
-    /* On OSX for Qt5 we need to fill the backing store first: */
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(paintRect, QColor(Qt::black));
-    painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+            /* On OSX for Qt5 we need to fill the backing store first: */
+            painter.setCompositionMode(QPainter::CompositionMode_Source);
+            painter.fillRect(paintRect, QColor(Qt::black));
+            painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
 #endif /* VBOX_WS_MAC */
 
-    /* Draw hidpi image rectangle: */
-    drawImageRect(painter, *pSourceImage, paintRectHiDPI,
-                  m_pMachineView->contentsX(), m_pMachineView->contentsY(),
-                  devicePixelRatio());
-
-    /* If we had to scale image for some reason: */
-    if (   scaledSize().isValid()
-        || (!useUnscaledHiDPIOutput() && devicePixelRatioActual() != 1.0))
-    {
-        /* Wipe out copied image: */
-        delete pSourceImage;
-        pSourceImage = 0;
-    }
-
-    /* Paint cursor if it has valid shape and position.
-     * Also, please take into account, we are not currently painting
-     * framebuffer cursor if mouse integration is supported and enabled. */
-    if (   !m_cursorRectangle.isNull()
-        && !m_pMachineView->uimachine()->isHidingHostPointer()
-        && m_pMachineView->uimachine()->isValidPointerShapePresent()
-        && m_pMachineView->uimachine()->isValidCursorPositionPresent()
-        && (   !m_pMachineView->uimachine()->isMouseIntegrated()
-            || !m_pMachineView->uimachine()->isMouseSupportsAbsolute()))
-    {
-        /* Acquire session cursor shape pixmap: */
-        QPixmap cursorPixmap = m_pMachineView->uimachine()->cursorShapePixmap();
-
-        /* Take the device-pixel-ratio into account: */
-        cursorPixmap.setDevicePixelRatio(devicePixelRatio());
-
-        /* Draw sub-pixmap: */
-        painter.drawPixmap(m_cursorRectangle.topLeft(), cursorPixmap);
-    }
-}
-
-void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
-{
-    /* Make sure cached image is valid: */
-    if (m_image.isNull())
-        return;
-
-    /* First we take the cached image as the source: */
-    QImage *pSourceImage = &m_image;
-
-    /* But if we should scale image by some reason: */
-    if (   scaledSize().isValid()
-        || (!useUnscaledHiDPIOutput() && devicePixelRatioActual() != 1.0))
-    {
-        /* Calculate final scaled size: */
-        QSize effectiveSize = !scaledSize().isValid() ? pSourceImage->size() : scaledSize();
-        /* Take the device-pixel-ratio into account: */
-        if (!useUnscaledHiDPIOutput() && devicePixelRatioActual() != 1.0)
-            effectiveSize *= devicePixelRatioActual();
-        /* We scale the image to requested size and retain it
-         * by making heap shallow copy of that temporary object: */
-        switch (m_pMachineView->visualStateType())
-        {
-            case UIVisualStateType_Scale:
-                pSourceImage = new QImage(pSourceImage->scaled(effectiveSize, Qt::IgnoreAspectRatio,
-                                                               transformationMode(scalingOptimizationType())));
-                break;
-            default:
-                pSourceImage = new QImage(pSourceImage->scaled(effectiveSize, Qt::IgnoreAspectRatio,
-                                                               transformationMode(scalingOptimizationType(), m_dScaleFactor)));
-                break;
+            break;
         }
-    }
+        case UIVisualStateType_Seamless:
+        {
+            /* Adjust painter for erasing: */
+            lock();
+            painter.setClipRegion(QRegion(paintRect) - m_syncVisibleRegion);
+            painter.setCompositionMode(QPainter::CompositionMode_Clear);
+            unlock();
 
-    /* Take the device-pixel-ratio into account: */
-    pSourceImage->setDevicePixelRatio(devicePixelRatio());
+            /* Erase hidpi rectangle: */
+            eraseImageRect(painter, paintRectHiDPI,
+                           devicePixelRatio());
 
-    /* Prepare the base and hidpi paint rectangles: */
-    const QRect paintRect = pEvent->rect();
-    QRect paintRectHiDPI = paintRect;
-
-    /* Take the device-pixel-ratio into account: */
-    paintRectHiDPI.moveTo(paintRectHiDPI.topLeft() * devicePixelRatio());
-    paintRectHiDPI.setSize(paintRectHiDPI.size() * devicePixelRatio());
-
-    /* Make sure hidpi paint rectangle is within the image boundary: */
-    paintRectHiDPI = paintRectHiDPI.intersected(pSourceImage->rect());
-    if (paintRectHiDPI.isEmpty())
-        return;
-
-    /* Create painter: */
-    QPainter painter(m_pMachineView->viewport());
-
-    /* Adjust painter for erasing: */
-    lock();
-    painter.setClipRegion(QRegion(paintRect) - m_syncVisibleRegion);
-    painter.setCompositionMode(QPainter::CompositionMode_Clear);
-    unlock();
-
-    /* Erase hidpi rectangle: */
-    eraseImageRect(painter, paintRectHiDPI,
-                   devicePixelRatio());
-
-    /* Adjust painter for painting: */
-    lock();
-    painter.setClipRegion(QRegion(paintRect) & m_syncVisibleRegion);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-    unlock();
+            /* Adjust painter for painting: */
+            lock();
+            painter.setClipRegion(QRegion(paintRect) & m_syncVisibleRegion);
+            painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            unlock();
 
 #ifdef VBOX_WITH_TRANSLUCENT_SEAMLESS
-    /* In case of translucent seamless for Qt5 we need to fill the backing store first: */
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(paintRect, QColor(Qt::black));
-    painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+            /* In case of translucent seamless for Qt5 we need to fill the backing store first: */
+            painter.setCompositionMode(QPainter::CompositionMode_Source);
+            painter.fillRect(paintRect, QColor(Qt::black));
+            painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
 #endif /* VBOX_WITH_TRANSLUCENT_SEAMLESS */
+
+            break;
+        }
+        default:
+            break;
+    }
 
     /* Draw hidpi image rectangle: */
     drawImageRect(painter, *pSourceImage, paintRectHiDPI,
@@ -1421,7 +1371,7 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
 
     /* If we had to scale image for some reason: */
     if (   scaledSize().isValid()
-        || (!useUnscaledHiDPIOutput() && devicePixelRatioActual() != 1.0))
+        || (!useUnscaledHiDPIOutput() && devicePixelRatio() != 1.0))
     {
         /* Wipe out copied image: */
         delete pSourceImage;
@@ -1445,7 +1395,7 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
         cursorPixmap.setDevicePixelRatio(devicePixelRatio());
 
         /* Draw sub-pixmap: */
-        painter.drawPixmap(m_cursorRectangle.topLeft(), cursorPixmap);
+        painter.drawPixmap(m_cursorRectangle, cursorPixmap);
     }
 }
 
@@ -1510,6 +1460,29 @@ void UIFrameBufferPrivate::drawImageRect(QPainter &painter, const QImage &image,
 
     /* Draw sub-pixmap: */
     painter.drawPixmap(paintPoint, subPixmap);
+}
+
+/* static */
+int UIFrameBufferPrivate::greatestCommonDivisor(int a, int b)
+{
+    /* Using simple Euclidean algorithm: */
+    while (b)
+    {
+        a %= b;
+        qSwap(a, b);
+    }
+    return a;
+}
+
+/* static */
+int UIFrameBufferPrivate::roundNumberUpToNearest(int iNumber, int iNearest, bool fUp)
+{
+    /* Round passed iNumber up to iNearest: */
+    int iResult = (iNumber / iNearest) * iNearest;
+    /* Append iNearest if requested: */
+    if (fUp && iResult < iNumber)
+        iResult += iNearest;
+    return iResult;
 }
 
 
@@ -1614,16 +1587,6 @@ double UIFrameBuffer::devicePixelRatio() const
 void UIFrameBuffer::setDevicePixelRatio(double dDevicePixelRatio)
 {
     m_pFrameBuffer->setDevicePixelRatio(dDevicePixelRatio);
-}
-
-double UIFrameBuffer::devicePixelRatioActual() const
-{
-    return m_pFrameBuffer->devicePixelRatioActual();
-}
-
-void UIFrameBuffer::setDevicePixelRatioActual(double dDevicePixelRatioActual)
-{
-    m_pFrameBuffer->setDevicePixelRatioActual(dDevicePixelRatioActual);
 }
 
 bool UIFrameBuffer::useUnscaledHiDPIOutput() const

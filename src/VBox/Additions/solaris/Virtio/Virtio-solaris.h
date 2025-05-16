@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -77,7 +77,7 @@ typedef VIRTIORINGDESC *PVIRTIORINGDESC;
  */
 struct VirtioRingAvail
 {
-    uint16_t                fFlags;             /* Interrupt supression flag. */
+    uint16_t                fFlags;             /* Interrupt suppression flag. */
     uint16_t                Index;              /* Index of available ring. */
     uint16_t                aRings[1];          /* Array of indices into descriptor table. */
 };

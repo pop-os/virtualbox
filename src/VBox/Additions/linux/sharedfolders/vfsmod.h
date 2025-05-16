@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -265,7 +265,7 @@ extern void vbsf_update_inode(struct inode *pInode, struct vbsf_inode_info *pIno
 extern int  vbsf_inode_revalidate_worker(struct dentry *dentry, bool fForced, bool fInodeLocked);
 extern int  vbsf_inode_revalidate_with_handle(struct dentry *dentry, SHFLHANDLE hHostFile, bool fForced, bool fInodeLocked);
 #if RTLNX_VER_MIN(2,5,18)
-# if RTLNX_VER_MIN(6,3,0)
+# if RTLNX_VER_MIN(6,3,0) || RTLNX_RHEL_RANGE(9,6, 9,99)
 extern int  vbsf_inode_getattr(struct mnt_idmap *idmap, const struct path *path,
                                struct kstat *kstat, u32 request_mask, unsigned int query_flags);
 # elif RTLNX_VER_MIN(5,12,0)
@@ -279,7 +279,7 @@ extern int  vbsf_inode_getattr(struct vfsmount *mnt, struct dentry *dentry, stru
 #else  /* < 2.5.44 */
 extern int  vbsf_inode_revalidate(struct dentry *dentry);
 #endif /* < 2.5.44 */
-#if RTLNX_VER_MIN(6,3,0)
+#if RTLNX_VER_MIN(6,3,0) || RTLNX_RHEL_RANGE(9,6, 9,99)
 extern int  vbsf_inode_setattr(struct mnt_idmap *idmap, struct dentry *dentry, struct iattr *iattr);
 #elif RTLNX_VER_MIN(5,12,0)
 extern int  vbsf_inode_setattr(struct user_namespace *ns, struct dentry *dentry, struct iattr *iattr);

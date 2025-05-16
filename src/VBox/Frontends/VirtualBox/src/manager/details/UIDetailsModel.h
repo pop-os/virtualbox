@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -191,6 +191,9 @@ protected:
 
 private slots:
 
+    /** Handles command to detach COM. */
+    void sltDetachCOM();
+
     /** Handles sigal about details element of certain @a enmType toggling finished, making element @a fToggled. */
     void sltToggleAnimationFinished(DetailsElementType type, bool fToggled);
 
@@ -200,26 +203,13 @@ private:
       * @{ */
         /** Prepares all. */
         void prepare();
-        /** Prepares scene. */
-        void prepareScene();
-        /** Prepares root. */
-        void prepareRoot();
-        /** Prepares context-menu. */
-        void prepareContextMenu();
-        /** Loads settings. */
-        void loadSettings();
+
         /** Loads details categories. */
         void loadDetailsCategories();
         /** Loads details options for certain category @a enmType.
           * @note enmType equal to DetailsElementType_Invalid means load everything. */
         void loadDetailsOptions(DetailsElementType enmType = DetailsElementType_Invalid);
 
-        /** Cleanups context-menu. */
-        void cleanupContextMenu();
-        /** Cleanups root. */
-        void cleanupRoot();
-        /** Cleanups scene. */
-        void cleanupScene();
         /** Cleanups all. */
         void cleanup();
     /** @} */

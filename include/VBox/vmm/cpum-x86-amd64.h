@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -847,16 +847,38 @@ typedef struct CPUMFEATURES
     uint32_t        fClFlushOpt : 1;
     /** Supports IA32_PRED_CMD.IBPB. */
     uint32_t        fIbpb : 1;
+    /** Supports the IA32_SPEC_CTRL MSR (summary of the next). */
+    uint32_t        fSpecCtrlMsr : 1;
     /** Supports IA32_SPEC_CTRL.IBRS. */
     uint32_t        fIbrs : 1;
     /** Supports IA32_SPEC_CTRL.STIBP. */
     uint32_t        fStibp : 1;
+    /** Supports IA32_SPEC_CTRL.SSBD. */
+    uint32_t        fSsbd : 1;
+    /** Supports IA32_SPEC_CTRL.PSFD. */
+    uint32_t        fPsfd : 1;
+    /** Supports IA32_SPEC_CTRL.IPRED_DIS_U/S. */
+    uint32_t        fIpredCtrl : 1;
+    /** Supports IA32_SPEC_CTRL.RRSBA_DIS_U/S. */
+    uint32_t        fRrsbaCtrl : 1;
+    /** Supports IA32_SPEC_CTRL.DDPD_DIS_U. */
+    uint32_t        fDdpdU : 1;
+    /** Supports IA32_SPEC_CTRL.BHI_S. */
+    uint32_t        fBhiCtrl : 1;
     /** Supports IA32_FLUSH_CMD. */
     uint32_t        fFlushCmd : 1;
     /** Supports IA32_ARCH_CAP. */
     uint32_t        fArchCap : 1;
+    /** Supports IA32_CORE_CAP. */
+    uint32_t        fCoreCap : 1;
     /** Supports MD_CLEAR functionality (VERW, IA32_FLUSH_CMD). */
     uint32_t        fMdsClear : 1;
+    /** Whether susceptible to MXCSR configuration dependent timing (MCDT) behaviour. */
+    uint32_t        fMcdtNo : 1;
+    /** Whether susceptible MONITOR/UMONITOR internal table capacity issues. */
+    uint32_t        fMonitorMitgNo : 1;
+    /** Supports the UC-lock disable feature. */
+    uint32_t        fUcLockDis : 1;
     /** Supports PCID. */
     uint32_t        fPcid : 1;
     /** Supports INVPCID. */
@@ -937,25 +959,71 @@ typedef struct CPUMFEATURES
      * functionality. */
     uint32_t        fSpeculationControl : 1;
 
-    /** MSR_IA32_ARCH_CAPABILITIES: RDCL_NO (bit 0).
-     * @remarks Only safe use after CPUM ring-0 init! */
+    /** @name MSR_IA32_ARCH_CAPABILITIES
+     * @remarks Only safe use after CPUM ring-0 init!
+     * @{  */
+    /** MSR_IA32_ARCH_CAPABILITIES[0]: RDCL_NO */
     uint32_t        fArchRdclNo : 1;
-    /** MSR_IA32_ARCH_CAPABILITIES: IBRS_ALL (bit 1).
-     * @remarks Only safe use after CPUM ring-0 init! */
+    /** MSR_IA32_ARCH_CAPABILITIES[1]: IBRS_ALL */
     uint32_t        fArchIbrsAll : 1;
-    /** MSR_IA32_ARCH_CAPABILITIES: RSB Override (bit 2).
-     * @remarks Only safe use after CPUM ring-0 init! */
+    /** MSR_IA32_ARCH_CAPABILITIES[2]: RSB Alternate */
     uint32_t        fArchRsbOverride : 1;
-    /** MSR_IA32_ARCH_CAPABILITIES: RSB Override (bit 3).
-     * @remarks Only safe use after CPUM ring-0 init! */
+    /** MSR_IA32_ARCH_CAPABILITIES[3]: SKIP_L1DFL_VMENTRY */
     uint32_t        fArchVmmNeedNotFlushL1d : 1;
-    /** MSR_IA32_ARCH_CAPABILITIES: MDS_NO (bit 4).
-     * @remarks Only safe use after CPUM ring-0 init! */
+    /** MSR_IA32_ARCH_CAPABILITIES[4]: SSB_NO - No Speculative Store Bypass */
+    uint32_t        fArchSsbNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[5]: MDS_NO - No Microarchitecural Data Sampling */
     uint32_t        fArchMdsNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[6]: IF_PSCHANGE_MC_NO */
+    uint32_t        fArchIfPschangeMscNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[7]: TSX_CTRL (MSR: IA32_TSX_CTRL_MSR[1:0]) */
+    uint32_t        fArchTsxCtrl : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[8]: TAA_NO - No Transactional Synchronization
+     *  Extensions Asynchronous Abort. */
+    uint32_t        fArchTaaNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[10]: MISC_PACKAGE_CTRLS (MSR: IA32_UARCH_MISC_CTL) */
+    uint32_t        fArchMiscPackageCtrls : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[11]: ENERGY_FILTERING_CTL (MSR: IA32_MISC_PACKAGE_CTLS[0]) */
+    uint32_t        fArchEnergyFilteringCtl : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[12]: DOITM (MSR: IA32_UARCH_MISC_CTL[0]) */
+    uint32_t        fArchDoitm : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[13]: SBDR_SSDP_NO - No Shared Buffers Data Read
+     * nor Sideband Stale Data Propagator issues. */
+    uint32_t        fArchSbdrSsdpNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[14]: FBSDP_NO - Fill Buffer Stale Data Propagator */
+    uint32_t        fArchFbsdpNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[15]: PSDP_NO - Primary Stale Data Propagator */
+    uint32_t        fArchPsdpNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[17]: FB_CLEAR (VERW) */
+    uint32_t        fArchFbClear : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[18]: FB_CLEAR_CTRL (MSR: IA32_MCU_OPT_CTRL[3]) */
+    uint32_t        fArchFbClearCtrl : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[19]: RRSBA  */
+    uint32_t        fArchRrsba : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[20]: BHI_NO */
+    uint32_t        fArchBhiNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[21]: XAPIC_DISABLE_STATUS (MSR: IA32_XAPIC_DISABLE_STATUS ) */
+    uint32_t        fArchXapicDisableStatus : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[23]: OVERCLOCKING_STATUS (MSR: IA32_OVERCLOCKING STATUS) */
+    uint32_t        fArchOverclockingStatus : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[24]: PBRSB_NO - No post-barrier Return Stack Buffer predictions */
+    uint32_t        fArchPbrsbNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[25]: GDS_CTRL (MSR: IA32_MCU_OPT_CTRL[5:4]) */
+    uint32_t        fArchGdsCtrl : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[26]: GDS_NO - No Gather Data Sampling  */
+    uint32_t        fArchGdsNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[27]: RFDS_NO - No Register File Data Sampling */
+    uint32_t        fArchRfdsNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[28]: RFDS_CLEAR (VERW++)  */
+    uint32_t        fArchRfdsClear : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[29]: IGN_UMONITOR_SUPPORT (MSR: IA32_MCU_OPT_CTRL[6]) */
+    uint32_t        fArchIgnUmonitorSupport : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES[30]: MON_UMON_MITG_SUPPORT (MSR: IA32_MCU_OPT_CTRL[7]) */
+    uint32_t        fArchMonUmonMitigSupport : 1;
+    /** @} */
 
-    /** Alignment padding / reserved for future use (96 bits total, plus 12 bytes
-     *  prior to the bit fields -> total of 24 bytes) */
-    uint32_t        fPadding0 : 19;
+    /** Alignment padding / reserved for future use. */
+    uint32_t        fPadding0 : 17;
 
 
     /** @name SVM
@@ -1218,8 +1286,6 @@ typedef struct CPUMFEATURES
 
     /** VMX: Padding / reserved for future features. */
     uint32_t        fVmxPadding0 : 7;
-    /** VMX: Padding / reserved for future, making it a total of 128 bits.  */
-    uint32_t        fVmxPadding1;
 } CPUMFEATURES;
 #ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSize(CPUMFEATURES, 48);

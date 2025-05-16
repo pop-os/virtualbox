@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1784,11 +1784,11 @@ SUPR3DECL(bool) SUPR3IsNemSupportedWhenNoVtxOrAmdV(void)
 }
 
 
-SUPR3DECL(int) SUPR3QueryMicrocodeRev(uint32_t *uMicrocodeRev)
+SUPR3DECL(int) SUPR3QueryMicrocodeRev(uint32_t *puMicrocodeRev)
 {
-    AssertPtrReturn(uMicrocodeRev, VERR_INVALID_POINTER);
+    AssertPtrReturn(puMicrocodeRev, VERR_INVALID_POINTER);
 
-    *uMicrocodeRev = 0;
+    *puMicrocodeRev = 0;
 
     int rc;
     if (!g_supLibData.fDriverless)
@@ -1809,14 +1809,19 @@ SUPR3DECL(int) SUPR3QueryMicrocodeRev(uint32_t *uMicrocodeRev)
         {
             rc = Req.Hdr.rc;
             if (RT_SUCCESS(rc))
-                *uMicrocodeRev = Req.u.Out.MicrocodeRev;
+                *puMicrocodeRev = Req.u.Out.MicrocodeRev;
         }
     }
     /*
-     * Just fail the call in driverless mode.
+     * Just fail the call in driverless mode if there is a host specific way of
+     * getting the information.
      */
     else
+#if defined(RT_OS_DARWIN) && defined(RT_ARCH_AMD64)
+        rc = suplibOsQueryMicrocodeRev(puMicrocodeRev);
+#else
         rc = VERR_SUP_DRIVERLESS;
+#endif
     return rc;
 }
 

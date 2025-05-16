@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -586,16 +586,19 @@ int cpumR3MsrRangesInsert(PVM pVM, PCPUMMSRRANGE *ppaMsrRanges, uint32_t *pcMsrR
  *
  * @returns VBox status code.
  * @param   pVM                 The cross context VM structure.
+ * @param   fForceFlushCmd      Make sure MSR_IA32_FLUSH_CMD is present.
+ * @param   fForceSpecCtrl      Make sure MSR_IA32_SPEC_CTRL is present.
  */
-int cpumR3MsrReconcileWithCpuId(PVM pVM)
+DECLHIDDEN(int) cpumR3MsrReconcileWithCpuId(PVM pVM, bool fForceFlushCmd, bool fForceSpecCtrl)
 {
-    PCCPUMMSRRANGE papToAdd[10];
+    PCCPUMMSRRANGE apToAdd[10];
     uint32_t       cToAdd = 0;
 
     /*
      * The IA32_FLUSH_CMD MSR was introduced in MCUs for CVS-2018-3646 and associates.
      */
-    if (pVM->cpum.s.GuestFeatures.fFlushCmd && !cpumLookupMsrRange(pVM, MSR_IA32_FLUSH_CMD))
+    if (   pVM->cpum.s.GuestFeatures.fFlushCmd
+        || fForceFlushCmd)
     {
         static CPUMMSRRANGE const s_FlushCmd =
         {
@@ -610,14 +613,58 @@ int cpumR3MsrReconcileWithCpuId(PVM pVM)
             /*.fWrGpMask =*/    ~MSR_IA32_FLUSH_CMD_F_L1D,
             /*.szName = */      "IA32_FLUSH_CMD"
         };
-        papToAdd[cToAdd++] = &s_FlushCmd;
+        apToAdd[cToAdd++] = &s_FlushCmd;
+    }
+
+    /*
+     * The IA32_PRED_CMD MSR was introduced in MCUs for CVS-2018-3646 and associates.
+     */
+    if (   pVM->cpum.s.GuestFeatures.fIbpb
+        /** @todo || pVM->cpum.s.GuestFeatures.fSbpb*/)
+    {
+        static CPUMMSRRANGE const s_PredCmd =
+        {
+            /*.uFirst =*/       MSR_IA32_PRED_CMD,
+            /*.uLast =*/        MSR_IA32_PRED_CMD,
+            /*.enmRdFn =*/      kCpumMsrRdFn_WriteOnly,
+            /*.enmWrFn =*/      kCpumMsrWrFn_Ia32PredCmd,
+            /*.offCpumCpu =*/   UINT16_MAX,
+            /*.fReserved =*/    0,
+            /*.uValue =*/       0,
+            /*.fWrIgnMask =*/   0,
+            /*.fWrGpMask =*/    ~MSR_IA32_PRED_CMD_F_IBPB,
+            /*.szName = */      "IA32_PRED_CMD"
+        };
+        apToAdd[cToAdd++] = &s_PredCmd;
+    }
+
+    /*
+     * The IA32_SPEC_CTRL MSR was introduced in MCUs for CVS-2018-3646 and associates.
+     */
+    if (   pVM->cpum.s.GuestFeatures.fSpecCtrlMsr
+        || fForceSpecCtrl)
+    {
+        static CPUMMSRRANGE const s_SpecCtrl =
+        {
+            /*.uFirst =*/       MSR_IA32_SPEC_CTRL,
+            /*.uLast =*/        MSR_IA32_SPEC_CTRL,
+            /*.enmRdFn =*/      kCpumMsrRdFn_Ia32SpecCtrl,
+            /*.enmWrFn =*/      kCpumMsrWrFn_Ia32SpecCtrl,
+            /*.offCpumCpu =*/   UINT16_MAX,
+            /*.fReserved =*/    0,
+            /*.uValue =*/       0,
+            /*.fWrIgnMask =*/   0,
+            /*.fWrGpMask =*/    0,
+            /*.szName = */      "IA32_SPEC_CTRL"
+        };
+        apToAdd[cToAdd++] = &s_SpecCtrl;
     }
 
     /*
      * The MSR_IA32_ARCH_CAPABILITIES was introduced in various spectre MCUs, or at least
      * documented in relation to such.
      */
-    if (pVM->cpum.s.GuestFeatures.fArchCap && !cpumLookupMsrRange(pVM, MSR_IA32_ARCH_CAPABILITIES))
+    if (pVM->cpum.s.GuestFeatures.fArchCap)
     {
         static CPUMMSRRANGE const s_ArchCaps =
         {
@@ -632,20 +679,24 @@ int cpumR3MsrReconcileWithCpuId(PVM pVM)
             /*.fWrGpMask =*/    UINT64_MAX,
             /*.szName = */      "IA32_ARCH_CAPABILITIES"
         };
-        papToAdd[cToAdd++] = &s_ArchCaps;
+        apToAdd[cToAdd++] = &s_ArchCaps;
     }
 
     /*
      * Do the adding.
      */
+    Assert(cToAdd <= RT_ELEMENTS(apToAdd));
     for (uint32_t i = 0; i < cToAdd; i++)
     {
-        PCCPUMMSRRANGE pRange = papToAdd[i];
-        LogRel(("CPUM: MSR/CPUID reconciliation insert: %#010x %s\n", pRange->uFirst, pRange->szName));
-        int rc = cpumR3MsrRangesInsert(NULL /* pVM */, &pVM->cpum.s.GuestInfo.paMsrRangesR3, &pVM->cpum.s.GuestInfo.cMsrRanges,
-                                       pRange);
-        if (RT_FAILURE(rc))
-            return rc;
+        PCCPUMMSRRANGE pRange = apToAdd[i];
+        Assert(pRange->uFirst == pRange->uLast);
+        if (!cpumLookupMsrRange(pVM, pRange->uFirst))
+        {
+            LogRel(("CPUM: MSR/CPUID reconciliation insert: %#010x %s\n", pRange->uFirst, pRange->szName));
+            int rc = cpumR3MsrRangesInsert(NULL /* pVM */, &pVM->cpum.s.GuestInfo.paMsrRangesR3,
+                                           &pVM->cpum.s.GuestInfo.cMsrRanges, pRange);
+            AssertRCReturn(rc, rc);
+        }
     }
     return VINF_SUCCESS;
 }
@@ -744,12 +795,18 @@ int cpumR3MsrApplyFudge(PVM pVM)
      * CPUID.ARCH_CAP(EAX=7h,ECX=0):EDX[bit 29] or the MSR feature bits in
      * MSR_IA32_ARCH_CAPABILITIES[bit 7], see @bugref{9630}.
      * Ignore writes to this MSR and return 0 on reads.
+     *
+     * Windows 11 24H2 incorrectly reads MSR_IA32_MCU_OPT_CTRL without
+     * checking CPUID.ARCH_CAP(EAX=7h,ECX=0).EDX[bit 9] or the MSR feature
+     * bits in MSR_IA32_ARCH_CAPABILITIES[bit 18], see @bugref{10794}.
+     * Ignore wrties to this MSR and return 0 on reads.
      */
     if (pVM->cpum.s.GuestFeatures.fArchCap)
     {
         static CPUMMSRRANGE const s_aTsxCtrl[] =
         {
             MVI(MSR_IA32_TSX_CTRL, "IA32_TSX_CTRL", 0),
+            MVI(MSR_IA32_MCU_OPT_CTRL, "IA32_MCU_OPT_CTRL", 0),
         };
         rc = cpumR3MsrApplyFudgeTable(pVM, &s_aTsxCtrl[0], RT_ELEMENTS(s_aTsxCtrl));
         AssertLogRelRCReturn(rc, rc);

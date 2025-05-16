@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -32,11 +32,10 @@
 #endif
 
 /* Qt includes: */
-#include <QPair>
 #include <QWidget>
 
 /* GUI includes: */
-#include "QIManagerDialog.h"
+#include "QIManagerDialog.h" /* for EmbedTo */
 
 /* Forward declarations: */
 class QHBoxLayout;
@@ -67,7 +66,6 @@ signals:
     void sigZoomPercentageChanged(int iPercentage);
     void sigGoBackward();
     void sigGoForward();
-    void sigGoHome();
     void sigReloadPage();
     void sigAddBookmark();
     void sigStatusBarMessage(const QString &strMessage, int iTimeOut);
@@ -121,6 +119,8 @@ private slots:
     void sltLinkHighlighted(const QUrl &url);
     void sltMouseOverImage(const QString &strImageName);
     void sltRetranslateUI();
+    void sltCommitDataSignalReceived();
+    void sltGoHome();
 
 private:
 
@@ -139,9 +139,9 @@ private:
     void saveBookmarks();
     void saveOptions();
     void cleanup();
-    QUrl findIndexHtml() const;
+    QUrl findHomeUrl() const;
     /* Returns the url of the item with @p itemIndex. */
-    QUrl contentWidgetUrl(const QModelIndex &itemIndex);
+    QUrl contentWidgetUrl(const QModelIndex &itemIndex) const;
     void openLinkSlotHandler(QObject *pSenderObject, bool fOpenInNewTab);
     void updateTabsMenu(const QStringList &titleList);
 
@@ -209,6 +209,7 @@ private:
     /* This is set t true when handling QHelpContentModel::contentsCreated signal. */
     bool                 m_fModelContentCreated;
     bool                 m_fIndexingFinished;
+    bool                 m_fCommitDataSignalReceived;
     /** This queue is used in unlikely case where possibly several keywords are requested to be shown
       *  but indexing is not yet finished. In that case we queue the keywords and process them after
       * after indexing is finished. */

@@ -2,7 +2,7 @@
     Language Definition Include for VirtualBox WiX script.
 -->
 <!--
-    Copyright (C) 2011-2023 Oracle and/or its affiliates.
+    Copyright (C) 2011-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -59,6 +59,7 @@
     <String Id="VB_NetAdp6Driver" Value="[ProductName] virtual network adapter driver for NDIS6 Host-Only Networking." />
     <String Id="VB_Python" Value="پشتیبانی از پایتون برای ویرچوال باکس." />
     <!---->
+    <String Id="UsedByOtherApp" Value="It was detected an application which has been using currently installed VirtualBox version. You must remove this application before continuing installation. See the file dependency.dep in the VirtualBox installation directory for details." />
     <String Id="NeedAdmin" Value="برای حذف [ProductName] شما نیاز به اجازه مدیر دارید! این راه انداز حالا لغو میشود." />
     <String Id="NeedMSCRT" Value="[ProductName] needs the Microsoft Visual C++ 2019 Redistributable Package being installed first. Please install and restart the installation of [ProductName]." />
     <String Id="WrongOS" Value="این برنامه فقط در ویندوز ایکس پی یا بالاتر اِجرا میشود." />
@@ -153,13 +154,11 @@
     <String Id="ExitDlg_InstComplete" Value="نصب [ProductName] کامل شد." />
     <String Id="ExitDlg_StartVBox" Value="بعداز نصب، [ProductName] اِجرا شود" />
     <!---->
-    <String Id="FatalErrorTitle" Value="A fatal error has occurred." />
-    <String Id="FatalErrorDescription1" Value="Please check the installation log for more information." />
-    <String Id="FatalErrorDescription2" Value="Alternatively, consult the forums or the documentation of [ProductName]." />
-    <!---->
-    <String Id="FatalErrorDlg_Header" Value="نصب [ProductName] نابهنگام پایان یافت" />
-    <String Id="FatalErrorDlg_Desc" Value="نصب [ProductName] نابهنگام به علت خطا پایان یافت.  سیستم شما تغییر نکرده است.  برای نصب این برنامه در زمانی دیگر، لطفا برنامه راه انداز را دوباره اجرا کنید." />
-    <String Id="FatalErrorDlg_Footer" Value="روی دکمه پایان برای خروج از ویزارد نصب کلیک کنید." />
+    <String Id="FatalErrorDlg_Title" Value="[ProductName] Setup Wizard ended prematurely" />
+    <String Id="FatalErrorDlg_Description1" Value="Please reboot and try again by re-running the (un)installation." />
+    <String Id="FatalErrorDlg_Description2" Value="Alternatively, consult the forums or the documentation of [ProductName]." />
+    <String Id="FatalErrorDlg_DescLogOpen" Value="Open Log File" />
+    <String Id="FatalErrorDlg_DescLogPath" Value="The log file was written to:" />
     <!---->
     <String Id="FilesInUse_Text" Value="برنامه های زیر از فایل هایی که نیاز به بروزرسانی دارند استفاده میکنند. شما میتوانید برنامه را ببندید و روی &quot;دوباره&quot; کلیک کنید، با روی &quot;لغو&quot; برای خروج از آن کلیک کنید." />
     <String Id="FilesInUse_Description" Value="بعضی از فایل هایی که نیاز به بروزرسانی دارند اکنون درحال استفاده است." />
@@ -501,6 +500,29 @@
     <String Id="ProgressTextUnmoveFiles" Value="حذف فایل ها انتقال داده شده" />
     <String Id="ProgressTextUnmoveFilesTemplate" Value="فایل: [1], دایرکتوری: [9]" />
     <String Id="ProgressTextUnpublishProduct" Value="حذف اطلاعات محصول" />
+
+    <String Id="ProgressTextCheckTargetDir" Value="Checking target directory ..." />
+
+    <String Id="ProgressTextSupDrvInt" Value="Installing support driver ..." />
+    <String Id="ProgressTextSupDrvStart" Value="Starting support driver ..." />
+    <String Id="ProgressTextSupDrvUninst" Value="Uninstalling support driver ..." />
+
+    <String Id="ProgressTextUSBDevDrvInst" Value="Installing USB device driver ..." />
+    <String Id="ProgressTextUSBDevDrvUninst" Value="Uninstalling USB device driver ..." />
+    <String Id="ProgressTextUSBMonDrvInst" Value="Installing USB monitor driver ..." />
+    <String Id="ProgressTextUSBMonDrvStart" Value="Starting USB monitor driver ..." />
+    <String Id="ProgressTextUSBMonDrvUninst" Value="Uninstalling USB monitor driver ..." />
+
+    <String Id="ProgressTextNetAdp6Create" Value="Creating network adapter ..." />
+    <String Id="ProgressTextNetAdp6Remove" Value="Removing network adapter ..." />
+    <String Id="ProgressTextNetAdp6Update" Value="Updating network adapter ..." />
+    <String Id="ProgressTextNetAdp6Uninst" Value="Uninstalling network adapter ..." />
+
+    <String Id="ProgressTextNetLwfInst" Value="Installing network filter ..." />
+    <String Id="ProgressTextNetLwfRollbackInst" Value="Rolling back installation of network filter ..." />
+    <String Id="ProgressTextNetLwfUninst" Value="Uninstalling network filter ..." />
+    <String Id="ProgressTextNetLwfRollbackUninst" Value="Rolling back uninstallation of network filter ..." />
+
     <String Id="UITextbytes" Value="بايت" />
     <String Id="UITextGB" Value="گيگابايت" />
     <String Id="UITextKB" Value="کيلوبايت" />

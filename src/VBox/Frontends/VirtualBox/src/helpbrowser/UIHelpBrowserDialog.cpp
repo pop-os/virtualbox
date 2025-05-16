@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -26,9 +26,7 @@
  */
 
 /* Qt includes: */
-#if defined(RT_OS_SOLARIS)
-# include <QFontDatabase>
-#endif
+#include <QFileInfo>
 #include <QLabel>
 #include <QMenuBar>
 #include <QStatusBar>
@@ -37,26 +35,24 @@
 #include "UICommon.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIExtraDataManager.h"
-#include "UIGlobalSession.h"
-#include "UIIconPool.h"
 #include "UIHelpBrowserDialog.h"
 #include "UIHelpBrowserWidget.h"
 #include "UINotificationObjects.h"
 #include "UITranslationEventListener.h"
-#ifdef VBOX_WS_MAC
-# include "VBoxUtils-darwin.h"
+#ifndef VBOX_WS_MAC
+# include "UIIconPool.h"
 #endif
 
 /* Other VBox includes: */
 #include <iprt/assert.h>
 #include <VBox/version.h> /* VBOX_PRODUCT */
 
-QPointer<UIHelpBrowserDialog> UIHelpBrowserDialog::m_pInstance;
-
 
 /*********************************************************************************************************************************
 *   Class UIHelpBrowserDialog implementation.                                                                                    *
 *********************************************************************************************************************************/
+
+QPointer<UIHelpBrowserDialog> UIHelpBrowserDialog::m_pInstance;
 
 UIHelpBrowserDialog::UIHelpBrowserDialog(QWidget *pParent, QWidget *pCenterWidget, const QString &strHelpFilePath)
     : QIWithRestorableGeometry<QMainWindow>(pParent)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1121,15 +1121,6 @@ void UINotificationMessage::cannotChangeKeyboardParameter(const CKeyboard &comKe
         QApplication::translate("UIMessageCenter", "Keyboard failure ..."),
         QApplication::translate("UIMessageCenter", "Failed to change keyboard parameter.") +
         UIErrorString::formatErrorInfo(comKeyboard));
-}
-
-/* static */
-void UINotificationMessage::cannotChangeMouseParameter(const CMouse &comMouse)
-{
-    createMessage(
-        QApplication::translate("UIMessageCenter", "Mouse failure ..."),
-        QApplication::translate("UIMessageCenter", "Failed to change mouse parameter.") +
-        UIErrorString::formatErrorInfo(comMouse));
 }
 
 /* static */

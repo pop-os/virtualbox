@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -113,7 +113,7 @@ private:
     /** @name Options
      * @{ */
         /** Holds the guest OS type Id. */
-        QString                 m_strGuestOSTypeId;
+        QString                  m_strGuestOSTypeId;
         /** Holds the guest screen count. */
         int                      m_cGuestScreenCount;
         /** Holds the graphics controller type. */
@@ -125,14 +125,8 @@ private:
         bool                     m_f3DAccelerationEnabled;
 #endif
 
-        /** Holds the minimum lower limit of VRAM (MiB). */
-        int  m_iMinVRAM;
         /** Holds the maximum upper limit of VRAM (MiB). */
         int  m_iMaxVRAM;
-        /** Holds the upper limit of VRAM (MiB) for this dialog.
-          * @note This value is lower than m_iMaxVRAM to save
-          *       careless users from setting useless big values. */
-        int  m_iMaxVRAMVisible;
     /** @} */
 
     /** @name Widgets

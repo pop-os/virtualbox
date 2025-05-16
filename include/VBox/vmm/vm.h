@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1411,7 +1411,7 @@ typedef struct VM
 #ifdef VMM_INCLUDED_SRC_include_PDMInternal_h
         struct PDM s;
 #endif
-        uint8_t     padding[22400];     /* multiple of 64 */
+        uint8_t     padding[22528];     /* multiple of 64 */
     } pdm;
 
     /** IOM part. */
@@ -1573,7 +1573,7 @@ typedef struct VM
     } gcm;
 
     /** Padding for aligning the structure size on a page boundrary. */
-    uint8_t         abAlignment2[0x3A80 - sizeof(PVMCPUR3) * VMM_MAX_CPU_COUNT];
+    uint8_t         abAlignment2[0x3A00 - sizeof(PVMCPUR3) * VMM_MAX_CPU_COUNT];
 
     /* ---- end small stuff ---- */
 

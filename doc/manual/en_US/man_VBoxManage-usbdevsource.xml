@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage usbdevsource
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-usbdevsource" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2023-04-21 23:59:02 +0200 (Fri, 21 Apr 2023) $</pubdate>
+    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
     <title>VBoxManage usbdevsource</title>
   </refentryinfo>
 
@@ -63,8 +63,8 @@
     <title>Description</title>
     <para>
       The <command>VBoxManage usbdevsource</command> command adds a USB
-      device source and makes it available to the guests on the host
-      system. You can also use this command to remove the USB device
+      device source and makes it available to VM guests on the host
+      system. You can also use this command to remove a USB device
       source.
     </para>
     <refsect2 id="vboxmanage-usbdevsource-add">
@@ -72,7 +72,7 @@
       <remark role="help-copy-synopsis"/>
       <para>
         The <command>VBoxManage usbdevsource add</command> command adds
-        a USB device source, which is available to all guests on the
+        a USB device source, which is then available to all guest VMs on the
         host system.
       </para>
       <variablelist>
@@ -93,8 +93,8 @@
           <listitem><para>
               Specifies the USB proxy service backend to use.
             </para><para>
-              For now only USBIP is supported to specify a remote
-              server using the USB/IP protocol.
+            If specifying a remote server over the USB/IP protocol
+            the only currently supported backend value is USBIP.
             </para></listitem>
         </varlistentry>
       </variablelist>

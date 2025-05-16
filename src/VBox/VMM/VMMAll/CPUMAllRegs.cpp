@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -991,7 +991,7 @@ VMMDECL(void) CPUMGetGuestCpuId(PVMCPUCC pVCpu, uint32_t uLeaf, uint32_t uSubLea
                     AssertMsgFailed(("uLeaf=%#x\n", uLeaf));
             }
 
-            /* Intel CPUs supresses the SYSCALL bit when not executing in 64-bit mode: */
+            /* Intel CPUs suppress the SYSCALL bit when not executing in 64-bit mode: */
             if (   uLeaf == UINT32_C(0x80000001)
                 && f64BitMode == false
                 && (*pEdx & X86_CPUID_EXT_FEATURE_EDX_SYSCALL)

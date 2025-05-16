@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -781,6 +781,8 @@ int UnattendedScriptTemplate::queryVariable(const char *pchName, size_t cchName,
         pszValue = mpUnattended->i_isRtcUsingUtc() ? "1" : "0";
     else if (IS_MATCH("HAS_PROXY"))
         pszValue = mpUnattended->i_getProxy().isNotEmpty() ? "1" : "0";
+    else if (IS_MATCH("AVOID_UPDATES_OVER_NETWORK"))
+        pszValue = mpUnattended->i_getAvoidUpdatesOverNetwork() ? "1" : "0";
     /*
      * Unknown variable.
      */

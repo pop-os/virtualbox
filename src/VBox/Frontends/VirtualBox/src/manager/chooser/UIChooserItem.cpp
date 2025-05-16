@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -225,8 +225,8 @@ void UIChooserDisabledItemEffect::draw(QPainter *pPainter)
     pixmap.convertFromImage(UIImageTools::toGray(resultImage));
     QWidget *pParentWidget = qobject_cast<QWidget*>(parent());
     pixmap.setDevicePixelRatio(  pParentWidget
-                               ? UIDesktopWidgetWatchdog::devicePixelRatioActual(pParentWidget)
-                               : UIDesktopWidgetWatchdog::devicePixelRatioActual());
+                               ? UIDesktopWidgetWatchdog::devicePixelRatio(pParentWidget)
+                               : UIDesktopWidgetWatchdog::devicePixelRatio());
     /* Use the filtered pixmap: */
     pPainter->drawPixmap(offset, pixmap);
 }

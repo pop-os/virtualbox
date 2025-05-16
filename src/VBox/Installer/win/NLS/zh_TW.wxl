@@ -2,7 +2,7 @@
     Language Definition Include for VirtualBox WiX script.
 -->
 <!--
-    Copyright (C) 2011-2023 Oracle and/or its affiliates.
+    Copyright (C) 2011-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -66,6 +66,7 @@
 
     <!---->
 
+    <String Id="UsedByOtherApp" Value="It was detected an application which has been using currently installed VirtualBox version. You must remove this application before continuing installation. See the file dependency.dep in the VirtualBox installation directory for details." />
     <String Id="NeedAdmin" Value="您需要有系統管理員特殊權限以安裝 （或解除安裝）[ProductName]！此安裝程式現在將中止。" />
     <String Id="NeedMSCRT" Value="[ProductName] 需要先安裝 Microsoft Visual C++ 2019 可分發套件。 請安裝並重新啟動 [ProductName] 安裝。" />
     <String Id="WrongOS" Value="此應用程式只能執行在 Windows XP 或以上。" />
@@ -198,15 +199,11 @@
 
     <!---->
 
-    <String Id="FatalErrorTitle" Value="A fatal error has occurred." />
-    <String Id="FatalErrorDescription1" Value="Please check the installation log for more information." />
-    <String Id="FatalErrorDescription2" Value="Alternatively, consult the forums or the documentation of [ProductName]." />
-
-    <!---->
-
-    <String Id="FatalErrorDlg_Header" Value="[ProductName] 安裝精靈太早結束" />
-    <String Id="FatalErrorDlg_Desc" Value="[ProductName] 安裝因為錯誤太早結束。 您的系統未做修改。 若要稍後安裝此程式，請再次執行安裝。" />
-    <String Id="FatalErrorDlg_Footer" Value="按一下「完成」按鈕結束安裝精靈。" />
+    <String Id="FatalErrorDlg_Title" Value="[ProductName] 安裝精靈提前結束" />
+    <String Id="FatalErrorDlg_Description1" Value="請重新啟動並重新運行（卸載）安裝，重試。" />
+    <String Id="FatalErrorDlg_Description2" Value="或者，查閱 [ProductName] 的論壇或文件。" />
+    <String Id="FatalErrorDlg_DescLogOpen" Value="打開日誌文件" />
+    <String Id="FatalErrorDlg_DescLogPath" Value="日誌檔案寫入：" />
 
     <!---->
 
@@ -575,6 +572,28 @@
     <String Id="ProgressTextUnmoveFiles" Value="正在移除移動的檔案" />
     <String Id="ProgressTextUnmoveFilesTemplate" Value="檔案: [1]， 目錄: [9]" />
     <String Id="ProgressTextUnpublishProduct" Value="正在取消發佈產品資訊" />
+
+    <String Id="ProgressTextCheckTargetDir" Value="Checking target directory ..." />
+
+    <String Id="ProgressTextSupDrvInt" Value="Installing support driver ..." />
+    <String Id="ProgressTextSupDrvStart" Value="Starting support driver ..." />
+    <String Id="ProgressTextSupDrvUninst" Value="Uninstalling support driver ..." />
+
+    <String Id="ProgressTextUSBDevDrvInst" Value="Installing USB device driver ..." />
+    <String Id="ProgressTextUSBDevDrvUninst" Value="Uninstalling USB device driver ..." />
+    <String Id="ProgressTextUSBMonDrvInst" Value="Installing USB monitor driver ..." />
+    <String Id="ProgressTextUSBMonDrvStart" Value="Starting USB monitor driver ..." />
+    <String Id="ProgressTextUSBMonDrvUninst" Value="Uninstalling USB monitor driver ..." />
+
+    <String Id="ProgressTextNetAdp6Create" Value="Creating network adapter ..." />
+    <String Id="ProgressTextNetAdp6Remove" Value="Removing network adapter ..." />
+    <String Id="ProgressTextNetAdp6Update" Value="Updating network adapter ..." />
+    <String Id="ProgressTextNetAdp6Uninst" Value="Uninstalling network adapter ..." />
+
+    <String Id="ProgressTextNetLwfInst" Value="Installing network filter ..." />
+    <String Id="ProgressTextNetLwfRollbackInst" Value="Rolling back installation of network filter ..." />
+    <String Id="ProgressTextNetLwfUninst" Value="Uninstalling network filter ..." />
+    <String Id="ProgressTextNetLwfRollbackUninst" Value="Rolling back uninstallation of network filter ..." />
 
     <String Id="UITextbytes" Value="位元組" />
     <String Id="UITextGB" Value="GB" />

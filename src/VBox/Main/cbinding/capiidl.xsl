@@ -8,7 +8,7 @@
  *  compiler (which simultaneously supports C and C++, unlike XPCOM).
 -->
 <!--
-    Copyright (C) 2008-2023 Oracle and/or its affiliates.
+    Copyright (C) 2008-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -34,6 +34,8 @@
 
 <xsl:strip-space elements="*"/>
 
+<!-- Global parameters. -->
+<xsl:param name="g_uVBoxCopyrightYear">2024</xsl:param>
 
 <xsl:include href="../idl/typemap-shared.inc.xsl"/>
 
@@ -83,7 +85,7 @@
  */
 
 /*
- * Copyright (C) 2008-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2008-</xsl:text><xsl:value-of select="$g_uVBoxCopyrightYear"/><xsl:text> Oracle and/or its affiliates.
  *
  * This file is part of a free software library; you can redistribute
  * it and/or modify it under the terms of the GNU Lesser General

@@ -2,7 +2,7 @@
     Language Definition Include for VirtualBox WiX script.
 -->
 <!--
-    Copyright (C) 2011-2023 Oracle and/or its affiliates.
+    Copyright (C) 2011-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -66,6 +66,7 @@
 
     <!---->
 
+    <String Id="UsedByOtherApp" Value="Şu anda yüklü olan VirtualBox sürümünü kullanan bir uygulama tespit edildi. Kuruluma devam etmeden önce bu uygulamayı kaldırmalısınız. Ayrıntılar için VirtualBox kurulum dizinindeki dependency.dep dosyasına bakın." />
     <String Id="NeedAdmin" Value="[ProductName] uygulamasını yüklemek(kaldırmak) için yönetici haklarına sahip olmanız gerekir! Bu kur şimdi iptal edilecek." />
     <String Id="NeedMSCRT" Value="[ProductName] uygulamasının öncelikle Microsoft Visual C++ 2019 Yeniden Dağıtılabilir Paketinin yüklenmesine ihtiyacı var. Lütfen [ProductName] uygulamasının kurulumunu yeniden başlatın ve yükleyin." />
     <String Id="WrongOS" Value="Bu uygulama yalnızca Windows XP veya üzerinde çalışır." />
@@ -198,15 +199,11 @@
 
     <!---->
 
-    <String Id="FatalErrorTitle" Value="A fatal error has occurred." />
-    <String Id="FatalErrorDescription1" Value="Please check the installation log for more information." />
-    <String Id="FatalErrorDescription2" Value="Alternatively, consult the forums or the documentation of [ProductName]." />
-
-    <!---->
-
-    <String Id="FatalErrorDlg_Header" Value="[ProductName] Kur Sihirbazı zamansız sonlandı" />
-    <String Id="FatalErrorDlg_Desc" Value="[ProductName] kur bir hata yüzünden zamansız sonlandı. Sisteminiz değiştirilmedi. Bu programı daha sonraki bir zamanda yüklemek için lütfen kurulumu tekrar çalıştırın." />
-    <String Id="FatalErrorDlg_Footer" Value="Kur Sihirbazından çıkmak için Bitir düğmesine tıklayın." />
+    <String Id="FatalErrorDlg_Title" Value="[ProductName] Kurulum Sihirbazı zamanından önce sonlandırıldı" />
+    <String Id="FatalErrorDlg_Description1" Value="Lütfen yeniden başlatın ve (un)kurulumu yeniden çalıştırarak tekrar deneyin." />
+    <String Id="FatalErrorDlg_Description2" Value="Alternatif olarak, forumlara veya [ProductName] belgelerine başvurun." />
+    <String Id="FatalErrorDlg_DescLogOpen" Value="Günlük Dosyasını Aç" />
+    <String Id="FatalErrorDlg_DescLogPath" Value="Günlük dosyasına yazıldı:" />
 
     <!---->
 
@@ -575,6 +572,28 @@
     <String Id="ProgressTextUnmoveFiles" Value="Taşınan dosyalar kaldırılıyor" />
     <String Id="ProgressTextUnmoveFilesTemplate" Value="Dosya: [1], Dizin: [9]" />
     <String Id="ProgressTextUnpublishProduct" Value="Ürün bilgisi yayından kaldırılıyor" />
+
+    <String Id="ProgressTextCheckTargetDir" Value="Checking target directory ..." />
+
+    <String Id="ProgressTextSupDrvInt" Value="Installing support driver ..." />
+    <String Id="ProgressTextSupDrvStart" Value="Starting support driver ..." />
+    <String Id="ProgressTextSupDrvUninst" Value="Uninstalling support driver ..." />
+
+    <String Id="ProgressTextUSBDevDrvInst" Value="Installing USB device driver ..." />
+    <String Id="ProgressTextUSBDevDrvUninst" Value="Uninstalling USB device driver ..." />
+    <String Id="ProgressTextUSBMonDrvInst" Value="Installing USB monitor driver ..." />
+    <String Id="ProgressTextUSBMonDrvStart" Value="Starting USB monitor driver ..." />
+    <String Id="ProgressTextUSBMonDrvUninst" Value="Uninstalling USB monitor driver ..." />
+
+    <String Id="ProgressTextNetAdp6Create" Value="Creating network adapter ..." />
+    <String Id="ProgressTextNetAdp6Remove" Value="Removing network adapter ..." />
+    <String Id="ProgressTextNetAdp6Update" Value="Updating network adapter ..." />
+    <String Id="ProgressTextNetAdp6Uninst" Value="Uninstalling network adapter ..." />
+
+    <String Id="ProgressTextNetLwfInst" Value="Installing network filter ..." />
+    <String Id="ProgressTextNetLwfRollbackInst" Value="Rolling back installation of network filter ..." />
+    <String Id="ProgressTextNetLwfUninst" Value="Uninstalling network filter ..." />
+    <String Id="ProgressTextNetLwfRollbackUninst" Value="Rolling back uninstallation of network filter ..." />
 
     <String Id="UITextbytes" Value="bayt" />
     <String Id="UITextGB" Value="GB" />

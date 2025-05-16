@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -233,6 +233,66 @@ iemNativeEmitLoadGpr32ImmEx(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGpr
     {
         pCodeBuf[off++] = Armv8A64MkInstrMovZ(iGpr, uImm32 & UINT32_C(0xffff), 0, false /*f64Bit*/);
         pCodeBuf[off++] = Armv8A64MkInstrMovK(iGpr, uImm32 >> 16,              1, false /*f64Bit*/);
+    }
+
+#else
+# error "port me"
+#endif
+    return off;
+}
+
+
+/**
+ * Variant of iemNativeEmitLoadGpr32Imm where the caller ensures sufficent
+ * buffer space.
+ *
+ * Max buffer consumption:
+ *      - AMD64: 6 instruction bytes.
+ *      - ARM64: 2 instruction words (8 bytes).
+ *
+ * @note The top 32 bits will be cleared.
+ */
+template<uint32_t const a_uImm32>
+DECL_FORCE_INLINE(uint32_t) iemNativeEmitLoadGpr32ImmExT(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGpr)
+{
+#ifdef RT_ARCH_AMD64
+    if (a_uImm32 == 0)
+    {
+        /* xor gpr, gpr */
+        if (iGpr >= 8)
+            pCodeBuf[off++] = X86_OP_REX_R | X86_OP_REX_B;
+        pCodeBuf[off++] = 0x33;
+        pCodeBuf[off++] = X86_MODRM_MAKE(X86_MOD_REG, iGpr & 7, iGpr & 7);
+    }
+    else
+    {
+        /* mov gpr, imm32 */
+        if (iGpr >= 8)
+            pCodeBuf[off++] = X86_OP_REX_B;
+        pCodeBuf[off++] = 0xb8 + (iGpr & 7);
+        pCodeBuf[off++] = RT_BYTE1(a_uImm32);
+        pCodeBuf[off++] = RT_BYTE2(a_uImm32);
+        pCodeBuf[off++] = RT_BYTE3(a_uImm32);
+        pCodeBuf[off++] = RT_BYTE4(a_uImm32);
+    }
+
+#elif defined(RT_ARCH_ARM64)
+    if RT_CONSTEXPR_IF((a_uImm32 >> 16) == 0)
+        /* movz gpr, imm16 */
+        pCodeBuf[off++] = Armv8A64MkInstrMovZ(iGpr, a_uImm32,                    0, false /*f64Bit*/);
+    else if RT_CONSTEXPR_IF((a_uImm32 & UINT32_C(0xffff)) == 0)
+        /* movz gpr, imm16, lsl #16 */
+        pCodeBuf[off++] = Armv8A64MkInstrMovZ(iGpr, a_uImm32 >> 16,              1, false /*f64Bit*/);
+    else if RT_CONSTEXPR_IF((a_uImm32 & UINT32_C(0xffff)) == UINT32_C(0xffff))
+        /* movn gpr, imm16, lsl #16 */
+        pCodeBuf[off++] = Armv8A64MkInstrMovN(iGpr, ~a_uImm32 >> 16,             1, false /*f64Bit*/);
+    else if RT_CONSTEXPR_IF((a_uImm32 >> 16) == UINT32_C(0xffff))
+        /* movn gpr, imm16 */
+        pCodeBuf[off++] = Armv8A64MkInstrMovN(iGpr, ~a_uImm32,                   0, false /*f64Bit*/);
+    else
+    {
+        pCodeBuf[off++] = Armv8A64MkInstrMovZ(iGpr, a_uImm32 & UINT32_C(0xffff), 0, false /*f64Bit*/);
+        pCodeBuf[off++] = Armv8A64MkInstrMovK(iGpr, a_uImm32 >> 16,              1, false /*f64Bit*/);
     }
 
 #else
@@ -508,7 +568,6 @@ iemNativeEmitGprByVCpuDisp(uint8_t *pbCodeBuf, uint32_t off, uint8_t iGprReg, ui
 DECL_FORCE_INLINE(uint32_t)
 iemNativeEmitGprByVCpuSignedDisp(uint8_t *pbCodeBuf, uint32_t off, uint8_t iGprReg, int32_t offVCpu)
 {
-    Assert(offVCpu < 0);
     if (offVCpu < 128 && offVCpu >= -128)
     {
         pbCodeBuf[off++] = X86_MODRM_MAKE(X86_MOD_MEM1, iGprReg & 7, IEMNATIVE_REG_FIXED_PVMCPU);
@@ -620,9 +679,8 @@ DECL_FORCE_INLINE_THROW(uint32_t)
 iemNativeEmitGprBySignedVCpuLdStEx(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGprReg, int32_t offVCpu,
                                    ARMV8A64INSTRLDSTTYPE enmOperation, unsigned cbData, uint8_t iGprTmp = UINT8_MAX)
 {
-    Assert(offVCpu < 0);
-    Assert((uint32_t)-offVCpu < RT_BIT_32(28)); /* we should be way out of range for problematic sign extending issues. */
-    Assert(!((uint32_t)-offVCpu & (cbData - 1)));
+    Assert((uint32_t)RT_ABS(offVCpu) < RT_BIT_32(28)); /* we should be way out of range for problematic sign extending issues. */
+    Assert(!((uint32_t)RT_ABS(offVCpu) & (cbData - 1)));
 
    /*
      * For negative offsets we need to use put the displacement in a register
@@ -710,7 +768,7 @@ iemNativeEmitLoadGprFromVCpuU64(PIEMRECOMPILERSTATE pReNative, uint32_t off, uin
  * Emits a 32-bit GPR load of a VCpu value.
  * @note Bits 32 thru 63 in the GPR will be zero after the operation.
  */
-DECL_INLINE_THROW(uint32_t)
+DECL_FORCE_INLINE_THROW(uint32_t)
 iemNativeEmitLoadGprFromVCpuU32Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGpr, uint32_t offVCpu)
 {
 #ifdef RT_ARCH_AMD64
@@ -755,17 +813,36 @@ iemNativeEmitLoadGprFromVCpuU32(PIEMRECOMPILERSTATE pReNative, uint32_t off, uin
  * Emits a 16-bit GPR load of a VCpu value.
  * @note Bits 16 thru 63 in the GPR will be zero after the operation.
  */
+DECL_FORCE_INLINE_THROW(uint32_t)
+iemNativeEmitLoadGprFromVCpuU16Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGpr, uint32_t offVCpu)
+{
+#ifdef RT_ARCH_AMD64
+    /* movzx reg32, mem16 */
+    if (iGpr >= 8)
+        pCodeBuf[off++] = X86_OP_REX_R;
+    pCodeBuf[off++] = 0x0f;
+    pCodeBuf[off++] = 0xb7;
+    off = iemNativeEmitGprByVCpuDisp(pCodeBuf, off, iGpr, offVCpu);
+
+#elif defined(RT_ARCH_ARM64)
+    off = iemNativeEmitGprByVCpuLdStEx(pCodeBuf, off, iGpr, offVCpu, kArmv8A64InstrLdStType_Ld_Half, sizeof(uint16_t));
+
+#else
+# error "port me"
+#endif
+    return off;
+}
+
+
+/**
+ * Emits a 16-bit GPR load of a VCpu value.
+ * @note Bits 16 thru 63 in the GPR will be zero after the operation.
+ */
 DECL_INLINE_THROW(uint32_t)
 iemNativeEmitLoadGprFromVCpuU16(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGpr, uint32_t offVCpu)
 {
 #ifdef RT_ARCH_AMD64
-    /* movzx reg32, mem16 */
-    uint8_t *pbCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 8);
-    if (iGpr >= 8)
-        pbCodeBuf[off++] = X86_OP_REX_R;
-    pbCodeBuf[off++] = 0x0f;
-    pbCodeBuf[off++] = 0xb7;
-    off = iemNativeEmitGprByVCpuDisp(pbCodeBuf, off, iGpr, offVCpu);
+    off = iemNativeEmitLoadGprFromVCpuU16Ex(iemNativeInstrBufEnsure(pReNative, off, 8), off, iGpr, offVCpu);
     IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
 
 #elif defined(RT_ARCH_ARM64)
@@ -857,7 +934,8 @@ iemNativeEmitStoreGprToVCpuU64(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint
  * @note Limited range on ARM64.
  */
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitStoreGprToVCpuU32Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGpr, uint32_t offVCpu)
+iemNativeEmitStoreGprToVCpuU32Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGpr, uint32_t offVCpu,
+                                 uint8_t iGprTmp = UINT8_MAX)
 {
 #ifdef RT_ARCH_AMD64
     /* mov mem32, reg32 */
@@ -865,9 +943,10 @@ iemNativeEmitStoreGprToVCpuU32Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t
         pCodeBuf[off++] = X86_OP_REX_R;
     pCodeBuf[off++] = 0x89;
     off = iemNativeEmitGprByVCpuDisp(pCodeBuf, off, iGpr, offVCpu);
+    RT_NOREF(iGprTmp);
 
 #elif defined(RT_ARCH_ARM64)
-    off = iemNativeEmitGprByVCpuLdStEx(pCodeBuf, off, iGpr, offVCpu, kArmv8A64InstrLdStType_St_Word, sizeof(uint32_t));
+    off = iemNativeEmitGprByVCpuLdStEx(pCodeBuf, off, iGpr, offVCpu, kArmv8A64InstrLdStType_St_Word, sizeof(uint32_t), iGprTmp);
 
 #else
 # error "port me"
@@ -893,6 +972,34 @@ iemNativeEmitStoreGprToVCpuU32(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint
 
 #elif defined(RT_ARCH_ARM64)
     off = iemNativeEmitGprByVCpuLdSt(pReNative, off, iGpr, offVCpu, kArmv8A64InstrLdStType_St_Word, sizeof(uint32_t));
+
+#else
+# error "port me"
+#endif
+    return off;
+}
+
+
+/**
+ * Emits a store of a GPR value to a 16-bit VCpu field.
+ *
+ * @note Limited range on ARM64.
+ */
+DECL_INLINE_THROW(uint32_t)
+iemNativeEmitStoreGprToVCpuU16Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGpr, uint32_t offVCpu,
+                                 uint8_t iGprTmp = UINT8_MAX)
+{
+#ifdef RT_ARCH_AMD64
+    /* mov mem16, reg16 */
+    pCodeBuf[off++] = X86_OP_PRF_SIZE_OP;
+    if (iGpr >= 8)
+        pCodeBuf[off++] = X86_OP_REX_R;
+    pCodeBuf[off++] = 0x89;
+    off = iemNativeEmitGprByVCpuDisp(pCodeBuf, off, iGpr, offVCpu);
+    RT_NOREF(iGprTmp);
+
+#elif defined(RT_ARCH_ARM64)
+    off = iemNativeEmitGprByVCpuLdStEx(pCodeBuf, off, iGpr, offVCpu, kArmv8A64InstrLdStType_St_Half, sizeof(uint16_t), iGprTmp);
 
 #else
 # error "port me"
@@ -2276,7 +2383,6 @@ iemNativeEmitLoadGprByBpU8(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t 
 }
 
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /**
  * Emits a 128-bit vector register load instruction with an BP relative source address.
  */
@@ -2324,8 +2430,6 @@ iemNativeEmitLoadVecRegByBpU256(PIEMRECOMPILERSTATE pReNative, uint32_t off, uin
 # error "port me"
 #endif
 }
-
-#endif
 
 
 /**
@@ -2476,7 +2580,6 @@ iemNativeEmitStoreImm64ByBp(PIEMRECOMPILERSTATE pReNative, uint32_t off, int32_t
     return iemNativeEmitStoreGprByBp(pReNative, off, offDisp, IEMNATIVE_REG_FIXED_TMP0);
 }
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 
 /**
  * Emits a 128-bit vector register store with an BP relative destination address.
@@ -2560,7 +2663,6 @@ iemNativeEmitStoreVecRegByBpU256(PIEMRECOMPILERSTATE pReNative, uint32_t off, in
 #endif
 }
 
-#endif /* IEMNATIVE_WITH_SIMD_REG_ALLOCATOR */
 #if defined(RT_ARCH_ARM64)
 
 /**
@@ -2636,7 +2738,6 @@ iemNativeEmitGprByGprLdSt(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t i
     return off;
 }
 
-# ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /**
  * Common bit of iemNativeEmitLoadVecRegByGprU128 and friends.
  *
@@ -2672,7 +2773,6 @@ iemNativeEmitVecRegByGprLdStEx(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t i
 # endif
     return off;
 }
-# endif
 
 
 /**
@@ -3098,7 +3198,6 @@ iemNativeEmitLoadGprByGprU16SignExtendedFromS8Ex(PIEMNATIVEINSTR pCodeBuf, uint3
 }
 
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /**
  * Emits a 128-bit vector register load via a GPR base address with a displacement.
  *
@@ -3211,7 +3310,6 @@ iemNativeEmitLoadVecRegByGprU256(PIEMRECOMPILERSTATE pReNative, uint32_t off, ui
 #endif
     return off;
 }
-#endif
 
 
 /**
@@ -3527,7 +3625,6 @@ iemNativeEmitStoreImm8ByGprEx(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t uI
 }
 
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
 /**
  * Emits a 128-bit vector register store via a GPR base address with a displacement.
  *
@@ -3640,7 +3737,6 @@ iemNativeEmitStoreVecRegByGprU256(PIEMRECOMPILERSTATE pReNative, uint32_t off, u
 #endif
     return off;
 }
-#endif
 
 
 
@@ -7172,14 +7268,21 @@ DECL_INLINE_THROW(void) iemNativeFixupFixedJump(PIEMRECOMPILERSTATE pReNative, u
         pu32CodeBuf[offFixup] = (pu32CodeBuf[offFixup] & UINT32_C(0xfc000000))
                               | ((uint32_t)offDisp     & UINT32_C(0x03ffffff));
     }
-    else
+    else if ((pu32CodeBuf[offFixup] & UINT32_C(0x7e000000)) == UINT32_C(0x34000000))
     {
         /* CBZ / CBNZ reg, imm19 */
         Assert((pu32CodeBuf[offFixup] & UINT32_C(0x7e000000)) == UINT32_C(0x34000000));
         Assert(offDisp >= -1048576 && offDisp < 1048576);
         pu32CodeBuf[offFixup] = (pu32CodeBuf[offFixup]    & UINT32_C(0xff00001f))
                               | (((uint32_t)offDisp << 5) & UINT32_C(0x00ffffe0));
-
+    }
+    else
+    {
+        /* TBZ / TBNZ reg, bit5, imm14 */
+        Assert((pu32CodeBuf[offFixup] & UINT32_C(0x7e000000)) == UINT32_C(0x36000000));
+        Assert(offDisp >= -8192 && offDisp < 8192);
+        pu32CodeBuf[offFixup] = (pu32CodeBuf[offFixup]    & UINT32_C(0xfff8001f))
+                              | (((uint32_t)offDisp << 5) & UINT32_C(0x0007ffe0));
     }
 
 #else
@@ -7507,7 +7610,8 @@ iemNativeEmitTestAnyBitsInGpr(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8
  *       must make sure this is possible!
  */
 DECL_FORCE_INLINE_THROW(uint32_t)
-iemNativeEmitTestAnyBitsInGpr32Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGprSrc, uint32_t fBits)
+iemNativeEmitTestAnyBitsInGpr32Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_t iGprSrc, uint32_t fBits,
+                                  uint8_t iTmpReg = UINT8_MAX)
 {
     Assert(fBits != 0);
 
@@ -7533,6 +7637,7 @@ iemNativeEmitTestAnyBitsInGpr32Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_
         pCodeBuf[off++] = RT_BYTE3(fBits);
         pCodeBuf[off++] = RT_BYTE4(fBits);
     }
+    RT_NOREF(iTmpReg);
 
 #elif defined(RT_ARCH_ARM64)
     /* ands xzr, src, #fBits */
@@ -7540,6 +7645,11 @@ iemNativeEmitTestAnyBitsInGpr32Ex(PIEMNATIVEINSTR pCodeBuf, uint32_t off, uint8_
     uint32_t uImmNandS = 0;
     if (Armv8A64ConvertMask32ToImmRImmS(fBits, &uImmNandS, &uImmR))
         pCodeBuf[off++] = Armv8A64MkInstrAndsImm(ARMV8_A64_REG_XZR, iGprSrc, uImmNandS, uImmR, false /*f64Bit*/);
+    else if (iTmpReg != UINT8_MAX)
+    {
+        off = iemNativeEmitLoadGpr32ImmEx(pCodeBuf, off, iTmpReg, fBits);
+        pCodeBuf[off++] = Armv8A64MkInstrAnds(ARMV8_A64_REG_XZR, iGprSrc, iTmpReg, false /*f64Bit*/);
+    }
     else
 # ifdef IEM_WITH_THROW_CATCH
         AssertFailedStmt(IEMNATIVE_DO_LONGJMP(NULL, VERR_IEM_IPE_9));
@@ -8157,8 +8267,15 @@ DECL_FORCE_INLINE(uint32_t) iemNativeEmitCallImmEx(PIEMNATIVEINSTR pCodeBuf, uin
 /**
  * Emits a call to a 64-bit address.
  */
+template<bool const a_fSkipEflChecks = false>
 DECL_INLINE_THROW(uint32_t) iemNativeEmitCallImm(PIEMRECOMPILERSTATE pReNative, uint32_t off, uintptr_t uPfn)
 {
+    if RT_CONSTEXPR_IF(!a_fSkipEflChecks)
+    {
+        IEMNATIVE_ASSERT_EFLAGS_POSTPONING_ONLY(pReNative, X86_EFL_STATUS_BITS);
+        IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(  pReNative, X86_EFL_STATUS_BITS);
+    }
+
 #ifdef RT_ARCH_AMD64
     off = iemNativeEmitLoadGprImm64(pReNative, off, X86_GREG_xAX, uPfn);
 
@@ -8277,9 +8394,22 @@ iemNativeEmitLoadArgGregWithVarAddr(PIEMRECOMPILERSTATE pReNative, uint32_t off,
 }
 
 
+
 /*********************************************************************************************************************************
 *   TB exiting helpers.                                                                                                          *
 *********************************************************************************************************************************/
+
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+/* IEMAllN8veEmit-x86.h: */
+template<uint32_t const a_bmInputRegs>
+DECL_FORCE_INLINE_THROW(uint32_t)
+iemNativeDoPostponedEFlagsAtTbExitEx(PIEMRECOMPILERSTATE pReNative, uint32_t off, PIEMNATIVEINSTR pCodeBuf);
+
+template<uint32_t const a_bmInputRegs>
+DECL_FORCE_INLINE_THROW(uint32_t)
+iemNativeDoPostponedEFlagsAtTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off);
+#endif
+
 
 /**
  * Helper for marking the current conditional branch as exiting the TB.
@@ -8298,19 +8428,131 @@ DECL_FORCE_INLINE(void) iemNativeMarkCurCondBranchAsExiting(PIEMRECOMPILERSTATE 
 
 
 /**
- * Emits a Jcc rel32 / B.cc imm19 to the given label (ASSUMED requiring fixup).
+ * Unconditionally exits the translation block via a branch instructions.
+ *
+ * @note In case a delayed EFLAGS calculation is pending, this may emit an
+ *       additional IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS instructions.
  */
-DECL_FORCE_INLINE_THROW(uint32_t)
-iemNativeEmitJccTbExitEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf, uint32_t off,
-                         IEMNATIVELABELTYPE enmExitReason, IEMNATIVEINSTRCOND enmCond)
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fActuallyExitingTb = true, bool const a_fPostponedEfl = true>
+DECL_INLINE_THROW(uint32_t) iemNativeEmitTbExitEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf, uint32_t off)
 {
-    Assert(IEMNATIVELABELTYPE_IS_EXIT_REASON(enmExitReason));
+    IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(pReNative, X86_EFL_STATUS_BITS);
+    AssertCompile(IEMNATIVELABELTYPE_IS_EXIT_REASON(a_enmExitReason));
 
-#if defined(IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE) && defined(RT_ARCH_AMD64)
+    if RT_CONSTEXPR_IF(a_fActuallyExitingTb)
+        iemNativeMarkCurCondBranchAsExiting(pReNative);
+
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    if RT_CONSTEXPR_IF(a_fPostponedEfl)
+        off = iemNativeDoPostponedEFlagsAtTbExitEx<IEMNATIVELABELTYPE_GET_INPUT_REG_MASK(a_enmExitReason)>(pReNative, off,
+                                                                                                           pCodeBuf);
+#endif
+
+#ifdef RT_ARCH_AMD64
+    /* jmp rel32 */
+    pCodeBuf[off++] = 0xe9;
+    iemNativeAddTbExitFixup(pReNative, off, a_enmExitReason);
+    pCodeBuf[off++] = 0xfe;
+    pCodeBuf[off++] = 0xff;
+    pCodeBuf[off++] = 0xff;
+    pCodeBuf[off++] = 0xff;
+
+#elif defined(RT_ARCH_ARM64)
+    iemNativeAddTbExitFixup(pReNative, off, a_enmExitReason);
+    pCodeBuf[off++] = Armv8A64MkInstrB(-1);
+
+#else
+# error "Port me!"
+#endif
+    return off;
+}
+
+
+/**
+ * Unconditionally exits the translation block via a branch instructions.
+ *
+ * @note In case a delayed EFLAGS calculation is pending, this may emit an
+ *       additional IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS instructions.
+ */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fActuallyExitingTb = true, bool const a_fPostponedEfl = true>
+DECL_INLINE_THROW(uint32_t) iemNativeEmitTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off)
+{
+    IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(pReNative, X86_EFL_STATUS_BITS);
+    AssertCompile(IEMNATIVELABELTYPE_IS_EXIT_REASON(a_enmExitReason));
+
+    if RT_CONSTEXPR_IF(a_fActuallyExitingTb)
+        iemNativeMarkCurCondBranchAsExiting(pReNative);
+
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    if RT_CONSTEXPR_IF(a_fPostponedEfl)
+        off = iemNativeDoPostponedEFlagsAtTbExit<IEMNATIVELABELTYPE_GET_INPUT_REG_MASK(a_enmExitReason)>(pReNative, off);
+#endif
+
+#ifdef RT_ARCH_AMD64
+    PIEMNATIVEINSTR pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 6);
+
+    /* jmp rel32 */
+    pCodeBuf[off++] = 0xe9;
+    iemNativeAddTbExitFixup(pReNative, off, a_enmExitReason);
+    pCodeBuf[off++] = 0xfe;
+    pCodeBuf[off++] = 0xff;
+    pCodeBuf[off++] = 0xff;
+    pCodeBuf[off++] = 0xff;
+
+#elif defined(RT_ARCH_ARM64)
+    PIEMNATIVEINSTR pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 1);
+    iemNativeAddTbExitFixup(pReNative, off, a_enmExitReason);
+    pCodeBuf[off++] = Armv8A64MkInstrB(-1);
+
+#else
+# error "Port me!"
+#endif
+    IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
+    return off;
+}
+
+
+/**
+ * Emits a Jcc rel32 / B.cc imm19 to the given label (ASSUMED requiring fixup).
+ *
+ * @note In case a delayed EFLAGS calculation is pending, this may emit an
+ *       additional IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS instructions.
+ */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
+DECL_FORCE_INLINE_THROW(uint32_t)
+iemNativeEmitTbExitJccEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf, uint32_t off, IEMNATIVEINSTRCOND enmCond)
+{
+    IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(pReNative, X86_EFL_STATUS_BITS);
+    AssertCompile(IEMNATIVELABELTYPE_IS_EXIT_REASON(a_enmExitReason));
+
+#ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    if RT_CONSTEXPR_IF(a_fPostponedEfl)
+        if (pReNative->PostponedEfl.fEFlags)
+        {
+            /* Jcc l_NonPrimaryCodeStreamTarget */
+            uint32_t const offFixup1 = off;
+            off = iemNativeEmitJccToFixedEx(pCodeBuf, off, off + 1, enmCond);
+
+            /* JMP l_PrimaryCodeStreamResume */
+            uint32_t const offFixup2 = off;
+            off = iemNativeEmitJmpToFixedEx(pCodeBuf, off, off + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS);
+
+            /* l_NonPrimaryCodeStreamTarget: */
+            iemNativeFixupFixedJump(pReNative, offFixup1, off);
+            off = iemNativeEmitTbExitEx<a_enmExitReason, false /*a_fActuallyExitingTb*/, true>(pReNative, pCodeBuf, off);
+
+            /* l_PrimaryCodeStreamResume: */
+            iemNativeFixupFixedJump(pReNative, offFixup2, off);
+            IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
+            return off;
+        }
+#endif
+
+#if defined(RT_ARCH_AMD64)
     /* jcc rel32 */
     pCodeBuf[off++] = 0x0f;
     pCodeBuf[off++] = (uint8_t)enmCond | 0x80;
-    iemNativeAddTbExitFixup(pReNative, off, enmExitReason);
+    iemNativeAddTbExitFixup(pReNative, off, a_enmExitReason);
     pCodeBuf[off++] = 0x00;
     pCodeBuf[off++] = 0x00;
     pCodeBuf[off++] = 0x00;
@@ -8319,7 +8561,7 @@ iemNativeEmitJccTbExitEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf
 #else
     /* ARM64 doesn't have the necessary jump range, so we jump via local label
        just like when we keep everything local. */
-    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
+    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, a_enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
     off = iemNativeEmitJccToLabelEx(pReNative, pCodeBuf, off, idxLabel, enmCond);
 #endif
     return off;
@@ -8329,35 +8571,35 @@ iemNativeEmitJccTbExitEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf
 /**
  * Emits a Jcc rel32 / B.cc imm19 to the epilog.
  */
-DECL_INLINE_THROW(uint32_t)
-iemNativeEmitJccTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVELABELTYPE enmExitReason, IEMNATIVEINSTRCOND enmCond)
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
+DECL_INLINE_THROW(uint32_t) iemNativeEmitTbExitJcc(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVEINSTRCOND enmCond)
 {
-    Assert(IEMNATIVELABELTYPE_IS_EXIT_REASON(enmExitReason));
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
-# ifdef RT_ARCH_AMD64
-    off = iemNativeEmitJccTbExitEx(pReNative, iemNativeInstrBufEnsure(pReNative, off, 6), off, enmExitReason, enmCond);
-# elif defined(RT_ARCH_ARM64)
-    off = iemNativeEmitJccTbExitEx(pReNative, iemNativeInstrBufEnsure(pReNative, off, 2), off, enmExitReason, enmCond);
-# else
-#  error "Port me!"
-# endif
+    IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(pReNative, X86_EFL_STATUS_BITS);
+    AssertCompile(IEMNATIVELABELTYPE_IS_EXIT_REASON(a_enmExitReason));
+
+#ifdef RT_ARCH_AMD64
+    PIEMNATIVEINSTR const pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 6 + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS + 5);
+#elif defined(RT_ARCH_ARM64)
+    PIEMNATIVEINSTR const pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 2 + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS + 1);
+#else
+# error "Port me!"
+#endif
+    off = iemNativeEmitTbExitJccEx<a_enmExitReason, a_fPostponedEfl>(pReNative, pCodeBuf, off, enmCond);
     IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
     return off;
-#else
-    return iemNativeEmitJccToNewLabel(pReNative, off, enmExitReason, 0 /*uData*/, enmCond);
-#endif
 }
 
 
 /**
  * Emits a JNZ/JNE rel32 / B.NE imm19 to the TB exit routine with the given reason.
  */
-DECL_INLINE_THROW(uint32_t) iemNativeEmitJnzTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVELABELTYPE enmExitReason)
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
+DECL_INLINE_THROW(uint32_t) iemNativeEmitTbExitJnz(PIEMRECOMPILERSTATE pReNative, uint32_t off)
 {
 #ifdef RT_ARCH_AMD64
-    return iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kIemNativeInstrCond_ne);
+    return iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kIemNativeInstrCond_ne);
 #elif defined(RT_ARCH_ARM64)
-    return iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kArmv8InstrCond_Ne);
+    return iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kArmv8InstrCond_Ne);
 #else
 # error "Port me!"
 #endif
@@ -8367,12 +8609,13 @@ DECL_INLINE_THROW(uint32_t) iemNativeEmitJnzTbExit(PIEMRECOMPILERSTATE pReNative
 /**
  * Emits a JZ/JE rel32 / B.EQ imm19 to the TB exit routine with the given reason.
  */
-DECL_INLINE_THROW(uint32_t) iemNativeEmitJzTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVELABELTYPE enmExitReason)
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
+DECL_INLINE_THROW(uint32_t) iemNativeEmitTbExitJz(PIEMRECOMPILERSTATE pReNative, uint32_t off)
 {
 #ifdef RT_ARCH_AMD64
-    return iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kIemNativeInstrCond_e);
+    return iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kIemNativeInstrCond_e);
 #elif defined(RT_ARCH_ARM64)
-    return iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kArmv8InstrCond_Eq);
+    return iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kArmv8InstrCond_Eq);
 #else
 # error "Port me!"
 #endif
@@ -8382,12 +8625,13 @@ DECL_INLINE_THROW(uint32_t) iemNativeEmitJzTbExit(PIEMRECOMPILERSTATE pReNative,
 /**
  * Emits a JA/JNBE rel32 / B.HI imm19 to the TB exit.
  */
-DECL_INLINE_THROW(uint32_t) iemNativeEmitJaTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVELABELTYPE enmExitReason)
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
+DECL_INLINE_THROW(uint32_t) iemNativeEmitTbExitJa(PIEMRECOMPILERSTATE pReNative, uint32_t off)
 {
 #ifdef RT_ARCH_AMD64
-    return iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kIemNativeInstrCond_nbe);
+    return iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kIemNativeInstrCond_nbe);
 #elif defined(RT_ARCH_ARM64)
-    return iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kArmv8InstrCond_Hi);
+    return iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kArmv8InstrCond_Hi);
 #else
 # error "Port me!"
 #endif
@@ -8397,143 +8641,77 @@ DECL_INLINE_THROW(uint32_t) iemNativeEmitJaTbExit(PIEMRECOMPILERSTATE pReNative,
 /**
  * Emits a JL/JNGE rel32 / B.LT imm19 to the TB exit with the given reason.
  */
-DECL_INLINE_THROW(uint32_t) iemNativeEmitJlTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVELABELTYPE enmExitReason)
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
+DECL_INLINE_THROW(uint32_t) iemNativeEmitTbExitJl(PIEMRECOMPILERSTATE pReNative, uint32_t off)
 {
 #ifdef RT_ARCH_AMD64
-    return iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kIemNativeInstrCond_l);
+    return iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kIemNativeInstrCond_l);
 #elif defined(RT_ARCH_ARM64)
-    return iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kArmv8InstrCond_Lt);
+    return iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kArmv8InstrCond_Lt);
 #else
 # error "Port me!"
 #endif
 }
 
 
-DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTbExitEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf, uint32_t off, IEMNATIVELABELTYPE enmExitReason)
-{
-    Assert(IEMNATIVELABELTYPE_IS_EXIT_REASON(enmExitReason));
-
-    iemNativeMarkCurCondBranchAsExiting(pReNative);
-
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
-# ifdef RT_ARCH_AMD64
-    /* jmp rel32 */
-    pCodeBuf[off++] = 0xe9;
-    iemNativeAddTbExitFixup(pReNative, off, enmExitReason);
-    pCodeBuf[off++] = 0xfe;
-    pCodeBuf[off++] = 0xff;
-    pCodeBuf[off++] = 0xff;
-    pCodeBuf[off++] = 0xff;
-
-# elif defined(RT_ARCH_ARM64)
-    iemNativeAddTbExitFixup(pReNative, off, enmExitReason);
-    pCodeBuf[off++] = Armv8A64MkInstrB(-1);
-
-# else
-#  error "Port me!"
-# endif
-    return off;
-
-#else
-    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
-    return iemNativeEmitJmpToLabelEx(pReNative, pCodeBuf, off, idxLabel);
-#endif
-}
-
-
-DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVELABELTYPE enmExitReason,
-                    bool fActuallyExitingTb = true)
-{
-    Assert(IEMNATIVELABELTYPE_IS_EXIT_REASON(enmExitReason));
-
-    if (fActuallyExitingTb)
-        iemNativeMarkCurCondBranchAsExiting(pReNative);
-
-#ifdef IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE
-# ifdef RT_ARCH_AMD64
-    PIEMNATIVEINSTR pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 6);
-
-    /* jmp rel32 */
-    pCodeBuf[off++] = 0xe9;
-    iemNativeAddTbExitFixup(pReNative, off, enmExitReason);
-    pCodeBuf[off++] = 0xfe;
-    pCodeBuf[off++] = 0xff;
-    pCodeBuf[off++] = 0xff;
-    pCodeBuf[off++] = 0xff;
-
-# elif defined(RT_ARCH_ARM64)
-    PIEMNATIVEINSTR pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 1);
-    iemNativeAddTbExitFixup(pReNative, off, enmExitReason);
-    pCodeBuf[off++] = Armv8A64MkInstrB(-1);
-
-# else
-#  error "Port me!"
-# endif
-    IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
-    return off;
-
-#else
-    return iemNativeEmitJmpToNewLabel(pReNative, off, enmExitReason);
-#endif
-}
-
-
 /**
- * Emits a jump to the TB exit with @a enmExitReason on the condition _any_ of the bits in @a fBits
- * are set in @a iGprSrc.
+ * Emits a jump to the TB exit with @a a_enmExitReason on the condition _any_ of
+ * the bits in @a fBits are set in @a iGprSrc.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTestAnyBitsInGprAndTbExitIfAnySet(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                               uint8_t iGprSrc, uint64_t fBits, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfAnyBitsSetInGpr(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGprSrc, uint64_t fBits)
 {
     Assert(fBits); Assert(!RT_IS_POWER_OF_TWO(fBits));
 
     off = iemNativeEmitTestAnyBitsInGpr(pReNative, off, iGprSrc, fBits);
-    return iemNativeEmitJnzTbExit(pReNative, off, enmExitReason);
+    return iemNativeEmitTbExitJnz<a_enmExitReason, a_fPostponedEfl>(pReNative, off);
 }
 
 
+#if 0 /* unused */
 /**
  * Emits a jump to @a idxLabel on the condition _none_ of the bits in @a fBits
  * are set in @a iGprSrc.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTestAnyBitsInGprAndTbExitIfNoneSet(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                                uint8_t iGprSrc, uint64_t fBits, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfNoBitsSetInGpr(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGprSrc, uint64_t fBits)
 {
     Assert(fBits); Assert(!RT_IS_POWER_OF_TWO(fBits));
 
     off = iemNativeEmitTestAnyBitsInGpr(pReNative, off, iGprSrc, fBits);
-    return iemNativeEmitJzTbExit(pReNative, off, enmExitReason);
+    return iemNativeEmitJzTbExit<a_enmExitReason, a_fPostponedEfl>(pReNative, off);
 }
+#endif
 
 
+#if 0 /* unused */
 /**
  * Emits code that exits the TB with the given reason if @a iGprLeft and @a iGprRight
  * differs.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTestIfGprNotEqualGprAndTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                           uint8_t iGprLeft, uint8_t iGprRight, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfGprNotEqualGpr(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGprLeft, uint8_t iGprRight)
 {
     off = iemNativeEmitCmpGprWithGpr(pReNative, off, iGprLeft, iGprRight);
-    off = iemNativeEmitJnzTbExit(pReNative, off, enmExitReason);
+    off = iemNativeEmitJnzTbExit<a_enmExitReason, a_fPostponedEfl>(pReNative, off);
     return off;
 }
+#endif
 
 
 /**
  * Emits code that jumps to the given label if 32-bit @a iGprSrc differs from
  * @a uImm.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTestIfGpr32NotEqualImmAndTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                             uint8_t iGprSrc, uint32_t uImm, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfGpr32NotEqualImm(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGprSrc, uint32_t uImm)
 {
     off = iemNativeEmitCmpGpr32WithImm(pReNative, off, iGprSrc, uImm);
-    off = iemNativeEmitJnzTbExit(pReNative, off, enmExitReason);
+    off = iemNativeEmitTbExitJnz<a_enmExitReason, a_fPostponedEfl>(pReNative, off);
     return off;
 }
 
@@ -8541,12 +8719,12 @@ iemNativeEmitTestIfGpr32NotEqualImmAndTbExit(PIEMRECOMPILERSTATE pReNative, uint
 /**
  * Emits code that exits the current TB if @a iGprSrc differs from @a uImm.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTestIfGprNotEqualImmAndTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                           uint8_t iGprSrc, uint64_t uImm, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfGprNotEqualImm(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGprSrc, uint64_t uImm)
 {
     off = iemNativeEmitCmpGprWithImm(pReNative, off, iGprSrc, uImm);
-    off = iemNativeEmitJnzTbExit(pReNative, off, enmExitReason);
+    off = iemNativeEmitTbExitJnz<a_enmExitReason, a_fPostponedEfl>(pReNative, off);
     return off;
 }
 
@@ -8554,28 +8732,29 @@ iemNativeEmitTestIfGprNotEqualImmAndTbExit(PIEMRECOMPILERSTATE pReNative, uint32
 /**
  * Emits code that exits the current TB with the given reason if 32-bit @a iGprSrc equals @a uImm.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTestIfGpr32EqualsImmAndTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                           uint8_t iGprSrc, uint32_t uImm, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfGpr32EqualsImm(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGprSrc, uint32_t uImm)
 {
     off = iemNativeEmitCmpGpr32WithImm(pReNative, off, iGprSrc, uImm);
-    off = iemNativeEmitJzTbExit(pReNative, off, enmExitReason);
+    off = iemNativeEmitTbExitJz<a_enmExitReason, a_fPostponedEfl>(pReNative, off);
     return off;
 }
 
 
 /**
- * Emits code to exit the current TB with the reason @a enmExitReason on the condition that bit @a iBitNo _is_ _set_ in
- * @a iGprSrc.
+ * Emits code to exit the current TB with the reason @a a_enmExitReason on the
+ * condition that bit @a iBitNo _is_ _set_ in @a iGprSrc.
  *
  * @note On ARM64 the range is only +/-8191 instructions.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTestBitInGprAndTbExitIfSet(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                        uint8_t iGprSrc, uint8_t iBitNo, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfBitSetInGpr(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGprSrc, uint8_t iBitNo)
 {
-    Assert(IEMNATIVELABELTYPE_IS_EXIT_REASON(enmExitReason));
-#if defined(IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE) && defined(RT_ARCH_AMD64)
+    AssertCompile(IEMNATIVELABELTYPE_IS_EXIT_REASON(a_enmExitReason));
+
+#if defined(RT_ARCH_AMD64)
     Assert(iBitNo < 64);
     uint8_t * const pbCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 5);
     if (iBitNo < 8)
@@ -8586,7 +8765,8 @@ iemNativeEmitTestBitInGprAndTbExitIfSet(PIEMRECOMPILERSTATE pReNative, uint32_t 
         pbCodeBuf[off++] = 0xf6;
         pbCodeBuf[off++] = X86_MODRM_MAKE(X86_MOD_REG, 0, iGprSrc & 7);
         pbCodeBuf[off++] = (uint8_t)1 << iBitNo;
-        off = iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kIemNativeInstrCond_ne);
+        IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
+        off = iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kIemNativeInstrCond_ne);
     }
     else
     {
@@ -8599,31 +8779,56 @@ iemNativeEmitTestBitInGprAndTbExitIfSet(PIEMRECOMPILERSTATE pReNative, uint32_t 
         pbCodeBuf[off++] = 0xba;
         pbCodeBuf[off++] = X86_MODRM_MAKE(X86_MOD_REG, 4, iGprSrc & 7);
         pbCodeBuf[off++] = iBitNo;
-        off = iemNativeEmitJccTbExit(pReNative, off, enmExitReason, kIemNativeInstrCond_c);
+        IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
+        off = iemNativeEmitTbExitJcc<a_enmExitReason, a_fPostponedEfl>(pReNative, off, kIemNativeInstrCond_c);
     }
-    IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
     return off;
 
-#else
-    /* ARM64 doesn't have the necessary jump range, so we jump via local label
-       just like when we keep everything local. */
-    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
+#elif defined(RT_ARCH_ARM64)
+    IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(pReNative, X86_EFL_STATUS_BITS);
+    /** @todo Perhaps we should always apply the PostponedEfl code pattern here,
+     *        it's the same number of instructions as the TST + B.CC stuff? */
+# ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    if RT_CONSTEXPR_IF(a_fPostponedEfl)
+        if (pReNative->PostponedEfl.fEFlags)
+        {
+            PIEMNATIVEINSTR const pCodeBuf = iemNativeInstrBufEnsure(pReNative, off,
+                                                                     3 + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS);
+            pCodeBuf[off++] = Armv8A64MkInstrTbnz(1 /*l_NonPrimaryCodeStreamTarget*/, iGprSrc, iBitNo);
+            uint32_t const offFixup = off;
+            pCodeBuf[off++] = Armv8A64MkInstrB(0 /*l_PrimaryCodeStreamResume*/);
+            /* l_NonPrimaryCodeStreamTarget: */
+            off = iemNativeEmitTbExitEx<a_enmExitReason, false /*a_fActuallyExitingTb*/, true>(pReNative, pCodeBuf, off);
+            /* l_PrimaryCodeStreamResume: */
+            iemNativeFixupFixedJump(pReNative, offFixup, off);
+            IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
+            return off;
+        }
+# endif
+    /* ARM64 doesn't have the necessary range to reach the per-chunk code, so
+       we go via a local trampoline. */
+    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, a_enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
     return iemNativeEmitTestBitInGprAndJmpToLabelIfCc(pReNative, off, iGprSrc, iBitNo, idxLabel, true /*fJmpIfSet*/);
+#else
+# error "port me"
 #endif
 }
 
 
 /**
- * Emits code that exits the current TB with @a enmExitReason if @a iGprSrc is not zero.
+ * Emits code that exits the current TB with @a a_enmExitReason if @a iGprSrc is
+ * not zero.
  *
  * The operand size is given by @a f64Bit.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_FORCE_INLINE_THROW(uint32_t)
-iemNativeEmitTestIfGprIsNotZeroAndTbExitEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf, uint32_t off,
-                                           uint8_t iGprSrc, bool f64Bit, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfGprIsNotZeroEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf, uint32_t off,
+                                    uint8_t iGprSrc, bool f64Bit)
 {
-    Assert(IEMNATIVELABELTYPE_IS_EXIT_REASON(enmExitReason));
-#if defined(IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE) && defined(RT_ARCH_AMD64)
+    AssertCompile(IEMNATIVELABELTYPE_IS_EXIT_REASON(a_enmExitReason));
+
+#if defined(RT_ARCH_AMD64)
     /* test reg32,reg32  / test reg64,reg64 */
     if (f64Bit)
         pCodeBuf[off++] = X86_OP_REX_W | (iGprSrc < 8 ? 0 : X86_OP_REX_R | X86_OP_REX_B);
@@ -8633,50 +8838,72 @@ iemNativeEmitTestIfGprIsNotZeroAndTbExitEx(PIEMRECOMPILERSTATE pReNative, PIEMNA
     pCodeBuf[off++] = X86_MODRM_MAKE(X86_MOD_REG, iGprSrc & 7, iGprSrc & 7);
 
     /* jnz idxLabel  */
-    return iemNativeEmitJccTbExitEx(pReNative, pCodeBuf, off, enmExitReason, kIemNativeInstrCond_ne);
+    return iemNativeEmitTbExitJccEx<a_enmExitReason, a_fPostponedEfl>(pReNative, pCodeBuf, off, kIemNativeInstrCond_ne);
 
-#else
-    /* ARM64 doesn't have the necessary jump range, so we jump via local label
-       just like when we keep everything local. */
-    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
+#elif defined(RT_ARCH_ARM64)
+    IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(pReNative, X86_EFL_STATUS_BITS);
+# ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    if RT_CONSTEXPR_IF(a_fPostponedEfl)
+        if (pReNative->PostponedEfl.fEFlags)
+        {
+            pCodeBuf[off++] = Armv8A64MkInstrCbnz(1 /*l_NonPrimaryCodeStreamTarget*/, iGprSrc, f64Bit);
+            uint32_t const offFixup = off;
+            pCodeBuf[off++] = Armv8A64MkInstrB(0 /*l_PrimaryCodeStreamResume*/);
+            /* l_NonPrimaryCodeStreamTarget: */
+            off = iemNativeEmitTbExitEx<a_enmExitReason, false /*a_fActuallyExitingTb*/, true>(pReNative, pCodeBuf, off);
+            /* l_PrimaryCodeStreamResume: */
+            iemNativeFixupFixedJump(pReNative, offFixup, off);
+            IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
+            return off;
+        }
+# endif
+    /* ARM64 doesn't have the necessary range to reach the per-chunk code, so
+       we go via a local trampoline. */
+    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, a_enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
     return iemNativeEmitTestIfGprIsZeroOrNotZeroAndJmpToLabelEx(pReNative, pCodeBuf, off, iGprSrc,
                                                                 f64Bit, true /*fJmpIfNotZero*/, idxLabel);
+#else
+# error "port me"
 #endif
 }
 
 
 /**
- * Emits code to exit the current TB with the given reason @a enmExitReason if @a iGprSrc is not zero.
+ * Emits code to exit the current TB with the given reason @a a_enmExitReason if
+ * @a iGprSrc is not zero.
  *
  * The operand size is given by @a f64Bit.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTestIfGprIsNotZeroAndTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                         uint8_t iGprSrc, bool f64Bit, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfGprIsNotZero(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGprSrc, bool f64Bit)
 {
-#if defined(IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE) && defined(RT_ARCH_AMD64)
-    off = iemNativeEmitTestIfGprIsNotZeroAndTbExitEx(pReNative, iemNativeInstrBufEnsure(pReNative, off, 3 + 6),
-                                                     off, iGprSrc, f64Bit, enmExitReason);
+#if defined(RT_ARCH_AMD64)
+    PIEMNATIVEINSTR const pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 3 + 6 + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS);
+
+#else
+    PIEMNATIVEINSTR const pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 3 + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS);
+#endif
+    off = iemNativeEmitTbExitIfGprIsNotZeroEx<a_enmExitReason, a_fPostponedEfl>(pReNative, pCodeBuf, off, iGprSrc, f64Bit);
     IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
     return off;
-#else
-    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
-    return iemNativeEmitTestIfGprIsZeroOrNotZeroAndJmpToLabel(pReNative, off, iGprSrc, f64Bit, true /*fJmpIfNotZero*/, idxLabel);
-#endif
 }
 
 
 /**
- * Emits code that exits the current TB with @a enmExitReason if @a iGprSrc is zero.
+ * Emits code that exits the current TB with @a a_enmExitReason if @a iGprSrc is
+ * zero.
  *
  * The operand size is given by @a f64Bit.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_FORCE_INLINE_THROW(uint32_t)
-iemNativeEmitTestIfGprIsZeroAndTbExitEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf, uint32_t off,
-                                        uint8_t iGprSrc, bool f64Bit, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfGprIsZeroEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIVEINSTR pCodeBuf, uint32_t off,
+                                 uint8_t iGprSrc, bool f64Bit)
 {
-    Assert(IEMNATIVELABELTYPE_IS_EXIT_REASON(enmExitReason));
-#if defined(IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE) && defined(RT_ARCH_AMD64)
+    AssertCompile(IEMNATIVELABELTYPE_IS_EXIT_REASON(a_enmExitReason));
+
+#if defined(RT_ARCH_AMD64)
     /* test reg32,reg32  / test reg64,reg64 */
     if (f64Bit)
         pCodeBuf[off++] = X86_OP_REX_W | (iGprSrc < 8 ? 0 : X86_OP_REX_R | X86_OP_REX_B);
@@ -8686,44 +8913,61 @@ iemNativeEmitTestIfGprIsZeroAndTbExitEx(PIEMRECOMPILERSTATE pReNative, PIEMNATIV
     pCodeBuf[off++] = X86_MODRM_MAKE(X86_MOD_REG, iGprSrc & 7, iGprSrc & 7);
 
     /* jnz idxLabel  */
-    return iemNativeEmitJccTbExitEx(pReNative, pCodeBuf, off, enmExitReason, kIemNativeInstrCond_e);
+    return iemNativeEmitTbExitJccEx<a_enmExitReason, a_fPostponedEfl>(pReNative, pCodeBuf, off, kIemNativeInstrCond_e);
 
-#else
-    /* ARM64 doesn't have the necessary jump range, so we jump via local label
-       just like when we keep everything local. */
-    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
+#elif defined(RT_ARCH_ARM64)
+    IEMNATIVE_ASSERT_EFLAGS_SKIPPING_ONLY(pReNative, X86_EFL_STATUS_BITS);
+# ifdef IEMNATIVE_WITH_EFLAGS_POSTPONING
+    if RT_CONSTEXPR_IF(a_fPostponedEfl)
+        if (pReNative->PostponedEfl.fEFlags)
+        {
+            pCodeBuf[off++] = Armv8A64MkInstrCbz(1 /*l_NonPrimaryCodeStreamTarget*/, iGprSrc, f64Bit);
+            uint32_t const offFixup = off;
+            pCodeBuf[off++] = Armv8A64MkInstrB(0 /*l_PrimaryCodeStreamResume*/);
+            /* l_NonPrimaryCodeStreamTarget: */
+            off = iemNativeEmitTbExitEx<a_enmExitReason, false /*a_fActuallyExitingTb*/, true>(pReNative, pCodeBuf, off);
+            /* l_PrimaryCodeStreamResume: */
+            iemNativeFixupFixedJump(pReNative, offFixup, off);
+            IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
+            return off;
+        }
+# endif
+    /* ARM64 doesn't have the necessary range to reach the per-chunk code, so
+       we go via a local trampoline. */
+    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, a_enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
     return iemNativeEmitTestIfGprIsZeroOrNotZeroAndJmpToLabelEx(pReNative, pCodeBuf, off, iGprSrc,
                                                                 f64Bit, false /*fJmpIfNotZero*/, idxLabel);
+#else
+# error "port me"
 #endif
 }
 
 
 /**
- * Emits code to exit the current TB with the given reason @a enmExitReason if @a iGprSrc is zero.
+ * Emits code to exit the current TB with the given reason @a a_enmExitReason if @a iGprSrc is zero.
  *
  * The operand size is given by @a f64Bit.
  */
+template<IEMNATIVELABELTYPE const a_enmExitReason, bool const a_fPostponedEfl = true>
 DECL_INLINE_THROW(uint32_t)
-iemNativeEmitTestIfGprIsZeroAndTbExit(PIEMRECOMPILERSTATE pReNative, uint32_t off,
-                                      uint8_t iGprSrc, bool f64Bit, IEMNATIVELABELTYPE enmExitReason)
+iemNativeEmitTbExitIfGprIsZero(PIEMRECOMPILERSTATE pReNative, uint32_t off, uint8_t iGprSrc, bool f64Bit)
 {
-#if defined(IEMNATIVE_WITH_RECOMPILER_PER_CHUNK_TAIL_CODE) && defined(RT_ARCH_AMD64)
-    off = iemNativeEmitTestIfGprIsZeroAndTbExitEx(pReNative, iemNativeInstrBufEnsure(pReNative, off, 3 + 6),
-                                                  off, iGprSrc, f64Bit, enmExitReason);
+#if defined(RT_ARCH_AMD64)
+    PIEMNATIVEINSTR const pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 3 + 6 + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS);
+
+#else
+    PIEMNATIVEINSTR const pCodeBuf = iemNativeInstrBufEnsure(pReNative, off, 3 + IEMNATIVE_MAX_POSTPONED_EFLAGS_INSTRUCTIONS);
+#endif
+    off = iemNativeEmitTbExitIfGprIsZeroEx<a_enmExitReason, a_fPostponedEfl>(pReNative, pCodeBuf, off, iGprSrc, f64Bit);
     IEMNATIVE_ASSERT_INSTR_BUF_ENSURE(pReNative, off);
     return off;
-#else
-    uint32_t const idxLabel = iemNativeLabelCreate(pReNative, enmExitReason, UINT32_MAX /*offWhere*/, 0 /*uData*/);
-    return iemNativeEmitTestIfGprIsZeroOrNotZeroAndJmpToLabel(pReNative, off, iGprSrc, f64Bit, false /*fJmpIfNotZero*/, idxLabel);
-#endif
 }
 
 
-#ifdef IEMNATIVE_WITH_SIMD_REG_ALLOCATOR
+
 /*********************************************************************************************************************************
 *   SIMD helpers.                                                                                                                *
 *********************************************************************************************************************************/
-
 
 /**
  * Emits code to load the variable address into an argument GPR.
@@ -10316,7 +10560,6 @@ iemNativeEmitSimdBroadcastVecRegU128ToVecReg(PIEMRECOMPILERSTATE pReNative, uint
     return off;
 }
 
-#endif /* IEMNATIVE_WITH_SIMD_REG_ALLOCATOR */
 
 /** @} */
 

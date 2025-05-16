@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1371,7 +1371,7 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join3_cb(
                     RTMemFree(pvBufOut);
                 }
                 else
-                    VBClLogError("cannot convert '%s' to native format, rc=%Rrc\n", rc);
+                    VBClLogError("cannot convert '%s' to native format, rc=%Rrc\n", pPriv->sMimeType, rc);
             }
             else
                 rc = VERR_TIMEOUT;

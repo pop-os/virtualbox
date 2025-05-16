@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -380,6 +380,7 @@ DECLHIDDEN(int)     suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, ui
 DECLHIDDEN(int)     suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, uint32_t fFlags, void **ppvPages);
 DECLHIDDEN(int)     suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t cPages);
 DECLHIDDEN(int)     suplibOsQueryVTxSupported(const char **ppszWhy);
+DECLHIDDEN(int)     suplibOsQueryMicrocodeRev(uint32_t *puMicrocodeRev);
 DECLHIDDEN(bool)    suplibOsIsNemSupportedWhenNoVtxOrAmdV(void);
 
 

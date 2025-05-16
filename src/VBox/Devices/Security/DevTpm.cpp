@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2021-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -543,6 +543,8 @@ typedef struct DEVTPMR3
     PPDMDEVINS                      pDevIns;
     /** The base interface for LUN\#0. */
     PDMIBASE                        IBase;
+    /** The base interface for LUN\#0. */
+    PDMITPMPORT                     ITpmPort;
     /** The base interface below. */
     R3PTRTYPE(PPDMIBASE)            pDrvBase;
     /** The TPM connector interface below. */
@@ -1626,8 +1628,20 @@ static DECLCALLBACK(void *) tpmR3QueryInterface(PPDMIBASE pInterface, const char
 {
     PDEVTPMCC pThisCC = RT_FROM_MEMBER(pInterface, DEVTPMCC, IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThisCC->IBase);
-    //PDMIBASE_RETURN_INTERFACE(pszIID, PDMITPMPORT, &pThisCC->ITpmPort);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMITPMPORT, &pThisCC->ITpmPort);
     return NULL;
+}
+
+
+/* -=-=-=-=-=-=-=-=- PDMITPMPORT -=-=-=-=-=-=-=-=- */
+
+/**
+ * @interface_method_impl{PDMITPMPORT,pfnGetMaxBufferSize}
+ */
+static DECLCALLBACK(uint32_t) tpmR3TpmPortGetMaxBufferSize(PPDMITPMPORT pInterface)
+{
+    RT_NOREF(pInterface);
+    return TPM_DATA_BUFFER_SIZE_MAX;
 }
 
 
@@ -1693,6 +1707,10 @@ static DECLCALLBACK(int) tpmR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
 
     /* IBase */
     pThisCC->IBase.pfnQueryInterface = tpmR3QueryInterface;
+
+    /* ITpmPort */
+    pThisCC->ITpmPort.pfnGetMaxBufferSize = tpmR3TpmPortGetMaxBufferSize;
+
 
     /*
      * Validate and read the configuration.

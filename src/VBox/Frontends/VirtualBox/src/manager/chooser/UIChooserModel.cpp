@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1920,7 +1920,7 @@ void UIChooserModel::unregisterLocalMachines(const QList<CMachine> &machines)
         if (iResultCode == AlertButton_Choice1)
         {
             /* Unregister machine first: */
-            CMediumVector media = comMachine.Unregister(KCleanupMode_DetachAllReturnHardDisksOnly);
+            CMediumVector media = comMachine.Unregister(KCleanupMode_DetachAllReturnHardDisksAndVMRemovable);
             if (!comMachine.isOk())
             {
                 UINotificationMessage::cannotRemoveMachine(comMachine);
@@ -1933,7 +1933,7 @@ void UIChooserModel::unregisterLocalMachines(const QList<CMachine> &machines)
         else if (iResultCode == AlertButton_Choice2 || iResultCode == AlertButton_Ok)
         {
             /* Unregister machine first: */
-            CMediumVector media = comMachine.Unregister(KCleanupMode_DetachAllReturnHardDisksOnly);
+            CMediumVector media = comMachine.Unregister(KCleanupMode_DetachAllReturnHardDisksAndVMRemovable);
             if (!comMachine.isOk())
             {
                 UINotificationMessage::cannotRemoveMachine(comMachine);

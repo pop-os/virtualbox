@@ -12,7 +12,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -478,13 +478,13 @@ typedef struct VIRTIONET
     /** All unicast mode -- RX filter accepts all unicast packets. */
     uint8_t                 fAllUnicast;
 
-    /** No multicast mode - Supresses multicast receive */
+    /** No multicast mode - Suppresses multicast receive */
     uint8_t                 fNoMulticast;
 
     /** No unicast mode - Suppresses unicast receive */
     uint8_t                 fNoUnicast;
 
-    /** No broadcast mode - Supresses broadcast receive */
+    /** No broadcast mode - Suppresses broadcast receive */
     uint8_t                 fNoBroadcast;
 
     /** Type of network pkt header based on guest driver version/features */
@@ -863,7 +863,7 @@ static DECLCALLBACK(void) virtioNetR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp
                     pVirtq->fAttachedToVirtioCore  ? "" : "not attached to virtio core");
             }
             pHlp->pfnPrintf(pHlp, "\n");
-            virtioCoreR3VirtqInfo(pDevIns, pHlp, pszArgs, uVirtqNbr);
+            virtioCoreR3VirtqInfo(pDevIns, pHlp, &pThis->Virtio, pszArgs, uVirtqNbr);
             pHlp->pfnPrintf(pHlp, "    ---------------------------------------------------------------------\n");
             pHlp->pfnPrintf(pHlp, "\n");
         }
@@ -3635,7 +3635,8 @@ static DECLCALLBACK(int) virtioNetR3Construct(PPDMDEVINS pDevIns, int iInstance,
      * Register the debugger info callback (ignore errors).
      */
     char szTmp[128];
-    rc = PDMDevHlpDBGFInfoRegister(pDevIns, "virtionet", "Display virtionet info (help, net, features, state, pointers, queues, all)", virtioNetR3Info);
+    RTStrPrintf(szTmp, sizeof(szTmp), "virtionet%d", iInstance);
+    rc = PDMDevHlpDBGFInfoRegister(pDevIns, szTmp, "Display virtionet info (help, net, features, state, pointers, queues, all)", virtioNetR3Info);
     if (RT_FAILURE(rc))
         LogRel(("Failed to register DBGF info for device %s\n", szTmp));
     return rc;

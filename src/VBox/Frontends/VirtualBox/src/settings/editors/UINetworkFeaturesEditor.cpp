@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -336,7 +336,6 @@ void UINetworkFeaturesEditor::prepare()
                 m_pLabelMAC->setBuddy(m_pEditorMAC);
             m_pEditorMAC->setAllowToCopyContentsWhenDisabled(true);
             m_pEditorMAC->setValidator(new QRegularExpressionValidator(QRegularExpression("[0-9A-Fa-f]{12}"), this));
-            m_pEditorMAC->setMinimumWidthByText(QString().fill('0', 12));
 
             m_pLayoutSettings->addWidget(m_pEditorMAC, 2, 1, 1, 2);
         }

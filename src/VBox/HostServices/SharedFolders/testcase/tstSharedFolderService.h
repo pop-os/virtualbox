@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -119,10 +119,16 @@ void testRename(RTTEST hTest);
 /* Sub-tests for testRename(). */
 void testRenameBadParameters(RTTEST hTest);
 
+void testCopyFile(RTTEST hTest);
+/* Sub-tests for testCopyFile(). */
+void testCopyFileReadWrite(RTTEST hTest);
+void testCopyFileReadOnly(RTTEST hTest);
+
 void testSymlink(RTTEST hTest);
 /* Sub-tests for testSymlink(). */
 void testSymlinkBadParameters(RTTEST hTest);
 void testSymlinkCreation(RTTEST hTest);
+void testSymlinkReadOnlyCreation(RTTEST hTest);
 
 void testMappingsAdd(RTTEST hTest);
 /* Sub-tests for testMappingsAdd(). */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -278,7 +278,8 @@ int VRDEServer::i_generateServerCertificate()
  *
  * Klaus, some settings saving input required here!
  */
-        mData->mapProperties["Security/Method"] = Utf8Str("TLS");
+        if (!mData->mapProperties["Security/Method"].equalsIgnoreCase("NEGOTIATE"))
+            mData->mapProperties["Security/Method"] = Utf8Str("TLS");
         mData->mapProperties["Security/ServerCertificate"] = strServerCertificate;
         mData->mapProperties["Security/ServerPrivateKey"] = strServerPrivateKey;
 
@@ -296,7 +297,8 @@ int VRDEServer::i_generateServerCertificate()
  */
 HRESULT VRDEServer::i_certificateRepair(BOOL &certificateGenerated)
 {
-    if (mData->mapProperties["Security/Method"] != "RDP" || mData->mapProperties["Security/Method"] != "None")
+    if (   !mData->mapProperties["Security/Method"].equalsIgnoreCase("RDP")
+        && !mData->mapProperties["Security/Method"].equalsIgnoreCase("None"))
     {
         Utf8Str strServerCertificate(VRDE_AUTO_GENENERATED_CERT_FILENAME);
         int vrc = mParent->i_calculateFullPath(strServerCertificate, strServerCertificate);
@@ -346,7 +348,8 @@ HRESULT VRDEServer::i_certificateRepair(BOOL &certificateGenerated)
                  */
                 AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
                 mData.backup();
-                mData->mapProperties["Security/Method"] = Utf8Str("TLS");
+                if (!mData->mapProperties["Security/Method"].equalsIgnoreCase("NEGOTIATE"))
+                    mData->mapProperties["Security/Method"] = Utf8Str("TLS");
                 mData->mapProperties["Security/ServerCertificate"] = strServerCertificate;
                 mData->mapProperties["Security/ServerPrivateKey"] = strServerPrivateKey;
                 /* Done with the properties access. */
@@ -367,10 +370,7 @@ HRESULT VRDEServer::i_certificateRepair(BOOL &certificateGenerated)
                 RTFileDelete(strServerCertificate.c_str());
                 vrc = i_generateServerCertificate();
                 if (RT_FAILURE(vrc))
-                {
-                    i_rollback();
                     return setError(VBOX_E_IPRT_ERROR, tr("Failed to auto generate server key and certificate: (%Rrc)\n"), vrc);
-                }
                 certificateGenerated = true;
             }
         }
@@ -384,10 +384,7 @@ HRESULT VRDEServer::i_certificateRepair(BOOL &certificateGenerated)
             RTFileDelete(strServerPrivateKey.c_str());
             vrc = i_generateServerCertificate();
             if (RT_FAILURE(vrc))
-            {
-                i_rollback();
                 return setError(VBOX_E_IPRT_ERROR, tr("Failed to auto generate server key and certificate: (%Rrc)\n"), vrc);
-            }
             certificateGenerated = true;
         }
         else if (fServerCertificate)
@@ -397,10 +394,7 @@ HRESULT VRDEServer::i_certificateRepair(BOOL &certificateGenerated)
             RTFileDelete(strServerCertificate.c_str());
             vrc = i_generateServerCertificate();
             if (RT_FAILURE(vrc))
-            {
-                i_rollback();
                 return setError(VBOX_E_IPRT_ERROR, tr("Failed to auto generate server key and certificate: (%Rrc)\n"), vrc);
-            }
             certificateGenerated = true;
         }
         /*
@@ -417,10 +411,7 @@ HRESULT VRDEServer::i_certificateRepair(BOOL &certificateGenerated)
                         strServerCertificate.c_str(), strServerPrivateKey.c_str()));
                 vrc = i_generateServerCertificate();
                 if (RT_FAILURE(vrc))
-                {
-                    i_rollback();
                     return setError(VBOX_E_IPRT_ERROR, tr("Failed to auto generate server key and certificate: (%Rrc)\n"), vrc);
-                }
                 certificateGenerated = true;
             }
         }
@@ -659,21 +650,6 @@ HRESULT VRDEServer::setVRDEProperty(const com::Utf8Str &aKey, const com::Utf8Str
 
 HRESULT VRDEServer::getVRDEProperty(const com::Utf8Str &aKey, com::Utf8Str &aValue)
 {
-    /* Special case for the server certificate because it might be created automatically by the code below. */
-    if (   aKey == "Security/ServerCertificate"
-        || aKey == "Security/ServerPrivateKey")
-    {
-        BOOL certificateGenerated = false;
-        HRESULT hrc = i_certificateRepair(certificateGenerated);
-        if (FAILED(hrc))
-            LogRel((("Failed to auto generate server key and certificate: (%Rhrc)\n"), hrc));
-        else if (certificateGenerated)
-        {
-            AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);
-            mParent->i_setModified(Machine::IsModified_VRDEServer);
-            mlock.release();
-        }
-    }
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     settings::StringsMap::const_iterator it = mData->mapProperties.find(aKey);
     if (it != mData->mapProperties.end())

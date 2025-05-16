@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -189,6 +189,7 @@ typedef const X86RFLAGS *PCX86RFLAGS;
 #define X86_EFL_CF_BIT      0
 /** Bit 1 - Reserved, reads as 1. */
 #define X86_EFL_1           RT_BIT_32(1)
+#define X86_EFL_1_BIT       1
 /** Bit 2 - PF - Parity flag - Status flag. */
 #define X86_EFL_PF          RT_BIT_32(2)
 #define X86_EFL_PF_BIT      2
@@ -635,8 +636,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /** @} */
 
 
-/** @name CPUID Structured Extended Feature information.
- * CPUID query with EAX=7.
+/** @name CPUID Structured Extended Feature information, \#0.
+ * CPUID query with EAX=7 and ECX=0.
  * @{
  */
 /** EBX Bit 0 - FSGSBASE - Supports RDFSBASE/RDGSBASE/WRFSBASE/WRGSBASE. */
@@ -709,8 +710,13 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /** ECX Bit 30 - SGX_LC - Supports SGX launch configuration. */
 #define X86_CPUID_STEXT_FEATURE_ECX_SGX_LC            RT_BIT_32(30)
 
+/** EDX bit 9 - SRBDS_CTRL - (Special Register Buffer Data Sample Control)
+ *  Supports IA32_MCU_OPT_CTRL and IA32_MCU_OPT_CTRL.RNGDS_MITG_DIS. */
+#define X86_CPUID_STEXT_FEATURE_EDX_SRBDS_CTRL        RT_BIT_32(9)
 /** EDX Bit 10 - MD_CLEAR - Supports flushing MDS related buffers. */
 #define X86_CPUID_STEXT_FEATURE_EDX_MD_CLEAR          RT_BIT_32(10)
+/** EDX Bit 11 - TSX_FORCE_ABORT - Supports for IA32_TSX_FORCE_ABORT MSR. */
+#define X86_CPUID_STEXT_FEATURE_EDX_TSX_FORCE_ABORT   RT_BIT_32(11)
 /** EDX Bit 20 - CET_IBT - Supports CET indirect branch tracking features. */
 #define X86_CPUID_STEXT_FEATURE_EDX_CET_IBT           RT_BIT_32(20)
 /** EDX Bit 26 - IBRS & IBPB - Supports the IBRS flag in IA32_SPEC_CTRL and
@@ -718,7 +724,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB         RT_BIT_32(26)
 /** EDX Bit 27 - IBRS & IBPB - Supports the STIBP flag in IA32_SPEC_CTRL. */
 #define X86_CPUID_STEXT_FEATURE_EDX_STIBP             RT_BIT_32(27)
-/** EDX Bit 28 - FLUSH_CMD - Supports IA32_FLUSH_CMD MSR. */
+/** EDX Bit 28 - FLUSH_CMD - Supports the IA32_FLUSH_CMD.L1D_FLUSH command. */
 #define X86_CPUID_STEXT_FEATURE_EDX_FLUSH_CMD         RT_BIT_32(28)
 /** EDX Bit 29 - ARCHCAP - Supports the IA32_ARCH_CAPABILITIES MSR. */
 #define X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP           RT_BIT_32(29)
@@ -726,7 +732,28 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_STEXT_FEATURE_EDX_CORECAP           RT_BIT_32(30)
 /** EDX Bit 31 - SSBD - Supports the SSBD flag in IA32_SPEC_CTRL. */
 #define X86_CPUID_STEXT_FEATURE_EDX_SSBD              RT_BIT_32(31)
+/** @} */
 
+/** @name CPUID Structured Extended Feature information, \#2.
+ * CPUID query with EAX=7 and ECX=2.
+ * @{
+ */
+/** EDX Bit 0 - PSFD - IA32_SPEC_CTRL[7] (PSFD) supported. */
+#define X86_CPUID_STEXT_FEATURE_2_EDX_PSFD              RT_BIT_32(0)
+/** EDX Bit 1 - IPRED_CTRL - IA32_SPEC_CTRL[4:3] (IPRED_DIS_S/U) supported. */
+#define X86_CPUID_STEXT_FEATURE_2_EDX_IPRED_CTRL        RT_BIT_32(1)
+/** EDX Bit 2 - RRSBA_CTRL - IA32_SPEC_CTRL[6:5] (RRSBA_DIS_S/U) supported. */
+#define X86_CPUID_STEXT_FEATURE_2_EDX_RRSBA_CTRL        RT_BIT_32(2)
+/** EDX Bit 3 - DDPD_U - IA32_SPEC_CTRL[8] (DDPD_U) supported. */
+#define X86_CPUID_STEXT_FEATURE_2_EDX_DDPD_U            RT_BIT_32(3)
+/** EDX Bit 4 - BHI_CTRL - IA32_SPEC_CTRL[10] (BHI_DIS_S) supported. */
+#define X86_CPUID_STEXT_FEATURE_2_EDX_BHI_CTRL          RT_BIT_32(4)
+/** EDX Bit 5 - MCDT_NO - No MXCSR Configuration Dependent Timing issues. */
+#define X86_CPUID_STEXT_FEATURE_2_EDX_MCDT_NO           RT_BIT_32(5)
+/** EDX Bit 6 - UC_LOCK_DIS - Supports UC-lock disable and causing \#AC. */
+#define X86_CPUID_STEXT_FEATURE_2_EDX_UC_LOCK_DIS       RT_BIT_32(6)
+/** EDX Bit 7 - MONITOR_MITG_NO - No need for MONITOR/UMONITOR power mitigrations. */
+#define X86_CPUID_STEXT_FEATURE_2_EDX_MONITOR_MITG_NO   RT_BIT_32(7)
 /** @} */
 
 
@@ -881,13 +908,19 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_AMD_EFEID_EBX_IRPERF                      RT_BIT_32(1)
 /** Bit 2 - XSaveErPtr - Always XSAVE* and XRSTR* error pointers. */
 #define X86_CPUID_AMD_EFEID_EBX_XSAVE_ER_PTR                RT_BIT_32(2)
+/** Bit 3 - INVLPGB - Supports the INVLPGB instruction. */
+#define X86_CPUID_AMD_EFEID_EBX_INVLPGB                     RT_BIT_32(3)
 /** Bit 4 - RDPRU - Supports the RDPRU instruction. */
 #define X86_CPUID_AMD_EFEID_EBX_RDPRU                       RT_BIT_32(4)
+/** Bit 6 - BE - Has bandwidth enforcement extension. */
+#define X86_CPUID_AMD_EFEID_EBX_BE                          RT_BIT_32(6)
 /** Bit 8 - MCOMMIT - Supports the MCOMMIT instruction. */
 #define X86_CPUID_AMD_EFEID_EBX_MCOMMIT                     RT_BIT_32(8)
 /* AMD pipeline length: 9 feature bits ;-) */
-/** Bit 12 - IBPB - Supports the IBPB command in IA32_PRED_CMD. */
+/** Bit 12 - IBPB - Supports IA32_PRED_CMD.IBPB. */
 #define X86_CPUID_AMD_EFEID_EBX_IBPB                        RT_BIT_32(12)
+/** Bit 13 - INT_WBINVD - WBINVD/WBNOINVD are interruptible. */
+#define X86_CPUID_AMD_EFEID_EBX_INT_WBINVD                  RT_BIT_32(13)
 /** Bit 14 - IBRS - Supports the IBRS bit in IA32_SPEC_CTRL. */
 #define X86_CPUID_AMD_EFEID_EBX_IBRS                        RT_BIT_32(14)
 /** Bit 15 - STIBP - Supports the STIBP bit in IA32_SPEC_CTRL. */
@@ -898,12 +931,31 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_AMD_EFEID_EBX_STIBP_ALWAYS_ON             RT_BIT_32(17)
 /** Bit 18 - IBRS preferred - IBRS is preferred over software mitigations. */
 #define X86_CPUID_AMD_EFEID_EBX_IBRS_PREFERRED              RT_BIT_32(18)
+/** Bit 19 - IBRS same mode - IBRS provides same mode speculation limits. */
+#define X86_CPUID_AMD_EFEID_EBX_IBRS_SAME_MODE              RT_BIT_32(19)
+/** Bit 20 - EferLmsleUnsupported - The EFER.LMSLE bit is not supported. */
+#define X86_CPUID_AMD_EFEID_EBX_NO_EFER_LMSLE               RT_BIT_32(20)
+/** Bit 21 - INVLPGBnestedPages - The INVLPGB instruction supports
+ *  invalidating nested translations. */
+#define X86_CPUID_AMD_EFEID_EBX_INVLPGB_NESTED_PAGES        RT_BIT_32(21)
+/** Bit 23 - PPIN - protected process inventory number. */
+#define X86_CPUID_AMD_EFEID_EBX_PPIN                        RT_BIT_32(23)
 /** Bit 24 - Speculative Store Bypass Disable supported in SPEC_CTL. */
 #define X86_CPUID_AMD_EFEID_EBX_SPEC_CTRL_SSBD              RT_BIT_32(24)
 /** Bit 25 - Speculative Store Bypass Disable supported in VIRT_SPEC_CTL. */
 #define X86_CPUID_AMD_EFEID_EBX_VIRT_SPEC_CTRL_SSBD         RT_BIT_32(25)
 /** Bit 26 - Speculative Store Bypass Disable not required. */
-#define X86_CPUID_AMD_EFEID_EBX_NO_SSBD_REQUIRED            RT_BIT_32(26)
+#define X86_CPUID_AMD_EFEID_EBX_SSBD_NOT_REQUIRED           RT_BIT_32(26)
+/** Bit 27 - CPPC - Supports collaborative processor performance control. */
+#define X86_CPUID_AMD_EFEID_EBX_CPPC                        RT_BIT_32(27)
+/** Bit 28 - PSFD - Supports IA32_SPEC_CTRL.PSFD (bit 7). */
+#define X86_CPUID_AMD_EFEID_EBX_PSFD                        RT_BIT_32(28)
+/** Bit 29 - BTC_NO - CPU not subject to branch type confusion. */
+#define X86_CPUID_AMD_EFEID_EBX_BTC_NO                      RT_BIT_32(29)
+/** Bit 30 - IBPB_RET - Supports returns type with IA32_PRED_CMD.IBPB? */
+#define X86_CPUID_AMD_EFEID_EBX_IBPB_RET                    RT_BIT_32(30)
+/** Bit 31 - BRS - Branch sampling. */
+#define X86_CPUID_AMD_EFEID_EBX_BRS                         RT_BIT_32(31)
 /** @} */
 
 
@@ -964,8 +1016,27 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_SVM_FEATURE_EDX_NST_VIRT_VMCB_ADDR_CHK    RT_BIT(28)
 /** Bit 29 - TlbiCtl - Supports INVLPGB/TLBSYNC in VMCB and TLBSYNC intercept. */
 #define X86_CPUID_SVM_FEATURE_EDX_BUS_LOCK_THRESHOLD        RT_BIT(29)
+/** @} */
+
+/** @name CPUID AMD Fn8000_0021
+ * CPUID query with EAX=0x80000021.
+ * @{
+ */
+/** Bit 27 - SBPB - Supports IA32_PRED_CMD[7(SBPB)] - selective branch
+ *  predictor barrier. */
+#define X86_CPUID_AMD_21_EAX_SBPB                           RT_BIT(27)
+/** Bit 28 - IBPB_BRTYPE - IA32_PRED_CMD.IBPB flushes all branch types. */
+#define X86_CPUID_AMD_21_EAX_IBPB_BRTYPE                    RT_BIT(28)
+/** Bit 29 - SRSO_NO - CPU not affected by SRSO. */
+#define X86_CPUID_AMD_21_EAX_SRSO_NO                        RT_BIT(29)
+/** Bit 30 - SRSO_USER_KERNEL_NO - CPU not affected by SRSO crossing user/kernel
+ *  boundraries. */
+#define X86_CPUID_AMD_21_EAX_SRSO_USER_KERNEL_NO            RT_BIT(30)
+/** Bit 31 - SRSO_MSR_FIX - Supports BP_CFG[BpSpecReduce(4)] for SRSO fixing. */
+#define X86_CPUID_AMD_21_EAX_SRSO_MSR_FIX                   RT_BIT(31)
 
 /** @} */
+
 
 
 /** @name CR0
@@ -1441,18 +1512,31 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 /** Spectre control register.
  * Logical processor scope. Reset value 0, unaffected by SIPI & INIT. */
 #define MSR_IA32_SPEC_CTRL                  0x48
+/** @name MSR_IA32_SPEC_CTRL bits
+ * @{ */
 /** IBRS - Indirect branch restricted speculation. */
-#define MSR_IA32_SPEC_CTRL_F_IBRS           RT_BIT_32(0)
+#define MSR_IA32_SPEC_CTRL_F_IBRS                   RT_BIT_64(0)
 /** STIBP - Single thread indirect branch predictors. */
-#define MSR_IA32_SPEC_CTRL_F_STIBP          RT_BIT_32(1)
+#define MSR_IA32_SPEC_CTRL_F_STIBP                  RT_BIT_64(1)
 /** SSBD - Speculative Store Bypass Disable. */
-#define MSR_IA32_SPEC_CTRL_F_SSBD           RT_BIT_32(2)
+#define MSR_IA32_SPEC_CTRL_F_SSBD                   RT_BIT_64(2)
+#define MSR_IA32_SPEC_CTRL_F_IPRED_DIS_U            RT_BIT_64(3)
+#define MSR_IA32_SPEC_CTRL_F_IPRED_DIS_S            RT_BIT_64(4)
+#define MSR_IA32_SPEC_CTRL_F_RRSBA_DIS_U            RT_BIT_64(5)
+#define MSR_IA32_SPEC_CTRL_F_RRSBA_DIS_S            RT_BIT_64(6)
+#define MSR_IA32_SPEC_CTRL_F_PSFD                   RT_BIT_64(7)
+#define MSR_IA32_SPEC_CTRL_F_DDPD_U                 RT_BIT_64(8)
+/* 9 is reserved (for DDPD_S?) */
+#define MSR_IA32_SPEC_CTRL_F_BHI_DIS_S              RT_BIT_64(10)
+/** @} */
 
 /** Prediction command register.
  * Write only, logical processor scope, no state since write only. */
 #define MSR_IA32_PRED_CMD                   0x49
-/** IBPB - Indirect branch prediction barrie when written as 1. */
-#define MSR_IA32_PRED_CMD_F_IBPB            RT_BIT_32(0)
+/** IBPB - Indirect branch prediction barrier when written as 1. */
+#define MSR_IA32_PRED_CMD_F_IBPB                    RT_BIT_64(0)
+/** SBPB - Selective branch prediction barrier when written as 1. */
+#define MSR_IA32_PRED_CMD_F_SBPB                    RT_BIT_64(7)
 
 /** BIOS update trigger (microcode update). */
 #define MSR_IA32_BIOS_UPDT_TRIG             0x79
@@ -1569,54 +1653,84 @@ typedef const X86MTRRVAR *PCX86MTRRVAR;
 
 /** Architecture capabilities (bugfixes). */
 #define MSR_IA32_ARCH_CAPABILITIES          UINT32_C(0x10a)
+/** @name MSR_IA32_ARCH_CAPABILITIES bits
+ * @{ */
 /** CPU is no subject to meltdown problems. */
-#define MSR_IA32_ARCH_CAP_F_RDCL_NO         RT_BIT_32(0)
+#define MSR_IA32_ARCH_CAP_F_RDCL_NO                 RT_BIT_64(0)
 /** CPU has better IBRS and you can leave it on all the time. */
-#define MSR_IA32_ARCH_CAP_F_IBRS_ALL        RT_BIT_32(1)
+#define MSR_IA32_ARCH_CAP_F_IBRS_ALL                RT_BIT_64(1)
 /** CPU has return stack buffer (RSB) override. */
-#define MSR_IA32_ARCH_CAP_F_RSBO            RT_BIT_32(2)
+#define MSR_IA32_ARCH_CAP_F_RSBO                    RT_BIT_64(2)
 /** Virtual machine monitors need not flush the level 1 data cache on VM entry.
  * This is also the case when MSR_IA32_ARCH_CAP_F_RDCL_NO is set. */
-#define MSR_IA32_ARCH_CAP_F_VMM_NEED_NOT_FLUSH_L1D  RT_BIT_32(3)
+#define MSR_IA32_ARCH_CAP_F_VMM_NEED_NOT_FLUSH_L1D  RT_BIT_64(3)
 /** CPU does not suffer from speculative store bypass (SSB) issues.   */
-#define MSR_IA32_ARCH_CAP_F_SSB_NO          RT_BIT_32(4)
+#define MSR_IA32_ARCH_CAP_F_SSB_NO                  RT_BIT_64(4)
 /** CPU does not suffer from microarchitectural data sampling (MDS) issues. */
-#define MSR_IA32_ARCH_CAP_F_MDS_NO          RT_BIT_32(5)
+#define MSR_IA32_ARCH_CAP_F_MDS_NO                  RT_BIT_64(5)
 /** CPU does not suffer MCE after change code page size w/o invlpg issues. */
-#define MSR_IA32_ARCH_CAP_F_IF_PSCHANGE_MC_NO       RT_BIT_32(6)
+#define MSR_IA32_ARCH_CAP_F_IF_PSCHANGE_MC_NO       RT_BIT_64(6)
 /** CPU has RTM_DISABLE and TXS_CPUID_CLEAR support. */
-#define MSR_IA32_ARCH_CAP_F_TSX_CTRL        RT_BIT_32(7)
+#define MSR_IA32_ARCH_CAP_F_TSX_CTRL                RT_BIT_64(7)
 /** CPU does not suffer from transaction synchronization extensions (TSX)
  *  asyncrhonous abort (TAA) issues. */
-#define MSR_IA32_ARCH_CAP_F_TAA_NO          RT_BIT_32(8)
+#define MSR_IA32_ARCH_CAP_F_TAA_NO                  RT_BIT_64(8)
 /* 9 is 'reserved' */
-#define MSR_IA32_ARCH_CAP_F_MISC_PACKAGE_CTRLS      RT_BIT_32(10)
-#define MSR_IA32_ARCH_CAP_F_ENERGY_FILTERING_CTL    RT_BIT_32(11)
-#define MSR_IA32_ARCH_CAP_F_DOITM                   RT_BIT_32(12)
-#define MSR_IA32_ARCH_CAP_F_SBDR_SSDP_NO            RT_BIT_32(13)
-#define MSR_IA32_ARCH_CAP_F_FBSDP_NO                RT_BIT_32(14)
-#define MSR_IA32_ARCH_CAP_F_PSDP_NO                 RT_BIT_32(15)
+#define MSR_IA32_ARCH_CAP_F_MISC_PACKAGE_CTRLS      RT_BIT_64(10)
+#define MSR_IA32_ARCH_CAP_F_ENERGY_FILTERING_CTL    RT_BIT_64(11)
+#define MSR_IA32_ARCH_CAP_F_DOITM                   RT_BIT_64(12)
+#define MSR_IA32_ARCH_CAP_F_SBDR_SSDP_NO            RT_BIT_64(13)
+#define MSR_IA32_ARCH_CAP_F_FBSDP_NO                RT_BIT_64(14)
+#define MSR_IA32_ARCH_CAP_F_PSDP_NO                 RT_BIT_64(15)
 /* 16 is 'reserved' */
-#define MSR_IA32_ARCH_CAP_F_FB_CLEAR                RT_BIT_32(17)
-#define MSR_IA32_ARCH_CAP_F_FB_CLEAR_CTRL           RT_BIT_32(18)
-#define MSR_IA32_ARCH_CAP_F_RRSBA                   RT_BIT_32(19)
-#define MSR_IA32_ARCH_CAP_F_BHI_NO                  RT_BIT_32(20)
-#define MSR_IA32_ARCH_CAP_F_XAPIC_DISABLE_STATUS    RT_BIT_32(21)
+#define MSR_IA32_ARCH_CAP_F_FB_CLEAR                RT_BIT_64(17)
+#define MSR_IA32_ARCH_CAP_F_FB_CLEAR_CTRL           RT_BIT_64(18)
+#define MSR_IA32_ARCH_CAP_F_RRSBA                   RT_BIT_64(19)
+#define MSR_IA32_ARCH_CAP_F_BHI_NO                  RT_BIT_64(20)
+#define MSR_IA32_ARCH_CAP_F_XAPIC_DISABLE_STATUS    RT_BIT_64(21)
 /* 22 is 'reserved' */
-#define MSR_IA32_ARCH_CAP_F_OVERCLOCKING_STATUS     RT_BIT_32(22)
-#define MSR_IA32_ARCH_CAP_F_PBRSB_NO                RT_BIT_32(23)
-#define MSR_IA32_ARCH_CAP_F_GDS_CTRL                RT_BIT_32(24)
-#define MSR_IA32_ARCH_CAP_F_GDS_NO                  RT_BIT_32(25)
-#define MSR_IA32_ARCH_CAP_F_RFDS_NO                 RT_BIT_32(26)
-#define MSR_IA32_ARCH_CAP_F_RFDS_CLEAR              RT_BIT_32(27)
+#define MSR_IA32_ARCH_CAP_F_OVERCLOCKING_STATUS     RT_BIT_64(23)
+#define MSR_IA32_ARCH_CAP_F_PBRSB_NO                RT_BIT_64(24)
+#define MSR_IA32_ARCH_CAP_F_GDS_CTRL                RT_BIT_64(25)
+#define MSR_IA32_ARCH_CAP_F_GDS_NO                  RT_BIT_64(26)
+#define MSR_IA32_ARCH_CAP_F_RFDS_NO                 RT_BIT_64(27)
+#define MSR_IA32_ARCH_CAP_F_RFDS_CLEAR              RT_BIT_64(28)
+#define MSR_IA32_ARCH_CAP_F_IGN_UMONITOR_SUPPORT    RT_BIT_64(29)
+#define MSR_IA32_ARCH_CAP_F_MON_UMON_MITIG_SUPPORT  RT_BIT_64(30)
+/** @} */
 
-/** Flush command register. */
+/** Flush command register.
+ * Introduced for mitigating CVE-2018-3615 (Foreshadow), CVE-2018-3620 (NG),
+ * CVE-2018-3646 (NG) - intel only. */
 #define MSR_IA32_FLUSH_CMD                  UINT32_C(0x10b)
 /** Flush the level 1 data cache when this bit is written. */
-#define MSR_IA32_FLUSH_CMD_F_L1D            RT_BIT_32(0)
+#define MSR_IA32_FLUSH_CMD_F_L1D                    RT_BIT_64(0)
 
 /** Cache control/info. */
 #define MSR_BBL_CR_CTL3                     UINT32_C(0x11e)
+
+/** Microcode Update Option Control (R/W). */
+#define MSR_IA32_MCU_OPT_CTRL                       0x123
+/** MSR_IA32_MCU_OPT_CTRL[0]: RNGDS_MITG_DIS - disable SRBDS mitigations
+ *  for RDRAND & RDSEED when set. */
+#define MSR_IA32_MCU_OPT_CTRL_RNGDS_MITG_DIS        RT_BIT_64(0)
+/** MSR_IA32_MCU_OPT_CTRL[1]: RTM_ALLOW - Allow TXS according to IA32_TSX_CTRL. */
+#define MSR_IA32_MCU_OPT_CTRL_RTM_ALLOW             RT_BIT_64(1)
+/** MSR_IA32_MCU_OPT_CTRL[2]: RTM_LOCKED - Lock RTM_ALLOW at zero. */
+#define MSR_IA32_MCU_OPT_CTRL_RTM_LOCKED            RT_BIT_64(2)
+/** MSR_IA32_MCU_OPT_CTRL[3]: FB_CLEAR_DIS - Disables FB_CLEAR part of VERW. */
+#define MSR_IA32_MCU_OPT_CTRL_FB_CLEAR_DIS          RT_BIT_64(3)
+/** MSR_IA32_MCU_OPT_CTRL[4]: GDS_MITG_DIS - Disables GDS mitigation on core. */
+#define MSR_IA32_MCU_OPT_CTRL_GDS_MITG_DIS          RT_BIT_64(4)
+/** MSR_IA32_MCU_OPT_CTRL[5]: GDS_MITG_DIS - Disables GDS mitigation on core. */
+#define MSR_IA32_MCU_OPT_CTRL_GDS_MITG_LOCK         RT_BIT_64(5)
+/** MSR_IA32_MCU_OPT_CTRL[6]: IGN_UMONITOR - Ignore UMONITOR & fail UMWAIT. */
+#define MSR_IA32_MCU_OPT_CTRL_IGN_UMONITOR          RT_BIT_64(6)
+/** MSR_IA32_MCU_OPT_CTRL[7]: MON_UMON_MITG - UMONITOR/MONITOR mitigation
+ * (may affect sibling hyperthreads). */
+#define MSR_IA32_MCU_OPT_CTRL_MON_UMON_MITG         RT_BIT_64(7)
+/* Bits 63:7 reserved. */
+#define MSR_IA32_MCU_OPT_CTRL_RSVD_MASK             UINT64_C(0xffffffffffffff80)
 
 #ifndef MSR_IA32_SYSENTER_CS /* qemu cpu.h kludge */
 /** SYSENTER_CS - the R0 CS, indirectly giving R0 SS, R3 CS and R3 DS.

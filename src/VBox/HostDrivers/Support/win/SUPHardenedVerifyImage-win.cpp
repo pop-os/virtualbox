@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -129,6 +129,10 @@ typedef DECLCALLBACKPTR_EX(NTSTATUS, WINAPI, PFNBCRYPTOPENALGORTIHMPROVIDER,(BCR
 *********************************************************************************************************************************/
 /** The build certificate. */
 static RTCRX509CERTIFICATE  g_BuildX509Cert;
+
+/** Store for certificates that we put special trust it, like the build
+ * certificate and the ones used by the Oracle extension pack. */
+static RTCRSTORE            g_hSpecialTrustStore = NIL_RTCRSTORE;
 
 /** Store for root software publisher certificates. */
 static RTCRSTORE            g_hSpcRootStore = NIL_RTCRSTORE;
@@ -770,7 +774,10 @@ static int supHardNtViCheckIfNotSignedOk(RTLDRMOD hLdrMod, PCRTUTF16 pwszName, u
 {
     RT_NOREF1(hLdrMod);
 
-    if (fFlags & (SUPHNTVI_F_REQUIRE_BUILD_CERT | SUPHNTVI_F_REQUIRE_KERNEL_CODE_SIGNING))
+    if (fFlags & (  SUPHNTVI_F_REQUIRE_BUILD_CERT
+                  | SUPHNTVI_F_REQUIRE_SPECIAL_TRUST_CERT
+                  | SUPHNTVI_F_REQUIRE_CODE_SIGNING
+                  | SUPHNTVI_F_REQUIRE_KERNEL_CODE_SIGNING))
         return rc;
 
     /*
@@ -1041,7 +1048,7 @@ static DECLCALLBACK(int) supHardNtViCertVerifyCallback(PCRTCRX509CERTIFICATE pCe
     }
 
     /*
-     * Standard code signing capabilites required.
+     * Standard code signing capabilites required (SUPHNTVI_F_REQUIRE_CODE_SIGNING is implied here).
      */
     int rc = RTCrPkcs7VerifyCertCallbackCodeSigning(pCert, hCertPaths, fFlags, NULL, pErrInfo);
     if (   RT_SUCCESS(rc)
@@ -1190,6 +1197,22 @@ static DECLCALLBACK(int) supHardNtViCallback(RTLDRMOD hLdrMod, PCRTLDRSIGNATUREI
                                  g_BuildX509Cert.TbsCertificate.SerialNumber.Asn1Core.cb,
                                  g_BuildX509Cert.TbsCertificate.SerialNumber.Asn1Core.uData.pv);
     }
+    /** @todo apply these to all signatures, but don't fail in a bad way for
+     *        stuff with extra signatures (typically from microsoft). */
+    else if (   (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_SPECIAL_TRUST_CERT)
+             && pInfo->iSignature == 0)
+    {
+        PCRTCRCERTCTX const pCertCtx = RTCrStoreCertByIssuerAndSerialNo(g_hSpecialTrustStore,
+                                                                        &pSignerInfo->IssuerAndSerialNumber.Name,
+                                                                        &pSignerInfo->IssuerAndSerialNumber.SerialNumber);
+        if (!pCertCtx)
+            return RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_SIGNED_WITH_SPECIALLY_TRUSTED_CERT,
+                                 "Signature #%u/%u: Not signed with the build certificate or any of the specially trusted ones (serial %.*Rhxs)",
+                                 pInfo->iSignature + 1, pInfo->cSignatures,
+                                 pSignerInfo->IssuerAndSerialNumber.SerialNumber.Asn1Core.cb,
+                                 pSignerInfo->IssuerAndSerialNumber.SerialNumber.Asn1Core.uData.pv);
+        RTCrCertCtxRelease(pCertCtx);
+    }
 
     /*
      * We instruction the verifier to use the signing time counter signature
@@ -1261,7 +1284,9 @@ static DECLCALLBACK(int) supHardNtViCallback(RTLDRMOD hLdrMod, PCRTLDRSIGNATUREI
             pNtViRdr->cOkaySignatures++;
 
 #ifdef IN_RING3 /* Hack alert! (see above) */
-            if ((pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_BUILD_CERT) && g_uBuildTimestampHack == 0 && cTimes > 1)
+            if (   (pNtViRdr->fFlags & (SUPHNTVI_F_REQUIRE_BUILD_CERT | SUPHNTVI_F_REQUIRE_SPECIAL_TRUST_CERT))
+                && g_uBuildTimestampHack == 0
+                && cTimes > 1)
                 g_uBuildTimestampHack = uTimestamp;
 #endif
             return VINF_SUCCESS;
@@ -1314,7 +1339,7 @@ static DECLCALLBACK(int) supHardNtViCallback(RTLDRMOD hLdrMod, PCRTLDRSIGNATUREI
                              rc, RTTimeSpecGetSeconds(&aTimes[i].TimeSpec), aTimes[i].pszDesc));
 
                 /* This leniency is not applicable to build certificate requirements (signature #1 only). */
-                if (  !(pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_BUILD_CERT)
+                if (  !(pNtViRdr->fFlags & (SUPHNTVI_F_REQUIRE_BUILD_CERT | SUPHNTVI_F_REQUIRE_SPECIAL_TRUST_CERT))
                     || pInfo->iSignature != 0)
                 {
                     pNtViRdr->cNokSignatures++;
@@ -1708,49 +1733,52 @@ static int supHardNtViCertInit(PRTCRX509CERTIFICATE pCert, unsigned char const *
 }
 
 
-static int supHardNtViCertStoreAddArray(RTCRSTORE hStore, PCSUPTAENTRY paCerts, unsigned cCerts, PRTERRINFO pErrInfo)
-{
-    for (uint32_t i = 0; i < cCerts; i++)
-    {
-        int rc = RTCrStoreCertAddEncoded(hStore, RTCRCERTCTX_F_ENC_TAF_DER, paCerts[i].pch, paCerts[i].cb, pErrInfo);
-        if (RT_FAILURE(rc))
-            return rc;
-    }
-    return VINF_SUCCESS;
-}
-
-
 /**
  * Initialize a certificate table.
  *
  * @param   phStore             Where to return the store pointer.
- * @param   paCerts1            Pointer to the first certificate table.
- * @param   cCerts1             Entries in the first certificate table.
- * @param   paCerts2            Pointer to the second certificate table.
- * @param   cCerts2             Entries in the second certificate table.
- * @param   paCerts3            Pointer to the third certificate table.
- * @param   cCerts3             Entries in the third certificate table.
  * @param   pErrInfo            Where to return extended error info. Optional.
  * @param   pszErrorTag         Error tag.
+ * @param   cTables             Number of table pairs.
+ * @param   ...                 Pairs of PCSUPTAENTRY and unsigned.
+ *
  */
-static int supHardNtViCertStoreInit(PRTCRSTORE phStore,
-                                    PCSUPTAENTRY paCerts1, unsigned cCerts1,
-                                    PCSUPTAENTRY paCerts2, unsigned cCerts2,
-                                    PCSUPTAENTRY paCerts3, unsigned cCerts3,
-                                    PRTERRINFO pErrInfo, const char *pszErrorTag)
+static int supHardNtViCertStoreInit(PRTCRSTORE phStore, PRTERRINFO pErrInfo, const char *pszErrorTag, unsigned cTables, ...)
 {
     AssertReturn(*phStore == NIL_RTCRSTORE, VERR_WRONG_ORDER);
     RT_NOREF1(pszErrorTag);
 
-    int rc = RTCrStoreCreateInMem(phStore, cCerts1 + cCerts2);
+    va_list va;
+    va_start(va, cTables);
+    unsigned cTotalCerts = 0;
+    for (unsigned iTable = 0; iTable < cTables; iTable++)
+    {
+        va_arg(va, PCSUPTAENTRY);
+        cTotalCerts += va_arg(va, unsigned);
+    }
+
+    int rc = RTCrStoreCreateInMem(phStore, cTotalCerts);
     if (RT_FAILURE(rc))
         return RTErrInfoSetF(pErrInfo, rc, "RTCrStoreCreateMemoryStore failed: %Rrc", rc);
 
-    rc = supHardNtViCertStoreAddArray(*phStore, paCerts1, cCerts1, pErrInfo);
-    if (RT_SUCCESS(rc))
-        rc = supHardNtViCertStoreAddArray(*phStore, paCerts2, cCerts2, pErrInfo);
-    if (RT_SUCCESS(rc))
-        rc = supHardNtViCertStoreAddArray(*phStore, paCerts3, cCerts3, pErrInfo);
+    va_start(va, cTables);
+    for (unsigned iTable = 0; iTable < cTables; iTable++)
+    {
+        PCSUPTAENTRY const paCerts = va_arg(va, PCSUPTAENTRY);
+        unsigned     const cCerts  = va_arg(va, unsigned);
+        for (unsigned iCert = 0; iCert < cCerts; iCert++)
+        {
+            rc = RTCrStoreCertAddEncoded(*phStore, paCerts[iCert].fEnc, paCerts[iCert].pch, paCerts[iCert].cb, pErrInfo);
+            if (RT_FAILURE(rc))
+            {
+                SUP_DPRINTF(("supHardNtViCertStoreInit: %s: iTable=%u iCert=%u: fEnc=%#x cb=%#x rc=%Rrc\n",
+                             pszErrorTag, iTable, iCert, paCerts[iCert].fEnc, paCerts[iCert].cb, rc));
+                va_end(va);
+                return rc;
+            }
+        }
+    }
+    va_end(va);
     return rc;
 }
 
@@ -1976,33 +2004,24 @@ DECLHIDDEN(int) supHardenedWinInitImageVerifier(PRTERRINFO pErrInfo)
          */
         rc = supHardNtViCertInit(&g_BuildX509Cert, g_abSUPBuildCert, g_cbSUPBuildCert, pErrInfo, "BuildCertificate");
         if (RT_SUCCESS(rc))
-            rc = supHardNtViCertStoreInit(&g_hSpcRootStore, g_aSUPSpcRootTAs, g_cSUPSpcRootTAs,
-                                          NULL, 0, NULL, 0, pErrInfo, "SpcRoot");
+            rc = supHardNtViCertStoreInit(&g_hSpecialTrustStore, pErrInfo, "SpecialTrustStore", 1,
+                                          g_aSUPTrustedTAs, g_cSUPTrustedTAs);
         if (RT_SUCCESS(rc))
-            rc = supHardNtViCertStoreInit(&g_hNtKernelRootStore, g_aSUPNtKernelRootTAs, g_cSUPNtKernelRootTAs,
-                                          NULL, 0, NULL, 0, pErrInfo, "NtKernelRoot");
+            rc = supHardNtViCertStoreInit(&g_hSpcRootStore, pErrInfo, "SpcRoot", 1, g_aSUPSpcRootTAs, g_cSUPSpcRootTAs);
         if (RT_SUCCESS(rc))
-            rc = supHardNtViCertStoreInit(&g_hSpcAndNtKernelRootStore,
+            rc = supHardNtViCertStoreInit(&g_hNtKernelRootStore, pErrInfo, "NtKernelRoot", 1,
+                                          g_aSUPNtKernelRootTAs, g_cSUPNtKernelRootTAs);
+        if (RT_SUCCESS(rc))
+        {
+            SUPTAENTRY const aBuildCerts[] = { { g_abSUPBuildCert, g_cbSUPBuildCert, RTCRCERTCTX_F_ENC_X509_DER }, };
+            rc = supHardNtViCertStoreInit(&g_hSpcAndNtKernelRootStore, pErrInfo, "SpcAndNtKernelRoot", 4,
                                           g_aSUPSpcRootTAs, g_cSUPSpcRootTAs,
                                           g_aSUPNtKernelRootTAs, g_cSUPNtKernelRootTAs,
                                           g_aSUPTimestampTAs, g_cSUPTimestampTAs,
-                                          pErrInfo, "SpcAndNtKernelRoot");
+                                          aBuildCerts, (unsigned)RT_ELEMENTS(aBuildCerts));
+        }
         if (RT_SUCCESS(rc))
-            rc = supHardNtViCertStoreInit(&g_hSpcAndNtKernelSuppStore,
-                                          NULL, 0, NULL, 0, NULL, 0,
-                                          pErrInfo, "SpcAndNtKernelSupplemental");
-
-#if 0 /* For the time being, always trust the build certificate. It bypasses the timestamp issues of CRT and SDL. */
-        /* If the build certificate is a test singing certificate, it must be a
-           trusted root or we'll fail to validate anything. */
-        if (   RT_SUCCESS(rc)
-            && RTCrX509Name_Compare(&g_BuildX509Cert.TbsCertificate.Subject, &g_BuildX509Cert.TbsCertificate.Issuer) == 0)
-#else
-        if (RT_SUCCESS(rc))
-#endif
-            rc = RTCrStoreCertAddEncoded(g_hSpcAndNtKernelRootStore, RTCRCERTCTX_F_ENC_X509_DER,
-                                         g_abSUPBuildCert, g_cbSUPBuildCert, pErrInfo);
-
+            rc = supHardNtViCertStoreInit(&g_hSpcAndNtKernelSuppStore, pErrInfo, "SpcAndNtKernelSupplemental", 0);
         if (RT_SUCCESS(rc))
         {
             /*
@@ -2058,6 +2077,9 @@ DECLHIDDEN(void) supHardenedWinTermImageVerifier(void)
     g_hNtKernelRootStore = NIL_RTCRSTORE;
     RTCrStoreRelease(g_hSpcRootStore);
     g_hSpcRootStore = NIL_RTCRSTORE;
+
+    RTCrStoreRelease(g_hSpecialTrustStore);
+    g_hSpecialTrustStore = NIL_RTCRSTORE;
 }
 
 #ifdef IN_RING3

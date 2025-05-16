@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -382,8 +382,9 @@ public:
 
     UpdateAdditionsStartupInfo(void)
     {
-        /* We want to have stdout / stderr handled by default for update processes. */
-        mFlags = ProcessCreateFlag_WaitForStdOut | ProcessCreateFlag_WaitForStdErr;
+        /* We want to have stdout / stderr handled by default for update processes
+         * (disabled as a workaround for #10776). */
+        mFlags = ProcessCreateFlag_None;
     }
 };
 
@@ -458,7 +459,9 @@ protected:
     HRESULT setUpdateErrorMsg(HRESULT hrc, const Utf8Str &strMsg, const GuestErrorInfo &guestErrorInfo);
 
     int checkGuestAdditionsStatus(GuestSession *pSession, eOSType osType);
-    int waitForGuestSession(ComObjPtr<Guest> pGuest, eOSType osType);
+    int waitForGuestSession(ComObjPtr<Guest> pGuest, eOSType osType, ComObjPtr<GuestSession> &pNewSession);
+
+    PlatformArchitecture_T getPlatformArch(void);
 
     /** Files to handle. */
     std::vector<ISOFile>        mFiles;

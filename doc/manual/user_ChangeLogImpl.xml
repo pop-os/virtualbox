@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -62,15 +62,428 @@ Rules for adding a changelog entry to make them look more uniform:
 
     Full example:
 
-        <listitem>
-          <para>Foo: Fixed something really important, really really long line
-            with lots more text not fitting into 80 columns</para>
-        </listitem>
+      <listitem>
+        <para>Foo: Fixed something really important, really really long line
+          with lots more text not fitting into 80 columns</para>
+      </listitem>
 -->
 <chapter>
 
 <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
+  <sect1>
+
+    <title>Version 7.1.8 (2025-04-15)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: Fixed issue when VM clock went backwards in rare
+          circumstances (bug #22334)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed issue when accelerated cursor image was not
+          displayed correctly (bug #22096)</para>
+      </listitem>
+
+      <listitem>
+        <para>DevVirtioSCSI: Fixed issue with restoring saved state</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: Fixed issue when assertion was triggered on
+          restoring VM state if VMSVGA graphics adapter was used
+          without 3D acceleration (bug #21955)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: Fixed issue when VBoxSVC was crashing on saving machine config
+          through VirtualBox web service (bug #22259)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: Fixed issue when wireless network adapters could
+          not be discovered on modern Linux distributions (bug #22362)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: Fixed issue when deleting running VM snapshot was
+          leaving the .sav file on disk (bug #21345)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: Fixed connectivity loss on Windows host (bug #22364)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Updated User Manual to correct the 'VBoxManage modifyvm'
+          invocation for configuring a VM to use host-only networking (bug #22158)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Fixed issue when it was not possible to set disk bandwidth
+          with 'VBoxManage bandwidthctl' command (bug #22328)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows installer: Automatically load the support driver after
+          a successful installation (bug #22292)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host Installer: Fixed issue which sometimes resulted in
+          installation failure due to incorrect check whether previous
+          VirtualBox installation is running or not</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed issue when VBoxClient could
+          crash in XWayland guest (bug #22345)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed issue which resulted in cursor image
+          corruption when VM was using VBoxVGA graphics adapter</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed issue when installation could fail on
+          the system which does not have X11 libraries installed</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Added initial support for kernel 6.14</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Introduced initial support for RHEL 9.7 kernel</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Introduced additional fixes
+          for RHEL 9.4 kernel, (bug #22277)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Improved 'rcvboxadd status-kernel' check</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows installer: Various bugfixes for the new installation
+          code</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows installer: Implemented a new fatal error dialog with
+          the ability to open the installer log file directly</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions: Fixed mouse driver installation on
+          Vista guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions: Fixed uninstallation integrity issues
+          (bug #22290)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions: Fixed driver installation
+          error ERROR_AUTHENTICODE_TRUST_NOT_ESTABLISHED (bug #22300)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions: Fixed 100% CPU usage of VBoxTray which
+          happened under certain circumstances (bug #22123)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions: Now also ships the VBoxAudioTest binary
+          for performing guest audio testing / diagnosis</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions: For older Windows versions (Windows 2000
+          to Windows 7) install alternative Shared Folder driver which avoids
+          some compatibility glitches of the usual driver</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
+    <title>Version 7.1.6 (2025-01-21)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: Fixed issue when Windows 11 24H2 guest was experiencing BSOD
+          in rare conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Improved representation of disabled preferences contents (mask+font)
+          when it is shown with certain Linux themes</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed issue when seamless mode was not properly enabled or disabled
+          in appropriate time according to GA status events</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed rare crash on macOS hosts on application exit</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed small 7.1.4 regression in preferences
+          windows when filter editor was not in focus</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Introduced improvements in Advanced properties/settings
+          dialog area</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Restored missing functionality to change bridged adapter
+          at VM startup if current one wasn't found</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed issue when Show action duplicates were created on macOS host in
+          attempt to switch between running and powered off VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed regression when 3D acceleration check-box was not available
+          for certain guest OS and graphical controller types</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Restored lost Help button for preferences
+          windows on macOS</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Restored lost Help button shortcuts for certain
+          windows</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed issue when error message was shown when VM
+          was starting in full-screen mode</para>
+      </listitem>
+
+      <listitem>
+        <para>VirtioNet: Fixed issue with re-negotiation of features after reset</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: Fixed issue with Linux guest screen flickering when
+          guest was using VMSVGA graphics adapter</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Added the ability to export and import VMs which
+          contain an NVMe storage controller</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Fixed issue when it was not possible to set graphics
+          controller to "QemuRamFB" using modifyvm command (bug #22232)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: Fixed issue when specifying custom proxy server in GUI settings
+          had no effect</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: Added changes which replaced NAT engines with libslirp</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest OSes: Added OS type for Windows Server 2025</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guest and host: Added more fixes for UBSAN related
+          warnings (bug #21877)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guest and host: Added initial support for RHEL 9.6 kernel</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests and host: Re-implemented driver installation</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris host: Removed the VirtualBox GUI shared objects
+          libqgtk2styleVBox.so and libqgtk2VBox.so from the Solaris installation
+          packages as they depend on GTK2 which is EOL and no longer supported</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Introduced initial support for kernel 6.13</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: vboxvideo: Added improvement for kernel 6.4 support and
+          fixed issue when graphics could be frozen when using VBoxVGA adapter</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Introduced additional fixes for kernel 6.12 in vboxvideo</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
+    <title>Version 7.1.4 (2024-10-15)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: Added latest NLS update for Turkish, Indonesian and
+          Italian languages</para>
+      </listitem>
+
+      <listitem>
+        <para>VMSVGA: Improved flickering, black screen and other screen
+          update issues with recent Linux kernels (bug #21955)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: Fixed issue with restoring 7.0.X saved state</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Fixed breakage of "list vms" and "showvminfo"
+          for inaccessible VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host: Fixed system DLL size checking which failed
+          with Windows 11 24H2 and recent Insider Preview builds
+         (bug #22162)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Introduce initial support for kernel 6.12
+          (NOTE: In kernel 6.12, KVM initializes virtualization on module loading
+          by default. This prevents VirtualBox VMs from starting. In order to
+          avoid this, either add "kvm.enable_virt_at_load=0" parameter into kernel
+          command line or unload corresponding kvm_XXX module)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux/Arm Guest Additions: Added possibility to automatically upgrade
+          Guest Additions via Devices menu</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: Added missing LsiLogic MPT SCSI driver again to fix booting
+          from devices attached to this device if the EFI firmware is used (7.1.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: Restored broken network boot support (7.1.0 regression)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
+    <title>Version 7.1.2 (2024-09-26)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: Added multiple window layout and translation related fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed an issue that meant VMs created using Unattended Install
+          were not removed cleanly</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Added an option to change the remote display security method</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Removed the BETA label from the macOS/Arm UI</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: Fixed slow performance on Windows host (bugs #22164 and #22180)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: Fixed DHCP problems with certain guests when domain is empty</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: Fixed enabling 3D acceleration in the VM settings</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: Fixed black screen with Windows VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: Fixed rendering issues caused by incorrect view handling</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: Added possibility to enable 3D acceleration function for Arm platform VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>GCM: Fixed problem with loading saved state created by 7.0.x</para>
+      </listitem>
+
+      <listitem>
+        <para>API: Fixed an issue with incorrect handling of NVRAM state with legacy BIOS
+          and its removal on VM deletion</para>
+      </listitem>
+
+      <listitem>
+        <para>API: Fixed UEFI Secure Boot state querying when the VM was never started</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: Fixed error message on automatic upgrading</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: Fixed building code using the XPCOM bindings (bug #22174)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
   <sect1>
 
     <title>Version 7.1.0 (2024-09-09)</title>
@@ -144,7 +557,7 @@ Rules for adding a changelog entry to make them look more uniform:
       </listitem>
 
       <listitem>
-       <para>virtio-net: Follow up fixes for FreeBSD 12.3 and pfSense 2.6.0 (bug #21201)</para>
+        <para>virtio-net: Follow up fixes for FreeBSD 12.3 and pfSense 2.6.0 (bug #21201)</para>
       </listitem>
 
       <listitem>

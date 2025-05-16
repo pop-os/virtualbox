@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2023 Oracle and/or its affiliates.
+# Copyright (C) 2008-2024 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -49,7 +49,10 @@ VBoxInstallHelper_SOURCES  = \
 	VBoxInstallHelper.cpp \
 	VBoxInstallHelper.def \
 	VBoxInstallHelper.rc \
-	VBoxCommon.cpp
+	VBoxCommon.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/Installation/VBoxWinDrvCommon.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/Installation/VBoxWinDrvInst.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/Installation/VBoxWinDrvStore.cpp
 ifndef VBOX_OSE
  VBoxInstallHelper_SOURCES += \
  	internal/VBoxSerial.cpp

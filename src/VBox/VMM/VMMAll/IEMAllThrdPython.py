@@ -11,7 +11,7 @@ from __future__ import print_function;
 
 __copyright__ = \
 """
-Copyright (C) 2023 Oracle and/or its affiliates.
+Copyright (C) 2023-2024 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -31,7 +31,7 @@ along with this program; if not, see <https://www.gnu.org/licenses>.
 
 SPDX-License-Identifier: GPL-3.0-only
 """
-__version__ = "$Revision: 164509 $"
+__version__ = "$Revision: 164963 $"
 
 # Standard python imports.
 import copy;
@@ -2722,7 +2722,7 @@ class ThreadedFunction(object):
                         or (oStmt.sName.endswith('_AND_FINISH') and oStmt.sName.startswith('IEM_MC_'))
                         or oStmt.sName.startswith('IEM_MC_CALL_CIMPL_')
                         or oStmt.sName.startswith('IEM_MC_DEFER_TO_CIMPL_')
-                        or oStmt.sName in ('IEM_MC_RAISE_DIVIDE_ERROR',)):
+                        or oStmt.sName in ('IEM_MC_RAISE_DIVIDE_ERROR_IF_LOCAL_IS_ZERO',)):
                         aoDecoderStmts.pop();
                         if not fIsConditional:
                             aoDecoderStmts.extend(self.emitThreadedCallStmts());
@@ -3586,7 +3586,7 @@ class IEMThreadedGenerator(object):
                 if fHaveRecompFunc:
                     oOut.write('    iemNativeLivenessFunc_BltIn_%s,\n' % (sFuncNm,))
                 else:
-                    oOut.write('    NULL, /*BltIn_%s*/\n' % (sFuncNm,))
+                    oOut.write('    iemNativeLivenessFunc_ThreadedCall, /*BltIn_%s*/\n' % (sFuncNm,))
 
             iThreadedFunction = 1 + len(self.katBltIns);
             for sVariation in ThreadedFunctionVariation.kasVariationsEmitOrder:
@@ -3602,7 +3602,7 @@ class IEMThreadedGenerator(object):
                         if oVariation.oNativeRecomp and oVariation.oNativeRecomp.isRecompilable():
                             oOut.write('    /*%4u*/ %s,\n' % (iThreadedFunction, sName,));
                         else:
-                            oOut.write('    /*%4u*/ NULL /*%s*/,\n' % (iThreadedFunction, sName,));
+                            oOut.write('    /*%4u*/ iemNativeLivenessFunc_ThreadedCall /*%s*/,\n' % (iThreadedFunction, sName,));
 
             oOut.write(  '};\n'
                        + '\n');

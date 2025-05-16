@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -131,7 +131,7 @@ static bool cpumR3CpuIdGetLeafLegacy(PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, 
  * @param   pNewLeaf    Pointer to the data of the new leaf we're about to
  *                      insert.
  */
-static int cpumR3CpuIdInsert(PVM pVM, PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLeaves, PCPUMCPUIDLEAF pNewLeaf)
+static int cpumR3CpuIdInsert(PVM pVM, PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLeaves, PCCPUMCPUIDLEAF pNewLeaf)
 {
     /*
      * Validate input parameters if we are using the hyper heap and use the VM's CPUID arrays.
@@ -1039,6 +1039,7 @@ typedef struct CPUMCPUIDCONFIG
     bool            fInvariantApic;
     bool            fForceVme;
     bool            fNestedHWVirt;
+    bool            fSpecCtrl;
 
     CPUMISAEXTCFG   enmCmpXchg16b;
     CPUMISAEXTCFG   enmMonitor;
@@ -1065,6 +1066,8 @@ typedef struct CPUMCPUIDCONFIG
     CPUMISAEXTCFG   enmArchCapMsr;
     CPUMISAEXTCFG   enmFma;
     CPUMISAEXTCFG   enmF16c;
+    CPUMISAEXTCFG   enmMcdtNo;
+    CPUMISAEXTCFG   enmMonitorMitgNo;
 
     CPUMISAEXTCFG   enmAbm;
     CPUMISAEXTCFG   enmSse4A;
@@ -1853,7 +1856,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
         {
             case 0:
             {
-                pCurLeaf->uEax  = 0;    /* Max ECX input is 0. */
+                pCurLeaf->uEax  = RT_MIN(pCurLeaf->uEax, 2); /* Max ECX input is 2. */
                 pCurLeaf->uEbx &= 0
                                | PASSTHRU_FEATURE(pConfig->enmFsGsBase, pHstFeat->fFsGsBase, X86_CPUID_STEXT_FEATURE_EBX_FSGSBASE)
                                //| X86_CPUID_STEXT_FEATURE_EBX_TSC_ADJUST        RT_BIT(1)
@@ -1892,11 +1895,16 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                                //| X86_CPUID_STEXT_FEATURE_ECX_PREFETCHWT1 - we do not do vector functions yet.
                                ;
                 pCurLeaf->uEdx &= 0
+                               //| X86_CPUID_STEXT_FEATURE_EDX_SRBDS_CTRL        RT_BIT(9)
                                | PASSTHRU_FEATURE(pConfig->enmMdsClear,   pHstFeat->fMdsClear, X86_CPUID_STEXT_FEATURE_EDX_MD_CLEAR)
+                               //| X86_CPUID_STEXT_FEATURE_EDX_TSX_FORCE_ABORT   RT_BIT_32(11)
+                               //| X86_CPUID_STEXT_FEATURE_EDX_CET_IBT           RT_BIT(20)
                                //| X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB         RT_BIT(26)
                                //| X86_CPUID_STEXT_FEATURE_EDX_STIBP             RT_BIT(27)
                                | PASSTHRU_FEATURE(pConfig->enmFlushCmdMsr, pHstFeat->fFlushCmd, X86_CPUID_STEXT_FEATURE_EDX_FLUSH_CMD)
                                | PASSTHRU_FEATURE(pConfig->enmArchCapMsr,  pHstFeat->fArchCap,  X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP)
+                               //| X86_CPUID_STEXT_FEATURE_EDX_CORECAP           RT_BIT_32(30)
+                               //| X86_CPUID_STEXT_FEATURE_EDX_SSBD              RT_BIT_32(31)
                                ;
 
                 /* Mask out INVPCID unless FSGSBASE is exposed due to a bug in Windows 10 SMP guests, see @bugref{9089#c15}. */
@@ -1955,6 +1963,31 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                     pCurLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_EDX_MD_CLEAR;
                 if (pConfig->enmArchCapMsr == CPUMISAEXTCFG_ENABLED_ALWAYS)
                     pCurLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP;
+                break;
+            }
+
+            case 2:
+            {
+                pCurLeaf->uEax  = 0;
+                pCurLeaf->uEbx  = 0;
+                pCurLeaf->uEcx  = 0;
+                pCurLeaf->uEdx &= 0
+                               //| X86_CPUID_STEXT_FEATURE_2_EDX_PSFD              RT_BIT_32(0)
+                               //| X86_CPUID_STEXT_FEATURE_2_EDX_IPRED_CTRL        RT_BIT_32(1)
+                               //| X86_CPUID_STEXT_FEATURE_2_EDX_RRSBA_CTRL        RT_BIT_32(2)
+                               //| X86_CPUID_STEXT_FEATURE_2_EDX_DDPD_U            RT_BIT_32(3)
+                               //| X86_CPUID_STEXT_FEATURE_2_EDX_BHI_CTRL          RT_BIT_32(4)
+                               | PASSTHRU_FEATURE(pConfig->enmMcdtNo, pHstFeat->fMcdtNo, X86_CPUID_STEXT_FEATURE_2_EDX_MCDT_NO)
+                               //| X86_CPUID_STEXT_FEATURE_2_EDX_UC_LOCK_DIS       RT_BIT_32(6)
+                               //| Bit 7 - MONITOR_MITG_NO - No need for MONITOR/UMONITOR power mitigrations. */
+                               | PASSTHRU_FEATURE(pConfig->enmMonitorMitgNo, pHstFeat->fMonitorMitgNo, X86_CPUID_STEXT_FEATURE_2_EDX_MONITOR_MITG_NO)
+                               ;
+
+                /* Force standard feature bits. */
+                if (pConfig->enmMcdtNo == CPUMISAEXTCFG_ENABLED_ALWAYS)
+                    pCurLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_2_EDX_MCDT_NO;
+                if (pConfig->enmMonitorMitgNo == CPUMISAEXTCFG_ENABLED_ALWAYS)
+                    pCurLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_2_EDX_MONITOR_MITG_NO;
                 break;
             }
 
@@ -2354,6 +2387,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
      * On AMD we set the core count, but not the apic id stuff as we're
      * currently not doing the apic id assignments in a compatible manner.
      */
+    bool fAmdGstSupIbpb = false; /* Used below. */
     uSubLeaf = 0;
     while ((pCurLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000008), uSubLeaf)) != NULL)
     {
@@ -2362,7 +2396,40 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
             || pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON)
         {
             /* Expose XSaveErPtr aka RstrFpErrPtrs to guest. */
-            pCurLeaf->uEbx &= X86_CPUID_AMD_EFEID_EBX_XSAVE_ER_PTR;  /* reserved - [12] == IBPB */
+            pCurLeaf->uEbx &= 0
+                           //| X86_CPUID_AMD_EFEID_EBX_CLZERO
+                           //| X86_CPUID_AMD_EFEID_EBX_IRPERF
+                           //| X86_CPUID_AMD_EFEID_EBX_XSAVE_ER_PTR
+                           //| X86_CPUID_AMD_EFEID_EBX_INVLPGB
+                           //| X86_CPUID_AMD_EFEID_EBX_RDPRU
+                           //| X86_CPUID_AMD_EFEID_EBX_BE
+                           //| X86_CPUID_AMD_EFEID_EBX_MCOMMIT
+                           | (pConfig->fSpecCtrl || PASSTHRU_FEATURE(pConfig->enmFlushCmdMsr, pHstFeat->fFlushCmd, true)
+                              ? X86_CPUID_AMD_EFEID_EBX_IBPB : 0)
+                           //| X86_CPUID_AMD_EFEID_EBX_INT_WBINVD
+                           | (pConfig->fSpecCtrl ? X86_CPUID_AMD_EFEID_EBX_IBRS : 0)
+                           | (pConfig->fSpecCtrl ? X86_CPUID_AMD_EFEID_EBX_STIBP : 0)
+                           | (pConfig->fSpecCtrl ? X86_CPUID_AMD_EFEID_EBX_IBRS_ALWAYS_ON : 0)
+                           | (pConfig->fSpecCtrl ? X86_CPUID_AMD_EFEID_EBX_STIBP_ALWAYS_ON : 0)
+                           | (pConfig->fSpecCtrl ? X86_CPUID_AMD_EFEID_EBX_IBRS_PREFERRED : 0)
+                           | (pConfig->fSpecCtrl ? X86_CPUID_AMD_EFEID_EBX_IBRS_SAME_MODE : 0)
+                           //| X86_CPUID_AMD_EFEID_EBX_NO_EFER_LMSLE
+                           //| X86_CPUID_AMD_EFEID_EBX_INVLPGB_NESTED_PAGES
+                           | (pConfig->fSpecCtrl ? X86_CPUID_AMD_EFEID_EBX_SPEC_CTRL_SSBD : 0)
+                           /// @todo | X86_CPUID_AMD_EFEID_EBX_VIRT_SPEC_CTRL_SSBD
+                           | X86_CPUID_AMD_EFEID_EBX_SSBD_NOT_REQUIRED
+                           //| X86_CPUID_AMD_EFEID_EBX_CPPC
+                           | (pConfig->fSpecCtrl ? X86_CPUID_AMD_EFEID_EBX_PSFD : 0)
+                           | X86_CPUID_AMD_EFEID_EBX_BTC_NO
+                           | (pConfig->fSpecCtrl ? X86_CPUID_AMD_EFEID_EBX_IBPB_RET : 0);
+
+            PORTABLE_DISABLE_FEATURE_BIT_CFG(3, pCurLeaf->uEbx, IBPB, X86_CPUID_AMD_EFEID_EBX_IBPB, pConfig->enmFlushCmdMsr);
+
+            /* Sharing this forced setting with intel would maybe confuse guests... */
+            if (pConfig->enmFlushCmdMsr == CPUMISAEXTCFG_ENABLED_ALWAYS)
+                pCurLeaf->uEbx |= X86_CPUID_AMD_EFEID_EBX_IBPB;
+
+            fAmdGstSupIbpb = RT_BOOL(pCurLeaf->uEbx & X86_CPUID_AMD_EFEID_EBX_IBPB);
         }
         else
             pCurLeaf->uEbx  = 0;    /* reserved */
@@ -2512,10 +2579,59 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
         uSubLeaf++;
     }
 
-    /* Cpuid 0x8000001f...0x8ffffffd: Unknown.
+    /* Cpuid 0x80000020: Platform Quality of Service (PQOS), may have subleaves.
+     * For now we just zero it.  */
+    pCurLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000020), 0);
+    if (pCurLeaf)
+    {
+        pCurLeaf = cpumR3CpuIdMakeSingleLeaf(pCpum, pCurLeaf);
+        cpumR3CpuIdZeroLeaf(pCpum, UINT32_C(0x80000020));
+    }
+
+    /* Cpuid 0x80000021: Extended Feature 2 (Zen3+?).
+     *
+     */
+    pCurLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000021), 0);
+    if (pCurLeaf)
+    {
+        /** @todo sanitize these bits! */
+        pCurLeaf->uEax = 0;
+        pCurLeaf->uEbx = 0;
+        pCurLeaf->uEcx = 0;
+        pCurLeaf->uEdx = 0;
+    }
+    /* Linux expects us as a hypervisor to insert this leaf for Zen 1 & 2 CPUs
+       iff IBPB is available to the guest. This is also documented by AMD in
+       "TECHNICAL UPDATE REGARDING SPECULATIVE RETURN STACK OVERFLOW" rev 2.0
+       dated 2024-02-00. */
+    else if (   fAmdGstSupIbpb
+             && (   pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                 || pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON)
+             && (pExtFeatureLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000001), 0)) != NULL
+             && RTX86GetCpuFamily(pExtFeatureLeaf->uEax) == 0x17)
+    {
+        static CPUMCPUIDLEAF const s_NewLeaf =
+        {
+            /* .uLeaf =*/           UINT32_C(0x80000021),
+            /* .uSubLeaf = */       0,
+            /* .fSubLeafMask = */   0,
+            /* .uEax = */           X86_CPUID_AMD_21_EAX_IBPB_BRTYPE,
+            /* .uEbx = */           0,
+            /* .uEcx = */           0,
+            /* .uEdx = */           0,
+            /* .fFlags = */         0,
+        };
+        int const rc2 = cpumR3CpuIdInsert(NULL, &pCpum->GuestInfo.paCpuIdLeavesR3, &pCpum->GuestInfo.cCpuIdLeaves, &s_NewLeaf);
+        AssertRC(rc2);
+        pCurLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000000), 0);
+        if (pCurLeaf && pCurLeaf->uEax < UINT32_C(0x80000021))
+            pCurLeaf->uEax = UINT32_C(0x80000021);
+    }
+
+    /* Cpuid 0x80000022...0x8ffffffd: Unknown.
      * We don't know these and what they mean, so remove them. */
     cpumR3CpuIdRemoveRange(pCpum->GuestInfo.paCpuIdLeavesR3, &pCpum->GuestInfo.cCpuIdLeaves,
-                           UINT32_C(0x8000001f), UINT32_C(0x8ffffffd));
+                           UINT32_C(0x80000022), UINT32_C(0x8ffffffd));
 
     /* Cpuid 0x8ffffffe: Mystery AMD K6 leaf.
      * Just pass it thru for now. */
@@ -2779,7 +2895,7 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
      * is RT_MAX(CPUID[0x80000000].EAX,/CPUM/MaxStdLeaf).  Leaves beyond the max
      * leaf are removed.  The default is set to what we're able to sanitize.
      */
-    rc = CFGMR3QueryU32Def(pCpumCfg, "MaxExtLeaf", &pConfig->uMaxExtLeaf, UINT32_C(0x8000001e));
+    rc = CFGMR3QueryU32Def(pCpumCfg, "MaxExtLeaf", &pConfig->uMaxExtLeaf, UINT32_C(0x80000021));
     AssertLogRelRCReturn(rc, rc);
 
     /** @cfgm{/CPUM/MaxCentaurLeaf, uint32_t, 0xc0000004}
@@ -2789,6 +2905,12 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
      */
     rc = CFGMR3QueryU32Def(pCpumCfg, "MaxCentaurLeaf", &pConfig->uMaxCentaurLeaf, UINT32_C(0xc0000004));
     AssertLogRelRCReturn(rc, rc);
+
+    /** @cfgm{/CPUM/SpecCtrl, bool, false}
+     * Enables passing thru IA32_SPEC_CTRL and associated CPU bugfixes.
+     */
+    rc = CFGMR3QueryBoolDef(pCpumCfg, "SpecCtrl", &pConfig->fSpecCtrl, false);
+    AssertRCReturn(rc, rc);
 
     bool fQueryNestedHwvirt = false
 #ifdef VBOX_WITH_NESTED_HWVIRT_SVM
@@ -2853,6 +2975,8 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
                                   "|FlushCmdMsr"
                                   "|FMA"
                                   "|F16C"
+                                  "|McdtNo"
+                                  "|MonitorMitgNo"
                                   "|ABM"
                                   "|SSE4A"
                                   "|MISALNSSE"
@@ -3055,6 +3179,20 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
      */
     rc = cpumR3CpuIdReadIsaExtCfgEx(pVM, pIsaExts, "F16C", &pConfig->enmF16c, fNestedPagingAndFullGuestExec /* temporarily */,
                                     fMayHaveXSave && pConfig->enmXSave && (fXStateHostMask & XSAVE_C_YMM) /*fAllowed*/);
+    AssertLogRelRCReturn(rc, rc);
+
+    /** @cfgm{/CPUM/IsaExts/McdtNo, isaextcfg, true}
+     * Whether the CPU is not susceptible to the MXCSR configuration dependent
+     * timing (MCDT) behaviour.
+     */
+    rc = cpumR3CpuIdReadIsaExtCfg(pVM, pIsaExts, "McdtNo", &pConfig->enmMcdtNo, CPUMISAEXTCFG_ENABLED_SUPPORTED);
+    AssertLogRelRCReturn(rc, rc);
+
+    /** @cfgm{/CPUM/IsaExts/MonitorMitgNo, isaextcfg, true}
+     * Whether the CPU is not susceptible MONITOR/UMONITOR internal table capacity
+     * issues.
+     */
+    rc = cpumR3CpuIdReadIsaExtCfg(pVM, pIsaExts, "MonitorMitgNo", &pConfig->enmMonitorMitgNo, CPUMISAEXTCFG_ENABLED_SUPPORTED);
     AssertLogRelRCReturn(rc, rc);
 
 
@@ -3393,6 +3531,22 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs)
     LogRel(("CPUM: MXCSR_MASK=%#x\n", pCpum->GuestInfo.fMxCsrMask));
 #endif
 
+    /** @cfgm{/CPUM/GuestMicrocodeRev,32-bit}
+     * CPU microcode revision number to use.  If UINT32_MAX we use the host
+     * revision of the host CPU for the host-cpu profile and the database entry if a
+     * specific one is selected (amd64 host only). */
+    rc = CFGMR3QueryU32Def(pCpumCfg, "GuestMicrocodeRevision", &pCpum->GuestInfo.uMicrocodeRevision, UINT32_MAX);
+    AssertLogRelRCReturn(rc, rc);
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    if (   pCpum->GuestInfo.uMicrocodeRevision == UINT32_MAX
+        && strcmp(Config.szCpuName, "host") == 0)
+    {
+        rc = SUPR3QueryMicrocodeRev(&pCpum->GuestInfo.uMicrocodeRevision);
+        if (RT_FAILURE(rc))
+            pCpum->GuestInfo.uMicrocodeRevision = UINT32_MAX;
+    }
+#endif
+
     /** @cfgm{/CPUM/MSRs/[Name]/[First|Last|Type|Value|...],}
      * Overrides the guest MSRs.
      */
@@ -3453,7 +3607,7 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs)
              * the CPU profile, but are advertised in the CPUID info we just sanitized.
              */
             if (RT_SUCCESS(rc))
-                rc = cpumR3MsrReconcileWithCpuId(pVM);
+                rc = cpumR3MsrReconcileWithCpuId(pVM, false, false);
             /*
              * MSR fudging.
              */
@@ -3519,9 +3673,7 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs)
                     CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
 
                 /* Check if speculation control is enabled. */
-                rc = CFGMR3QueryBoolDef(pCpumCfg, "SpecCtrl", &fEnable, false);
-                AssertRCReturn(rc, rc);
-                if (fEnable)
+                if (Config.fSpecCtrl)
                     CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SPEC_CTRL);
                 else
                 {
@@ -3558,7 +3710,7 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs)
                         PCPUMCPUIDLEAF pLeaf = cpumR3CpuIdGetExactLeaf(&pVM->cpum.s, UINT32_C(0x80000008), 0);
                         if (pLeaf)
                         {
-                            pLeaf->uEbx |= X86_CPUID_AMD_EFEID_EBX_NO_SSBD_REQUIRED;
+                            pLeaf->uEbx |= X86_CPUID_AMD_EFEID_EBX_SSBD_NOT_REQUIRED;
                             LogRel(("CPUM: Set SSBD not required flag for AMD to work around some buggy Linux kernels!\n"));
                         }
                     }
@@ -3876,34 +4028,42 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
          * on Intel CPUs, and different on AMDs.
          */
         case CPUMCPUIDFEATURE_SPEC_CTRL:
+        {
+            AssertReturnVoid(!pVM->cpum.s.GuestFeatures.fSpeculationControl); /* should only be done once! */
+
+#ifdef RT_ARCH_AMD64
+            if (!pVM->cpum.s.HostFeatures.fIbpb && !pVM->cpum.s.HostFeatures.fIbrs)
+            {
+                LogRel(("CPUM: WARNING! Can't turn on Speculation Control when the host doesn't support it!\n"));
+                return;
+            }
+#endif
+            bool fForceSpecCtrl = false;
+            bool fForceFlushCmd = false;
+
+            /*
+             * Intel spread feature info around a bit...
+             */
             if (pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_INTEL)
             {
                 pLeaf = cpumR3CpuIdGetExactLeaf(&pVM->cpum.s, UINT32_C(0x00000007), 0);
-#ifdef RT_ARCH_AMD64
-                if (   !pLeaf
-                    || !(pVM->cpum.s.HostFeatures.fIbpb || pVM->cpum.s.HostFeatures.fIbrs))
-                {
-                    LogRel(("CPUM: WARNING! Can't turn on Speculation Control when the host doesn't support it!\n"));
-                    return;
-                }
-#else
                 if (!pLeaf)
                 {
-                    LogRel(("CPUM: WARNING! Can't turn on Speculation Control without leaf 0x00000007!\n"));
+                    LogRel(("CPUM: WARNING! Can't turn on Speculation Control on Intel CPUs without leaf 0x00000007!\n"));
                     return;
                 }
-#endif
 
-                /* The feature can be enabled. Let's see what we can actually do. */
-                pVM->cpum.s.GuestFeatures.fSpeculationControl = 1;
+                /* Okay, the feature can be enabled. Let's see what we can actually do. */
 
 #ifdef RT_ARCH_AMD64
                 /* We will only expose STIBP if IBRS is present to keep things simpler (simple is not an option). */
                 if (pVM->cpum.s.HostFeatures.fIbrs)
 #endif
                 {
+/** @todo make this more configurable? */
                     pLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB;
                     pVM->cpum.s.GuestFeatures.fIbrs = 1;
+                    pVM->cpum.s.GuestFeatures.fIbpb = 1;
 #ifdef RT_ARCH_AMD64
                     if (pVM->cpum.s.HostFeatures.fStibp)
 #endif
@@ -3912,71 +4072,110 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
                         pVM->cpum.s.GuestFeatures.fStibp = 1;
                     }
 
-                    /* Make sure we have the speculation control MSR... */
-                    pMsrRange = cpumLookupMsrRange(pVM, MSR_IA32_SPEC_CTRL);
-                    if (!pMsrRange)
+#ifdef RT_ARCH_AMD64
+                    if (pVM->cpum.s.HostFeatures.fSsbd)
+#endif
                     {
-                        static CPUMMSRRANGE const s_SpecCtrl =
-                        {
-                            /*.uFirst =*/ MSR_IA32_SPEC_CTRL, /*.uLast =*/ MSR_IA32_SPEC_CTRL,
-                            /*.enmRdFn =*/ kCpumMsrRdFn_Ia32SpecCtrl, /*.enmWrFn =*/ kCpumMsrWrFn_Ia32SpecCtrl,
-                            /*.offCpumCpu =*/ UINT16_MAX, /*.fReserved =*/ 0, /*.uValue =*/ 0, /*.fWrIgnMask =*/ 0, /*.fWrGpMask =*/ 0,
-                            /*.szName = */ "IA32_SPEC_CTRL"
-                        };
-                        int rc = CPUMR3MsrRangesInsert(pVM, &s_SpecCtrl);
-                        AssertLogRelRC(rc);
+                        pLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_EDX_SSBD;
+                        pVM->cpum.s.GuestFeatures.fSsbd = 1;
                     }
 
-                    /* ... and the predictor command MSR. */
-                    pMsrRange = cpumLookupMsrRange(pVM, MSR_IA32_PRED_CMD);
-                    if (!pMsrRange)
+                    PCPUMCPUIDLEAF const pSubLeaf2 = cpumR3CpuIdGetExactLeaf(&pVM->cpum.s, UINT32_C(0x00000007), 2);
+                    if (pSubLeaf2)
                     {
-                        /** @todo incorrect fWrGpMask. */
-                        static CPUMMSRRANGE const s_SpecCtrl =
+#ifdef RT_ARCH_AMD64
+                        if (pVM->cpum.s.HostFeatures.fPsfd)
+#endif
                         {
-                            /*.uFirst =*/ MSR_IA32_PRED_CMD, /*.uLast =*/ MSR_IA32_PRED_CMD,
-                            /*.enmRdFn =*/ kCpumMsrRdFn_WriteOnly, /*.enmWrFn =*/ kCpumMsrWrFn_Ia32PredCmd,
-                            /*.offCpumCpu =*/ UINT16_MAX, /*.fReserved =*/ 0, /*.uValue =*/ 0, /*.fWrIgnMask =*/ 0, /*.fWrGpMask =*/ 0,
-                            /*.szName = */ "IA32_PRED_CMD"
-                        };
-                        int rc = CPUMR3MsrRangesInsert(pVM, &s_SpecCtrl);
-                        AssertLogRelRC(rc);
-                    }
+                            pSubLeaf2->uEdx |= X86_CPUID_STEXT_FEATURE_2_EDX_PSFD;
+                            pVM->cpum.s.GuestFeatures.fPsfd = 1;
+                        }
 
+#ifdef RT_ARCH_AMD64
+                        if (pVM->cpum.s.HostFeatures.fIpredCtrl)
+#endif
+                        {
+                            pSubLeaf2->uEdx |= X86_CPUID_STEXT_FEATURE_2_EDX_IPRED_CTRL;
+                            pVM->cpum.s.GuestFeatures.fIpredCtrl = 1;
+                        }
+
+#ifdef RT_ARCH_AMD64
+                        if (pVM->cpum.s.HostFeatures.fRrsbaCtrl)
+#endif
+                        {
+                            pSubLeaf2->uEdx |= X86_CPUID_STEXT_FEATURE_2_EDX_RRSBA_CTRL;
+                            pVM->cpum.s.GuestFeatures.fRrsbaCtrl = 1;
+                        }
+
+#ifdef RT_ARCH_AMD64
+                        if (pVM->cpum.s.HostFeatures.fDdpdU)
+#endif
+                        {
+                            pSubLeaf2->uEdx |= X86_CPUID_STEXT_FEATURE_2_EDX_DDPD_U;
+                            pVM->cpum.s.GuestFeatures.fDdpdU = 1;
+                        }
+
+#ifdef RT_ARCH_AMD64
+                        if (pVM->cpum.s.HostFeatures.fBhiCtrl)
+#endif
+                        {
+                            pSubLeaf2->uEdx |= X86_CPUID_STEXT_FEATURE_2_EDX_BHI_CTRL;
+                            pVM->cpum.s.GuestFeatures.fBhiCtrl = 1;
+                        }
+                        fForceSpecCtrl = true;
+                    }
+                }
+
+#ifdef RT_ARCH_AMD64
+                if (pVM->cpum.s.HostFeatures.fFlushCmd)
+#endif
+                {
+                    pLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_EDX_FLUSH_CMD;
+                    pVM->cpum.s.GuestFeatures.fFlushCmd = 1;
+                    fForceFlushCmd = true;
                 }
 
 #ifdef RT_ARCH_AMD64
                 if (pVM->cpum.s.HostFeatures.fArchCap)
 #endif
                 {
-                    /* Install the architectural capabilities MSR. */
-                    pMsrRange = cpumLookupMsrRange(pVM, MSR_IA32_ARCH_CAPABILITIES);
-                    if (!pMsrRange)
-                    {
-                        static CPUMMSRRANGE const s_ArchCaps =
-                        {
-                            /*.uFirst =*/ MSR_IA32_ARCH_CAPABILITIES, /*.uLast =*/ MSR_IA32_ARCH_CAPABILITIES,
-                            /*.enmRdFn =*/ kCpumMsrRdFn_Ia32ArchCapabilities, /*.enmWrFn =*/ kCpumMsrWrFn_ReadOnly,
-                            /*.offCpumCpu =*/ UINT16_MAX, /*.fReserved =*/ 0, /*.uValue =*/ 0, /*.fWrIgnMask =*/ 0, /*.fWrGpMask =*/ UINT64_MAX,
-                            /*.szName = */ "IA32_ARCH_CAPABILITIES"
-                        };
-                        int rc = CPUMR3MsrRangesInsert(pVM, &s_ArchCaps);
-                        AssertLogRelRC(rc);
-                    }
+                    pLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP;
+                    pVM->cpum.s.GuestFeatures.fArchCap = 1;
 
                     /* Advertise IBRS_ALL if present at this point... */
                     if (pVM->cpum.s.HostFeatures.fArchCap & MSR_IA32_ARCH_CAP_F_IBRS_ALL)
                         VMCC_FOR_EACH_VMCPU_STMT(pVM, pVCpu->cpum.s.GuestMsrs.msr.ArchCaps |= MSR_IA32_ARCH_CAP_F_IBRS_ALL);
                 }
-
-                LogRel(("CPUM: SetGuestCpuIdFeature: Enabled Speculation Control.\n"));
+                cpumCpuIdExplodeFeaturesX86SetSummaryBits(&pVM->cpum.s.GuestFeatures);
             }
+            /*
+             * AMD does things in a different (better) way.  No MSR with info,
+             * it's all in various CPUID leaves.
+             */
             else if (   pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
                      || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON)
             {
                 /* The precise details of AMD's implementation are not yet clear. */
+                pLeaf = cpumR3CpuIdGetExactLeaf(&pVM->cpum.s, UINT32_C(0x80000008), 0);
+                if (!pLeaf)
+                {
+                    LogRel(("CPUM: WARNING! Can't turn on Speculation Control on AMD CPUs without leaf 0x80000008!\n"));
+                    return;
+                }
+
+                /* We passthru all the host cpuid bits on AMD, see cpumR3CpuIdSanitize,
+                   and there is no code to clear/unset the feature.  So, little to do.
+                   The only thing we could consider here, is to re-enable stuff
+                   suppressed for portability reasons. */
             }
+            else
+                break;
+
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled Speculation Control.\n"));
+            pVM->cpum.s.GuestFeatures.fSpeculationControl = 1;
+            cpumR3MsrReconcileWithCpuId(pVM, fForceFlushCmd, fForceSpecCtrl);
             break;
+        }
 
         default:
             AssertMsgFailed(("enmFeature=%d\n", enmFeature));
@@ -5273,13 +5472,43 @@ static DBGFREGSUBFIELD const g_aLeaf7Sub0EcxSubFields[] =
 /** CPUID(7,0).EDX field descriptions.   */
 static DBGFREGSUBFIELD const g_aLeaf7Sub0EdxSubFields[] =
 {
+    DBGFREGSUBFIELD_RO("MCU_OPT_CTRL\0" "Supports IA32_MCU_OPT_CTRL ",                   9, 1, 0),
     DBGFREGSUBFIELD_RO("MD_CLEAR\0"     "Supports MDS related buffer clearing",         10, 1, 0),
+    DBGFREGSUBFIELD_RO("TSX_FORCE_ABORT\0" "Supports IA32_TSX_FORCE_ABORT",             11, 1, 0),
+    DBGFREGSUBFIELD_RO("CET_IBT\0"      "Supports indirect branch tracking w/ CET",     20, 1, 0),
     DBGFREGSUBFIELD_RO("IBRS_IBPB\0"    "IA32_SPEC_CTRL.IBRS and IA32_PRED_CMD.IBPB",   26, 1, 0),
     DBGFREGSUBFIELD_RO("STIBP\0"        "Supports IA32_SPEC_CTRL.STIBP",                27, 1, 0),
     DBGFREGSUBFIELD_RO("FLUSH_CMD\0"    "Supports IA32_FLUSH_CMD",                      28, 1, 0),
     DBGFREGSUBFIELD_RO("ARCHCAP\0"      "Supports IA32_ARCH_CAP",                       29, 1, 0),
     DBGFREGSUBFIELD_RO("CORECAP\0"      "Supports IA32_CORE_CAP",                       30, 1, 0),
     DBGFREGSUBFIELD_RO("SSBD\0"         "Supports IA32_SPEC_CTRL.SSBD",                 31, 1, 0),
+    DBGFREGSUBFIELD_TERMINATOR()
+};
+
+
+/** CPUID(7,2).EBX field descriptions. */
+static DBGFREGSUBFIELD const g_aLeaf7Sub2EbxSubFields[] =
+{
+    DBGFREGSUBFIELD_TERMINATOR()
+};
+
+/** CPUID(7,2).ECX field descriptions. */
+static DBGFREGSUBFIELD const g_aLeaf7Sub2EcxSubFields[] =
+{
+    DBGFREGSUBFIELD_TERMINATOR()
+};
+
+/** CPUID(7,2).EDX field descriptions. */
+static DBGFREGSUBFIELD const g_aLeaf7Sub2EdxSubFields[] =
+{
+    DBGFREGSUBFIELD_RO("PSFD\0"         "Supports IA32_SPEC_CTRL[7] (PSFD)",             0, 1, 0),
+    DBGFREGSUBFIELD_RO("IPRED_CTRL\0"   "Supports IA32_SPEC_CTRL[4:3] (IPRED_DIS)",      1, 1, 0),
+    DBGFREGSUBFIELD_RO("RRSBA_CTRL\0"   "Supports IA32_SPEC_CTRL[6:5] (RRSBA_DIS)",      2, 1, 0),
+    DBGFREGSUBFIELD_RO("DDPD_U\0"       "Supports IA32_SPEC_CTRL[8] (DDPD_U)",           3, 1, 0),
+    DBGFREGSUBFIELD_RO("BHI_CTRL\0"     "Supports IA32_SPEC_CTRL[10] (BHI_DIS_S) ",      4, 1, 0),
+    DBGFREGSUBFIELD_RO("MCDT_NO\0"      "No MXCSR Config Dependent Timing issues",       5, 1, 0),
+    DBGFREGSUBFIELD_RO("UC_LOCK_DIS\0"  "Supports UC-lock disable and causing #AC",      6, 1, 0),
+    DBGFREGSUBFIELD_RO("MONITOR_MITG_NO\0" "No MONITOR/UMONITOR power issues",           7, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
 
@@ -5449,6 +5678,7 @@ static DBGFREGSUBFIELD const g_aExtLeaf8EbxSubFields[] =
     DBGFREGSUBFIELD_RO("IbrsSameMode\0" "IBRS limits same mode speculation",            19, 1, 0),
     DBGFREGSUBFIELD_RO("EferLmsleUnsupported\0" "EFER.LMSLE is unsupported",            20, 1, 0),
     DBGFREGSUBFIELD_RO("INVLPGBnestedPages\0"   "INVLPGB for nested translation",       21, 1, 0),
+    DBGFREGSUBFIELD_RO("PPIN\0"         "Protected processor inventory number",         23, 1, 0),
     DBGFREGSUBFIELD_RO("SSBD\0"         "Speculative Store Bypass Disable",             24, 1, 0),
     DBGFREGSUBFIELD_RO("SsbdVirtSpecCtrl\0"     "Use VIRT_SPEC_CTL for SSBD",           25, 1, 0),
     DBGFREGSUBFIELD_RO("SsbdNotRequired\0"      "SSBD not needed on this processor",    26, 1, 0),
@@ -5543,8 +5773,15 @@ static void cpumR3CpuIdInfoValueWithMnemonicListU64(PCDBGFINFOHLP pHlp, uint64_t
 
 
 static void cpumR3CpuIdInfoVerboseCompareListU32(PCDBGFINFOHLP pHlp, uint32_t uVal1, uint32_t uVal2, PCDBGFREGSUBFIELD pDesc,
-                                                 uint32_t cchWidth)
+                                                 const char *pszLeadIn, uint32_t cchWidth)
 {
+    if (pszLeadIn)
+        pHlp->pfnPrintf(pHlp,
+                        "%s\n"
+                        "  %-*s= guest (host)\n",
+                        pszLeadIn,
+                        cchWidth, "Mnemonic - Description");
+
     uint32_t uCombined = uVal1 | uVal2;
     for (uint32_t iBit = 0; iBit < 32; iBit++)
         if (   (RT_BIT_32(iBit) & uCombined)
@@ -5622,10 +5859,8 @@ static void cpumR3CpuIdInfoStdLeaf1Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF p
 #if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
         ASMCpuIdExSlow(1, 0, 0, 0, &Host.uEax, &Host.uEbx, &Host.uEcx, &Host.uEdx);
 #endif
-        pHlp->pfnPrintf(pHlp, "Features\n");
-        pHlp->pfnPrintf(pHlp, "  Mnemonic - Description                                  = guest (host)\n");
-        cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aLeaf1EdxSubFields, 56);
-        cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEcx, Host.uEcx, g_aLeaf1EcxSubFields, 56);
+        cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aLeaf1EdxSubFields, "Features", 56);
+        cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEcx, Host.uEcx, g_aLeaf1EcxSubFields, NULL, 56);
     }
     else
     {
@@ -5661,18 +5896,41 @@ static void cpumR3CpuIdInfoStdLeaf7Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF p
             case 0:
                 if (fVerbose)
                 {
-                    pHlp->pfnPrintf(pHlp, "  Mnemonic - Description                                  = guest (host)\n");
-                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEbx, Host.uEbx, g_aLeaf7Sub0EbxSubFields, 56);
-                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEcx, Host.uEcx, g_aLeaf7Sub0EcxSubFields, 56);
+                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEbx, Host.uEbx, g_aLeaf7Sub0EbxSubFields, "Sub-leaf 0", 56);
+                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEcx, Host.uEcx, g_aLeaf7Sub0EcxSubFields, NULL, 56);
                     if (pCurLeaf->uEdx || Host.uEdx)
-                        cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aLeaf7Sub0EdxSubFields, 56);
+                        cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aLeaf7Sub0EdxSubFields, NULL, 56);
                 }
                 else
                 {
-                    cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEbx, g_aLeaf7Sub0EbxSubFields, "Ext Features EBX:", 36);
-                    cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEcx, g_aLeaf7Sub0EcxSubFields, "Ext Features ECX:", 36);
+                    cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEbx, g_aLeaf7Sub0EbxSubFields, "Ext Features #0 EBX:", 36);
+                    cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEcx, g_aLeaf7Sub0EcxSubFields, "Ext Features #0 ECX:", 36);
                     if (pCurLeaf->uEdx)
-                        cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEdx, g_aLeaf7Sub0EdxSubFields, "Ext Features EDX:", 36);
+                        cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEdx, g_aLeaf7Sub0EdxSubFields, "Ext Features #0 EDX:", 36);
+                }
+                break;
+
+            /** @todo case 1   */
+
+            case 2:
+                if (fVerbose)
+                {
+                    pHlp->pfnPrintf(pHlp, " Sub-leaf 2\n");
+                    pHlp->pfnPrintf(pHlp, "  Mnemonic - Description                                  = guest (host)\n");
+                    if (pCurLeaf->uEbx || Host.uEbx)
+                        cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEbx, Host.uEbx, g_aLeaf7Sub2EbxSubFields, NULL, 56);
+                    if (pCurLeaf->uEcx || Host.uEcx)
+                        cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEcx, Host.uEcx, g_aLeaf7Sub2EcxSubFields, NULL, 56);
+                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aLeaf7Sub2EdxSubFields, NULL, 56);
+                }
+                else
+                {
+                    if (pCurLeaf->uEbx)
+                        cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEbx, g_aLeaf7Sub2EbxSubFields, "Ext Features #2 EBX:", 36);
+                    if (pCurLeaf->uEcx)
+                        cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEcx, g_aLeaf7Sub2EcxSubFields, "Ext Features #2 ECX:", 36);
+                    if (pCurLeaf->uEdx)
+                        cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEdx, g_aLeaf7Sub2EdxSubFields, "Ext Features #2 EDX:", 36);
                 }
                 break;
 
@@ -6050,19 +6308,17 @@ DECLCALLBACK(void) cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszA
 #if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
                 ASMCpuIdExSlow(0x80000001, 0, 0, 0, &Host.uEax, &Host.uEbx, &Host.uEcx, &Host.uEdx);
 #endif
-                pHlp->pfnPrintf(pHlp, "Ext Features\n");
-                pHlp->pfnPrintf(pHlp, "  Mnemonic - Description                                  = guest (host)\n");
-                cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aExtLeaf1EdxSubFields, 56);
-                cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEcx, Host.uEcx, g_aExtLeaf1EcxSubFields, 56);
+                cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aExtLeaf1EdxSubFields, "Ext Features", 56);
+                cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEcx, Host.uEcx, g_aExtLeaf1EcxSubFields, NULL, 56);
                 if (Host.uEcx & X86_CPUID_AMD_FEATURE_ECX_SVM)
                 {
-                    pHlp->pfnPrintf(pHlp, "SVM Feature Identification (leaf A):\n");
 #if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
                     ASMCpuIdExSlow(0x8000000a, 0, 0, 0, &Host.uEax, &Host.uEbx, &Host.uEcx, &Host.uEdx);
 #endif
                     pCurLeaf = cpumCpuIdGetLeafInt(paLeaves, cLeaves, UINT32_C(0x8000000a), 0);
                     uint32_t const uGstEdx = pCurLeaf ? pCurLeaf->uEdx : 0;
-                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, uGstEdx, Host.uEdx, g_aExtLeafAEdxSubFields, 56);
+                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, uGstEdx, Host.uEdx, g_aExtLeafAEdxSubFields,
+                                                         "SVM Feature Identification (leaf A)", 56);
                 }
             }
         }
@@ -6179,7 +6435,8 @@ DECLCALLBACK(void) cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszA
                 if (iVerbosity < 1)
                     cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEdx, g_aExtLeaf7EdxSubFields, "APM Features EDX:", 34);
                 else
-                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aExtLeaf7EdxSubFields, 56);
+                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aExtLeaf7EdxSubFields,
+                                                         "APM Features EDX", 56);
             }
         }
 
@@ -6194,31 +6451,46 @@ DECLCALLBACK(void) cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszA
                 if (iVerbosity < 1)
                     cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEbx, g_aExtLeaf8EbxSubFields, "Ext Features ext IDs EBX:", 34);
                 else
-                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEbx, Host.uEbx, g_aExtLeaf8EbxSubFields, 56);
+                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEbx, Host.uEbx, g_aExtLeaf8EbxSubFields,
+                                                         "Ext Features ext IDs EBX", 56);
             }
 
             if (iVerbosity)
             {
-                uint32_t uEAX = pCurLeaf->uEax;
-                uint32_t uECX = pCurLeaf->uEcx;
-
-                /** @todo 0x80000008:EAX[23:16] is only defined for AMD. We'll get 0 on Intel. On
-                 *        AMD if we get 0, the guest physical address width should be taken from
-                 *        0x80000008:EAX[7:0] instead. Guest Physical address width is relevant
-                 *        for guests using nested paging. */
+                uint32_t const uEAX = pCurLeaf->uEax;
                 pHlp->pfnPrintf(pHlp,
                                 "Physical Address Width:          %d bits\n"
-                                "Virtual Address Width:           %d bits\n"
-                                "Guest Physical Address Width:    %d bits\n",
+                                "Virtual Address Width:           %d bits\n",
                                 (uEAX >> 0) & 0xff,
-                                (uEAX >> 8) & 0xff,
-                                (uEAX >> 16) & 0xff);
+                                (uEAX >> 8) & 0xff);
+                if (   ((uEAX >> 16) & 0xff) != 0
+                    || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                    || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON)
+                    pHlp->pfnPrintf(pHlp, "Guest Physical Address Width:    %d bits%s\n",
+                                    (uEAX >> 16) & 0xff ? (uEAX >> 16) & 0xff : (uEAX >> 0) & 0xff,
+                                    (uEAX >> 16) & 0xff ? "" : " (0)");
 
-                /** @todo 0x80000008:ECX is reserved on Intel (we'll get incorrect physical core
-                 *        count here). */
-                pHlp->pfnPrintf(pHlp,
-                                "Physical Core Count:             %d\n",
-                                ((uECX >> 0) & 0xff) + 1);
+                uint32_t const uECX = pCurLeaf->uEcx;
+                if (   ((uECX >> 0) & 0xff) != 0
+                    || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                    || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON)
+                {
+                    uint32_t const cPhysCoreCount = ((uECX >> 0) & 0xff) + 1;
+                    uint32_t const cApicIdSize    = (uECX >> 12) & 0xf ? RT_BIT_32((uECX >> 12) & 0xf) : cPhysCoreCount;
+                    pHlp->pfnPrintf(pHlp,
+                                    "Physical Core Count:             %d\n"
+                                    "APIC ID size:                    %u (%#x)\n"
+                                    "Performance TSC size:            %u bits\n",
+                                    cPhysCoreCount,
+                                    cApicIdSize, cApicIdSize,
+                                    (((uECX >> 16) & 0x3) << 3) + 40);
+                }
+                uint32_t const uEDX = pCurLeaf->uEax;
+                if (uEDX)
+                    pHlp->pfnPrintf(pHlp,
+                                    "Max page count for INVLPGB:      %#x\n"
+                                    "Max ECX for RDPRU:               %#x\n",
+                                    (uEDX & 0xffff), uEDX >> 16);
             }
         }
 

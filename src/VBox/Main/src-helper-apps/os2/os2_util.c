@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2015-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2015-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -424,7 +424,7 @@ static void CopyFileToBackdoorAndQuit(PSZ psz, BOOL fLongOpt, PSZ pszBuf, USHORT
 /** Displays version string and quits.   */
 static DECL_NO_RETURN(void) ShowVersionAndQuit(void)
 {
-    CHAR szVer[] = "$Rev: 155244 $\r\n";
+    CHAR szVer[] = "$Rev: 164827 $\r\n";
     USHORT usIgnored;
     DosWrite(g_hStdOut, szVer, sizeof(szVer) - 1, &usIgnored);
     DosExit(EXIT_PROCESS, 0);

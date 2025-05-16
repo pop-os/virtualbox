@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -89,7 +89,7 @@ static void printKey(Display *pDisplay, int cKeys)
 static void dumpLayout(Display *pDisplay)
 {
     LogRel(("Your keyboard layout does not appear to be fully supported by\n"
-            "VirtualBox. If you are experiencing keyboard problems this.\n"
+            "VirtualBox. If you are experiencing keyboard problems this\n"
             "information may help us to resolve them.\n"
             "(Note: please tell us if you are using a custom layout.)\n\n"
             "The correct table for your layout is:\n"));

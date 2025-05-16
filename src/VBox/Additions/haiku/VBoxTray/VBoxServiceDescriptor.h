@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -70,9 +70,9 @@ class VBoxShClService : public BHandler
 };
 
 /* The shared clipboard service prototypes. */
-int vbtrShClInit(const VBOXSERVICEENV *pEnv, void **ppInstance, bool *pfStartThread);
+int vbtrShClInit(const VBOXTRAYSVCENV *pEnv, void **ppInstance, bool *pfStartThread);
 unsigned __stdcall VBoxShClThread(void *pInstance);
-void vbtrShClDestroy(const VBOXSERVICEENV *pEnv, void *pInstance);
+void vbtrShClDestroy(const VBOXTRAYSVCENV *pEnv, void *pInstance);
 
 #endif /* !GA_INCLUDED_SRC_haiku_VBoxTray_VBoxServiceDescriptor_h */
 

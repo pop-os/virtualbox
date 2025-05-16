@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -281,7 +281,7 @@ private:
     void prepareMetrics();
     bool guestAdditionsAvailable(const char *pszMinimumVersion);
     void enableDisableGuestAdditionDependedWidgets(bool fEnable);
-    void updateCPUChart(quint64 iLoadPercentage, ULONG iOtherPercentage);
+    void updateCPUChart(ULONG iLoadPercentage, ULONG iOtherPercentage);
     void updateRAMGraphsAndMetric(quint64 iTotalRAM, quint64 iFreeRAM);
     void updateNetworkChart(quint64 uReceiveTotal, quint64 uTransmitTotal);
     void updateDiskIOChart(quint64 uDiskIOTotalWritten, quint64 uDiskIOTotalRead);

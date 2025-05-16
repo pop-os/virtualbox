@@ -52,6 +52,7 @@
 /* COM includes: */
 #include "CExtPackManager.h"
 #include "CGraphicsAdapter.h"
+#include "CPlatformProperties.h"
 #include "CProgress.h" /* For starting recording. */
 #include "CRecordingScreenSettings.h"
 #include "CRecordingSettings.h"
@@ -73,6 +74,7 @@ struct UIDataSettingsMachineDisplay
         , m_fRemoteDisplayServerSupported(false)
         , m_fRemoteDisplayServerEnabled(false)
         , m_strRemoteDisplayPort(QString())
+        , m_remoteDisplaySecurityMethod(UIVRDESecurityMethod_Max)
         , m_remoteDisplayAuthType(KAuthType_Null)
         , m_uRemoteDisplayTimeout(0)
         , m_fRemoteDisplayMultiConnAllowed(false)
@@ -100,6 +102,7 @@ struct UIDataSettingsMachineDisplay
                && (m_fRemoteDisplayServerSupported == other.m_fRemoteDisplayServerSupported)
                && (m_fRemoteDisplayServerEnabled == other.m_fRemoteDisplayServerEnabled)
                && (m_strRemoteDisplayPort == other.m_strRemoteDisplayPort)
+               && (m_remoteDisplaySecurityMethod == other.m_remoteDisplaySecurityMethod)
                && (m_remoteDisplayAuthType == other.m_remoteDisplayAuthType)
                && (m_uRemoteDisplayTimeout == other.m_uRemoteDisplayTimeout)
                && (m_fRemoteDisplayMultiConnAllowed == other.m_fRemoteDisplayMultiConnAllowed)
@@ -268,6 +271,8 @@ struct UIDataSettingsMachineDisplay
     bool                     m_fRemoteDisplayServerEnabled;
     /** Holds the remote display server port. */
     QString                  m_strRemoteDisplayPort;
+    /** Holds the remote display server security method. */
+    UIVRDESecurityMethod     m_remoteDisplaySecurityMethod;
     /** Holds the remote display server auth type. */
     KAuthType                m_remoteDisplayAuthType;
     /** Holds the remote display server timeout. */
@@ -299,7 +304,7 @@ struct UIDataSettingsMachineDisplay
 UIMachineSettingsDisplay::UIMachineSettingsDisplay()
     : m_strGuestOSTypeId(QString())
 #ifdef VBOX_WITH_3D_ACCELERATION
-    , m_fWddmModeSupported(false)
+    , m_f3DAccelerationSupported(false)
 #endif
     , m_enmGraphicsControllerTypeRecommended(KGraphicsControllerType_Null)
     , m_pCache(0)
@@ -335,14 +340,10 @@ void UIMachineSettingsDisplay::setGuestOSTypeId(const QString &strGuestOSTypeId)
     m_strGuestOSTypeId = strGuestOSTypeId;
     m_pEditorVideoMemorySize->setGuestOSTypeId(m_strGuestOSTypeId);
 
-#ifdef VBOX_WITH_3D_ACCELERATION
-    /* Check if WDDM mode supported by the guest OS type: */
-    m_fWddmModeSupported = UIGuestOSTypeHelpers::isWddmCompatibleOsType(m_strGuestOSTypeId);
-    m_pEditorVideoMemorySize->set3DAccelerationSupported(m_fWddmModeSupported);
-#endif /* VBOX_WITH_3D_ACCELERATION */
     /* Acquire recommended graphics controller type: */
     m_enmGraphicsControllerTypeRecommended =
         gpGlobalSession->guestOSTypeManager().getRecommendedGraphicsController(m_strGuestOSTypeId);
+
     /* Revalidate: */
     revalidate();
 }
@@ -411,6 +412,8 @@ void UIMachineSettingsDisplay::loadToCacheFrom(QVariant &data)
         /* Gather old 'Remote Display' data: */
         oldDisplayData.m_fRemoteDisplayServerEnabled = comVrdeServer.GetEnabled();
         oldDisplayData.m_strRemoteDisplayPort = comVrdeServer.GetVRDEProperty("TCP/Ports");
+        oldDisplayData.m_remoteDisplaySecurityMethod =
+            gpConverter->fromInternalString<UIVRDESecurityMethod>(comVrdeServer.GetVRDEProperty("Security/Method"));
         oldDisplayData.m_remoteDisplayAuthType = comVrdeServer.GetAuthType();
         oldDisplayData.m_uRemoteDisplayTimeout = comVrdeServer.GetAuthTimeout();
         oldDisplayData.m_fRemoteDisplayMultiConnAllowed = comVrdeServer.GetAllowMultiConnection();
@@ -493,6 +496,7 @@ void UIMachineSettingsDisplay::getFromCache()
         {
             m_pEditorVRDESettings->setFeatureEnabled(oldDisplayData.m_fRemoteDisplayServerEnabled);
             m_pEditorVRDESettings->setPort(oldDisplayData.m_strRemoteDisplayPort);
+            m_pEditorVRDESettings->setSecurityMethod(oldDisplayData.m_remoteDisplaySecurityMethod);
             m_pEditorVRDESettings->setAuthType(oldDisplayData.m_remoteDisplayAuthType);
             m_pEditorVRDESettings->setTimeout(QString::number(oldDisplayData.m_uRemoteDisplayTimeout));
             m_pEditorVRDESettings->setMultipleConnectionsAllowed(oldDisplayData.m_fRemoteDisplayMultiConnAllowed);
@@ -569,6 +573,7 @@ void UIMachineSettingsDisplay::putToCache()
         /* Gather new 'Remote Display' data: */
         newDisplayData.m_fRemoteDisplayServerEnabled = m_pEditorVRDESettings->isFeatureEnabled();
         newDisplayData.m_strRemoteDisplayPort = m_pEditorVRDESettings->port();
+        newDisplayData.m_remoteDisplaySecurityMethod = m_pEditorVRDESettings->securityMethod();
         newDisplayData.m_remoteDisplayAuthType = m_pEditorVRDESettings->authType();
         newDisplayData.m_uRemoteDisplayTimeout = m_pEditorVRDESettings->timeout().toULong();
         newDisplayData.m_fRemoteDisplayMultiConnAllowed = m_pEditorVRDESettings->isMultipleConnectionsAllowed();
@@ -631,6 +636,35 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
     /* Pass by default: */
     bool fPass = true;
 
+    /* Validation prerequisites: */
+#ifdef VBOX_WITH_3D_ACCELERATION
+    /* Special handling for Windows guests, 3D is available for VBoxSVGA only: */
+    if (m_strGuestOSTypeId.startsWith("Windows"))
+        m_f3DAccelerationSupported = graphicsControllerTypeCurrent() == KGraphicsControllerType_VBoxSVGA
+                                   ? UIGuestOSTypeHelpers::isWddmCompatibleOsType(m_strGuestOSTypeId)
+                                   : false;
+    /* For the rest of guest OS types 3D is available for VMSVGA only: */
+    else
+        m_f3DAccelerationSupported = graphicsControllerTypeCurrent() == KGraphicsControllerType_VMSVGA;
+
+    /* Additionally make sure 3D acceleration is one of the features for current graphical controller: */
+    if (m_f3DAccelerationSupported)
+    {
+        const KPlatformArchitecture enmArch = optionalFlags().contains("arch")
+                                            ? optionalFlags().value("arch").value<KPlatformArchitecture>()
+                                            : KPlatformArchitecture_x86;
+        CPlatformProperties comPlatformProperties = gpGlobalSession->virtualBox().GetPlatformProperties(enmArch);
+        const QVector<KGraphicsFeature> features =
+            comPlatformProperties.GetSupportedGfxFeaturesForType(graphicsControllerTypeCurrent());
+        m_f3DAccelerationSupported &= features.contains(KGraphicsFeature_Acceleration3D);
+    }
+
+    /* Pass whether 3D acceleration is supported into Video Memory Editor: */
+    m_pEditorVideoMemorySize->set3DAccelerationSupported(m_f3DAccelerationSupported);
+    /* Enable/disable 3D acceleration check-box accordingly: */
+    m_pEditorDisplayScreenFeatures->setEnabled(isMachineOffline() && m_f3DAccelerationSupported);
+#endif /* VBOX_WITH_3D_ACCELERATION */
+
     /* Screen tab: */
     {
         /* Prepare message: */
@@ -651,7 +685,7 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
             }
 #ifdef VBOX_WITH_3D_ACCELERATION
             /* 3D acceleration video RAM amount test: */
-            else if (m_pEditorDisplayScreenFeatures->isEnabled3DAcceleration() && m_fWddmModeSupported)
+            else if (m_f3DAccelerationSupported && m_pEditorDisplayScreenFeatures->isEnabled3DAcceleration())
             {
                 uNeedBytes = qMax(uNeedBytes, (quint64) 128 * _1M);
                 if ((quint64)m_pEditorVideoMemorySize->value() * _1M < uNeedBytes)
@@ -671,7 +705,7 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
             if (graphicsControllerTypeCurrent() != graphicsControllerTypeRecommended())
             {
 #ifdef VBOX_WITH_3D_ACCELERATION
-                if (m_pEditorDisplayScreenFeatures->isEnabled3DAcceleration())
+                if (m_f3DAccelerationSupported && m_pEditorDisplayScreenFeatures->isEnabled3DAcceleration())
                     message.second << tr("The virtual machine is configured to use 3D acceleration. This will work only if you "
                                          "pick a different graphics controller (%1). Either disable 3D acceleration or switch "
                                          "to required graphics controller type. The latter will be done automatically if you "
@@ -1103,6 +1137,14 @@ bool UIMachineSettingsDisplay::saveScreenData()
         CGraphicsAdapter comGraphics = m_machine.GetGraphicsAdapter();
         fSuccess = m_machine.isOk() && comGraphics.isNotNull();
 
+        /* Get machine ID for further activities: */
+        QUuid uMachineId;
+        if (fSuccess)
+        {
+            uMachineId = m_machine.GetId();
+            fSuccess = m_machine.isOk();
+        }
+
         /* Show error message if necessary: */
         if (!fSuccess)
             notifyOperationProgressError(UIErrorString::formatErrorInfo(m_machine));
@@ -1134,17 +1176,10 @@ bool UIMachineSettingsDisplay::saveScreenData()
                 fSuccess = comGraphics.isOk();
             }
 #endif
-            /* Get machine ID for further activities: */
-            QUuid uMachineId;
-            if (fSuccess)
-            {
-                uMachineId = m_machine.GetId();
-                fSuccess = m_machine.isOk();
-            }
 
             /* Show error message if necessary: */
             if (!fSuccess)
-                notifyOperationProgressError(UIErrorString::formatErrorInfo(m_machine));
+                notifyOperationProgressError(UIErrorString::formatErrorInfo(comGraphics));
 
             /* Save guest-screen scale-factor: */
             if (fSuccess && newDisplayData.m_scaleFactors != oldDisplayData.m_scaleFactors)
@@ -1195,6 +1230,12 @@ bool UIMachineSettingsDisplay::saveRemoteDisplayData()
             if (fSuccess && newDisplayData.m_strRemoteDisplayPort != oldDisplayData.m_strRemoteDisplayPort)
             {
                 comServer.SetVRDEProperty("TCP/Ports", newDisplayData.m_strRemoteDisplayPort);
+                fSuccess = comServer.isOk();
+            }
+            /* Save remote display server security method: */
+            if (fSuccess && newDisplayData.m_remoteDisplaySecurityMethod != oldDisplayData.m_remoteDisplaySecurityMethod)
+            {
+                comServer.SetVRDEProperty("Security/Method", gpConverter->toInternalString(newDisplayData.m_remoteDisplaySecurityMethod));
                 fSuccess = comServer.isOk();
             }
             /* Save remote display server auth type: */

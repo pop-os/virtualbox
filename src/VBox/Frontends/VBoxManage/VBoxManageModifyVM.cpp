@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -145,6 +145,7 @@ enum
     MODIFYVM_NATDNSPROXY,
     MODIFYVM_NATDNSHOSTRESOLVER,
     MODIFYVM_NATLOCALHOSTREACHABLE,
+    MODIFYVM_NATFORWARD_BROADCAST,
     MODIFYVM_MACADDRESS,
     MODIFYVM_HIDPTR,
     MODIFYVM_HIDKBD,
@@ -375,6 +376,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     OPT2("--nat-dns-proxy",                 "--natdnsproxy",            MODIFYVM_NATDNSPROXY,               RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
     OPT2("--nat-dns-host-resolver",         "--natdnshostresolver",     MODIFYVM_NATDNSHOSTRESOLVER,        RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
     OPT2("--nat-localhostreachable",        "--natlocalhostreachable",  MODIFYVM_NATLOCALHOSTREACHABLE,     RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
+    OPT1("--nat-forward-broadcast",                                     MODIFYVM_NATFORWARD_BROADCAST,      RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
     OPT2("--mac-address",                   "--macaddress",             MODIFYVM_MACADDRESS,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
     OPT1("--mouse",                                                     MODIFYVM_HIDPTR,                    RTGETOPT_REQ_STRING),
     OPT1("--keyboard",                                                  MODIFYVM_HIDKBD,                    RTGETOPT_REQ_STRING),
@@ -1089,6 +1091,9 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                          || !RTStrICmp(ValueUnion.psz, "svga"))
                     CHECK_ERROR(pGraphicsAdapter, COMSETTER(GraphicsControllerType)(GraphicsControllerType_VBoxSVGA));
 #endif
+                else if (   !RTStrICmp(ValueUnion.psz, "qemuramfb")
+                         || !RTStrICmp(ValueUnion.psz, "qemu-ramfb"))
+                    CHECK_ERROR(pGraphicsAdapter, COMSETTER(GraphicsControllerType)(GraphicsControllerType_QemuRamFB));
                 else
                 {
                     errorArgument(ModifyVM::tr("Invalid --graphicscontroller argument '%s'"), ValueUnion.psz);
@@ -2347,6 +2352,22 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 CHECK_ERROR(nic, COMGETTER(NATEngine)(engine.asOutParam()));
 
                 CHECK_ERROR(engine, COMSETTER(LocalhostReachable)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_NATFORWARD_BROADCAST:
+            {
+                if (!parseNum(GetOptState.uIndex, NetworkAdapterCount, "NIC"))
+                    break;
+
+                ComPtr<INetworkAdapter> nic;
+                CHECK_ERROR_BREAK(sessionMachine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                ComPtr<INATEngine> engine;
+                CHECK_ERROR(nic, COMGETTER(NATEngine)(engine.asOutParam()));
+
+                CHECK_ERROR(engine, COMSETTER(ForwardBroadcast)(ValueUnion.f));
                 break;
             }
 

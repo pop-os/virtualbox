@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -576,7 +576,7 @@ static DECLCALLBACK(RTEXITCODE) dhcpdHandleAddAndModify(PDHCPDCMDCTX pCtx, int a
                     if (pCtx->pCmdDef->fSubcommandScope == HELP_SCOPE_DHCPSERVER_ADD)
                         return errorSyntax(DHCPServer::tr("--unforce-opt does not apply to the 'add' subcommand"));
                     RT_FALL_THROUGH();
-                case DHCP_ADDMOD_UNSUPPRESS_OPTION: // --unsupress-opt
+                case DHCP_ADDMOD_UNSUPPRESS_OPTION: // --unsuppress-opt
                     if (pCtx->pCmdDef->fSubcommandScope == HELP_SCOPE_DHCPSERVER_ADD)
                         return errorSyntax(DHCPServer::tr("--unsuppress-opt does not apply to the 'add' subcommand"));
                     RT_FALL_THROUGH();

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1903,8 +1903,7 @@ static DECLCALLBACK(RTEXITCODE) gctrlHandleMkDir(PGCTLCMDCTX pCtx, int argc, cha
                     if (rcExit != RTEXITCODE_SUCCESS)
                         return rcExit;
                     if (pCtx->cVerbose)
-                        RTPrintf(GuestCtrl::tr("Creating %RU32 directories...\n", "", argc - GetState.iNext + 1),
-                                 argc - GetState.iNext + 1);
+                        RTPrintf(GuestCtrl::tr("Creating %RU32 directories...\n"), argc - GetState.iNext + 1);
                 }
                 if (g_fGuestCtrlCanceled)
                     return RTMsgErrorExit(RTEXITCODE_FAILURE, GuestCtrl::tr("mkdir was interrupted by Ctrl-C (%u left)\n"),
@@ -1989,11 +1988,9 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleRmDir(PGCTLCMDCTX pCtx, int argc, char
                     if (pCtx->cVerbose)
                     {
                         if (fRecursive)
-                            RTPrintf(GuestCtrl::tr("Removing %RU32 directory tree(s)...\n", "", argc - GetState.iNext + 1),
-                                     argc - GetState.iNext + 1);
+                            RTPrintf(GuestCtrl::tr("Removing %RU32 directory tree(s)...\n"), argc - GetState.iNext + 1);
                         else
-                            RTPrintf(GuestCtrl::tr("Removing %RU32 directorie(s)...\n", "", argc - GetState.iNext + 1),
-                                     argc - GetState.iNext + 1);
+                            RTPrintf(GuestCtrl::tr("Removing %RU32 directorie(s)...\n"), argc - GetState.iNext + 1);
                     }
                 }
                 if (g_fGuestCtrlCanceled)
@@ -2109,8 +2106,7 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleRm(PGCTLCMDCTX pCtx, int argc, char **
                     if (rcExit != RTEXITCODE_SUCCESS)
                         return rcExit;
                     if (pCtx->cVerbose)
-                        RTPrintf(GuestCtrl::tr("Removing %RU32 file(s)...\n", "", argc - GetState.iNext + 1),
-                                 argc - GetState.iNext + 1);
+                        RTPrintf(GuestCtrl::tr("Removing %RU32 file(s)...\n"), argc - GetState.iNext + 1);
                 }
                 if (g_fGuestCtrlCanceled)
                     return RTMsgErrorExit(RTEXITCODE_FAILURE, GuestCtrl::tr("rm was interrupted by Ctrl-C (%u left)\n"),
@@ -2124,7 +2120,7 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleRm(PGCTLCMDCTX pCtx, int argc, char **
                  */
                 cFilesDeleted++;
                 if (pCtx->cVerbose)
-                    RTPrintf(GuestCtrl::tr("Removing file \"%s\" ...\n", ValueUnion.psz));
+                    RTPrintf(GuestCtrl::tr("Removing file \"%s\" ...\n"), ValueUnion.psz);
                 try
                 {
                     /** @todo How does IGuestSession::FsObjRemove work with read-only files? Do we

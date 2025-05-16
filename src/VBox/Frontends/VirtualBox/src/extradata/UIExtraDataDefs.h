@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -59,7 +59,7 @@ namespace UIExtraDataDefs
 
     /** @name Messaging
       * @{ */
-        /** Holds the list of supressed messages for the Message/Popup center frameworks. */
+        /** Holds the list of suppressed messages for the Message/Popup center frameworks. */
         SHARED_LIBRARY_STUFF extern const char *GUI_SuppressMessages;
         /** Holds the list of messages for the Message/Popup center frameworks with inverted check-box state. */
         SHARED_LIBRARY_STUFF extern const char *GUI_InvertMessageOption;

@@ -2,7 +2,7 @@
     Language Definition Include for VirtualBox WiX script.
 -->
 <!--
-    Copyright (C) 2011-2023 Oracle and/or its affiliates.
+    Copyright (C) 2011-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -66,6 +66,7 @@
 
     <!---->
 
+    <String Id="UsedByOtherApp" Value="Il a été détecté une application qui utilise la version de VirtualBox actuellement installée. Vous devez supprimer cette application avant de poursuivre l'installation. Voir le fichier dependency.dep dans le répertoire d'installation de VirtualBox pour plus de détails." />
     <String Id="NeedAdmin" Value="Vous ne pouvez pas (dés)installer [ProductName] sans droits d'administrateur! Ce programme d'installation terminera maintenant." />
     <String Id="NeedMSCRT" Value="[ProductName] needs the Microsoft Visual C++ 2019 Redistributable Package being installed first. Please install and restart the installation of [ProductName]." />
     <String Id="WrongOS" Value="Cette application nécéssite Windows XP ou plus récent." />
@@ -193,15 +194,11 @@
 
     <!---->
 
-    <String Id="FatalErrorTitle" Value="A fatal error has occurred." />
-    <String Id="FatalErrorDescription1" Value="Please check the installation log for more information." />
-    <String Id="FatalErrorDescription2" Value="Alternatively, consult the forums or the documentation of [ProductName]." />
-
-    <!---->
-
-    <String Id="FatalErrorDlg_Header" Value="L'assistant d'installation [ProductName] a terminé anormalement" />
-    <String Id="FatalErrorDlg_Desc" Value="L'installation de [ProductName] a été terminé en raison d'une erreur. Votre système n'a pas été modifié. Pour installer ce programme plus tard, veuillez relancer l'assistant." />
-    <String Id="FatalErrorDlg_Footer" Value="Appuyez sur Terminer pour quitter l'assistant d'installation." />
+    <String Id="FatalErrorDlg_Title" Value="[ProductName] L'assistant d'installation s'est terminé prématurément" />
+    <String Id="FatalErrorDlg_Description1" Value="Veuillez redémarrer et réessayer en relançant l'installation ou la désinstallation." />
+    <String Id="FatalErrorDlg_Description2" Value="Vous pouvez également consulter les forums ou la documentation de [ProductName]." />
+    <String Id="FatalErrorDlg_DescLogOpen" Value="Ouvrir le fichier journal" />
+    <String Id="FatalErrorDlg_DescLogPath" Value="Le fichier journal a été écrit:" />
 
     <!---->
 
@@ -573,6 +570,28 @@
     <String Id="ProgressTextUnmoveFiles" Value="Suppression des fichiers déplacés" />
     <String Id="ProgressTextUnmoveFilesTemplate" Value="Fichier : [1], Répertoire : [9]" />
     <String Id="ProgressTextUnpublishProduct" Value="Annulation de la publication des informations sur le produit" />
+
+    <String Id="ProgressTextCheckTargetDir" Value="Checking target directory ..." />
+
+    <String Id="ProgressTextSupDrvInt" Value="Installing support driver ..." />
+    <String Id="ProgressTextSupDrvStart" Value="Starting support driver ..." />
+    <String Id="ProgressTextSupDrvUninst" Value="Uninstalling support driver ..." />
+
+    <String Id="ProgressTextUSBDevDrvInst" Value="Installing USB device driver ..." />
+    <String Id="ProgressTextUSBDevDrvUninst" Value="Uninstalling USB device driver ..." />
+    <String Id="ProgressTextUSBMonDrvInst" Value="Installing USB monitor driver ..." />
+    <String Id="ProgressTextUSBMonDrvStart" Value="Starting USB monitor driver ..." />
+    <String Id="ProgressTextUSBMonDrvUninst" Value="Uninstalling USB monitor driver ..." />
+
+    <String Id="ProgressTextNetAdp6Create" Value="Creating network adapter ..." />
+    <String Id="ProgressTextNetAdp6Remove" Value="Removing network adapter ..." />
+    <String Id="ProgressTextNetAdp6Update" Value="Updating network adapter ..." />
+    <String Id="ProgressTextNetAdp6Uninst" Value="Uninstalling network adapter ..." />
+
+    <String Id="ProgressTextNetLwfInst" Value="Installing network filter ..." />
+    <String Id="ProgressTextNetLwfRollbackInst" Value="Rolling back installation of network filter ..." />
+    <String Id="ProgressTextNetLwfUninst" Value="Uninstalling network filter ..." />
+    <String Id="ProgressTextNetLwfRollbackUninst" Value="Rolling back uninstallation of network filter ..." />
 
     <String Id="UITextbytes" Value="octets" />
     <String Id="UITextGB" Value="Go" />

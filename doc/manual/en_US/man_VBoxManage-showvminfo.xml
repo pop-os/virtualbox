@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage showvminfo
 -->
 <!--
-    Copyright (C) 2006-2023 Oracle and/or its affiliates.
+    Copyright (C) 2006-2024 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-showvminfo" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2023-04-21 23:59:02 +0200 (Fri, 21 Apr 2023) $</pubdate>
+    <pubdate>$Date: 2024-09-16 23:42:41 +0200 (Mon, 16 Sep 2024) $</pubdate>
     <title>VBoxManage showvminfo</title>
   </refentryinfo>
 
@@ -171,7 +171,7 @@
     </para>
 <screen>$ VBoxManage showvminfo "Windows 10"
 VirtualBox Command Line Management Interface Version <replaceable>version-number</replaceable>
-Copyright (C) 2005-2023 Oracle and/or its affiliates
+Copyright (C) 2005-2024 Oracle and/or its affiliates
 
 Name:            Windows 10
 Groups:          /

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2023 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2024 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -43,6 +43,7 @@ class QGridLayout;
 class QProgressBar;
 class QShowEvent;
 class QStackedWidget;
+class QTimer;
 class QIDialogButtonBox;
 class UIFilterEditor;
 class UIModeCheckBox;
@@ -212,6 +213,9 @@ private slots:
     /** Handles signal about vertical scroll-area wheel-event. */
     void sltHandleVerticalScrollAreaWheelEvent();
 
+    /** Handles request to update disabled widgets look&feel: */
+    void sltUpdateDisabledWidgetsLookAndFeel();
+
 private:
 
     /** @name Prepare/cleanup cascade.
@@ -229,6 +233,12 @@ private:
         void cleanup();
     /** @} */
 
+    /** Adjusts look&feel for disabled widget.
+      * @param  pWidget   Brings the widget to adjust look&feel for. */
+    static void adjustLookAndFeelForDisabledWidget(QWidget *pWidget);
+    /** Returns whether one of @a pWidget parents in hierarchy has mask assigned. */
+    static bool isOneOfWidgetParentsHasMask(QWidget *pWidget);
+
     /** Holds configuration access level. */
     ConfigurationAccessLevel  m_enmConfigurationAccessLevel;
 
@@ -237,6 +247,8 @@ private:
 
     /** Holds whether dialog is polished. */
     bool  m_fPolished;
+    /** Holds whether the first serialization is done. */
+    bool  m_fFirstSerializationDone;
     /** Holds whether the serialization is in progress. */
     bool  m_fSerializationIsInProgress;
     /** Holds whether there were no serialization errors. */
@@ -270,6 +282,9 @@ private:
 
     /** Stores the help tag per page. */
     QMap<int, QString>  m_pageHelpKeywords;
+
+    /** Holds the timer to update disabled widgets look&feel. */
+    QTimer *m_pTimerDisabledLookAndFeel;
 
     /** @name Widgets
      * @{ */
