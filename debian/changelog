@@ -6,6 +6,8 @@ virtualbox (7.1.8-dfsg-1) unstable; urgency=medium
   * Add libfuse2 runtime dependency (Closes: #1082889), thanks Marco Moock for the report
   * Bump copyright years
   * Bump copyright years for Debian packaging
+  * Bump std-version to 4.7.2
+  * Also try to build arm64 and armhf
 
   [ Tobias Frost ]
   * Fix broken watchfile (Closes: #1094801)
