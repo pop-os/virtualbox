@@ -1,6 +1,6 @@
 --- a/configure
 +++ b/configure
-@@ -2168,7 +2168,7 @@ extern "C" int main(void)
+@@ -2182,7 +2182,7 @@ extern "C" int main(void)
  }
  EOF
    found=
