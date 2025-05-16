@@ -4,6 +4,8 @@ virtualbox (7.1.8-dfsg-1) unstable; urgency=medium
   * New upstream version 7.1.0-dfsg
   * Refresh patches
   * Add libfuse2 runtime dependency (Closes: #1082889), thanks Marco Moock for the report
+  * Bump copyright years
+  * Bump copyright years for Debian packaging
 
   [ Tobias Frost ]
   * Fix broken watchfile (Closes: #1094801)
