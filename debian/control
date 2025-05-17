@@ -13,7 +13,7 @@ Build-Depends: bzip2,
                docbook-xml,
                docbook-xsl,
                dpkg-dev (>= 1.15.6~),
-               g++-multilib [amd64 i386],
+               g++-multilib,
                genisoimage,
                glslang-tools,
                gsoap,
@@ -179,7 +179,7 @@ Package: virtualbox-guest-x11
 Section: contrib/x11
 Replaces: virtualbox-guest-x11-hwe (<< 7.0.16-dfsg-5)
 Breaks: virtualbox-guest-x11-hwe (<< 7.0.16-dfsg-5)
-Architecture: amd64 arm64 armhf i386
+Architecture: amd64 i386
 Depends: libnotify-bin,
          x11-xserver-utils,
          virtualbox-guest-utils (= ${binary:Version}),

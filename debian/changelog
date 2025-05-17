@@ -1,3 +1,9 @@
+virtualbox (7.1.8-dfsg-3) unstable; urgency=medium
+
+  * Don't enable arm* for now
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 17 May 2025 09:27:02 +0200
+
 virtualbox (7.1.8-dfsg-2) unstable; urgency=medium
 
   * Restrict g++-multilib on amd64 and i386 only
