@@ -62,6 +62,18 @@
 # define PAGE_READONLY_EXEC PAGE_READONLY
 #endif
 
+#if RTLNX_VER_MIN(2,6,0)
+# ifdef __GFP_REPEAT
+#  define MY_GFP_REPEAT __GFP_REPEAT
+# elif defined (__GFP_RETRY_MAYFAIL) /* Renamed in commit dcda9b04713c3f6ff0875652924844fae28286ea . */
+#  define MY_GFP_REPEAT __GFP_RETRY_MAYFAIL
+# else /* This is to notice when the flags are renamed/moved around again. */
+#  error "Was this flag renamed again?"
+# endif
+# else
+#  define MY_GFP_REPEAT 0
+#endif
+
 /** @def IPRT_USE_ALLOC_VM_AREA_FOR_EXEC
  * Whether we use alloc_vm_area (3.2+) for executable memory.
  * This is a must for 5.8+, but we enable it all the way back to 3.2.x for
@@ -411,10 +423,8 @@ static int rtR0MemObjLinuxAllocPages(PRTR0MEMOBJLNX *ppMemLnx, RTR0MEMOBJTYPE en
 
     if (cPages > 255)
     {
-# ifdef __GFP_REPEAT
         /* Try hard to allocate the memory, but the allocation attempt might fail. */
-        fFlagsLnx |= __GFP_REPEAT;
-# endif
+        fFlagsLnx |= MY_GFP_REPEAT;
 # ifdef __GFP_NOMEMALLOC
         /* Introduced with Linux 2.6.12: Don't use emergency reserves */
         fFlagsLnx |= __GFP_NOMEMALLOC;
@@ -989,13 +999,13 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, 
     /* Try to avoid GFP_DMA. GFM_DMA32 was introduced with Linux 2.6.15. */
 #if (defined(RT_ARCH_AMD64) || defined(CONFIG_X86_PAE)) && defined(GFP_DMA32)
     /* ZONE_DMA32: 0-4GB */
-    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, PAGE_SIZE, GFP_DMA32,
+    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, PAGE_SIZE, GFP_KERNEL | GFP_DMA32,
                                    false /* non-contiguous */, fExecutable, VERR_NO_LOW_MEMORY, pszTag);
     if (RT_FAILURE(rc))
 #endif
 #ifdef RT_ARCH_AMD64
         /* ZONE_DMA: 0-16MB */
-        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, PAGE_SIZE, GFP_DMA,
+        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, PAGE_SIZE, GFP_KERNEL | GFP_DMA,
                                        false /* non-contiguous */, fExecutable, VERR_NO_LOW_MEMORY, pszTag);
 #else
 # ifdef CONFIG_X86_PAE

@@ -42,7 +42,7 @@ Provider=%ORACLE%
 ;edit-DriverVer=08/26/2008,2.00.0000
 DriverPackageType=KernelService
 ;cat CatalogFile=VBoxSup.cat
-;PnpLockdown=1
+PnpLockdown=1
 
 [DestinationDirs]
 DefaultDestDir = 12

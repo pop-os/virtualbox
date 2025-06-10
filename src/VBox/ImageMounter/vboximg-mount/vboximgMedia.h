@@ -1,5 +1,4 @@
 /* $Id: vboximgMedia.h $ */
-
 /** @file
  * vboximgMedia.h
  */

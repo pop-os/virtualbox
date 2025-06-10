@@ -415,6 +415,7 @@ static DECLCALLBACK(int) recordingCodecVPXEncode(PRECORDINGCODEC pCodec, PRECORD
 
         case RECORDINGFRAME_TYPE_CURSOR_SHAPE:
         {
+            RecordingVideoFrameFree(pCodec->Video.VPX.pCursorShape);
             pCodec->Video.VPX.pCursorShape = RecordingVideoFrameDup(&pFrame->u.CursorShape);
             AssertPtr(pCodec->Video.VPX.pCursorShape);
 

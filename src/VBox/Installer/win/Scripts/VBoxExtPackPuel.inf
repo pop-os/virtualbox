@@ -32,6 +32,7 @@ ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
 CatalogFile = VBoxExtPackPuel.cat
 Provider    = %ORACLE%
 ;edit-DriverVer  = 08/26/2008,2.00.0000
+PnpLockdown=1
 
 [SourceDisksNames]
 1=%VBoxExtPackPuel.DskDesc%,"",,

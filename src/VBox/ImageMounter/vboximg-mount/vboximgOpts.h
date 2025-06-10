@@ -1,6 +1,4 @@
-
 /* $Id: vboximgOpts.h $ */
-
 /** @file
  * vboximgOpts.h
  */
