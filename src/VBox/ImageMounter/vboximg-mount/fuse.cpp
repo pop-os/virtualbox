@@ -1,7 +1,6 @@
 /* $Id: fuse.cpp $ */
 /** @file
- *
- * Module to dynamically load libfuse and load all symbols
+ * Module to dynamically load libfuse/libosxfuse and load all symbols
  * which are needed by vboximg-mount.
  */
 

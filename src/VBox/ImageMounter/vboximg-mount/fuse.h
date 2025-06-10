@@ -1,6 +1,7 @@
+/* $Id: fuse.h $ */
 /** @file
- * Module to dynamically load libfuse/libosxfuse and load all symbols which are needed by
- * vboximg-mount.
+ * Module to dynamically load libfuse/libosxfuse and load all symbols
+ * which are needed by vboximg-mount.
  */
 
 /*

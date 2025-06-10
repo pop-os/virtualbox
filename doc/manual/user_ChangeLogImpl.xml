@@ -73,6 +73,60 @@ Rules for adding a changelog entry to make them look more uniform:
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
 
+    <title>Version 7.1.10 (2025-06-03)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VBoxManage: Fixed a crash when running 'guestcontrol run' on Windows
+          hosts (bug #22175)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: Fixed device switching on Windows hosts (bug #22267)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host installer: Fixed multiple installation entries in the
+          'Add or remove programs' dialog and upgrade issues</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: Fixed issue which caused VM Selector process crash
+          due to missing libdl.so and libpthread.so libraries (bug #22193)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: Removed libIDL as a build time dependency when
+          building VirtualBox from source code (bug #21169)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guest and host: Added initial support for kernel 6.15 (bug #22420)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guest: Added initial support for kernel 6.16-RC0</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guest and host: Fixed issue with building modules
+          for UEK8 kernel on Oracle Linux 9 distribution</para>
+      </listitem>
+
+      <listitem>
+        <para>RDP: Fixed issue when it was not possible to paste clipboard buffer
+          into a guest over RDP remote session</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
     <title>Version 7.1.8 (2025-04-15)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

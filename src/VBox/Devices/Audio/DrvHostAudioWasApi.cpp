@@ -154,6 +154,10 @@ typedef struct DRVHOSTAUDIOWASCACHEDEV
     /** Support for AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY: -1=unknown, 0=no, 1=yes. */
     int8_t                      fSupportsSrcDefaultQuality;
 #endif
+    /** Flag indicating whether this device is considered as being 'stale'
+     *  (non-working / outdated interface / whatever) and can be removed
+     *  from the cache (if enabled). */
+    bool                        fStale;
     /** List of cached configurations (DRVHOSTAUDIOWASCACHEDEVCFG). */
     RTLISTANCHOR                ConfigList;
     /** The device ID length in RTUTF16 units. */
@@ -276,10 +280,10 @@ typedef struct DRVHOSTAUDIOWAS
     /** Semaphore for signalling that cache purge is done and that the destructor
      *  can do cleanups. */
     RTSEMEVENTMULTI                 hEvtCachePurge;
-    /** Total number of device config entire for capturing.
+    /** Total number of device config entries for capturing.
      * This includes in-use ones. */
     uint32_t volatile               cCacheEntriesIn;
-    /** Total number of device config entire for playback.
+    /** Total number of device config entries for playback.
      * This includes in-use ones. */
     uint32_t volatile               cCacheEntriesOut;
 
@@ -577,7 +581,7 @@ public:
              * of a device role, so we try avoiding that by only caring about eMultimedia.
              *
              * See @bugref{10844} */
-            && (enmRole == eMultimedia)
+            && enmRole == eMultimedia
            )
         {
             pIEnumerator = m_pDrvWas->pIEnumerator;
@@ -1158,6 +1162,7 @@ static int drvHostAudioWasCacheLookupOrCreateConfig(PDRVHOSTAUDIOWAS pThis, PDRV
                                                     PCPDMAUDIOSTREAMCFG pCfgReq, bool fUseCache, bool fOnWorker,
                                                     PDRVHOSTAUDIOWASCACHEDEVCFG *ppDevCfg)
 {
+    Assert(!pDevEntry->fStale);
     PDRVHOSTAUDIOWASCACHEDEVCFG pDevCfg;
 
     /*
@@ -1235,6 +1240,40 @@ static int drvHostAudioWasCacheLookupOrCreateConfig(PDRVHOSTAUDIOWAS pThis, PDRV
 
 
 /**
+ * Invalidates device cache entry configurations.
+ *
+ * @param   pThis       The WASAPI host audio driver instance data.
+ * @param   pDevEntry   The device entry to invalidate.
+ */
+static void drvHostAudioWasCacheInvalidateDevEntryConfig(PDRVHOSTAUDIOWAS pThis, PDRVHOSTAUDIOWASCACHEDEV pDevEntry)
+{
+    RT_NOREF(pThis);
+
+    LogRelFunc(("Invalidating cache entry configurations: %p - '%ls'\n", pDevEntry, pDevEntry->wszDevId));
+
+    PDRVHOSTAUDIOWASCACHEDEVCFG pDevCfg, pDevCfgNext;
+    RTListForEachSafe(&pDevEntry->ConfigList, pDevCfg, pDevCfgNext, DRVHOSTAUDIOWASCACHEDEVCFG, ListEntry)
+    {
+        if (pDevCfg->pIAudioClient)
+        {
+            pDevCfg->pIAudioClient->Reset();
+            pDevCfg->pIAudioClient->Release();
+            pDevCfg->pIAudioClient = NULL;
+
+        }
+
+        if (pDevCfg->pIAudioRenderClient)
+        {
+            pDevCfg->pIAudioRenderClient->Release();
+            pDevCfg->pIAudioRenderClient = NULL;
+        }
+
+        pDevCfg->rcSetup = VERR_AUDIO_STREAM_INIT_IN_PROGRESS;
+    }
+}
+
+
+/**
  * Looks up the given device + config combo in the cache, creating a new entry
  * if missing.
  *
@@ -1256,13 +1295,12 @@ static int drvHostAudioWasCacheLookupOrCreate(PDRVHOSTAUDIOWAS pThis, IMMDevice 
 {
     *ppDevCfg = NULL;
 
-    LogRel2(("WasAPI: Looking up or creating cache entry (caching is set to %s, iface %p)\n",
-             pThis->fCacheEnabled ? "enabled" : "disabled", pIDevice));
+    LogRel(("WasAPI: Looking up or creating cache entry (caching is set to %s, iface %p, %s init)\n",
+            pThis->fCacheEnabled ? "enabled" : "disabled", pIDevice, fOnWorker ? "on worker" : "async"));
 
     /*
      * Get the device ID so we can perform the lookup.
      */
-    int     rc        = VERR_AUDIO_STREAM_COULD_NOT_CREATE;
     LPWSTR  pwszDevId = NULL;
     HRESULT hrc = pIDevice->GetId(&pwszDevId);
     if (SUCCEEDED(hrc))
@@ -1295,13 +1333,12 @@ static int drvHostAudioWasCacheLookupOrCreate(PDRVHOSTAUDIOWAS pThis, IMMDevice 
         {
             LogRel2(("WasAPI: Checking for cached device '%ls' ...\n", pwszDevId));
 
-#define DEVICE_STALE_OR_INVALID_BREAK(a_LogRel2What) \
-    { \
+#define DEVICE_STALE_OR_INVALID(a_LogRel2What) \
+    do { \
         LogRel2(a_LogRel2What); \
         LogRel(("WasAPI: Stale or invalid audio interface '%ls' detected!\n", pDevEntry->wszDevId)); \
-        rc = VERR_AUDIO_STREAM_NOT_READY; \
-        break; \
-    }
+        pDevEntry->fStale = true; \
+    } while (0)
             /*
              * The cache has two levels, so first the device entry.
              */
@@ -1311,43 +1348,55 @@ static int drvHostAudioWasCacheLookupOrCreate(PDRVHOSTAUDIOWAS pThis, IMMDevice 
             {
                 if (   pDevEntry->cwcDevId == cwcDevId
                     && pDevEntry->enmDir   == pCfgReq->enmDir
-                    && RTUtf16Cmp(pDevEntry->wszDevId, pwszDevId) == 0)
+                    && !pDevEntry->fStale
+                    && memcmp(pDevEntry->wszDevId, pwszDevId, cwcDevId * sizeof(RTUTF16)) == 0)
                 {
                     /*
                      * Cache hit.
-                     * First we need to check if the cached device interface is in a working (active) shape.
-                     */
-                    AssertPtrBreakStmt(pDevEntry->pIDevice, rc = VERR_AUDIO_STREAM_NOT_READY); /* Paranoia. */
-                    hrc = pDevEntry->pIDevice->GetState(&dwState);
-                    if (SUCCEEDED(hrc))
-                    {
-                        if (dwState != DEVICE_STATE_ACTIVE)
-                            DEVICE_STALE_OR_INVALID_BREAK(("WasAPI: Cache hit for device '%ls': Is in non-active state (state is %s)\n",
-                                                           pDevEntry->wszDevId, drvHostAudioWasMMDeviceStateToString(dwState)));
-                    }
-                    else
-                        DEVICE_STALE_OR_INVALID_BREAK(("WasAPI: Cache hit for device '%ls': Unable to retrieve state (hr=%#x)\n",
-                                                       pDevEntry->wszDevId, hrc));
-                    /*
-                     * Next we now need to also check if the device interface we want to look up
-                     * actually matches the one we have in the cache entry.
                      *
-                     * If it doesn't, bail out and add a new device entry to the cache with the new interface below then.
+                     * First we need to check if the device interface we want to look up
+                     * actually matches the one we have in the cache entry.  If it doesn't,
+                     * mark it as stale and continue looking. (We'll probably end up adding a
+                     * new device entry to the cache with the new interface below.)
                      *
-                     * This is needed when switching audio interfaces and the device interface becomes invalid via
-                     * AUDCLNT_E_DEVICE_INVALIDATED.  See @bugref{10503}
+                     * This is needed when switching audio interfaces and the device interface
+                     * becomes invalid via AUDCLNT_E_DEVICE_INVALIDATED.  See @bugref{10503}.
                      */
                     if (pDevEntry->pIDevice != pIDevice)
-                        DEVICE_STALE_OR_INVALID_BREAK(("WasAPI: Cache hit for device '%ls': Stale interface detected (new: %p, old: %p)\n",
-                                                       pDevEntry->wszDevId, pIDevice, pDevEntry->pIDevice));
+                        DEVICE_STALE_OR_INVALID(("WasAPI: Cache hit for device '%ls': Stale interface detected (new: %p, old: %p)\n",
+                                                 pDevEntry->wszDevId, pIDevice, pDevEntry->pIDevice));
+                    else
+                    {
+                        /*
+                         * Second, we need to check if the cached device interface is in a
+                         * working (active) shape.
+                         */
+#if 0 /* However we've already checked this above, outside the loop and the pDevEntry->pIDevice == pIDevice! */
+                        hrc = pDevEntry->pIDevice->GetState(&dwState);
+                        if (SUCCEEDED(hrc))
+                        {
+                            if (dwState != DEVICE_STATE_ACTIVE)
+                                DEVICE_STALE_OR_INVALID(("WasAPI: Cache hit for device '%ls': Is in non-active state (state is %s)\n",
+                                                         pDevEntry->wszDevId, drvHostAudioWasMMDeviceStateToString(dwState)));
+                        }
+                        else
+                            DEVICE_STALE_OR_INVALID(("WasAPI: Cache hit for device '%ls': Unable to retrieve state (hr=%#x)\n",
+                                                     pDevEntry->wszDevId, hrc));
+#endif
+                    }
 
-                    LogRel2(("WasAPI: Cache hit for device '%ls' (iface %p)\n", pwszDevId, pIDevice));
+                    LogRelFunc(("WasAPI: fOnWorker=%RTbool, fStaleDevice=%RTbool\n", fOnWorker, pDevEntry->fStale));
 
-                    CoTaskMemFree(pwszDevId);
-                    pwszDevId = NULL;
+                    if (!pDevEntry->fStale)
+                    {
+                        LogRel2(("WasAPI: Cache hit for device '%ls' (iface %p)\n", pwszDevId, pIDevice));
 
-                    return drvHostAudioWasCacheLookupOrCreateConfig(pThis, pDevEntry, pCfgReq,
-                                                                    true /* fUseCache */, fOnWorker, ppDevCfg);
+                        CoTaskMemFree(pwszDevId);
+                        pwszDevId = NULL;
+
+                        return drvHostAudioWasCacheLookupOrCreateConfig(pThis, pDevEntry, pCfgReq,
+                                                                        true /* fUseCache */, fOnWorker, ppDevCfg);
+                    }
                 }
             }
             RTCritSectLeave(&pThis->CritSectCache);
@@ -1355,27 +1404,11 @@ static int drvHostAudioWasCacheLookupOrCreate(PDRVHOSTAUDIOWAS pThis, IMMDevice 
             if (!pDevEntry)
                 LogRel2(("WasAPI: Cache miss for device '%ls' (iface %p)\n", pwszDevId, pIDevice));
 
-#undef DEVICE_STALE_OR_INVALID_BREAK
+#undef DEVICE_STALE_OR_INVALID
         }
 
-        /*
-         * If we got a stale or somehow other invalid cache entry, remove it first.
-         */
-        if (   pThis->fCacheEnabled
-            && pDevEntry /* Cache hit? */
-            && rc == VERR_AUDIO_STREAM_NOT_READY)
-        {
-            LogRel2(("WasAPI: Removing stale device '%ls' from cache (iface %p)\n", pDevEntry->wszDevId, pDevEntry->pIDevice));
-
-            RTCritSectEnter(&pThis->CritSectCache);
-            RTListNodeRemove(&pDevEntry->ListEntry);
-            RTCritSectLeave(&pThis->CritSectCache);
-
-            drvHostAudioWasCacheDestroyDevEntry(pThis, pDevEntry);
-            pDevEntry = NULL;
-
-            rc = VINF_SUCCESS;
-        }
+        /* Note: An active device marked as being stale will be removed from the cache
+                 after the device switch has been completed. */
 
         /*
          * Device not in the cache (anymore), (re-)add it.
@@ -1411,11 +1444,13 @@ static int drvHostAudioWasCacheLookupOrCreate(PDRVHOSTAUDIOWAS pThis, IMMDevice 
                 RTListForEach(&pThis->CacheHead, pDevEntry2, DRVHOSTAUDIOWASCACHEDEV, ListEntry)
                 {
                     if (   pDevEntry2->cwcDevId == cwcDevId
+                        && !pDevEntry->fStale
                         /* Note: We have to compare the device interface here as well, as a cached device entry might
-                         * have a stale audio interface for the same device. In such a case a new device entry will be created below. */
+                           have a stale audio interface for the same device. In such a case a new device entry will be created below.
+                           Update: This predates the fStale flag and is just kept for safety. */
                         && pDevEntry2->pIDevice == pIDevice
                         && pDevEntry2->enmDir   == pCfgReq->enmDir
-                        && RTUtf16Cmp(pDevEntry2->wszDevId, pDevEntry->wszDevId) == 0)
+                        && memcmp(pDevEntry2->wszDevId, pDevEntry->wszDevId, cwcDevId * sizeof(RTUTF16)) == 0)
                     {
                         pIDevice->Release();
                         RTMemFree(pDevEntry);
@@ -1440,7 +1475,7 @@ static int drvHostAudioWasCacheLookupOrCreate(PDRVHOSTAUDIOWAS pThis, IMMDevice 
     }
     else
         LogRelMax(64, ("WasAPI: GetId failed (lookup): %Rhrc\n", hrc));
-    return rc;
+    return VERR_AUDIO_STREAM_COULD_NOT_CREATE;
 }
 
 
@@ -2000,6 +2035,17 @@ static void drvHostAudioWasCompleteStreamDevSwitch(PDRVHOSTAUDIOWAS pThis, PDRVH
     /* Put the old config back into the cache. */
     drvHostAudioWasCachePutBack(pThis, pDevCfgOld);
 
+    AssertPtr(pDevCfgOld->pDevEntry);
+    if (pDevCfgOld->pDevEntry->fStale)
+    {
+        LogRelFunc(("Removing stale device from cache\n"));
+        RTListNodeRemove(&pDevCfgOld->pDevEntry->ListEntry);
+
+        drvHostAudioWasCacheInvalidateDevEntryConfig(pThis, pDevCfgOld->pDevEntry);
+        drvHostAudioWasCacheDestroyDevEntry(pThis, pDevCfgOld->pDevEntry);
+        pDevCfgOld = NULL; /* Got invalid due to drvHostAudioWasCacheDestroyDevEntry() above. */
+    }
+
     LogFlowFunc(("returns with '%s' state: %s\n", pStreamWas->Cfg.szName, drvHostWasStreamStatusString(pStreamWas) ));
 }
 
@@ -2041,6 +2087,7 @@ static DECLCALLBACK(void) drvHostAudioWasHA_DoOnWorkerThread(PPDMIHOSTAUDIO pInt
     switch (uUser)
     {
         case DRVHOSTAUDIOWAS_DO_PURGE_CACHE:
+            LogFlowFunc(("DRVHOSTAUDIOWAS_DO_PURGE_CACHE\n"));
             Assert(pStream == NULL);
             Assert(pvUser == NULL);
             Assert(pThis->fCacheEnabled);
@@ -2048,6 +2095,7 @@ static DECLCALLBACK(void) drvHostAudioWasHA_DoOnWorkerThread(PPDMIHOSTAUDIO pInt
             break;
 
         case DRVHOSTAUDIOWAS_DO_PRUNE_CACHE:
+            LogFlowFunc(("DRVHOSTAUDIOWAS_DO_PRUNE_CACHE\n"));
             Assert(pStream == NULL);
             Assert(pvUser == NULL);
             Assert(pThis->fCacheEnabled);
@@ -2055,6 +2103,7 @@ static DECLCALLBACK(void) drvHostAudioWasHA_DoOnWorkerThread(PPDMIHOSTAUDIO pInt
             break;
 
         case DRVHOSTAUDIOWAS_DO_STREAM_DEV_SWITCH:
+            LogFlowFunc(("DRVHOSTAUDIOWAS_DO_STREAM_DEV_SWITCH\n"));
             AssertPtr(pStream);
             AssertPtr(pvUser);
             drvHostAudioWasDoStreamDevSwitch(pThis, (PDRVHOSTAUDIOWASSTREAM)pStream, (PDRVHOSTAUDIOWASCACHEDEVCFG)pvUser);

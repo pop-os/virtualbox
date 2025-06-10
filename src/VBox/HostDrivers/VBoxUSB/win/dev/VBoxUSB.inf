@@ -41,7 +41,7 @@ ClassGUID={36FC9E60-C465-11CF-8056-444553540000}
 provider=%ORACLE%
 ;edit-DriverVer=08/26/2008,2.00.0000
 ;cat CatalogFile=VBoxUSB.cat
-;PnpLockdown=1
+PnpLockdown=1
 
 [SourceDisksNames]
 1=%VBoxUSB_DiskDesc%,,,
@@ -50,7 +50,7 @@ provider=%ORACLE%
 VBoxUSB.sys = 1
 
 [DestinationDirs]
-DefaultDestDir = 10,System32\Drivers
+DefaultDestDir = 12
 
 [Manufacturer]
 %ORACLE%=VBoxUSB@COMMA-NT-ARCH@

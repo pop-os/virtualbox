@@ -1,5 +1,4 @@
 /* $Id: vboximgCrypto.h $ */
-
 /** @file
  * vboximgCrypto.h
  */
