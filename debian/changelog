@@ -1,3 +1,11 @@
+virtualbox (7.1.10-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 7.1.10-dfsg
+  * Drop libIDL dependency, removed upstream
+  * Refresh patches
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 10 Jun 2025 15:31:09 +0200
+
 virtualbox (7.1.8-dfsg-3) unstable; urgency=medium
 
   * Don't enable arm* for now
