@@ -1010,6 +1010,9 @@ void UIChooserModel::sortSelectedGroupItem()
 
     /* Rebuild tree for main root: */
     buildTreeForMainRoot(true /* preserve selection */);
+
+    /* Save groups finally: */
+    saveGroups();
 }
 
 void UIChooserModel::setCurrentMachineItem(const QUuid &uId)

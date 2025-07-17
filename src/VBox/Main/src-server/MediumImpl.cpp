@@ -6939,8 +6939,8 @@ HRESULT Medium::i_exportFile(const char *aFilename,
                         else
                             hrc = setErrorVrc(vrc);
                     }
+                    VDDestroy(pSrcHdd);
                 }
-                VDDestroy(pSrcHdd);
             }
             else
                 hrc = setErrorVrc(vrc, "VDInterfaceAdd -> %Rrc", vrc);

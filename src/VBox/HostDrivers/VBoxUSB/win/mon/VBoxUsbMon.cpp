@@ -1116,15 +1116,23 @@ static NTSTATUS _stdcall VBoxUsbMonClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
             PDEVICE_OBJECT pTmpDevObj;
             RtlInitUnicodeString(&UniName, USBMON_DEVICE_NAME_NT);
             NTSTATUS tmpStatus = IoGetDeviceObjectPointer(&UniName, FILE_ALL_ACCESS, &g_VBoxUsbMonGlobals.pPreventUnloadFileObj, &pTmpDevObj);
-            AssertRelease(NT_SUCCESS(tmpStatus));
-            AssertRelease(pTmpDevObj == pDevObj);
+            if (tmpStatus == STATUS_SUCCESS)
+            {
+                Assert(pTmpDevObj == pDevObj); RT_NOREF(pDevObj);
+            }
+            else
+            {
+                WARN(("IoGetDeviceObjectPointer() failed with status 0x%x", tmpStatus));
+                AssertFailed();
+                /** @todo r=andy Shouldn't we set Status to failed here? See @bugref{10919}. */
+            }
         }
         else
         {
             WARN(("ulPreventUnloadOn already set"));
         }
         LOG(("success!!"));
-        Status = STATUS_SUCCESS;
+        Status = STATUS_SUCCESS; /** @todo r=andy Really? See above. */
     }
     pFileObj->FsContext = NULL;
     pIrp->IoStatus.Status = Status;

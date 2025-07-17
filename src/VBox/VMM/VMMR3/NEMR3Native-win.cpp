@@ -164,6 +164,10 @@ static decltype(WHvGetVirtualProcessorRegisters) *  g_pfnWHvGetVirtualProcessorR
 static decltype(WHvSetVirtualProcessorRegisters) *  g_pfnWHvSetVirtualProcessorRegisters;
 static decltype(WHvResumePartitionTime)            *g_pfnWHvResumePartitionTime;
 static decltype(WHvSuspendPartitionTime)           *g_pfnWHvSuspendPartitionTime;
+static decltype(WHvGetVirtualProcessorXsaveState)  *g_pfnWHvGetVirtualProcessorXsaveState = NULL;
+static decltype(WHvSetVirtualProcessorXsaveState)  *g_pfnWHvSetVirtualProcessorXsaveState = NULL;
+static decltype(WHvGetVirtualProcessorState)       *g_pfnWHvGetVirtualProcessorState = NULL;
+static decltype(WHvSetVirtualProcessorState)       *g_pfnWHvSetVirtualProcessorState = NULL;
 /** @} */
 
 /** @name APIs imported from Vid.dll
@@ -216,6 +220,10 @@ static const struct
     NEM_WIN_IMPORT(0, false, WHvSetVirtualProcessorRegisters),
     NEM_WIN_IMPORT(0, true,  WHvResumePartitionTime),  /* since 19H1 */
     NEM_WIN_IMPORT(0, true,  WHvSuspendPartitionTime), /* since 19H1 */
+    NEM_WIN_IMPORT(0, true,  WHvGetVirtualProcessorXsaveState),
+    NEM_WIN_IMPORT(0, true,  WHvSetVirtualProcessorXsaveState),
+    NEM_WIN_IMPORT(0, true,  WHvGetVirtualProcessorState),
+    NEM_WIN_IMPORT(0, true,  WHvSetVirtualProcessorState),
 
     NEM_WIN_IMPORT(1, true,  VidGetHvPartitionId),
     NEM_WIN_IMPORT(1, true,  VidGetPartitionProperty),
@@ -290,6 +298,10 @@ static const HV_X64_INTERCEPT_MESSAGE_HEADER *g_pX64MsgHdr;
 # define WHvSetVirtualProcessorRegisters            g_pfnWHvSetVirtualProcessorRegisters
 # define WHvResumePartitionTime                     g_pfnWHvResumePartitionTime
 # define WHvSuspendPartitionTime                    g_pfnWHvSuspendPartitionTime
+# define WHvGetVirtualProcessorXsaveState           g_pfnWHvGetVirtualProcessorXsaveState
+# define WHvSetVirtualProcessorXsaveState           g_pfnWHvSetVirtualProcessorXsaveState
+# define WHvGetVirtualProcessorState                g_pfnWHvGetVirtualProcessorState
+# define WHvSetVirtualProcessorState                g_pfnWHvSetVirtualProcessorState
 
 # define VidMessageSlotHandleAndGetNext             g_pfnVidMessageSlotHandleAndGetNext
 # define VidStartVirtualProcessor                   g_pfnVidStartVirtualProcessor
@@ -741,9 +753,70 @@ static int nemR3WinInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
 #undef  NEM_LOG_REL_CAP_FEATURE
     const uint64_t fKnownFeatures = RT_BIT_64(10) - 1U;
     if (Caps.Features.AsUINT64 & ~fKnownFeatures)
-        NEM_LOG_REL_CAP_SUB_EX("Unknown features", "%#RX64", Caps.ExtendedVmExits.AsUINT64 & ~fKnownVmExits);
+        NEM_LOG_REL_CAP_SUB_EX("Unknown features", "%#RX64", Caps.ExtendedVmExits.AsUINT64 & ~fKnownFeatures);
     pVM->nem.s.fSpeculationControl = RT_BOOL(Caps.Features.SpeculationControl);
     /** @todo RECHECK: WHV_CAPABILITY_FEATURES typedef. */
+
+    pVM->nem.s.fXsaveSupported = RT_BOOL(Caps.Features.Xsave);
+    if (pVM->nem.s.fXsaveSupported)
+    {
+        /*
+         * Check supported Xsave features.
+         */
+        RT_ZERO(Caps);
+        hrc = WHvGetCapabilityWrapper(WHvCapabilityCodeProcessorXsaveFeatures, &Caps, sizeof(Caps));
+        if (SUCCEEDED(hrc))
+            LogRel(("NEM: Supported xsave features: %#RX64\n", Caps.ProcessorXsaveFeatures.AsUINT64));
+        else
+            LogRel(("NEM: Warning! WHvGetCapability/WHvCapabilityCodeProcessorXsaveFeatures failed: %Rhrc (Last=%#x/%u)",
+                    hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+#define NEM_LOG_REL_XSAVE_FEATURE(a_Field)    NEM_LOG_REL_CAP_SUB(#a_Field, Caps.ProcessorXsaveFeatures.a_Field)
+        NEM_LOG_REL_XSAVE_FEATURE(XsaveSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(XsaveoptSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(AvxSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx2Support);
+        NEM_LOG_REL_XSAVE_FEATURE(FmaSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(MpxSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512Support);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512DQSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512BWSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512VLSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(XsaveCompSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(XsaveSupervisorSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Xcr1Support);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512BitalgSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512IfmaSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512VBmiSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512VBmi2Support);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512VnniSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(GfniSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(VaesSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512VPopcntdqSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(VpclmulqdqSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512Bf16Support);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512Vp2IntersectSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx512Fp16Support);
+        NEM_LOG_REL_XSAVE_FEATURE(XfdSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(AmxTileSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(AmxBf16Support);
+        NEM_LOG_REL_XSAVE_FEATURE(AmxInt8Support);
+        NEM_LOG_REL_XSAVE_FEATURE(AvxVnniSupport);
+#if WDK_NTDDI_VERSION > MY_NTDDI_WIN11_22000 /** @todo Introduced at some later point. */
+        NEM_LOG_REL_XSAVE_FEATURE(AvxIfmaSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(AvxNeConvertSupport);
+        NEM_LOG_REL_XSAVE_FEATURE(AvxVnniInt8Support);
+        NEM_LOG_REL_XSAVE_FEATURE(AvxVnniInt16Support);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx10_1_256Support);
+        NEM_LOG_REL_XSAVE_FEATURE(Avx10_1_512Support);
+        NEM_LOG_REL_XSAVE_FEATURE(AmxFp16Support);
+#endif
+        const uint64_t fKnownXsave = RT_BIT_64(38) - 1U;
+        if (Caps.ProcessorXsaveFeatures.AsUINT64 & ~fKnownXsave)
+            NEM_LOG_REL_CAP_SUB_EX("Unknown xsave features", "%#RX64", Caps.ProcessorXsaveFeatures.AsUINT64 & ~fKnownXsave);
+
+        pVM->nem.s.fXsaveComp = RT_BOOL(Caps.ProcessorXsaveFeatures.XsaveCompSupport);
+#undef  NEM_LOG_REL_XSAVE_FEATURE
+    }
 
     /*
      * Check supported exception exit bitmap bits.
@@ -1681,6 +1754,21 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
         }
     }
     pVM->nem.s.fCreatedEmts = true;
+
+    /* Determine the size of the xsave area if supported. */
+    if (pVM->nem.s.fXsaveSupported)
+    {
+        pVCpu = pVM->apCpusR3[0];
+        hrc = WHvGetVirtualProcessorXsaveState(pVM->nem.s.hPartition, pVCpu->idCpu, NULL, 0, &pVM->nem.s.cbXSaveArea);
+        AssertLogRelMsgReturn(hrc == WHV_E_INSUFFICIENT_BUFFER, ("WHvGetVirtualProcessorState(%p, %u,%x,,) -> %Rhrc (Last=%#x/%u)\n",
+                              pVM->nem.s.hPartition, pVCpu->idCpu, WHvVirtualProcessorStateTypeXsaveState,
+                              hrc, RTNtLastStatusValue(), RTNtLastErrorValue()), VERR_NEM_VM_CREATE_FAILED);
+        LogRel(("NEM: cbXSaveArea=%u\n", pVM->nem.s.cbXSaveArea));
+        AssertLogRelMsgReturn(pVM->nem.s.cbXSaveArea <= sizeof(pVCpu->cpum.GstCtx.XState),
+                              ("Returned XSAVE area exceeds what VirtualBox supported (%u > %zu)\n",
+                              pVM->nem.s.cbXSaveArea, sizeof(pVCpu->cpum.GstCtx.XState)),
+                              VERR_NEM_VM_CREATE_FAILED);
+    }
 
     LogRel(("NEM: Successfully set up partition (device handle %p, partition ID %#llx)\n", hPartitionDevice, idHvPartition));
 

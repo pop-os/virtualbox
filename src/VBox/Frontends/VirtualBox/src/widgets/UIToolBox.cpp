@@ -36,6 +36,7 @@
 /* GUI includes: */
 #include "QIRichTextLabel.h"
 #include "QIToolButton.h"
+#include "UICommon.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIIconPool.h"
 #include "UIToolBox.h"
@@ -393,7 +394,9 @@ bool UIToolBox::insertPage(int iIndex, QWidget *pWidget, const QString &strTitle
     pNewPage->setTitle(strTitle);
 
     const QPalette pal = QApplication::palette();
-    QColor tabBackgroundColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(130);
+    QColor tabBackgroundColor = uiCommon().isInDarkMode()
+                              ? pal.color(QPalette::Active, QPalette::Window).lighter(120)
+                              : pal.color(QPalette::Active, QPalette::Window).darker(110);
     pNewPage->setTitleBackgroundColor(tabBackgroundColor);
 
     m_pages[iIndex] = pNewPage;

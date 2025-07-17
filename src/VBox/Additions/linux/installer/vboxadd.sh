@@ -1,7 +1,7 @@
 #! /bin/sh
 # $Id: vboxadd.sh $
 ## @file
-# Linux Additions kernel module init script ($Revision: 168899 $)
+# Linux Additions kernel module init script ($Revision: 169437 $)
 #
 
 #
@@ -623,8 +623,8 @@ create_udev_rule()
             fi
         fi
         ## @todo 60-vboxadd.rules -> 60-vboxguest.rules ?
-        echo "KERNEL=${udev_fix}\"vboxguest\", NAME=\"vboxguest\", OWNER=\"vboxadd\", MODE=\"0660\"" > /etc/udev/rules.d/60-vboxadd.rules
-        echo "KERNEL=${udev_fix}\"vboxuser\", NAME=\"vboxuser\", OWNER=\"vboxadd\", MODE=\"0666\"" >> /etc/udev/rules.d/60-vboxadd.rules
+        echo "KERNEL=${udev_fix}\"vboxguest\", OWNER=\"vboxadd\", MODE=\"0660\"" > /etc/udev/rules.d/60-vboxadd.rules
+        echo "KERNEL=${udev_fix}\"vboxuser\", OWNER=\"vboxadd\", MODE=\"0666\"" >> /etc/udev/rules.d/60-vboxadd.rules
         # Make sure the new rule is noticed.
         udevadm control --reload >/dev/null 2>&1 || true
         udevcontrol reload_rules >/dev/null 2>&1 || true
@@ -1050,7 +1050,14 @@ check_status_kernel()
     # running VBoxVGA or VBoxSVGA graphics.
     if [ $? -eq 0 ]; then
         gpu_vendor=$(lspci | grep 'VGA compatible controller' | cut -d ' ' -f 5 2>/dev/null)
-        if [ "$gpu_vendor" = "InnoTek" ]; then
+
+        # vboxvideo is not installed for kernels 3.10.x and older.
+        have_vboxvideo=
+        if [ "$(printf '%s\n%s\n' "3.10" "$(uname -r)" | sort -Vr | head -1)" = "$(uname -r)" ]; then
+            have_vboxvideo="1"
+        fi
+
+        if [ -n "$have_vboxvideo" -a "$gpu_vendor" = "InnoTek" ]; then
             check_running_module "vboxvideo"
         else
             # Do not spoil $?.

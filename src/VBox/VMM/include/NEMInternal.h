@@ -267,12 +267,18 @@ typedef struct NEM
     bool                        fSpeculationControl : 1;
     /** Whether to export/import IA32_SPEC_CTRL. */
     bool                        fDoIa32SpecCtrl : 1;
+    /** Flag whether XSAVE/XRSTOR are supported. */
+    bool                        fXsaveSupported: 1;
+    /** Flag whether the compacting form of XSAVE is used. */
+    bool                        fXsaveComp: 1;
 #  ifdef NEM_WIN_WITH_A20
     /** Set if we've started more than one CPU and cannot mess with A20. */
     bool                        fA20Fixed : 1;
     /** Set if A20 is enabled. */
     bool                        fA20Enabled : 1;
 #  endif
+    /** Size of the xsave area returned by Hyper-V, required for setting the state. */
+    uint32_t                    cbXSaveArea;
 # endif
     /** The reported CPU vendor.   */
     CPUMCPUVENDOR               enmCpuVendor;

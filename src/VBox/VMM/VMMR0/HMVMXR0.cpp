@@ -68,7 +68,13 @@
 # define HMVMX_ALWAYS_TRAP_PF
 # define HMVMX_ALWAYS_FLUSH_TLB
 # define HMVMX_ALWAYS_SWAP_EFER
+# define HMVMX_VERIFY_VMCS_MAGIC
+# define HMVMX_GST_VMCS_MAGIC                    0xacce55edc01df00d
+# define HMVMX_NST_GST_VMCS_MAGIC                0xde7ec7edbaddecaf
 #endif
+
+/** Sync relevant VMCS cache fields for nested-guests (slight performance hit). */
+#define HMVMX_ALWAYS_SYNC_VMCS_CACHE
 
 /** Enables the fAlwaysInterceptMovDRx related code. */
 #define VMX_WITH_MAYBE_ALWAYS_INTERCEPT_MOV_DRX 1
@@ -189,6 +195,30 @@ DECLINLINE(PVMXVMCSINFO) hmGetVmxActiveVmcsInfo(PVMCPUCC pVCpu)
         return &pVCpu->hmr0.s.vmx.VmcsInfo;
     return &pVCpu->hmr0.s.vmx.VmcsInfoNstGst;
 }
+
+
+#ifdef HMVMX_VERIFY_VMCS_MAGIC
+/**
+ * Returns whether the VMCS magic field matches its expected value.
+ *
+ * @returns VBox status code.
+ * @param   fIsNstGstVmcs   Whether this is a nested-guest VMCS.
+ */
+static int hmR0VmxCheckVmcsMagic(bool fIsNstGstVmcs)
+{
+    uint64_t       uVmcsMagic     = 0;
+    uint64_t const uExpectedMagic = fIsNstGstVmcs ? HMVMX_NST_GST_VMCS_MAGIC : HMVMX_GST_VMCS_MAGIC;
+    uint32_t const uVmcsField     = VMX_VMCS64_CTRL_EXEC_VMCS_PTR_FULL;
+    int const rc = VMXReadVmcs64(uVmcsField, &uVmcsMagic);
+    if (RT_SUCCESS(rc))
+    {
+        if (uVmcsMagic == uExpectedMagic)
+            return VINF_SUCCESS;
+        return VERR_INVALID_MAGIC;
+    }
+    return rc;
+}
+#endif
 
 
 /**
@@ -3023,6 +3053,11 @@ static int hmR0VmxSetupVmcs(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, bool fIsNstG
     else
         LogRelFunc(("Failed to clear the %s. rc=%Rrc\n", rc, pszVmcs));
 
+#ifdef HMVMX_VERIFY_VMCS_MAGIC
+    rc = VMXWriteVmcs64(VMX_VMCS64_CTRL_EXEC_VMCS_PTR_FULL, fIsNstGstVmcs ? HMVMX_NST_GST_VMCS_MAGIC : HMVMX_GST_VMCS_MAGIC);
+    AssertRC(rc);
+#endif
+
     /* Sync any CPU internal VMCS data back into our VMCS in memory. */
     if (RT_SUCCESS(rc))
     {
@@ -3752,7 +3787,8 @@ static int hmR0VmxExportGuestHwvirtState(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTran
          * Check if the VMX feature is exposed to the guest and if the host CPU supports
          * VMCS shadowing.
          */
-        if (pVCpu->CTX_SUFF(pVM)->hmr0.s.vmx.fUseVmcsShadowing)
+        if (   !pVmxTransient->fIsNestedGuest
+            &&  pVCpu->CTX_SUFF(pVM)->hmr0.s.vmx.fUseVmcsShadowing)
         {
             /*
              * If the nested hypervisor has loaded a current VMCS and is in VMX root mode,
@@ -3768,9 +3804,6 @@ static int hmR0VmxExportGuestHwvirtState(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTran
                 && !CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.GstCtx)
                 && CPUMIsGuestVmxCurrentVmcsValid(&pVCpu->cpum.GstCtx))
             {
-                /* Paranoia. */
-                Assert(!pVmxTransient->fIsNestedGuest);
-
                 /*
                  * For performance reasons, also check if the nested hypervisor's current VMCS
                  * was newly loaded or modified before copying it to the shadow VMCS.
@@ -4958,6 +4991,10 @@ VMMR0DECL(int) VMXR0AssertionCallback(PVMCPUCC pVCpu)
     /* Clear the current VMCS data back to memory (shadow VMCS if any would have been
        cleared as part of importing the guest state above. */
     hmR0VmxClearVmcs(pVmcsInfo);
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+    Assert(!pVmcsInfo->pvShadowVmcs || pVmcsInfo->fShadowVmcsState == VMX_V_VMCS_LAUNCH_STATE_CLEAR);
+#endif
 
     /** @todo eliminate the need for calling VMMR0ThreadCtxHookDisable here!  */
     VMMR0ThreadCtxHookDisable(pVCpu);
@@ -6271,6 +6308,7 @@ static void hmR0VmxPostRunGuest(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient, int
 
     pVCpu->hmr0.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_REQUIRED;   /* Some host state messed up by VMX needs restoring. */
     pVmcsInfo->fVmcsState = VMX_V_VMCS_LAUNCH_STATE_LAUNCHED;           /* Use VMRESUME instead of VMLAUNCH in the next run. */
+    pVmcsInfo->fShadowVmcsState = VMX_V_VMCS_LAUNCH_STATE_LAUNCHED;     /* Shadow VMCS isn't launched but set it as not clear. */
 #ifdef VBOX_STRICT
     hmR0VmxCheckHostEferMsr(pVmcsInfo);                                 /* Verify that the host EFER MSR wasn't modified. */
 #endif
@@ -6416,6 +6454,49 @@ static void hmR0VmxPostRunGuest(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient, int
 }
 
 
+#ifdef HMVMX_ALWAYS_SYNC_VMCS_CACHE
+/**
+ * Sync the VMCS cache controls from the active, current VMCS.
+ *
+ * @param   pVmcsInfo   The VMCS info. object.
+ */
+static void hmR0VmxSyncVmcsCache(PVMXVMCSINFO pVmcsInfo)
+{
+    /** @todo We currently need to re-sync the cache here otherwise we end up with
+     *        stale/mismatched controls when executing nested-guests. This is currently
+     *        a bit more "broad" workaround to stop the bleeding first. We may be able
+     *        restrict this to fewer fields. The reason this is NOT done only for the
+     *        nested-guest VMCS is because it was observed the VMCS_SHADOWING control
+     *        (ProcCtls2) bit for the "outer" VMCS gets out-of-sync as well. While
+     *        implementing a more pointed fix, extensive testing is required as the
+     *        problem does NOT manifest immediately while executing nested guests.
+     *        It can take many minutes for the problem to show up, see @bugref{10795}
+     *        for more details. */
+    int rc = VMXReadVmcs32(VMX_VMCS32_CTRL_PIN_EXEC,                &pVmcsInfo->u32PinCtls);
+    rc    |= VMXReadVmcs32(VMX_VMCS32_CTRL_PROC_EXEC,               &pVmcsInfo->u32ProcCtls);
+    rc    |= VMXReadVmcs32(VMX_VMCS32_CTRL_PROC_EXEC2,              &pVmcsInfo->u32ProcCtls2);
+    rc    |= VMXReadVmcs32(VMX_VMCS32_CTRL_ENTRY,                   &pVmcsInfo->u32EntryCtls);
+    rc    |= VMXReadVmcs32(VMX_VMCS32_CTRL_EXIT,                    &pVmcsInfo->u32ExitCtls);
+    rc    |= VMXReadVmcs32(VMX_VMCS32_CTRL_EXCEPTION_BITMAP,        &pVmcsInfo->u32XcptBitmap);
+    rc    |= VMXReadVmcsNw(VMX_VMCS_CTRL_CR0_MASK,                  &pVmcsInfo->u64Cr0Mask);
+    rc    |= VMXReadVmcsNw(VMX_VMCS_CTRL_CR4_MASK,                  &pVmcsInfo->u64Cr4Mask);
+    rc    |= VMXReadVmcs32(VMX_VMCS32_CTRL_PAGEFAULT_ERROR_MASK,    &pVmcsInfo->u32XcptPFMask);
+    rc    |= VMXReadVmcs32(VMX_VMCS32_CTRL_PAGEFAULT_ERROR_MATCH,   &pVmcsInfo->u32XcptPFMatch);
+    rc    |= VMXReadVmcs64(VMX_VMCS64_CTRL_VIRT_APIC_PAGEADDR_FULL, &pVmcsInfo->HCPhysVirtApic);
+    rc    |= VMXReadVmcs64(VMX_VMCS64_CTRL_TSC_OFFSET_FULL,         &pVmcsInfo->u64TscOffset);
+    rc    |= VMXReadVmcs64(VMX_VMCS64_GUEST_VMCS_LINK_PTR_FULL,     &pVmcsInfo->u64VmcsLinkPtr);
+    AssertRC(rc);
+
+    /*
+     * Also invalidate the host RIP and host RSP cache as I suspect this might be causing
+     * the issues mentioned in @bugref{10795#c14}.
+     */
+    pVmcsInfo->uHostRip = 0;
+    pVmcsInfo->uHostRsp = 0;
+}
+#endif
+
+
 /**
  * Runs the guest code using hardware-assisted VMX the normal way.
  *
@@ -6456,6 +6537,10 @@ static VBOXSTRICTRC hmR0VmxRunGuestCodeNormal(PVMCPUCC pVCpu, uint32_t *pcLoops)
 
     /* Paranoia. */
     Assert(VmxTransient.pVmcsInfo == &pVCpu->hmr0.s.vmx.VmcsInfo);
+
+#ifdef HMVMX_ALWAYS_SYNC_VMCS_CACHE
+    hmR0VmxSyncVmcsCache(VmxTransient.pVmcsInfo);
+#endif
 
     VBOXSTRICTRC rcStrict = VERR_INTERNAL_ERROR_5;
     for (;;)
@@ -6569,6 +6654,10 @@ static VBOXSTRICTRC hmR0VmxRunGuestCodeNested(PVMCPUCC pVCpu, uint32_t *pcLoops)
 
     /* Paranoia. */
     Assert(VmxTransient.pVmcsInfo == &pVCpu->hmr0.s.vmx.VmcsInfoNstGst);
+
+#ifdef HMVMX_ALWAYS_SYNC_VMCS_CACHE
+    hmR0VmxSyncVmcsCache(VmxTransient.pVmcsInfo);
+#endif
 
     /* Setup pointer so PGM/IEM can query VM-exit auxiliary info on demand in ring-0. */
     pVCpu->hmr0.s.vmx.pVmxTransient = &VmxTransient;
@@ -6691,6 +6780,10 @@ static VBOXSTRICTRC hmR0VmxRunGuestCodeDebug(PVMCPUCC pVCpu, uint32_t *pcLoops)
     VMXTRANSIENT VmxTransient;
     RT_ZERO(VmxTransient);
     VmxTransient.pVmcsInfo = hmGetVmxActiveVmcsInfo(pVCpu);
+
+#ifdef HMVMX_ALWAYS_SYNC_VMCS_CACHE
+    hmR0VmxSyncVmcsCache(VmxTransient.pVmcsInfo);
+#endif
 
     /* Set HMCPU indicators.  */
     bool const fSavedSingleInstruction = pVCpu->hm.s.fSingleInstruction;

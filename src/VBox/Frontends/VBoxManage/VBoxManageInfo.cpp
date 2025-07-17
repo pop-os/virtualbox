@@ -1770,19 +1770,29 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                         ULONG tcpRcv = 0;
                         engine->GetNetworkSettings(&mtu, &sockSnd, &sockRcv, &tcpSnd, &tcpRcv);
 
+                        BOOL fLocalhostReachable = false;
+                        BOOL fForwardBroadcast = false;
+                        engine->COMGETTER(LocalhostReachable)(&fLocalhostReachable);
+                        engine->COMGETTER(ForwardBroadcast)(&fForwardBroadcast);
+
 /** @todo r=klaus dnsproxy etc needs to be dumped, too */
                         if (details == VMINFO_MACHINEREADABLE)
                         {
                             RTPrintf("natnet%d=\"%ls\"\n", currentNIC + 1, strNetwork.length() ? strNetwork.raw(): Bstr("nat").raw());
                             strAttachment = "nat";
-                            strNatSettings.printf("mtu=\"%d\"\nsockSnd=\"%d\"\nsockRcv=\"%d\"\ntcpWndSnd=\"%d\"\ntcpWndRcv=\"%d\"\n",
-                                                  mtu, sockSnd ? sockSnd : 64, sockRcv ? sockRcv : 64, tcpSnd ? tcpSnd : 64, tcpRcv ? tcpRcv : 64);
+                            strNatSettings.printf("mtu=\"%d\"\nsockSnd=\"%d\"\nsockRcv=\"%d\"\ntcpWndSnd=\"%d\"\ntcpWndRcv=\"%d\"\n"
+                                                  "localhostReachable=\"%d\"\nforwardBroadcast=\"%d\"\n",
+                                                  mtu, sockSnd ? sockSnd : 64, sockRcv ? sockRcv : 64, tcpSnd ? tcpSnd : 64,
+                                                  tcpRcv ? tcpRcv : 64, fLocalhostReachable, fForwardBroadcast);
                         }
                         else
                         {
                             strAttachment = "NAT";
-                            strNatSettings.printf(Info::tr("NIC %d Settings:  MTU: %d, Socket (send: %d, receive: %d), TCP Window (send:%d, receive: %d)\n"),
-                                                  currentNIC + 1, mtu, sockSnd ? sockSnd : 64, sockRcv ? sockRcv : 64, tcpSnd ? tcpSnd : 64, tcpRcv ? tcpRcv : 64);
+                            strNatSettings.printf(Info::tr("NIC %d Settings:\n"
+                                                            "\tMTU: %d, Socket (send: %d, receive: %d), TCP Window (send:%d, receive: %d),\n"
+                                                            "\tLocalhostReachable: %d, ForwardBroadcast: %d\n"),
+                                                  currentNIC + 1, mtu, sockSnd ? sockSnd : 64, sockRcv ? sockRcv : 64, tcpSnd ? tcpSnd : 64,
+                                                  tcpRcv ? tcpRcv : 64, fLocalhostReachable, fForwardBroadcast);
                         }
                         break;
                     }

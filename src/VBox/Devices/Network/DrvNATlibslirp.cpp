@@ -94,6 +94,7 @@
 /** The maximum (default) poll/WSAPoll timeout. */
 #define DRVNAT_DEFAULT_TIMEOUT (int)RT_MS_1HOUR
 #define MAX_IP_ADDRESS_STR_LEN_W_NULL 16
+#define BOOTP_FILE_MAX_LEN 127
 
 /** @todo r=bird: this is a load of weirdness... 'extradata' != cfgm.   */
 #define GET_EXTRADATA(pdrvins, node, name, rc, type, type_name, var)                                  \
@@ -917,6 +918,11 @@ static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCf
      */
     for (PCFGMNODE pNode = pHlp->pfnCFGMGetFirstChild(pPFTree); pNode; pNode = pHlp->pfnCFGMGetNextChild(pNode))
     {
+        char szNodeNm[128] = {0};
+        int rc = pHlp->pfnCFGMGetName(pNode, szNodeNm, sizeof(szNodeNm));
+        if (RT_FAILURE(rc))
+            RTStrCopy(szNodeNm, sizeof(szNodeNm), "xxxx");
+
         /*
          * Validate the port forwarding config.
          */
@@ -927,7 +933,6 @@ static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCf
         /* protocol type */
         bool fUDP;
         char szProtocol[32];
-        int rc;
         GET_STRING(rc, pDrvIns, pNode, "Protocol", szProtocol[0], sizeof(szProtocol));
         if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         {
@@ -1619,6 +1624,11 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
 
     GET_STRING_ALLOC(rc, pDrvIns, pCfg, "TFTPPrefix", pThis->pszTFTPPrefix);
     GET_STRING_ALLOC(rc, pDrvIns, pCfg, "BootFile", pThis->pszBootFile);
+    if (RTStrEnd(pThis->pszBootFile, BOOTP_FILE_MAX_LEN + 1) == NULL)
+    {
+        rc = RTStrATruncate(&pThis->pszBootFile, BOOTP_FILE_MAX_LEN);
+        AssertRCReturn(rc, rc);
+    }
     GET_STRING_ALLOC(rc, pDrvIns, pCfg, "NextServer", pThis->pszNextServer);
 
     int fDNSProxy = 0;

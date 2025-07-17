@@ -81,12 +81,17 @@ enum RECORDINGSTS
     RECORDINGSTS_CREATED       = 1,
     /** Recording was started. */
     RECORDINGSTS_STARTED       = 2,
-    /** Recording was stopped. */
-    RECORDINGSTS_STOPPED       = 3,
-    /** Limit has been reached. */
-    RECORDINGSTS_LIMIT_REACHED = 4,
+    /** Recording was paused (to resume later). */
+    RECORDINGSTS_PAUSED        = 3,
+    /** Recording is stopping.
+     *  Will happen when encoding / writing pending data. */
+    RECORDINGSTS_STOPPING      = 4,
+    /** Recording was stopped (non-continuable). */
+    RECORDINGSTS_STOPPED       = 5,
+    /** Limit has been reached and thus the recording was stopped. */
+    RECORDINGSTS_LIMIT_REACHED = 6,
     /** Recording experienced an error. */
-    RECORDINGSTS_FAILURE       = 5,
+    RECORDINGSTS_FAILURE       = 7,
     /** The usual 32-bit hack. */
     RECORDINGSTS_32BIT_HACK    = 0x7fffffff
 };
@@ -249,6 +254,14 @@ protected:
      *  point in time. */
     RECORDINGCODEC               m_CodecAudio;
 #endif /* VBOX_WITH_AUDIO_RECORDING */
+#ifdef VBOX_WITH_STATISTICS
+    /** STAM values. */
+    struct
+    {
+        STAMPROFILE              profileDataCommon;
+        STAMPROFILE              profileDataStreams;
+    } m_STAM;
+#endif /* VBOX_WITH_STATISTICS */
     /** Block map of raw common data blocks which need to get encoded first. */
     RecordingBlockMap            m_mapBlocksRaw;
     /** Block map of encoded common blocks.
