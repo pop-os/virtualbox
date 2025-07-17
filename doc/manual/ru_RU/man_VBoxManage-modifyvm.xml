@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-modifyvm" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2025-02-19 11:33:41 +0100 (Wed, 19 Feb 2025) $</pubdate>
+    <pubdate>$Date: 2025-07-10 13:35:55 +0200 (Thu, 10 Jul 2025) $</pubdate>
     <title>VBoxManage modifyvm</title>
   </refentryinfo>
 
@@ -1669,7 +1669,7 @@ it unless this changes. -->
           <term><option>--nat-bind-ip<replaceable>N</replaceable>=<replaceable>IP-адрес</replaceable></option></term>
           <listitem><para>
               Задает альтернативный IP адрес, на который привязывается
-              движок NAT. Смотрите <xref linkend="nat-adv-settings" />.
+              движок NAT.
               По умолчанию, движок NAT &product-name; перенаправляет пакеты TCP/IP
               через интерфейс по умолчанию, назначенный TCP/IP стеком хоста.
             </para></listitem>
@@ -1708,7 +1708,6 @@ it unless this changes. -->
           <term><option>--nat-settings<replaceable>N</replaceable>=[<replaceable>mtu</replaceable>],[<replaceable>отправка-сокет</replaceable>],[<replaceable>прием-сокет</replaceable>],[<replaceable>отправка-tcp</replaceable>],[<replaceable>прием-tcp</replaceable>]</option></term>
           <listitem><para>
               Задает значения для настройки производительности NAT.
-              Смотрите <xref linkend="nat-adv-settings" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>

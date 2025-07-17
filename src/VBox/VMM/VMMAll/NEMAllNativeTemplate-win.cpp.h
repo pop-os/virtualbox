@@ -250,57 +250,63 @@ NEM_TMPL_STATIC int nemHCWinCopyStateToHyperV(PVMCC pVM, PVMCPUCC pVCpu)
     if (fWhat & CPUMCTX_EXTRN_DR7)
         ADD_REG64(WHvX64RegisterDr7, pVCpu->cpum.GstCtx.dr[7]); // CPUMGetHyperDR7(pVCpu));
 
-    /* Floating point state. */
-    if (fWhat & CPUMCTX_EXTRN_X87)
+    if (fWhat & CPUMCTX_EXTRN_XCRx)
+        ADD_REG64(WHvX64RegisterXCr0, pVCpu->cpum.GstCtx.aXcr[0]);
+
+    if (!pVM->nem.s.fXsaveSupported)
     {
-        ADD_REG128(WHvX64RegisterFpMmx0, pVCpu->cpum.GstCtx.XState.x87.aRegs[0].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[0].au64[1]);
-        ADD_REG128(WHvX64RegisterFpMmx1, pVCpu->cpum.GstCtx.XState.x87.aRegs[1].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[1].au64[1]);
-        ADD_REG128(WHvX64RegisterFpMmx2, pVCpu->cpum.GstCtx.XState.x87.aRegs[2].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[2].au64[1]);
-        ADD_REG128(WHvX64RegisterFpMmx3, pVCpu->cpum.GstCtx.XState.x87.aRegs[3].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[3].au64[1]);
-        ADD_REG128(WHvX64RegisterFpMmx4, pVCpu->cpum.GstCtx.XState.x87.aRegs[4].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[4].au64[1]);
-        ADD_REG128(WHvX64RegisterFpMmx5, pVCpu->cpum.GstCtx.XState.x87.aRegs[5].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[5].au64[1]);
-        ADD_REG128(WHvX64RegisterFpMmx6, pVCpu->cpum.GstCtx.XState.x87.aRegs[6].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[6].au64[1]);
-        ADD_REG128(WHvX64RegisterFpMmx7, pVCpu->cpum.GstCtx.XState.x87.aRegs[7].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[7].au64[1]);
+        /* Floating point state. */
+        if (fWhat & CPUMCTX_EXTRN_X87)
+        {
+            ADD_REG128(WHvX64RegisterFpMmx0, pVCpu->cpum.GstCtx.XState.x87.aRegs[0].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[0].au64[1]);
+            ADD_REG128(WHvX64RegisterFpMmx1, pVCpu->cpum.GstCtx.XState.x87.aRegs[1].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[1].au64[1]);
+            ADD_REG128(WHvX64RegisterFpMmx2, pVCpu->cpum.GstCtx.XState.x87.aRegs[2].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[2].au64[1]);
+            ADD_REG128(WHvX64RegisterFpMmx3, pVCpu->cpum.GstCtx.XState.x87.aRegs[3].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[3].au64[1]);
+            ADD_REG128(WHvX64RegisterFpMmx4, pVCpu->cpum.GstCtx.XState.x87.aRegs[4].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[4].au64[1]);
+            ADD_REG128(WHvX64RegisterFpMmx5, pVCpu->cpum.GstCtx.XState.x87.aRegs[5].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[5].au64[1]);
+            ADD_REG128(WHvX64RegisterFpMmx6, pVCpu->cpum.GstCtx.XState.x87.aRegs[6].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[6].au64[1]);
+            ADD_REG128(WHvX64RegisterFpMmx7, pVCpu->cpum.GstCtx.XState.x87.aRegs[7].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[7].au64[1]);
 
-        aenmNames[iReg] = WHvX64RegisterFpControlStatus;
-        aValues[iReg].FpControlStatus.FpControl = pVCpu->cpum.GstCtx.XState.x87.FCW;
-        aValues[iReg].FpControlStatus.FpStatus  = pVCpu->cpum.GstCtx.XState.x87.FSW;
-        aValues[iReg].FpControlStatus.FpTag     = pVCpu->cpum.GstCtx.XState.x87.FTW;
-        aValues[iReg].FpControlStatus.Reserved  = pVCpu->cpum.GstCtx.XState.x87.FTW >> 8;
-        aValues[iReg].FpControlStatus.LastFpOp  = pVCpu->cpum.GstCtx.XState.x87.FOP;
-        aValues[iReg].FpControlStatus.LastFpRip = (pVCpu->cpum.GstCtx.XState.x87.FPUIP)
-                                                | ((uint64_t)pVCpu->cpum.GstCtx.XState.x87.CS << 32)
-                                                | ((uint64_t)pVCpu->cpum.GstCtx.XState.x87.Rsrvd1 << 48);
-        iReg++;
+            aenmNames[iReg] = WHvX64RegisterFpControlStatus;
+            aValues[iReg].FpControlStatus.FpControl = pVCpu->cpum.GstCtx.XState.x87.FCW;
+            aValues[iReg].FpControlStatus.FpStatus  = pVCpu->cpum.GstCtx.XState.x87.FSW;
+            aValues[iReg].FpControlStatus.FpTag     = pVCpu->cpum.GstCtx.XState.x87.FTW;
+            aValues[iReg].FpControlStatus.Reserved  = pVCpu->cpum.GstCtx.XState.x87.FTW >> 8;
+            aValues[iReg].FpControlStatus.LastFpOp  = pVCpu->cpum.GstCtx.XState.x87.FOP;
+            aValues[iReg].FpControlStatus.LastFpRip = (pVCpu->cpum.GstCtx.XState.x87.FPUIP)
+                                                    | ((uint64_t)pVCpu->cpum.GstCtx.XState.x87.CS << 32)
+                                                    | ((uint64_t)pVCpu->cpum.GstCtx.XState.x87.Rsrvd1 << 48);
+            iReg++;
 
-        aenmNames[iReg] = WHvX64RegisterXmmControlStatus;
-        aValues[iReg].XmmControlStatus.LastFpRdp            = (pVCpu->cpum.GstCtx.XState.x87.FPUDP)
-                                                            | ((uint64_t)pVCpu->cpum.GstCtx.XState.x87.DS << 32)
-                                                            | ((uint64_t)pVCpu->cpum.GstCtx.XState.x87.Rsrvd2 << 48);
-        aValues[iReg].XmmControlStatus.XmmStatusControl     = pVCpu->cpum.GstCtx.XState.x87.MXCSR;
-        aValues[iReg].XmmControlStatus.XmmStatusControlMask = pVCpu->cpum.GstCtx.XState.x87.MXCSR_MASK; /** @todo ??? (Isn't this an output field?) */
-        iReg++;
-    }
+            aenmNames[iReg] = WHvX64RegisterXmmControlStatus;
+            aValues[iReg].XmmControlStatus.LastFpRdp            = (pVCpu->cpum.GstCtx.XState.x87.FPUDP)
+                                                                | ((uint64_t)pVCpu->cpum.GstCtx.XState.x87.DS << 32)
+                                                                | ((uint64_t)pVCpu->cpum.GstCtx.XState.x87.Rsrvd2 << 48);
+            aValues[iReg].XmmControlStatus.XmmStatusControl     = pVCpu->cpum.GstCtx.XState.x87.MXCSR;
+            aValues[iReg].XmmControlStatus.XmmStatusControlMask = pVCpu->cpum.GstCtx.XState.x87.MXCSR_MASK; /** @todo ??? (Isn't this an output field?) */
+            iReg++;
+        }
 
-    /* Vector state. */
-    if (fWhat & CPUMCTX_EXTRN_SSE_AVX)
-    {
-        ADD_REG128(WHvX64RegisterXmm0,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 0].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 0].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm1,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 1].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 1].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm2,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 2].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 2].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm3,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 3].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 3].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm4,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 4].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 4].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm5,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 5].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 5].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm6,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 6].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 6].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm7,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 7].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 7].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm8,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 8].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 8].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm9,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 9].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 9].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm10, pVCpu->cpum.GstCtx.XState.x87.aXMM[10].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[10].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm11, pVCpu->cpum.GstCtx.XState.x87.aXMM[11].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[11].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm12, pVCpu->cpum.GstCtx.XState.x87.aXMM[12].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[12].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm13, pVCpu->cpum.GstCtx.XState.x87.aXMM[13].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[13].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm14, pVCpu->cpum.GstCtx.XState.x87.aXMM[14].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[14].uXmm.s.Hi);
-        ADD_REG128(WHvX64RegisterXmm15, pVCpu->cpum.GstCtx.XState.x87.aXMM[15].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[15].uXmm.s.Hi);
+        /* Vector state. */
+        if (fWhat & CPUMCTX_EXTRN_SSE_AVX)
+        {
+            ADD_REG128(WHvX64RegisterXmm0,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 0].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 0].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm1,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 1].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 1].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm2,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 2].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 2].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm3,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 3].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 3].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm4,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 4].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 4].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm5,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 5].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 5].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm6,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 6].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 6].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm7,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 7].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 7].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm8,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 8].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 8].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm9,  pVCpu->cpum.GstCtx.XState.x87.aXMM[ 9].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 9].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm10, pVCpu->cpum.GstCtx.XState.x87.aXMM[10].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[10].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm11, pVCpu->cpum.GstCtx.XState.x87.aXMM[11].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[11].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm12, pVCpu->cpum.GstCtx.XState.x87.aXMM[12].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[12].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm13, pVCpu->cpum.GstCtx.XState.x87.aXMM[13].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[13].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm14, pVCpu->cpum.GstCtx.XState.x87.aXMM[14].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[14].uXmm.s.Hi);
+            ADD_REG128(WHvX64RegisterXmm15, pVCpu->cpum.GstCtx.XState.x87.aXMM[15].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[15].uXmm.s.Hi);
+        }
     }
 
     /* MSRs */
@@ -421,6 +427,31 @@ NEM_TMPL_STATIC int nemHCWinCopyStateToHyperV(PVMCC pVM, PVMCPUCC pVCpu)
     HRESULT hrc = WHvSetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, aenmNames, iReg, aValues);
     if (SUCCEEDED(hrc))
     {
+        if (   (fWhat & (CPUMCTX_EXTRN_X87 | CPUMCTX_EXTRN_SSE_AVX | CPUMCTX_EXTRN_OTHER_XSAVE))
+            && pVM->nem.s.fXsaveSupported)
+        {
+            /** @todo r=aeichner Hyper-V might expect the compacted form and fails with the standard layout then.
+             *                   This isn't an issue right now as we don't support anything beyond AVX/AVX2.
+             */
+            if (pVM->nem.s.fXsaveComp)
+                pVCpu->cpum.GstCtx.XState.Hdr.bmXComp = pVCpu->cpum.GstCtx.XState.Hdr.bmXState | XSAVE_C_X;
+            if (WHvSetVirtualProcessorState)
+                hrc = WHvSetVirtualProcessorState(pVM->nem.s.hPartition, pVCpu->idCpu, WHvVirtualProcessorStateTypeXsaveState,
+                                                  &pVCpu->cpum.GstCtx.XState, pVM->nem.s.cbXSaveArea);
+            else
+                hrc = WHvSetVirtualProcessorXsaveState(pVM->nem.s.hPartition, pVCpu->idCpu, &pVCpu->cpum.GstCtx.XState,
+                                                       pVM->nem.s.cbXSaveArea);
+            if (pVM->nem.s.fXsaveComp)
+                pVCpu->cpum.GstCtx.XState.Hdr.bmXComp &= ~XSAVE_C_X;
+            if (FAILED(hrc))
+            {
+                AssertLogRelMsgFailed(("WHvSetVirtualProcessorState(%p, %u,%x,,) -> %Rhrc (Last=%#x/%u)\n",
+                                       pVM->nem.s.hPartition, pVCpu->idCpu, WHvVirtualProcessorStateTypeXsaveState,
+                                       hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+                return VERR_INTERNAL_ERROR;
+            }
+        }
+
         pVCpu->cpum.GstCtx.fExtrn |= CPUMCTX_EXTRN_ALL | CPUMCTX_EXTRN_NEM_WIN_MASK | CPUMCTX_EXTRN_KEEPER_NEM;
         return VINF_SUCCESS;
     }
@@ -539,41 +570,47 @@ NEM_TMPL_STATIC int nemHCWinCopyStateFromHyperV(PVMCC pVM, PVMCPUCC pVCpu, uint6
     if (fWhat & CPUMCTX_EXTRN_DR6)
         aenmNames[iReg++] = WHvX64RegisterDr6;
 
-    /* Floating point state. */
-    if (fWhat & CPUMCTX_EXTRN_X87)
-    {
-        aenmNames[iReg++] = WHvX64RegisterFpMmx0;
-        aenmNames[iReg++] = WHvX64RegisterFpMmx1;
-        aenmNames[iReg++] = WHvX64RegisterFpMmx2;
-        aenmNames[iReg++] = WHvX64RegisterFpMmx3;
-        aenmNames[iReg++] = WHvX64RegisterFpMmx4;
-        aenmNames[iReg++] = WHvX64RegisterFpMmx5;
-        aenmNames[iReg++] = WHvX64RegisterFpMmx6;
-        aenmNames[iReg++] = WHvX64RegisterFpMmx7;
-        aenmNames[iReg++] = WHvX64RegisterFpControlStatus;
-    }
-    if (fWhat & (CPUMCTX_EXTRN_X87 | CPUMCTX_EXTRN_SSE_AVX))
-        aenmNames[iReg++] = WHvX64RegisterXmmControlStatus;
+    if (fWhat & CPUMCTX_EXTRN_XCRx)
+        aenmNames[iReg++] = WHvX64RegisterXCr0;
 
-    /* Vector state. */
-    if (fWhat & CPUMCTX_EXTRN_SSE_AVX)
+    if (!pVM->nem.s.fXsaveSupported)
     {
-        aenmNames[iReg++] = WHvX64RegisterXmm0;
-        aenmNames[iReg++] = WHvX64RegisterXmm1;
-        aenmNames[iReg++] = WHvX64RegisterXmm2;
-        aenmNames[iReg++] = WHvX64RegisterXmm3;
-        aenmNames[iReg++] = WHvX64RegisterXmm4;
-        aenmNames[iReg++] = WHvX64RegisterXmm5;
-        aenmNames[iReg++] = WHvX64RegisterXmm6;
-        aenmNames[iReg++] = WHvX64RegisterXmm7;
-        aenmNames[iReg++] = WHvX64RegisterXmm8;
-        aenmNames[iReg++] = WHvX64RegisterXmm9;
-        aenmNames[iReg++] = WHvX64RegisterXmm10;
-        aenmNames[iReg++] = WHvX64RegisterXmm11;
-        aenmNames[iReg++] = WHvX64RegisterXmm12;
-        aenmNames[iReg++] = WHvX64RegisterXmm13;
-        aenmNames[iReg++] = WHvX64RegisterXmm14;
-        aenmNames[iReg++] = WHvX64RegisterXmm15;
+        /* Floating point state. */
+        if (fWhat & CPUMCTX_EXTRN_X87)
+        {
+            aenmNames[iReg++] = WHvX64RegisterFpMmx0;
+            aenmNames[iReg++] = WHvX64RegisterFpMmx1;
+            aenmNames[iReg++] = WHvX64RegisterFpMmx2;
+            aenmNames[iReg++] = WHvX64RegisterFpMmx3;
+            aenmNames[iReg++] = WHvX64RegisterFpMmx4;
+            aenmNames[iReg++] = WHvX64RegisterFpMmx5;
+            aenmNames[iReg++] = WHvX64RegisterFpMmx6;
+            aenmNames[iReg++] = WHvX64RegisterFpMmx7;
+            aenmNames[iReg++] = WHvX64RegisterFpControlStatus;
+        }
+        if (fWhat & (CPUMCTX_EXTRN_X87 | CPUMCTX_EXTRN_SSE_AVX))
+            aenmNames[iReg++] = WHvX64RegisterXmmControlStatus;
+
+        /* Vector state. */
+        if (fWhat & CPUMCTX_EXTRN_SSE_AVX)
+        {
+            aenmNames[iReg++] = WHvX64RegisterXmm0;
+            aenmNames[iReg++] = WHvX64RegisterXmm1;
+            aenmNames[iReg++] = WHvX64RegisterXmm2;
+            aenmNames[iReg++] = WHvX64RegisterXmm3;
+            aenmNames[iReg++] = WHvX64RegisterXmm4;
+            aenmNames[iReg++] = WHvX64RegisterXmm5;
+            aenmNames[iReg++] = WHvX64RegisterXmm6;
+            aenmNames[iReg++] = WHvX64RegisterXmm7;
+            aenmNames[iReg++] = WHvX64RegisterXmm8;
+            aenmNames[iReg++] = WHvX64RegisterXmm9;
+            aenmNames[iReg++] = WHvX64RegisterXmm10;
+            aenmNames[iReg++] = WHvX64RegisterXmm11;
+            aenmNames[iReg++] = WHvX64RegisterXmm12;
+            aenmNames[iReg++] = WHvX64RegisterXmm13;
+            aenmNames[iReg++] = WHvX64RegisterXmm14;
+            aenmNames[iReg++] = WHvX64RegisterXmm15;
+        }
     }
 
     /* MSRs */
@@ -857,63 +894,92 @@ NEM_TMPL_STATIC int nemHCWinCopyStateFromHyperV(PVMCC pVM, PVMCPUCC pVCpu, uint6
         iReg++;
     }
 
-    /* Floating point state. */
-    if (fWhat & CPUMCTX_EXTRN_X87)
-    {
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[0].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[0].au64[1], WHvX64RegisterFpMmx0);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[1].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[1].au64[1], WHvX64RegisterFpMmx1);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[2].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[2].au64[1], WHvX64RegisterFpMmx2);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[3].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[3].au64[1], WHvX64RegisterFpMmx3);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[4].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[4].au64[1], WHvX64RegisterFpMmx4);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[5].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[5].au64[1], WHvX64RegisterFpMmx5);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[6].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[6].au64[1], WHvX64RegisterFpMmx6);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[7].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[7].au64[1], WHvX64RegisterFpMmx7);
+    if (fWhat & CPUMCTX_EXTRN_XCRx)
+        GET_REG64(pVCpu->cpum.GstCtx.aXcr[0], WHvX64RegisterXCr0);
 
-        Assert(aenmNames[iReg] == WHvX64RegisterFpControlStatus);
-        pVCpu->cpum.GstCtx.XState.x87.FCW        = aValues[iReg].FpControlStatus.FpControl;
-        pVCpu->cpum.GstCtx.XState.x87.FSW        = aValues[iReg].FpControlStatus.FpStatus;
-        pVCpu->cpum.GstCtx.XState.x87.FTW        = aValues[iReg].FpControlStatus.FpTag
-                                        /*| (aValues[iReg].FpControlStatus.Reserved << 8)*/;
-        pVCpu->cpum.GstCtx.XState.x87.FOP        = aValues[iReg].FpControlStatus.LastFpOp;
-        pVCpu->cpum.GstCtx.XState.x87.FPUIP      = (uint32_t)aValues[iReg].FpControlStatus.LastFpRip;
-        pVCpu->cpum.GstCtx.XState.x87.CS         = (uint16_t)(aValues[iReg].FpControlStatus.LastFpRip >> 32);
-        pVCpu->cpum.GstCtx.XState.x87.Rsrvd1     = (uint16_t)(aValues[iReg].FpControlStatus.LastFpRip >> 48);
-        iReg++;
-    }
-
-    if (fWhat & (CPUMCTX_EXTRN_X87 | CPUMCTX_EXTRN_SSE_AVX))
+    if (!pVM->nem.s.fXsaveSupported)
     {
-        Assert(aenmNames[iReg] == WHvX64RegisterXmmControlStatus);
+        /* Floating point state. */
         if (fWhat & CPUMCTX_EXTRN_X87)
         {
-            pVCpu->cpum.GstCtx.XState.x87.FPUDP  = (uint32_t)aValues[iReg].XmmControlStatus.LastFpRdp;
-            pVCpu->cpum.GstCtx.XState.x87.DS     = (uint16_t)(aValues[iReg].XmmControlStatus.LastFpRdp >> 32);
-            pVCpu->cpum.GstCtx.XState.x87.Rsrvd2 = (uint16_t)(aValues[iReg].XmmControlStatus.LastFpRdp >> 48);
-        }
-        pVCpu->cpum.GstCtx.XState.x87.MXCSR      = aValues[iReg].XmmControlStatus.XmmStatusControl;
-        pVCpu->cpum.GstCtx.XState.x87.MXCSR_MASK = aValues[iReg].XmmControlStatus.XmmStatusControlMask; /** @todo ??? (Isn't this an output field?) */
-        iReg++;
-    }
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[0].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[0].au64[1], WHvX64RegisterFpMmx0);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[1].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[1].au64[1], WHvX64RegisterFpMmx1);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[2].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[2].au64[1], WHvX64RegisterFpMmx2);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[3].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[3].au64[1], WHvX64RegisterFpMmx3);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[4].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[4].au64[1], WHvX64RegisterFpMmx4);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[5].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[5].au64[1], WHvX64RegisterFpMmx5);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[6].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[6].au64[1], WHvX64RegisterFpMmx6);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aRegs[7].au64[0], pVCpu->cpum.GstCtx.XState.x87.aRegs[7].au64[1], WHvX64RegisterFpMmx7);
 
-    /* Vector state. */
-    if (fWhat & CPUMCTX_EXTRN_SSE_AVX)
+            Assert(aenmNames[iReg] == WHvX64RegisterFpControlStatus);
+            pVCpu->cpum.GstCtx.XState.x87.FCW        = aValues[iReg].FpControlStatus.FpControl;
+            pVCpu->cpum.GstCtx.XState.x87.FSW        = aValues[iReg].FpControlStatus.FpStatus;
+            pVCpu->cpum.GstCtx.XState.x87.FTW        = aValues[iReg].FpControlStatus.FpTag
+                                            /*| (aValues[iReg].FpControlStatus.Reserved << 8)*/;
+            pVCpu->cpum.GstCtx.XState.x87.FOP        = aValues[iReg].FpControlStatus.LastFpOp;
+            pVCpu->cpum.GstCtx.XState.x87.FPUIP      = (uint32_t)aValues[iReg].FpControlStatus.LastFpRip;
+            pVCpu->cpum.GstCtx.XState.x87.CS         = (uint16_t)(aValues[iReg].FpControlStatus.LastFpRip >> 32);
+            pVCpu->cpum.GstCtx.XState.x87.Rsrvd1     = (uint16_t)(aValues[iReg].FpControlStatus.LastFpRip >> 48);
+            iReg++;
+        }
+
+        if (fWhat & (CPUMCTX_EXTRN_X87 | CPUMCTX_EXTRN_SSE_AVX))
+        {
+            Assert(aenmNames[iReg] == WHvX64RegisterXmmControlStatus);
+            if (fWhat & CPUMCTX_EXTRN_X87)
+            {
+                pVCpu->cpum.GstCtx.XState.x87.FPUDP  = (uint32_t)aValues[iReg].XmmControlStatus.LastFpRdp;
+                pVCpu->cpum.GstCtx.XState.x87.DS     = (uint16_t)(aValues[iReg].XmmControlStatus.LastFpRdp >> 32);
+                pVCpu->cpum.GstCtx.XState.x87.Rsrvd2 = (uint16_t)(aValues[iReg].XmmControlStatus.LastFpRdp >> 48);
+            }
+            pVCpu->cpum.GstCtx.XState.x87.MXCSR      = aValues[iReg].XmmControlStatus.XmmStatusControl;
+            pVCpu->cpum.GstCtx.XState.x87.MXCSR_MASK = aValues[iReg].XmmControlStatus.XmmStatusControlMask; /** @todo ??? (Isn't this an output field?) */
+            iReg++;
+        }
+
+        /* Vector state. */
+        if (fWhat & CPUMCTX_EXTRN_SSE_AVX)
+        {
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 0].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 0].uXmm.s.Hi, WHvX64RegisterXmm0);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 1].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 1].uXmm.s.Hi, WHvX64RegisterXmm1);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 2].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 2].uXmm.s.Hi, WHvX64RegisterXmm2);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 3].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 3].uXmm.s.Hi, WHvX64RegisterXmm3);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 4].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 4].uXmm.s.Hi, WHvX64RegisterXmm4);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 5].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 5].uXmm.s.Hi, WHvX64RegisterXmm5);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 6].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 6].uXmm.s.Hi, WHvX64RegisterXmm6);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 7].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 7].uXmm.s.Hi, WHvX64RegisterXmm7);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 8].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 8].uXmm.s.Hi, WHvX64RegisterXmm8);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 9].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 9].uXmm.s.Hi, WHvX64RegisterXmm9);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[10].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[10].uXmm.s.Hi, WHvX64RegisterXmm10);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[11].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[11].uXmm.s.Hi, WHvX64RegisterXmm11);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[12].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[12].uXmm.s.Hi, WHvX64RegisterXmm12);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[13].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[13].uXmm.s.Hi, WHvX64RegisterXmm13);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[14].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[14].uXmm.s.Hi, WHvX64RegisterXmm14);
+            GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[15].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[15].uXmm.s.Hi, WHvX64RegisterXmm15);
+        }
+    }
+    else
     {
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 0].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 0].uXmm.s.Hi, WHvX64RegisterXmm0);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 1].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 1].uXmm.s.Hi, WHvX64RegisterXmm1);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 2].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 2].uXmm.s.Hi, WHvX64RegisterXmm2);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 3].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 3].uXmm.s.Hi, WHvX64RegisterXmm3);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 4].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 4].uXmm.s.Hi, WHvX64RegisterXmm4);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 5].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 5].uXmm.s.Hi, WHvX64RegisterXmm5);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 6].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 6].uXmm.s.Hi, WHvX64RegisterXmm6);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 7].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 7].uXmm.s.Hi, WHvX64RegisterXmm7);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 8].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 8].uXmm.s.Hi, WHvX64RegisterXmm8);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[ 9].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[ 9].uXmm.s.Hi, WHvX64RegisterXmm9);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[10].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[10].uXmm.s.Hi, WHvX64RegisterXmm10);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[11].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[11].uXmm.s.Hi, WHvX64RegisterXmm11);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[12].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[12].uXmm.s.Hi, WHvX64RegisterXmm12);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[13].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[13].uXmm.s.Hi, WHvX64RegisterXmm13);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[14].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[14].uXmm.s.Hi, WHvX64RegisterXmm14);
-        GET_REG128(pVCpu->cpum.GstCtx.XState.x87.aXMM[15].uXmm.s.Lo, pVCpu->cpum.GstCtx.XState.x87.aXMM[15].uXmm.s.Hi, WHvX64RegisterXmm15);
+        if (fWhat & (CPUMCTX_EXTRN_X87 | CPUMCTX_EXTRN_SSE_AVX | CPUMCTX_EXTRN_OTHER_XSAVE))
+        {
+            if (WHvGetVirtualProcessorState)
+                hrc = WHvGetVirtualProcessorState(pVM->nem.s.hPartition, pVCpu->idCpu, WHvVirtualProcessorStateTypeXsaveState, &pVCpu->cpum.GstCtx.XState, pVM->nem.s.cbXSaveArea, NULL);
+            else
+                hrc = WHvGetVirtualProcessorXsaveState(pVM->nem.s.hPartition, pVCpu->idCpu, &pVCpu->cpum.GstCtx.XState, pVM->nem.s.cbXSaveArea, NULL);
+            if (FAILED(hrc))
+            {
+                AssertLogRelMsgFailed(("WHvGetVirtualProcessorState(%p, %u,%x,,) -> %Rhrc (Last=%#x/%u)\n",
+                                       pVM->nem.s.hPartition, pVCpu->idCpu, WHvVirtualProcessorStateTypeXsaveState,
+                                       hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+                return VERR_NEM_GET_REGISTERS_FAILED;
+            }
+            /** @todo r=aeichner Hyper-V might return the compacted form which IEM doesn't handle so far.
+             *                   This isn't an issue currently as we don't support anything beyond AVX/AVX2 right now, so we can just clear this bit.
+             *                   Also, Hyper-V seems to return the whole state for all extensions like AVX512 etc. (there is no way to instruct Hyper-V to disable certain
+             *                   components). So we strip everything we don't support right now to be on the safe side wrt. IEM.
+             */
+            pVCpu->cpum.GstCtx.XState.Hdr.bmXComp &= (XSAVE_C_X87 | XSAVE_C_SSE | XSAVE_C_YMM);
+        }
     }
 
     /* MSRs */
@@ -3055,10 +3121,9 @@ VMM_INT_DECL(void) NEMHCNotifyPhysPageChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPH
  */
 VMM_INT_DECL(uint32_t) NEMHCGetFeatures(PVMCC pVM)
 {
-    RT_NOREF(pVM);
-    /** @todo Make use of the WHvGetVirtualProcessorXsaveState/WHvSetVirtualProcessorXsaveState
-     * interface added in 2019 to enable passthrough of xsave/xrstor (and depending) features to the guest. */
     /** @todo Is NEM_FEAT_F_FULL_GST_EXEC always true? */
-    return NEM_FEAT_F_NESTED_PAGING | NEM_FEAT_F_FULL_GST_EXEC;
+    return   NEM_FEAT_F_NESTED_PAGING
+           | NEM_FEAT_F_FULL_GST_EXEC
+           | (pVM->nem.s.fXsaveSupported ? NEM_FEAT_F_XSAVE_XRSTOR : 0);
 }
 

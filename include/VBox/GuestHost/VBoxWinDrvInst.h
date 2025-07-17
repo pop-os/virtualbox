@@ -147,6 +147,13 @@ int VBoxWinDrvInstUninstall(VBOXWINDRVINST hDrvInst, const char *pszInfFile, con
 int VBoxWinDrvInstUninstallExecuteInf(VBOXWINDRVINST hDrvInst, const char *pszInfFile, const char *pszSection, uint32_t fFlags);
 int VBoxWinDrvInstControlService(VBOXWINDRVINST hDrvInst, const char *pszService, VBOXWINDRVSVCFN enmFn);
 int VBoxWinDrvInstControlServiceEx(VBOXWINDRVINST hDrvInst, const char *pszService, VBOXWINDRVSVCFN enmFn, uint32_t fFlags, RTMSINTERVAL msTimeout);
+
+/** @name Log functions
+ * @{
+ */
+int VBoxWinDrvInstLogSetupAPI(VBOXWINDRVINST hDrvInst, unsigned cLastSections);
+/** @} */
+
 RT_C_DECLS_END
 
 #endif /* !VBOX_INCLUDED_GuestHost_VBoxWinDrvInst_h */

@@ -1108,16 +1108,17 @@ static void vmsvgaR3RectCopy(PVGASTATECC pThisCC, VMSVGASCREENOBJECT const *pScr
      * corresponding to the current display mode.
      */
     uint32_t const  cbPixel = RT_ALIGN(pScreen->cBpp, 8) / 8;
-    uint32_t const  cbScanline = pScreen->cbPitch ? pScreen->cbPitch : width * cbPixel;
+    uint32_t const  cbScanline = pScreen->cbPitch ? pScreen->cbPitch : pScreen->cWidth * cbPixel;
     uint8_t const   *pSrc;
     uint8_t         *pDst;
     unsigned const  cbRectWidth = width * cbPixel;
-    unsigned        uMaxOffset;
+    uint64_t        uMaxOffset;
 
-    uMaxOffset = (RT_MAX(srcY, dstY) + height) * cbScanline + (RT_MAX(srcX, dstX) + width) * cbPixel;
-    if (uMaxOffset >= cbFrameBuffer)
+    uMaxOffset = (RT_MAX(srcY, dstY) + (uint64_t)height - 1) * cbScanline
+               + (RT_MAX(srcX, dstX) + (uint64_t)width) * cbPixel;
+    if (uMaxOffset > cbFrameBuffer)
     {
-        Log(("Max offset (%u) too big for framebuffer (%u bytes), ignoring!\n", uMaxOffset, cbFrameBuffer));
+        Log(("Max offset (%RU64) too big for framebuffer (%u bytes), ignoring!\n", uMaxOffset, cbFrameBuffer));
         return; /* Just don't listen to a bad guest. */
     }
 
@@ -7333,6 +7334,9 @@ void vmsvgaR3CmdRectCopy(PVGASTATE pThis, PVGASTATECC pThisCC, SVGAFifoCmdRectCo
     ASSERT_GUEST_RETURN_VOID(pCmd->destY < pThis->svga.u32MaxHeight);
     ASSERT_GUEST_RETURN_VOID(pCmd->height < pThis->svga.u32MaxHeight);
 
+    /* "Perform a rectangular DMA transfer from one area of the GFB to
+     *  another, and copy the result to any screens which intersect it."
+     */
     vmsvgaR3RectCopy(pThisCC, pScreen, pCmd->srcX, pCmd->srcY, pCmd->destX, pCmd->destY,
                      pCmd->width, pCmd->height, pThis->vram_size);
     vmsvgaR3UpdateScreen(pThisCC, pScreen, pCmd->destX, pCmd->destY, pCmd->width, pCmd->height);
@@ -7427,7 +7431,7 @@ void vmsvgaR3CmdDefineCursor(PVGASTATE pThis, PVGASTATECC pThisCC, SVGAFifoCmdDe
     /*
      * Convert the input to 1-bit AND mask and a 32-bit BRGA XOR mask.
      * The AND data uses 8-bit aligned scanlines.
-     * The XOR data must be starting on a 32-bit boundrary.
+     * The XOR data must be starting on a 32-bit boundary.
      */
     uint32_t cbDstAndLine = RT_ALIGN_32(cx, 8) / 8;
     uint32_t cbDstAndMask = cbDstAndLine          * cy;
@@ -7447,7 +7451,7 @@ void vmsvgaR3CmdDefineCursor(PVGASTATE pThis, PVGASTATECC pThisCC, SVGAFifoCmdDe
                 memcpy(pbDst, pbSrc, cbSrcAndLine * cy);
             else
             {
-                Assert(cbSrcAndLine > cbDstAndLine); /* lines are dword alined in source, but only byte in destination. */
+                Assert(cbSrcAndLine > cbDstAndLine); /* lines are dword aligned in source, but only byte in destination. */
                 for (uint32_t y = 0; y < cy; y++)
                 {
                     memcpy(pbDst, pbSrc, cbDstAndLine);
@@ -7466,7 +7470,7 @@ void vmsvgaR3CmdDefineCursor(PVGASTATE pThis, PVGASTATECC pThisCC, SVGAFifoCmdDe
                     uint8_t fBit = 0x80;
                     do
                     {
-                        uintptr_t const idxPal = pbSrc[x] * 3;
+                        uint8_t const idxPal = pbSrc[x];
                         if (((   pThis->last_palette[idxPal]
                               | (pThis->last_palette[idxPal] >>  8)
                               | (pThis->last_palette[idxPal] >> 16)) & 0xff) > 0xfc)

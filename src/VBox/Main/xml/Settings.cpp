@@ -3547,7 +3547,8 @@ bool NAT::areDefaultSettings(SettingsVersion_T sv) const
         && areAliasDefaultSettings()
         && areTFTPDefaultSettings()
         && mapRules.size() == 0
-        && areLocalhostReachableDefaultSettings(sv);
+        && areLocalhostReachableDefaultSettings(sv)
+        && fForwardBroadcast == false;
 }
 
 /**
@@ -3575,6 +3576,7 @@ bool NAT::operator==(const NAT &n) const
             && fAliasProxyOnly     == n.fAliasProxyOnly
             && fAliasUseSamePorts  == n.fAliasUseSamePorts
             && fLocalhostReachable == n.fLocalhostReachable
+            && fForwardBroadcast   == n.fForwardBroadcast
             && mapRules            == n.mapRules);
 }
 
@@ -4765,6 +4767,7 @@ void MachineConfigFile::readAttachedNetworkMode(const xml::ElementNode &elmMode,
         elmMode.getAttributeValue("tcprcv", nic.nat.u32TcpRcv);
         elmMode.getAttributeValue("tcpsnd", nic.nat.u32TcpSnd);
         elmMode.getAttributeValue("localhost-reachable", nic.nat.fLocalhostReachable);
+        elmMode.getAttributeValue("forward-broadcast", nic.nat.fForwardBroadcast);
         const xml::ElementNode *pelmDNS;
         if ((pelmDNS = elmMode.findChildElement("DNS")))
         {
@@ -8526,6 +8529,8 @@ void MachineConfigFile::buildNetworkXML(NetworkAttachmentType_T mode,
                         pelmNAT->setAttribute("tcpsnd", nic.nat.u32TcpSnd);
                     if (!nic.nat.areLocalhostReachableDefaultSettings(m->sv))
                         pelmNAT->setAttribute("localhost-reachable", nic.nat.fLocalhostReachable);
+                    if (nic.nat.fForwardBroadcast)
+                        pelmNAT->setAttribute("forward-broadcast", nic.nat.fForwardBroadcast);
                     if (!nic.nat.areDNSDefaultSettings())
                     {
                         xml::ElementNode *pelmDNS = pelmNAT->createChild("DNS");
@@ -9575,6 +9580,21 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
                     m->sv = SettingsVersion_v1_20;
                     return;
                 }
+            }
+        }
+
+        NetworkAdaptersList::const_iterator netit;
+        for (netit = hardwareMachine.llNetworkAdapters.begin();
+             netit != hardwareMachine.llNetworkAdapters.end();
+             ++netit)
+        {
+            // VirtualBox 7.1 adds a flag if NAT can forward broadcast packets to host network.
+            if (   netit->fEnabled
+                && netit->mode == NetworkAttachmentType_NAT
+                && netit->nat.fForwardBroadcast)
+            {
+                m->sv = SettingsVersion_v1_20;
+                break;
             }
         }
     }

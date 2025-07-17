@@ -120,6 +120,8 @@
 #define VMX_VCI_CTRL_TSC_OFFSET                                 306
 /** Cache of tertiary processor-based VM-execution controls invalid. */
 #define VMX_VCI_CTRL_PROC_EXEC3                                 307
+/** VirtualBox VMCS magic field mismatch. */
+#define VMX_VCI_VMCS_MAGIC_MISMATCH                             308
 /** @} */
 
 /** @name VMX HM-error codes for VERR_VMX_INVALID_GUEST_STATE.
@@ -542,9 +544,11 @@
 /** Suppress \#VE. */
 #define VMX_BF_EPT_PT_SUPPRESS_VE_SHIFT                 63
 #define VMX_BF_EPT_PT_SUPPRESS_VE_MASK                  UINT64_C(0x8000000000000000)
+#if !defined(READ) && !defined(WRITE)
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPT_PT_, UINT64_C(0), UINT64_MAX,
                             (READ, WRITE, EXECUTE, MEMTYPE, IGNORE_PAT, IGN_7, ACCESSED, DIRTY, EXECUTE_USER, IGN_59_11,
                             SUPER_SHW_STACK, IGN_62_61, SUPPRESS_VE));
+#endif
 /** @} */
 
 

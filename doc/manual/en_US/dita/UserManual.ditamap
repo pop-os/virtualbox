@@ -9,8 +9,8 @@
       <publisherinformation>
          <published>
             <completed>
-          <month>September</month>
-               <year>2024</year>
+          <month>July</month>
+          <year>2025</year>
             </completed>
          </published>
       </publisherinformation>
@@ -175,7 +175,6 @@
          </topicref>
       </chapter>
       <chapter href="topics/BasicConcepts.dita" chunk="to-content">
-             <!--  <topicref href="topics/guestossupport.dita">    -->
              <topicref href="topics/guest-os.dita">
              <topicref href="topics/guest-os-x86-64.dita"/>
              <topicref href="topics/guest-os-Arm.dita"/>
@@ -436,8 +435,6 @@
       <topicref href="topics/changenat.dita">
          <topicref href="topics/nat-address-config.dita"/>
          <topicref href="topics/nat-adv-tftp.dita"/>
-         <topicref href="topics/nat-adv-settings.dita"/>
-         <topicref href="topics/nat-bind-sockets.dita"/>
          <topicref href="topics/nat-adv-dns.dita"/>
          <topicref href="topics/nat_host_resolver_proxy.dita">
             <topicref href="topics/nat_host_resolver_name_intercepting.dita"/>

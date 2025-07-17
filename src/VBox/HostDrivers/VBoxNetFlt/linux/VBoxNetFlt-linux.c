@@ -493,6 +493,20 @@ static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev
     /* Cancel override if ethtool_ops is missing (host-only case, @bugref{5712}) */
     if (!RT_VALID_PTR(pDev->OVR_OPS))
         return;
+    /* Do not override netdev_ops for ixgbe driver as it causes panic, see Jira issue VBP-1774 */
+    if (pDev->ethtool_ops && pDev->ethtool_ops->get_drvinfo)
+    {
+        struct ethtool_drvinfo Info;
+
+        memset(&Info, 0, sizeof(Info));
+        Info.cmd = ETHTOOL_GDRVINFO;
+        pDev->ethtool_ops->get_drvinfo(pDev, &Info);
+        if (strncmp(Info.driver, "ixgbe", 5) == 0)
+        {
+            printk("vboxnetflt: Skipping netdev_ops override for ixgbe driver, expect lower performance.\n");
+            return;
+        }
+    }
     pOverride = RTMemAlloc(sizeof(*pOverride));
     if (!pOverride)
         return;

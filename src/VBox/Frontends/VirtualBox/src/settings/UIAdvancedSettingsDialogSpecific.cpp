@@ -718,7 +718,7 @@ void UIAdvancedSettingsDialogMachine::prepare()
                     pSettingsPage = new UIMachineSettingsSF;
                     addItem(":/sf_32px.png", ":/sf_24px.png", ":/sf_16px.png",
                             iPageIndex, "#sharedFolders", pSettingsPage);
-                    addPageHelpKeyword(iPageIndex, "shared-folders");
+                    addPageHelpKeyword(iPageIndex, "ct_shared-folders");
                     break;
                 }
                 /* Interface page: */

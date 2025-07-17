@@ -73,6 +73,71 @@ Rules for adding a changelog entry to make them look more uniform:
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
 
+    <title>Version 7.1.12 (date tbd)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: Fixed issue when running a nested VM caused Guru Mediation
+          for outer VM</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: Fixed issue when VMs with long names were
+          unable to start (github:GH-16)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: fixed possible kernel panic when using bridged networking
+          with a network interface handled by the ixgbe driver on newer kernels</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Host: Fixed issue resulting in BSOD upon closing
+          VirtualBox GUI after host package uninstall (github:GH-38)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Host: General improvements in drivers installation area</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Host: Implement support for exposing AVX/AVX2 to the guest
+          when Hyper-V is used (github:GH-36)</para>
+      </listitem>
+
+      <listitem>
+        <para>Recording: Fixed issue when Windows Guest Machine was
+          unable to start when recording was enabled in Display Settings (bug #22363)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host and Guest: Added additional fixes to support kernel 6.16</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed issue when 'rcvboxadd status-kernel' was
+          reporting incorrect status when guest was running kernel 3.10 series and older</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed issue when VBoxClient was unable to start
+          if guest was running kernel 2.6 series and older</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed issue which caused a warning in system
+          log due to incorrect udev rule</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
     <title>Version 7.1.10 (2025-06-03)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

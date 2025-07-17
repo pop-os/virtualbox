@@ -484,16 +484,25 @@ static int vbclGetPidfileName(char *szBuf, size_t cbBuf, const char *szTemplate,
         RTStrCat(szBuf, cbBuf, pszActiveTTY);
     }
     else
+    {
         VBClLogInfo("%s: cannot detect currently active tty device, "
                     "multiple service instances for a single user will not be allowed, rc=%Rrc",
                     g_Service.pDesc->pszDesc, rc);
+
+        /* Older kernels, such as 2.6 series, do not have /sys/class/tty/tty0/active.
+         * For such cases, simply reset rc and let VBoxClient to start normally.
+         * A side effect is if user runs multiple XServers, only one
+         * instance of VBoxClient service can be started (for example, there will
+         * be no Shared Clipboard for the second XServer session). */
+        rc = (rc == VERR_FILE_NOT_FOUND ? VINF_SUCCESS : rc);
+    }
 #endif /* RT_OS_LINUX */
 
     if (RT_SUCCESS(rc))
         RTStrCat(szBuf, cbBuf, fParentProcess ? "-control.pid" : "-service.pid");
 
     if (RT_FAILURE(rc))
-        VBClLogFatalError("%s: reating PID file path failed: %Rrc\n",
+        VBClLogFatalError("%s: creating PID file path failed: %Rrc\n",
                           g_Service.pDesc->pszDesc, rc);
 
     return rc;
