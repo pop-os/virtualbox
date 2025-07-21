@@ -1,3 +1,15 @@
+virtualbox (7.1.12-dfsg-2) unstable; urgency=medium
+
+  [ Andrea Pappacoda, Mateusz Łukasik ]
+  * virtualbox-dkms: fix modprobe.d file (Closes: #1107320)
+  * Fix dkms module install path. (Closes: #1105784, Closes: #1107320) 
+
+  [ Gianfranco Costamagna ]
+  * Upload to sid and merge two changelog entries together, thanks
+    to you both!
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 21 Jul 2025 07:26:51 +0200
+
 virtualbox (7.1.12-dfsg-1) unstable; urgency=medium
 
   * New upstream version 7.1.12-dfsg
