@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -353,17 +353,20 @@ static CPUMMSRRANGE const g_aMsrRanges_Intel_Core_i7_3960X[] =
 /**
  * Database entry for Intel(R) Core(TM) i7-3960X CPU @ 3.30GHz.
  */
-static CPUMDBENTRY const g_Entry_Intel_Core_i7_3960X =
+static CPUMDBENTRYX86 const g_Entry_Intel_Core_i7_3960X =
 {
-    /*.pszName          = */ "Intel Core i7-3960X",
-    /*.pszFullName      = */ "Intel(R) Core(TM) i7-3960X CPU @ 3.30GHz",
-    /*.enmVendor        = */ CPUMCPUVENDOR_INTEL,
+    {
+        /*.pszName      = */ "Intel Core i7-3960X",
+        /*.pszFullName  = */ "Intel(R) Core(TM) i7-3960X CPU @ 3.30GHz",
+        /*.enmVendor    = */ CPUMCPUVENDOR_INTEL,
+        /*.enmMicroarch = */ kCpumMicroarch_Intel_Core7_SandyBridge,
+        /*.fFlags       = */ 0,
+        /*.enmEntryType = */ CPUMDBENTRYTYPE_X86,
+    },
     /*.uFamily          = */ 6,
     /*.uModel           = */ 45,
     /*.uStepping        = */ 6,
-    /*.enmMicroarch     = */ kCpumMicroarch_Intel_Core7_SandyBridge,
     /*.uScalableBusFreq = */ CPUM_SBUSFREQ_100MHZ,
-    /*.fFlags           = */ 0,
     /*.cMaxPhysAddrWidth= */ 46,
     /*.fMxCsrMask       = */ 0xffff,
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_Intel_Core_i7_3960X),

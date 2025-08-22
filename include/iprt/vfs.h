@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1987,7 +1987,7 @@ RTDECL(bool) RTVfsChainIsSpec(const char *pszSpec);
 RTDECL(int) RTVfsChainQueryFinalPath(const char *pszSpec, char **ppszFinalPath, uint32_t *poffError);
 
 /**
- * Splits the given chain spec into a final path and the preceeding spec.
+ * Splits the given chain spec into a final path and the preceding spec.
  *
  * This works on plain paths too.
  *

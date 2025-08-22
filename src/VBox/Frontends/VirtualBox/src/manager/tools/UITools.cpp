@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -32,13 +32,16 @@
 #include "UITools.h"
 #include "UIToolsModel.h"
 #include "UIToolsView.h"
-#include "UIVirtualBoxManagerWidget.h"
+
+/* Other VBox includes: */
+#include "iprt/assert.h"
 
 
-UITools::UITools(UIToolClass enmClass, UIVirtualBoxManagerWidget *pParent /* = 0 */)
-    : QWidget(pParent, Qt::Popup)
+UITools::UITools(QWidget *pParent,
+                 UIToolClass enmClass)
+    : QWidget(pParent, Qt::Widget)
     , m_enmClass(enmClass)
-    , m_pManagerWidget(pParent)
+    , m_enmAlignment(m_enmClass == UIToolClass_Machine ? Qt::Horizontal : Qt::Vertical)
     , m_pMainLayout(0)
     , m_pToolsModel(0)
     , m_pToolsView(0)
@@ -46,9 +49,9 @@ UITools::UITools(UIToolClass enmClass, UIVirtualBoxManagerWidget *pParent /* = 0
     prepare();
 }
 
-UIActionPool *UITools::actionPool() const
+UITools::~UITools()
 {
-    return managerWidget()->actionPool();
+    cleanup();
 }
 
 void UITools::setToolsType(UIToolType enmType)
@@ -56,9 +59,9 @@ void UITools::setToolsType(UIToolType enmType)
     m_pToolsModel->setToolsType(enmType);
 }
 
-UIToolType UITools::toolsType() const
+UIToolType UITools::toolsType(UIToolClass enmClass) const
 {
-    return m_pToolsModel->toolsType();
+    return m_pToolsModel->toolsType(enmClass);
 }
 
 void UITools::setItemsEnabled(bool fEnabled)
@@ -71,19 +74,9 @@ bool UITools::isItemsEnabled() const
     return m_pToolsModel->isItemsEnabled();
 }
 
-void UITools::setRestrictedToolTypes(const QList<UIToolType> &types)
+void UITools::setRestrictedToolTypes(UIToolClass enmClass, const QList<UIToolType> &types)
 {
-    m_pToolsModel->setRestrictedToolTypes(types);
-}
-
-QList<UIToolType> UITools::restrictedToolTypes() const
-{
-    return m_pToolsModel->restrictedToolTypes();
-}
-
-UIToolsItem *UITools::currentItem() const
-{
-    return m_pToolsModel->currentItem();
+    m_pToolsModel->setRestrictedToolTypes(enmClass, types);
 }
 
 void UITools::prepare()
@@ -99,7 +92,15 @@ void UITools::prepare()
 void UITools::prepareContents()
 {
     /* Setup own layout rules: */
-    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::MinimumExpanding);
+    switch (m_enmAlignment)
+    {
+        case Qt::Vertical:
+            setSizePolicy(QSizePolicy::Fixed, QSizePolicy::MinimumExpanding);
+            break;
+        case Qt::Horizontal:
+            setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+            break;
+    }
 
     /* Prepare main-layout: */
     m_pMainLayout = new QVBoxLayout(this);
@@ -116,7 +117,7 @@ void UITools::prepareContents()
 void UITools::prepareModel()
 {
     /* Prepare model: */
-    m_pToolsModel = new UIToolsModel(m_enmClass, this);
+    m_pToolsModel = new UIToolsModel(this, m_enmClass);
     if (m_pToolsModel)
         prepareView();
 }
@@ -127,10 +128,9 @@ void UITools::prepareView()
     AssertPtrReturnVoid(m_pMainLayout);
 
     /* Prepare view: */
-    m_pToolsView = new UIToolsView(this);
+    m_pToolsView = new UIToolsView(this, m_enmClass, m_pToolsModel);
     if (m_pToolsView)
     {
-        m_pToolsView->setScene(m_pToolsModel->scene());
         m_pToolsView->show();
         setFocusProxy(m_pToolsView);
 
@@ -142,27 +142,38 @@ void UITools::prepareView()
 void UITools::prepareConnections()
 {
     /* Model connections: */
-    connect(m_pToolsModel, &UIToolsModel::sigClose,
-            this, &UITools::close);
     connect(m_pToolsModel, &UIToolsModel::sigSelectionChanged,
             this, &UITools::sigSelectionChanged);
-    connect(m_pToolsModel, &UIToolsModel::sigExpandingStarted,
-            this, &UITools::sigExpandingStarted);
-    connect(m_pToolsModel, &UIToolsModel::sigExpandingFinished,
-            this, &UITools::sigExpandingFinished);
-    connect(m_pToolsModel, &UIToolsModel::sigItemMinimumWidthHintChanged,
-            m_pToolsView, &UIToolsView::sltMinimumWidthHintChanged);
-    connect(m_pToolsModel, &UIToolsModel::sigItemMinimumHeightHintChanged,
-            m_pToolsView, &UIToolsView::sltMinimumHeightHintChanged);
-    connect(m_pToolsModel, &UIToolsModel::sigFocusChanged,
-            m_pToolsView, &UIToolsView::sltFocusChanged);
-
-    /* View connections: */
-    connect(m_pToolsView, &UIToolsView::sigResized,
-            m_pToolsModel, &UIToolsModel::sltHandleViewResized);
 }
 
 void UITools::initModel()
 {
     m_pToolsModel->init();
+}
+
+void UITools::cleanupConnections()
+{
+    /* Model connections: */
+    disconnect(m_pToolsModel, &UIToolsModel::sigSelectionChanged,
+               this, &UITools::sigSelectionChanged);
+}
+
+void UITools::cleanupView()
+{
+    delete m_pToolsView;
+    m_pToolsView = 0;
+}
+
+void UITools::cleanupModel()
+{
+    delete m_pToolsModel;
+    m_pToolsModel = 0;
+}
+
+void UITools::cleanup()
+{
+    /* Cleanup everything: */
+    cleanupConnections();
+    cleanupView();
+    cleanupModel();
 }

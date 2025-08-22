@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -108,11 +108,19 @@ public:
 
     /** @name Host OS stuff.
      * @{ */
+        /** Returns the name of the host OS by using IHost::getOperatingSystem. */
+        QString hostOperatingSystem() const;
+
 #ifdef VBOX_WS_MAC
         /** macOS: Returns #MacOSXRelease determined by <i>uname</i> call. */
         static MacOSXRelease determineOsRelease();
         /** macOS: Returns #MacOSXRelease determined during UICommon prepare routine. */
         MacOSXRelease osRelease() const { return m_enmMacOSVersion; }
+#endif
+
+#ifdef VBOX_WS_WIN
+        /** Windows: Returns #WindowsRelease determined during UICommon prepare routine. */
+        WindowsRelease osRelease() const { return m_enmWindowsVersion; }
 #endif
 
 #ifdef VBOX_WS_NIX
@@ -121,12 +129,7 @@ public:
         /** X11: Returns whether the Window Manager we are running under is composition one. */
         bool isCompositingManagerRunning() const { return m_fCompositingManagerRunning; }
         /** Returns true if the detected display server type is either xorg or xwayland. */
-        bool X11ServerAvailable() const;
-        /** Returns display server type. */
-        VBGHDISPLAYSERVERTYPE displayServerType() const;
 #endif
-        /** Returns the name of the host OS by using IHost::getOperatingSystem. */
-        QString hostOperatingSystem() const;
 
 #if defined(VBOX_WS_MAC)
         // Provided by UICocoaApplication ..
@@ -376,13 +379,16 @@ private:
         MacOSXRelease  m_enmMacOSVersion;
 #endif
 
+#ifdef VBOX_WS_WIN
+        /** Windows: Holds the #WindowsRelease determined using <i>hostOperatingSystem</i> call. */
+        WindowsRelease  m_enmWindowsVersion;
+#endif
+
 #ifdef VBOX_WS_NIX
         /** X11: Holds the #X11WMType of the Window Manager we are running under. */
         X11WMType             m_enmWindowManagerType;
         /** X11: Holds whether the Window Manager we are running at is composition one. */
         bool                  m_fCompositingManagerRunning;
-        /** Unixes: Holds the display server type. */
-        VBGHDISPLAYSERVERTYPE m_enmDisplayServerType;
 #endif
 
         /** Holds whether host OS is in Dark mode. */
@@ -469,8 +475,10 @@ private:
 
     /** @name Font scaling related variables.
      * @{ */
-       int iOriginalFontPixelSize;
-       int iOriginalFontPointSize;
+        /** Holds the original font pixel size. */
+        int  m_iOriginalFontPixelSize;
+        /** Holds the original font point size. */
+        int  m_iOriginalFontPointSize;
     /** @} */
 
     /** Allows for shortcut access. */

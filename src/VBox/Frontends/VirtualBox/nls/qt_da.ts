@@ -40,21 +40,11 @@
     </message>
 </context>
 <context>
-    <name>Print Device Input Slot</name>
-    <message>
-        <source>Automatic</source>
-        <translation type="unfinished">Automatisk</translation>
-    </message>
-</context>
-<context>
-    <name>Print Device Output Bin</name>
-    <message>
-        <source>Automatic</source>
-        <translation type="unfinished">Automatisk</translation>
-    </message>
-</context>
-<context>
     <name>QAbstractSocket</name>
+    <message>
+        <source>Socket operation timed out</source>
+        <translation>Socket-handlingen fik timeout</translation>
+    </message>
     <message>
         <source>Operation on socket is not supported</source>
         <translation>Handling på socket understøttes ikke</translation>
@@ -72,8 +62,8 @@
         <translation>Forbindelsen fik timeout</translation>
     </message>
     <message>
-        <source>Socket operation timed out</source>
-        <translation>Socket-handlingen fik timeout</translation>
+        <source>Trying to connect while connection is in progress</source>
+        <translation>Prøver at oprette forbindelse mens forbindelse er under oprettelse</translation>
     </message>
     <message>
         <source>Socket is not connected</source>
@@ -83,13 +73,13 @@
         <source>Network unreachable</source>
         <translation>Netværket kan ikke tilgås</translation>
     </message>
-    <message>
-        <source>Trying to connect while connection is in progress</source>
-        <translation>Prøver at oprette forbindelse mens forbindelse er under oprettelse</translation>
-    </message>
 </context>
 <context>
     <name>QAbstractSpinBox</name>
+    <message>
+        <source>&amp;Select All</source>
+        <translation>&amp;Markér alt</translation>
+    </message>
     <message>
         <source>&amp;Step up</source>
         <translation>&amp;Trin op</translation>
@@ -97,10 +87,6 @@
     <message>
         <source>Step &amp;down</source>
         <translation>Trin &amp;ned</translation>
-    </message>
-    <message>
-        <source>&amp;Select All</source>
-        <translation>&amp;Markér alt</translation>
     </message>
 </context>
 <context>
@@ -224,12 +210,12 @@
 <context>
     <name>QApplication</name>
     <message>
-        <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>Eksekverbar &apos;%1&apos; kræver Qt %2, fandt Qt %3.</translation>
-    </message>
-    <message>
         <source>Incompatible Qt Library Error</source>
         <translation>Fejl om inkompatibelt Qt-bibliotek</translation>
+    </message>
+    <message>
+        <source>Application &quot;%1&quot; requires Qt %2, found Qt %3.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -325,6 +311,16 @@
         <translation>Al&amp;fa-kanal:</translation>
     </message>
     <message>
+        <source>&amp;HTML:</source>
+        <translation>&amp;HTML:</translation>
+    </message>
+    <message>
+        <source>Cursor at %1, %2
+Press ESC to cancel</source>
+        <translation>Markør ved %1, %2
+Tryk på ESC for at annullere</translation>
+    </message>
+    <message>
         <source>Select Color</source>
         <translation>Vælg farve</translation>
     </message>
@@ -341,16 +337,6 @@
         <translation>&amp;Føj til brugerdefineret farver</translation>
     </message>
     <message>
-        <source>&amp;HTML:</source>
-        <translation>&amp;HTML:</translation>
-    </message>
-    <message>
-        <source>Cursor at %1, %2
-Press ESC to cancel</source>
-        <translation>Markør ved %1, %2
-Tryk på ESC for at annullere</translation>
-    </message>
-    <message>
         <source>&amp;Pick Screen Color</source>
         <translation>&amp;Vælg farve på skærmen</translation>
     </message>
@@ -358,16 +344,16 @@ Tryk på ESC for at annullere</translation>
 <context>
     <name>QComboBox</name>
     <message>
+        <source>Open the combo box selection popup</source>
+        <translation>Åbn komboboksens valg-pop op</translation>
+    </message>
+    <message>
         <source>False</source>
         <translation>Falsk</translation>
     </message>
     <message>
         <source>True</source>
         <translation>Sand</translation>
-    </message>
-    <message>
-        <source>Open the combo box selection popup</source>
-        <translation>Åbn komboboksens valg-pop op</translation>
     </message>
 </context>
 <context>
@@ -413,26 +399,8 @@ Tryk på ESC for at annullere</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Displays help including Qt specific options.</source>
+        <source>Displays help, including generic Qt options.</source>
         <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QCoreApplication</name>
-    <message>
-        <source>%1: key is empty</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: nøglen er tom</translation>
-    </message>
-    <message>
-        <source>%1: unable to make key</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: kunne ikke lave nøglen</translation>
-    </message>
-    <message>
-        <source>%1: ftok failed</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: ftok fejlede</translation>
     </message>
 </context>
 <context>
@@ -616,25 +584,6 @@ Tryk på ESC for at annullere</translation>
     </message>
 </context>
 <context>
-    <name>QDateTimeParser</name>
-    <message>
-        <source>AM</source>
-        <translation>AM</translation>
-    </message>
-    <message>
-        <source>am</source>
-        <translation>am</translation>
-    </message>
-    <message>
-        <source>PM</source>
-        <translation>PM</translation>
-    </message>
-    <message>
-        <source>pm</source>
-        <translation>pm</translation>
-    </message>
-</context>
-<context>
     <name>QDialog</name>
     <message>
         <source>What&apos;s This?</source>
@@ -649,143 +598,109 @@ Tryk på ESC for at annullere</translation>
     </message>
 </context>
 <context>
-    <name>QDirModel</name>
-    <message>
-        <source>Name</source>
-        <translation>Navn</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <translation>Størrelse</translation>
-    </message>
-    <message>
-        <source>Kind</source>
-        <comment>Match OS X Finder</comment>
-        <translation>Type</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <comment>All other platforms</comment>
-        <translation>Type</translation>
-    </message>
-    <message>
-        <source>Date Modified</source>
-        <translation>Ændringsdato</translation>
-    </message>
-</context>
-<context>
     <name>QDnsLookup</name>
     <message>
         <source>Operation cancelled</source>
         <translation>Handlingen blev annulleret</translation>
     </message>
+    <message>
+        <source>Invalid domain name</source>
+        <translation type="unfinished">Ugyldigt domænenavn</translation>
+    </message>
+    <message>
+        <source>SSL/TLS support not present</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Request timed out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server could not process query</source>
+        <translation type="unfinished">Serveren kunne ikke behandle forespørgsel</translation>
+    </message>
+    <message>
+        <source>Server failure</source>
+        <translation type="unfinished">Serverfejl</translation>
+    </message>
+    <message>
+        <source>Non existent domain</source>
+        <translation type="unfinished">Ikke eksisterende domæne</translation>
+    </message>
+    <message>
+        <source>Server refused to answer</source>
+        <translation type="unfinished">Serveren nægtede at svare</translation>
+    </message>
+    <message>
+        <source>Invalid reply received (rcode %1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid reply received</source>
+        <translation type="unfinished">Ugyldigt svar modtaget</translation>
+    </message>
+    <message>
+        <source>Invalid reply received (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IPv6 nameservers are currently not supported on this OS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reply was too large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not expand domain name</source>
+        <translation type="unfinished">Kunne ikke udvide domænenavn</translation>
+    </message>
+    <message>
+        <source>Invalid IPv4 address record</source>
+        <translation type="unfinished">Ugyldig IPv4-adresse-record</translation>
+    </message>
+    <message>
+        <source>Invalid IPv6 address record</source>
+        <translation type="unfinished">Ugyldig IPv6-adresse-record</translation>
+    </message>
+    <message>
+        <source>Invalid canonical name record</source>
+        <translation type="unfinished">Ugyldig kanonisk navn-record</translation>
+    </message>
+    <message>
+        <source>Invalid name server record</source>
+        <translation type="unfinished">Ugyldig navneserver-record</translation>
+    </message>
+    <message>
+        <source>Invalid pointer record</source>
+        <translation type="unfinished">Ugyldig pointer-record</translation>
+    </message>
+    <message>
+        <source>Invalid mail exchange record</source>
+        <translation type="unfinished">Ugyldig mail exchange-record</translation>
+    </message>
+    <message>
+        <source>Invalid service record</source>
+        <translation type="unfinished">Ugyldig service-record</translation>
+    </message>
+    <message>
+        <source>Invalid TLS association record</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid text record</source>
+        <translation type="unfinished">Ugyldig tekst-record</translation>
+    </message>
 </context>
 <context>
     <name>QDnsLookupRunnable</name>
     <message>
-        <source>IPv6 addresses for nameservers are currently not supported</source>
-        <translation>IPv6-adresser for navneservere understøttes ikke på nuværende tidspunkt</translation>
-    </message>
-    <message>
-        <source>Invalid domain name</source>
-        <translation>Ugyldigt domænenavn</translation>
-    </message>
-    <message>
-        <source>Not yet supported on Android</source>
-        <translation>Endnu ikke understøttet på Android</translation>
-    </message>
-    <message>
-        <source>Resolver functions not found</source>
-        <translation>Løser-funktioner ikke fundet</translation>
-    </message>
-    <message>
-        <source>Resolver initialization failed</source>
-        <translation>Løser-initialisering fejlede</translation>
-    </message>
-    <message>
-        <source>Server could not process query</source>
-        <translation>Serveren kunne ikke behandle forespørgsel</translation>
-    </message>
-    <message>
-        <source>Server failure</source>
-        <translation>Serverfejl</translation>
-    </message>
-    <message>
-        <source>Non existent domain</source>
-        <translation>Ikke eksisterende domæne</translation>
-    </message>
-    <message>
-        <source>Server refused to answer</source>
-        <translation>Serveren nægtede at svare</translation>
-    </message>
-    <message>
-        <source>Invalid reply received</source>
-        <translation>Ugyldigt svar modtaget</translation>
-    </message>
-    <message>
-        <source>Could not expand domain name</source>
-        <translation>Kunne ikke udvide domænenavn</translation>
-    </message>
-    <message>
-        <source>Invalid IPv4 address record</source>
-        <translation>Ugyldig IPv4-adresse-record</translation>
-    </message>
-    <message>
-        <source>Invalid IPv6 address record</source>
-        <translation>Ugyldig IPv6-adresse-record</translation>
-    </message>
-    <message>
-        <source>Invalid canonical name record</source>
-        <translation>Ugyldig kanonisk navn-record</translation>
-    </message>
-    <message>
-        <source>Invalid name server record</source>
-        <translation>Ugyldig navneserver-record</translation>
-    </message>
-    <message>
-        <source>Invalid pointer record</source>
-        <translation>Ugyldig pointer-record</translation>
-    </message>
-    <message>
-        <source>Invalid mail exchange record</source>
-        <translation>Ugyldig mail exchange-record</translation>
-    </message>
-    <message>
-        <source>Invalid service record</source>
-        <translation>Ugyldig service-record</translation>
-    </message>
-    <message>
-        <source>Invalid text record</source>
-        <translation>Ugyldig tekst-record</translation>
-    </message>
-    <message>
-        <source>Resolver library can&apos;t be loaded: No runtime library loading support</source>
-        <translation>Løser-bibliotek kan ikke indlæses: ingen understøttelse af rumtime-bibliotek indlæsning</translation>
-    </message>
-    <message>
-        <source>No hostname given</source>
-        <translation>Intet værtsnavn givet</translation>
-    </message>
-    <message>
-        <source>Invalid hostname</source>
-        <translation>Ugyldigt værtsnavn</translation>
-    </message>
-    <message>
-        <source>Host %1 could not be found.</source>
-        <translation>Værten %1 kunne ikke findes.</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
+        <source>Not yet supported on this OS</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QDockWidget</name>
-    <message>
-        <source>Close</source>
-        <extracomment>Accessible name for button closing a dock widget</extracomment>
-        <translation>Luk</translation>
-    </message>
     <message>
         <source>Float</source>
         <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
@@ -796,71 +711,13 @@ Tryk på ESC for at annullere</translation>
         <translation>Frigør og gentilkobler dok-widget&apos;en</translation>
     </message>
     <message>
+        <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
+        <translation>Luk</translation>
+    </message>
+    <message>
         <source>Closes the dock widget</source>
         <translation>Lukker dok-widget&apos;en</translation>
-    </message>
-</context>
-<context>
-    <name>QDomParser</name>
-    <message>
-        <source>Error occurred while processing XML declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Multiple DTD sections are not allowed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing document type declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing comment</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing a processing instruction</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing a start element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected end element &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing an end element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing the element content</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing comments</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing an entity reference</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected token</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Tag mismatch</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing entity declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing notation declaration</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -982,12 +839,12 @@ Tryk på ESC for at annullere</translation>
 <context>
     <name>QDtlsClientVerifier</name>
     <message>
-        <source>A valid UDP socket, non-empty datagram, valid address/port were expected</source>
-        <translation>En gyldig UDP-socket, ikke-tomt datagram, gyldig adresse/port blev ventet</translation>
-    </message>
-    <message>
         <source>BIO_ADDR_new failed, ignoring client hello</source>
         <translation>BIO_ADDR_new fejlede, ignorerer klient hello</translation>
+    </message>
+    <message>
+        <source>A valid UDP socket, non-empty datagram, and valid address/port were expected</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1001,8 +858,16 @@ Tryk på ESC for at annullere</translation>
         <translation>Advarsel:</translation>
     </message>
     <message>
+        <source>Critical Error:</source>
+        <translation>Kritisk fejl:</translation>
+    </message>
+    <message>
         <source>Fatal Error:</source>
         <translation>Fatal fejl:</translation>
+    </message>
+    <message>
+        <source>Information:</source>
+        <translation>Information:</translation>
     </message>
     <message>
         <source>&amp;Show this message again</source>
@@ -1013,36 +878,12 @@ Tryk på ESC for at annullere</translation>
         <translation>&amp;OK</translation>
     </message>
     <message>
-        <source>Critical Error:</source>
-        <translation>Kritisk fejl:</translation>
-    </message>
-    <message>
-        <source>Information:</source>
-        <translation>Information:</translation>
+        <source>An error occurred</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QFile</name>
-    <message>
-        <source>Destination file exists</source>
-        <translation>Destinationsfilen findes</translation>
-    </message>
-    <message>
-        <source>Cannot remove source file</source>
-        <translation>Kan ikke fjerne kildefilen</translation>
-    </message>
-    <message>
-        <source>Cannot open %1 for input</source>
-        <translation>Kan ikke åbne %1 for input</translation>
-    </message>
-    <message>
-        <source>Failure to write block</source>
-        <translation>Kunne ikke skrive blok</translation>
-    </message>
-    <message>
-        <source>Cannot create %1 for output</source>
-        <translation>Kan ikke oprette %1 for output</translation>
-    </message>
     <message>
         <source>Destination file is the same file.</source>
         <translation>Destinationsfilen er den samme fil.</translation>
@@ -1050,6 +891,14 @@ Tryk på ESC for at annullere</translation>
     <message>
         <source>Source file does not exist.</source>
         <translation>Kildefilen findes ikke.</translation>
+    </message>
+    <message>
+        <source>Destination file exists</source>
+        <translation>Destinationsfilen findes</translation>
+    </message>
+    <message>
+        <source>Error while renaming: %1</source>
+        <translation>Fejl under omdøbning: %1</translation>
     </message>
     <message>
         <source>Unable to restore from %1: %2</source>
@@ -1060,15 +909,27 @@ Tryk på ESC for at annullere</translation>
         <translation>Vil ikke omdøbe fortløbende fil ved brug af blokkopiering</translation>
     </message>
     <message>
-        <source>Error while renaming: %1</source>
-        <translation>Fejl under omdøbning: %1</translation>
+        <source>Cannot remove source file</source>
+        <translation>Kan ikke fjerne kildefilen</translation>
     </message>
     <message>
         <source>Cannot open destination file: %1</source>
         <translation>Kan ikke åbne destinationsfilen: %1</translation>
     </message>
     <message>
+        <source>Cannot open %1 for input</source>
+        <translation>Kan ikke åbne %1 for input</translation>
+    </message>
+    <message>
         <source>Cannot open for output: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failure to write block: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot create %1 for output: %2</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1090,152 +951,12 @@ Tryk på ESC for at annullere</translation>
         <translation>Alle filer (*)</translation>
     </message>
     <message>
-        <source>Directories</source>
-        <translation>Mapper</translation>
-    </message>
-    <message>
-        <source>&amp;Open</source>
-        <translation>&amp;Åbn</translation>
-    </message>
-    <message>
-        <source>&amp;Save</source>
-        <translation>&amp;Gem</translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation>Åbn</translation>
-    </message>
-    <message>
-        <source>%1 already exists.
-Do you want to replace it?</source>
-        <translation>%1 findes allerede.
-Vil du erstatte den?</translation>
-    </message>
-    <message>
-        <source>%1
-File not found.
-Please verify the correct file name was given.</source>
-        <translation>%1
-Filen blev ikke fundet.
-Kontrollér, at det korrekte filnavn blev givet.</translation>
-    </message>
-    <message>
-        <source>My Computer</source>
-        <translation>Denne Computer</translation>
-    </message>
-    <message>
-        <source>&amp;Rename</source>
-        <translation>&amp;Omdøb</translation>
-    </message>
-    <message>
-        <source>&amp;Delete</source>
-        <translation>&amp;Slet</translation>
-    </message>
-    <message>
-        <source>Show &amp;hidden files</source>
-        <translation>Vis s&amp;kjulte filer</translation>
-    </message>
-    <message>
-        <source>Back</source>
-        <translation>Tilbage</translation>
-    </message>
-    <message>
-        <source>Parent Directory</source>
-        <translation>Ovenliggende mappe</translation>
-    </message>
-    <message>
-        <source>List View</source>
-        <translation>Listevisning</translation>
-    </message>
-    <message>
-        <source>Detail View</source>
-        <translation>Detaljeret visning</translation>
-    </message>
-    <message>
-        <source>Files of type:</source>
-        <translation>Filer af type:</translation>
-    </message>
-    <message>
-        <source>Directory:</source>
-        <translation>Mappe:</translation>
-    </message>
-    <message>
-        <source>%1
-Directory not found.
-Please verify the correct directory name was given.</source>
-        <translation>%1
-Mappen blev ikke fundet.
-Kontrollér, at det korrekte mappenavn blev givet.</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is write protected.
-Do you want to delete it anyway?</source>
-        <translation>&apos;%1&apos; er skrivebeskyttet.
-Vil du slette den alligevel?</translation>
-    </message>
-    <message>
-        <source>Could not delete directory.</source>
-        <translation>Kunne ikke slette mappen.</translation>
-    </message>
-    <message>
-        <source>Recent Places</source>
-        <translation>Nylige steder</translation>
-    </message>
-    <message>
-        <source>Save As</source>
-        <translation>Gem som</translation>
-    </message>
-    <message>
-        <source>Drive</source>
-        <translation>Drev</translation>
-    </message>
-    <message>
-        <source>File</source>
-        <translation>Fil</translation>
-    </message>
-    <message>
-        <source>Unknown</source>
-        <translation>Ukendt</translation>
-    </message>
-    <message>
-        <source>Find Directory</source>
-        <translation>Find mappe</translation>
-    </message>
-    <message>
-        <source>Show </source>
-        <translation>Vis </translation>
-    </message>
-    <message>
-        <source>Forward</source>
-        <translation>Frem</translation>
-    </message>
-    <message>
-        <source>New Folder</source>
-        <translation>Ny mappe</translation>
-    </message>
-    <message>
-        <source>&amp;New Folder</source>
-        <translation>&amp;Ny mappe</translation>
-    </message>
-    <message>
-        <source>&amp;Choose</source>
-        <translation>&amp;Vælg</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>Fjern</translation>
-    </message>
-    <message>
-        <source>File &amp;name:</source>
-        <translation>&amp;Filnavn:</translation>
-    </message>
-    <message>
         <source>Look in:</source>
         <translation>Kig i:</translation>
     </message>
     <message>
-        <source>Create New Folder</source>
-        <translation>Opret ny mappe</translation>
+        <source>Back</source>
+        <translation>Tilbage</translation>
     </message>
     <message>
         <source>Go back</source>
@@ -1246,12 +967,20 @@ Vil du slette den alligevel?</translation>
         <translation>Alt+Venstre</translation>
     </message>
     <message>
+        <source>Forward</source>
+        <translation>Frem</translation>
+    </message>
+    <message>
         <source>Go forward</source>
         <translation>Gå fremad</translation>
     </message>
     <message>
         <source>Alt+Right</source>
         <translation>Alt+Højre</translation>
+    </message>
+    <message>
+        <source>Parent Directory</source>
+        <translation>Ovenliggende mappe</translation>
     </message>
     <message>
         <source>Go to the parent directory</source>
@@ -1262,12 +991,24 @@ Vil du slette den alligevel?</translation>
         <translation>Alt+Op</translation>
     </message>
     <message>
+        <source>Create New Folder</source>
+        <translation>Opret ny mappe</translation>
+    </message>
+    <message>
         <source>Create a New Folder</source>
         <translation>Opret en ny mappe</translation>
     </message>
     <message>
+        <source>List View</source>
+        <translation>Listevisning</translation>
+    </message>
+    <message>
         <source>Change to list view mode</source>
         <translation>Skift til listevisningstilstand</translation>
+    </message>
+    <message>
+        <source>Detail View</source>
+        <translation>Detaljeret visning</translation>
     </message>
     <message>
         <source>Change to detail view mode</source>
@@ -1286,49 +1027,124 @@ Vil du slette den alligevel?</translation>
         <translation>Filer</translation>
     </message>
     <message>
+        <source>Files of type:</source>
+        <translation>Filer af type:</translation>
+    </message>
+    <message>
+        <source>Find Directory</source>
+        <translation>Find mappe</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>Åbn</translation>
+    </message>
+    <message>
+        <source>Save As</source>
+        <translation>Gem som</translation>
+    </message>
+    <message>
+        <source>Directory:</source>
+        <translation>Mappe:</translation>
+    </message>
+    <message>
+        <source>File &amp;name:</source>
+        <translation>&amp;Filnavn:</translation>
+    </message>
+    <message>
+        <source>&amp;Open</source>
+        <translation>&amp;Åbn</translation>
+    </message>
+    <message>
+        <source>&amp;Choose</source>
+        <translation>&amp;Vælg</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation>&amp;Gem</translation>
+    </message>
+    <message>
+        <source>Show </source>
+        <translation>Vis </translation>
+    </message>
+    <message>
+        <source>&amp;Rename</source>
+        <translation>&amp;Omdøb</translation>
+    </message>
+    <message>
+        <source>&amp;Delete</source>
+        <translation>&amp;Slet</translation>
+    </message>
+    <message>
+        <source>Show &amp;hidden files</source>
+        <translation>Vis s&amp;kjulte filer</translation>
+    </message>
+    <message>
+        <source>&amp;New Folder</source>
+        <translation>&amp;Ny mappe</translation>
+    </message>
+    <message>
         <source>All files (*)</source>
         <translation>Alle filer (*)</translation>
+    </message>
+    <message>
+        <source>Directories</source>
+        <translation>Mapper</translation>
+    </message>
+    <message>
+        <source>%1
+Directory not found.
+Please verify the correct directory name was given.</source>
+        <translation>%1
+Mappen blev ikke fundet.
+Kontrollér, at det korrekte mappenavn blev givet.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <translation>%1 findes allerede.
+Vil du erstatte den?</translation>
+    </message>
+    <message>
+        <source>%1
+File not found.
+Please verify the correct file name was given.</source>
+        <translation>%1
+Filen blev ikke fundet.
+Kontrollér, at det korrekte filnavn blev givet.</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>Ny mappe</translation>
     </message>
     <message>
         <source>Delete</source>
         <translation>Slet</translation>
     </message>
     <message>
+        <source>&apos;%1&apos; is write protected.
+Do you want to delete it anyway?</source>
+        <translation>&apos;%1&apos; er skrivebeskyttet.
+Vil du slette den alligevel?</translation>
+    </message>
+    <message>
         <source>Are you sure you want to delete &apos;%1&apos;?</source>
         <translation>Er du sikker på, at du vil slette &apos;%1&apos;?</translation>
     </message>
     <message>
-        <source>%1 File</source>
-        <extracomment>%1 is a file name suffix, for example txt</extracomment>
-        <translation>%1-fil</translation>
+        <source>Could not delete directory.</source>
+        <translation>Kunne ikke slette mappen.</translation>
     </message>
     <message>
-        <source>File Folder</source>
-        <comment>Match Windows Explorer</comment>
-        <translation>Filmappe</translation>
+        <source>Recent Places</source>
+        <translation>Nylige steder</translation>
     </message>
     <message>
-        <source>Folder</source>
-        <comment>All other platforms</comment>
-        <translation>Mappe</translation>
-    </message>
-    <message>
-        <source>Alias</source>
-        <comment>OS X Finder</comment>
-        <translation>Alias</translation>
-    </message>
-    <message>
-        <source>Shortcut</source>
-        <comment>All other platforms</comment>
-        <translation>Genvej</translation>
+        <source>Remove</source>
+        <translation>Fjern</translation>
     </message>
 </context>
 <context>
     <name>QFileSystemModel</name>
-    <message>
-        <source>Invalid filename</source>
-        <translation>Ugyldigt filnavn</translation>
-    </message>
     <message>
         <source>Name</source>
         <translation>Navn</translation>
@@ -1359,13 +1175,14 @@ Vil du slette den alligevel?</translation>
         <source>Computer</source>
         <translation>Computer</translation>
     </message>
-    <message>
-        <source>&lt;b&gt;The name &quot;%1&quot; cannot be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuation marks.</source>
-        <translation>&lt;b&gt;Navnet &quot;%1&quot; kan ikke bruges.&lt;/b&gt;&lt;p&gt;Prøv et andet navn, med færre tegn eller ingen tegnsætningstegn.</translation>
-    </message>
 </context>
 <context>
     <name>QFontDatabase</name>
+    <message>
+        <source>Normal</source>
+        <comment>The Normal or Regular font weight</comment>
+        <translation>Normal</translation>
+    </message>
     <message>
         <source>Bold</source>
         <translation>Fed</translation>
@@ -1375,17 +1192,39 @@ Vil du slette den alligevel?</translation>
         <translation>Semi fed</translation>
     </message>
     <message>
+        <source>Medium</source>
+        <comment>The Medium font weight</comment>
+        <translation>Medium</translation>
+    </message>
+    <message>
         <source>Black</source>
         <translation>Sort</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>Let</translation>
+    </message>
+    <message>
+        <source>Thin</source>
+        <translation>Tynd</translation>
+    </message>
+    <message>
+        <source>Extra Light</source>
+        <translation>Ekstra let</translation>
+    </message>
+    <message>
+        <source>Extra Bold</source>
+        <translation>Ekstra fed</translation>
+    </message>
+    <message>
+        <source>Extra</source>
+        <extracomment>The word for &quot;Extra&quot; as in &quot;Extra Bold, Extra Thin&quot; used as a pattern for string searches</extracomment>
+        <translation>Ekstra</translation>
     </message>
     <message>
         <source>Demi</source>
         <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
         <translation>Semi</translation>
-    </message>
-    <message>
-        <source>Light</source>
-        <translation>Let</translation>
     </message>
     <message>
         <source>Italic</source>
@@ -1528,39 +1367,16 @@ Vil du slette den alligevel?</translation>
         <translation>Runer</translation>
     </message>
     <message>
-        <source>Normal</source>
-        <comment>The Normal or Regular font weight</comment>
-        <translation>Normal</translation>
-    </message>
-    <message>
-        <source>Medium</source>
-        <comment>The Medium font weight</comment>
-        <translation>Medium</translation>
-    </message>
-    <message>
-        <source>Thin</source>
-        <translation>Tynd</translation>
-    </message>
-    <message>
-        <source>Extra Light</source>
-        <translation>Ekstra let</translation>
-    </message>
-    <message>
-        <source>Extra Bold</source>
-        <translation>Ekstra fed</translation>
-    </message>
-    <message>
-        <source>Extra</source>
-        <extracomment>The word for &quot;Extra&quot; as in &quot;Extra Bold, Extra Thin&quot; used as a pattern for string searches</extracomment>
-        <translation>Ekstra</translation>
-    </message>
-    <message>
         <source>N&apos;Ko</source>
         <translation>N&apos;Ko</translation>
     </message>
 </context>
 <context>
     <name>QFontDialog</name>
+    <message>
+        <source>Select Font</source>
+        <translation>Vælg skrifttype</translation>
+    </message>
     <message>
         <source>&amp;Font</source>
         <translation>S&amp;krifttype</translation>
@@ -1592,99 +1408,6 @@ Vil du slette den alligevel?</translation>
     <message>
         <source>Wr&amp;iting System</source>
         <translation>Skr&amp;ivesystem</translation>
-    </message>
-    <message>
-        <source>Select Font</source>
-        <translation>Vælg skrifttype</translation>
-    </message>
-</context>
-<context>
-    <name>QFtp</name>
-    <message>
-        <source>Not connected</source>
-        <translation>Ikke forbundet</translation>
-    </message>
-    <message>
-        <source>Host %1 not found</source>
-        <translation>Værten %1 blev ikke fundet</translation>
-    </message>
-    <message>
-        <source>Connection refused to host %1</source>
-        <translation>Forbindelse til værten %1 afvist</translation>
-    </message>
-    <message>
-        <source>Connection timed out to host %1</source>
-        <translation>Forbindelsen fik timeout til værten %1</translation>
-    </message>
-    <message>
-        <source>Connected to host %1</source>
-        <translation>Forbundet til værten %1</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
-    </message>
-    <message>
-        <source>Connecting to host failed:
-%1</source>
-        <translation>Forbindelsen til værten fejlede:
-%1</translation>
-    </message>
-    <message>
-        <source>Login failed:
-%1</source>
-        <translation>Login fejlede:
-%1</translation>
-    </message>
-    <message>
-        <source>Listing directory failed:
-%1</source>
-        <translation>Mappevisning fejlede:
-%1</translation>
-    </message>
-    <message>
-        <source>Changing directory failed:
-%1</source>
-        <translation>Ændring af mappe fejlede:
-%1</translation>
-    </message>
-    <message>
-        <source>Downloading file failed:
-%1</source>
-        <translation>Download af fil fejlede:
-%1</translation>
-    </message>
-    <message>
-        <source>Uploading file failed:
-%1</source>
-        <translation>Upload af fil fejlede:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing file failed:
-%1</source>
-        <translation>Fjernelse af fil fejlede:
-%1</translation>
-    </message>
-    <message>
-        <source>Creating directory failed:
-%1</source>
-        <translation>Oprettelse af mappe fejlede:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing directory failed:
-%1</source>
-        <translation>Fjernelse af mappe fejlede:
-%1</translation>
-    </message>
-    <message>
-        <source>Connection closed</source>
-        <translation>Forbindelsen lukket</translation>
-    </message>
-    <message>
-        <source>Data Connection refused</source>
-        <translation>Dataforbindelsen blev afvist</translation>
     </message>
 </context>
 <context>
@@ -1774,39 +1497,31 @@ Vil du slette den alligevel?</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Alias for --windowgeometry.</source>
+        <source>Alias for --qwindowgeometry.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Alias for --windowicon.</source>
+        <source>Alias for --qwindowicon.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Alias for --windowtitle.</source>
+        <source>Alias for --qwindowtitle.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QHostInfo</name>
     <message>
-        <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
-    </message>
-    <message>
         <source>No host name given</source>
         <translation>Intet værtsnavn givet</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Ukendt fejl</translation>
     </message>
 </context>
 <context>
     <name>QHostInfoAgent</name>
-    <message>
-        <source>Host not found</source>
-        <translation>Værten blev ikke fundet</translation>
-    </message>
-    <message>
-        <source>Unknown address type</source>
-        <translation>Ukendt adressetype</translation>
-    </message>
     <message>
         <source>No host name given</source>
         <translation>Intet værtsnavn givet</translation>
@@ -1815,16 +1530,24 @@ Vil du slette den alligevel?</translation>
         <source>Invalid hostname</source>
         <translation>Ugyldigt værtsnavn</translation>
     </message>
+    <message>
+        <source>Unknown address type</source>
+        <translation>Ukendt adressetype</translation>
+    </message>
+    <message>
+        <source>Host not found</source>
+        <translation>Værten blev ikke fundet</translation>
+    </message>
 </context>
 <context>
     <name>QHttp</name>
     <message>
-        <source>Connection refused</source>
-        <translation>Forbindelsen blev afvist</translation>
-    </message>
-    <message>
         <source>Host %1 not found</source>
         <translation>Værten %1 blev ikke fundet</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>Forbindelsen blev afvist</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -1858,13 +1581,33 @@ Vil du slette den alligevel?</translation>
         <source>Insecure redirect</source>
         <translation>Usikker omdirigering</translation>
     </message>
+    <message>
+        <source>Unsupported content encoding: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to initialize the compression decoder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The decompressed output exceeds the limits specified by QNetworkRequest::decompressedSafetyCheckThreshold()</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Decompression failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Data downloaded is too large to store</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to initialize decompression: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QHttpSocketEngine</name>
-    <message>
-        <source>Authentication required</source>
-        <translation>Autentifikation kræves</translation>
-    </message>
     <message>
         <source>Did not receive HTTP response from proxy</source>
         <translation>Modtog ikke HTTP-svar fra proxyen</translation>
@@ -1872,6 +1615,10 @@ Vil du slette den alligevel?</translation>
     <message>
         <source>Error parsing authentication request from proxy</source>
         <translation>Fejl under fortolkning af autentifikationsanmodning fra proxyen</translation>
+    </message>
+    <message>
+        <source>Authentication required</source>
+        <translation>Autentifikation kræves</translation>
     </message>
     <message>
         <source>Proxy denied connection</source>
@@ -1915,6 +1662,14 @@ Vil du slette den alligevel?</translation>
     <message>
         <source>Unable to rollback transaction</source>
         <translation>Kunne ikke tilbagetrække transaktionen</translation>
+    </message>
+    <message>
+        <source>Could not subscribe to event notifications for %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not unsubscribe from event notifications for %1.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1987,6 +1742,18 @@ Vil du slette den alligevel?</translation>
         <source>Could not get statement info</source>
         <translation>Kunne ikke hente udsagnsinformation</translation>
     </message>
+    <message>
+        <source>Array size mismatch. Field name: %3, expected size: %1. Supplied size: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Array dimensions mismatch. Field name: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Array size mismatch: size of %1 is %2, size of provided list is %3</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QIODevice</name>
@@ -2007,12 +1774,12 @@ Vil du slette den alligevel?</translation>
         <translation>Ingen ledig plads på enheden</translation>
     </message>
     <message>
-        <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
-    </message>
-    <message>
         <source>file to open is a directory</source>
         <translation>filen der skal åbnes er en mappe</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Ukendt fejl</translation>
     </message>
 </context>
 <context>
@@ -2049,16 +1816,16 @@ Vil du slette den alligevel?</translation>
         <translation>Enheden er ikke sat</translation>
     </message>
     <message>
+        <source>Cannot open device for writing: %1</source>
+        <translation>Kan ikke åbne enhed til skrivning: %1</translation>
+    </message>
+    <message>
         <source>Device not writable</source>
         <translation>Der kan ikke skrives til enheden</translation>
     </message>
     <message>
         <source>Unsupported image format</source>
         <translation>Billedformatet understøttes ikke</translation>
-    </message>
-    <message>
-        <source>Cannot open device for writing: %1</source>
-        <translation>Kan ikke åbne enhed til skrivning: %1</translation>
     </message>
     <message>
         <source>Image is empty</source>
@@ -2150,14 +1917,6 @@ Vil du slette den alligevel?</translation>
 <context>
     <name>QLibrary</name>
     <message>
-        <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
-        <translation>Pluginet &apos;%1&apos; bruger inkompatibelt Qt-bibliotek. (%2.%3.%4) [%5]</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
-    </message>
-    <message>
         <source>The shared library was not found.</source>
         <translation>Det delte bibliotek blev ikke fundet.</translation>
     </message>
@@ -2166,8 +1925,16 @@ Vil du slette den alligevel?</translation>
         <translation>Filen &apos;%1&apos; er ikke et gyldigt Qt-plugin.</translation>
     </message>
     <message>
+        <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
+        <translation>Pluginet &apos;%1&apos; bruger inkompatibelt Qt-bibliotek. (%2.%3.%4) [%5]</translation>
+    </message>
+    <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
         <translation>Pluginet &apos;%1&apos; bruger inkompatibelt Qt-bibliotek. (kan ikke blande debug- og release-biblioteker).</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Ukendt fejl</translation>
     </message>
     <message>
         <source>Cannot load library %1: %2</source>
@@ -2176,22 +1943,6 @@ Vil du slette den alligevel?</translation>
     <message>
         <source>Cannot unload library %1: %2</source>
         <translation>Kan ikke afregistrere biblioteket %1: %2</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is not an ELF object (%2)</source>
-        <translation>&apos;%1&apos; er ikke et ELF-objekt (%2)</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is not an ELF object</source>
-        <translation>&apos;%1&apos; er ikke et ELF-objekt</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is an invalid ELF object (%2)</source>
-        <translation>&apos;%1&apos; er et ugyldigt ELF-objekt (%2)</translation>
-    </message>
-    <message>
-        <source>Failed to extract plugin meta data from &apos;%1&apos;</source>
-        <translation>Kunne ikke udtrække plugin-metadata fra &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not a valid Mach-O binary (%2)</source>
@@ -2226,51 +1977,144 @@ Vil du slette den alligevel?</translation>
         <translation>&apos;%1&apos; er ikke et Qt-plugin</translation>
     </message>
     <message>
-        <source>odd cpu architecture</source>
-        <translation>besynderlig cpu-arkitektur</translation>
+        <source>&apos;%1&apos; is not a valid Windows DLL (%2)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>wrong cpu architecture</source>
-        <translation>forkert cpu-arkitektur</translation>
+        <source>&apos;%1&apos; is too small</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>odd endianness</source>
-        <translation>besynderlig byterækkefølge</translation>
+        <source>&apos;%1&apos; is not a Qt plugin (%2)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>unexpected e_shsize</source>
-        <translation>uventet e_shsize</translation>
+        <source>metadata not found</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>unexpected e_shentsize</source>
-        <translation>uventet e_shentsize</translation>
-    </message>
-    <message numerus="yes">
-        <source>announced %n section(s), each %1 byte(s), exceed file size</source>
-        <translation>
-            <numerusform>annocerede %n sektion, på hver %1 byte(s), overskredet filstørrelse</numerusform>
-            <numerusform>annocerede %n sektioner, på hver %1 byte(s), overskredet filstørrelse</numerusform>
-        </translation>
+        <source>invalid signature</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>shstrtab section header seems to be at %1</source>
-        <translation>shstrtab-sektionshoved ser ud til at være ved %1</translation>
+        <source>file is for a different processor</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>string table seems to be at %1</source>
-        <translation>strengtabel ser ud til at være ved %1</translation>
+        <source>file has no sections</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>section name %1 of %2 behind end of file</source>
-        <translation>sektionsnavn %1 af %2 efter filens slutning</translation>
+        <source>wrong characteristics</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>empty .rodata. not a library.</source>
-        <translation>tom .rodata. ikke et bibliotek.</translation>
+        <source>file is for a different word size</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>missing section data. This is not a library.</source>
-        <translation>manglende sektionsdata. Dette er ikke et bibliotek.</translation>
+        <source>file has no code</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a section name is empty or extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section contents extend past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is too small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section has incorrect magic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is writable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is executable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is for the wrong endianness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has an unknown ELF version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has an unexpected ABI</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is not a shared object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a valid ELF object (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unimplemented: PN_XNUM program headers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>program header table extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a program header entry extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a note segment start is not properly aligned (offset 0x%1, alignment %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section table extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section header string table extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a section name extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unexpected program header entry size (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unexpected section entry size (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>e_shstrndx greater than the number of sections e_shnum (%1 &gt;= %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to extract plugin meta data from &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not resolve &apos;qt_plugin_instance&apos; function</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>metadata too small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>entrypoint to query the plugin meta data not found</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2362,20 +2206,20 @@ Vil du slette den alligevel?</translation>
         <translation>%1: socket-handlingen understøttes ikke</translation>
     </message>
     <message>
-        <source>%1: Unknown error</source>
-        <translation>%1: ukendt fejl</translation>
-    </message>
-    <message>
-        <source>%1: Unknown error %2</source>
-        <translation>%1: ukendt fejl %2</translation>
-    </message>
-    <message>
         <source>%1: Operation not permitted when socket is in this state</source>
         <translation>%1: handlingen er ikke tilladt når socket er i denne tilstand</translation>
     </message>
     <message>
+        <source>%1: Unknown error</source>
+        <translation>%1: ukendt fejl</translation>
+    </message>
+    <message>
         <source>Trying to connect while connection is in progress</source>
         <translation>Prøver at oprette forbindelse mens forbindelse er under oprettelse</translation>
+    </message>
+    <message>
+        <source>%1: Unknown error %2</source>
+        <translation>%1: ukendt fejl %2</translation>
     </message>
     <message>
         <source>%1: Access denied</source>
@@ -2385,9 +2229,21 @@ Vil du slette den alligevel?</translation>
         <source>Socket is not connected</source>
         <translation type="unfinished">Socket er ikke forbundet</translation>
     </message>
+    <message>
+        <source>Remote closed</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QMYSQLDriver</name>
+    <message>
+        <source>Unable to allocate a MYSQL object</source>
+        <translation>Kunne ikke allokere et MYSQL-objekt</translation>
+    </message>
+    <message>
+        <source>Unable to open database &apos;%1&apos;</source>
+        <translation>Kunne ikke åbne databasen &apos;%1&apos;</translation>
+    </message>
     <message>
         <source>Unable to connect</source>
         <translation>Kunne ikke oprette forbindelse</translation>
@@ -2404,14 +2260,6 @@ Vil du slette den alligevel?</translation>
         <source>Unable to rollback transaction</source>
         <translation>Kunne ikke tilbagetrække transaktionen</translation>
     </message>
-    <message>
-        <source>Unable to allocate a MYSQL object</source>
-        <translation>Kunne ikke allokere et MYSQL-objekt</translation>
-    </message>
-    <message>
-        <source>Unable to open database &apos;%1&apos;</source>
-        <translation>Kunne ikke åbne databasen &apos;%1&apos;</translation>
-    </message>
 </context>
 <context>
     <name>QMYSQLResult</name>
@@ -2426,6 +2274,14 @@ Vil du slette den alligevel?</translation>
     <message>
         <source>Unable to store result</source>
         <translation>Kunne ikke lagre resultatet</translation>
+    </message>
+    <message>
+        <source>Unable to execute next query</source>
+        <translation>Kunne ikke eksekvere næste forespørgsel</translation>
+    </message>
+    <message>
+        <source>Unable to store next result</source>
+        <translation>Kunne ikke lagre næste resultat</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
@@ -2451,14 +2307,6 @@ Vil du slette den alligevel?</translation>
         <source>Unable to store statement results</source>
         <translation>Kunne ikke lagre udsagnsresultater</translation>
     </message>
-    <message>
-        <source>Unable to execute next query</source>
-        <translation>Kunne ikke eksekvere næste forespørgsel</translation>
-    </message>
-    <message>
-        <source>Unable to store next result</source>
-        <translation>Kunne ikke lagre næste resultat</translation>
-    </message>
 </context>
 <context>
     <name>QMdiArea</name>
@@ -2470,20 +2318,48 @@ Vil du slette den alligevel?</translation>
 <context>
     <name>QMdiSubWindow</name>
     <message>
-        <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <source>- [%1]</source>
+        <translation>- [%1]</translation>
     </message>
     <message>
-        <source>Close</source>
-        <translation>Luk</translation>
+        <source>%1 - [%2]</source>
+        <translation>%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
         <translation>Minimer</translation>
     </message>
     <message>
+        <source>Maximize</source>
+        <translation>Maksimer</translation>
+    </message>
+    <message>
+        <source>Unshade</source>
+        <translation>Rul ud</translation>
+    </message>
+    <message>
+        <source>Shade</source>
+        <translation>Rul sammen</translation>
+    </message>
+    <message>
         <source>Restore Down</source>
         <translation>Genskab ned</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation>Genskab</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Luk</translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation>Hjælp</translation>
+    </message>
+    <message>
+        <source>Menu</source>
+        <translation>Menu</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
@@ -2513,41 +2389,9 @@ Vil du slette den alligevel?</translation>
         <source>&amp;Close</source>
         <translation>&amp;Luk</translation>
     </message>
-    <message>
-        <source>- [%1]</source>
-        <translation>- [%1]</translation>
-    </message>
-    <message>
-        <source>Maximize</source>
-        <translation>Maksimer</translation>
-    </message>
-    <message>
-        <source>Unshade</source>
-        <translation>Rul ud</translation>
-    </message>
-    <message>
-        <source>Shade</source>
-        <translation>Rul sammen</translation>
-    </message>
-    <message>
-        <source>Restore</source>
-        <translation>Genskab</translation>
-    </message>
-    <message>
-        <source>Help</source>
-        <translation>Hjælp</translation>
-    </message>
-    <message>
-        <source>Menu</source>
-        <translation>Menu</translation>
-    </message>
 </context>
 <context>
     <name>QMessageBox</name>
-    <message>
-        <source>About Qt</source>
-        <translation>Om Qt</translation>
-    </message>
     <message>
         <source>Show Details...</source>
         <translation>Vis detaljer...</translation>
@@ -2561,13 +2405,29 @@ Vil du slette den alligevel?</translation>
         <translation>&lt;h3&gt;Om Qt&lt;/h3&gt;&lt;p&gt;Programmet bruger Qt version %1.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) %1 The Qt Company Ltd and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd product developed as an open source project. See &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
+        <source>About Qt</source>
+        <translation>Om Qt</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;https://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) The Qt Company Ltd. and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd. product developed as an open source project. See &lt;a href=&quot;https://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
         <extracomment>Leave this text untranslated or include a verbatim copy of it below and note that it is the authoritative version in case of doubt.</extracomment>
-        <translation>&lt;p&gt;Qt er et C++-værktøjskit til programudvikling på tværs af platforme.&lt;/p&gt;&lt;p&gt;Qt giver enkelt-kilde portability på tværs af alle større skrivebordsstyresystemer. Det er også tilgængeligt til Embedded Linux og andre indlejrede og mobile styresystemer.&lt;/p&gt;&lt;p&gt;Qt er tilgængelig under flere licenseringsmuligheder, designet til at rumme behovene af vores forskellige brugere.&lt;/p&gt;&lt;p&gt;Qt licenseret under vores kommercielle licensaftale er passende til udvikling af proprietær/kommerciel software, hvor du ikke vil dele kildekode med tredjeparter eller på anden måde ikke kan efterleve vilkårene i GNU LGPL version 3.&lt;/p&gt;&lt;p&gt;Qt licenseret under GNU (L)GPL er passende til udvikling af Qt-programmer, på forudsætning af at du kan efterleve vilkårene og betingelserne i de enkelte licenser.&lt;/p&gt;&lt;p&gt;Se venligst &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; for en oversigt af Qt-licensering.&lt;/p&gt;&lt;p&gt;Ophavsret (C) %1 Qt Company Ltd og andre bidragydere.&lt;/p&gt;&lt;p&gt;Qt og Qt-logoet er varemærker tilhørende Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt er Qt Company Ltd-produktet, udviklet som et open source projekt. Se &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; for mere information.&lt;/p&gt;</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QNativeSocketEngine</name>
+    <message>
+        <source>Unable to initialize non-blocking socket</source>
+        <translation>Kunne ikke initialisere ikke-blokerende socket</translation>
+    </message>
+    <message>
+        <source>Unable to initialize broadcast socket</source>
+        <translation>Kunne ikke initialisere broadcast-socket</translation>
+    </message>
+    <message>
+        <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
+        <translation>Forsøg på at bruge IPv6-socket på en platform uden IPv6-understøttelse</translation>
+    </message>
     <message>
         <source>The remote host closed the connection</source>
         <translation>Fjern-værten lukkede forbindelsen</translation>
@@ -2591,6 +2451,10 @@ Vil du slette den alligevel?</translation>
     <message>
         <source>Invalid socket descriptor</source>
         <translation>Ugyldig socket-deskriptor</translation>
+    </message>
+    <message>
+        <source>Host unreachable</source>
+        <translation>Værten kan ikke tilgås</translation>
     </message>
     <message>
         <source>Network unreachable</source>
@@ -2621,6 +2485,10 @@ Vil du slette den alligevel?</translation>
         <translation>Adressen er beskyttet</translation>
     </message>
     <message>
+        <source>Datagram was too large to send</source>
+        <translation>Datagrammet var for stort til at blive sendt</translation>
+    </message>
+    <message>
         <source>Unable to send a message</source>
         <translation>Kunne ikke sende en meddelelse</translation>
     </message>
@@ -2641,32 +2509,8 @@ Vil du slette den alligevel?</translation>
         <translation>En anden socket lytter allerede på den samme port</translation>
     </message>
     <message>
-        <source>Unable to initialize non-blocking socket</source>
-        <translation>Kunne ikke initialisere ikke-blokerende socket</translation>
-    </message>
-    <message>
-        <source>Unable to initialize broadcast socket</source>
-        <translation>Kunne ikke initialisere broadcast-socket</translation>
-    </message>
-    <message>
-        <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
-        <translation>Forsøg på at bruge IPv6-socket på en platform uden IPv6-understøttelse</translation>
-    </message>
-    <message>
-        <source>Host unreachable</source>
-        <translation>Værten kan ikke tilgås</translation>
-    </message>
-    <message>
-        <source>Datagram was too large to send</source>
-        <translation>Datagrammet var for stort til at blive sendt</translation>
-    </message>
-    <message>
         <source>Operation on non-socket</source>
         <translation>Handling på ikke-socket</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
     </message>
     <message>
         <source>The proxy type is invalid for this operation</source>
@@ -2683,6 +2527,10 @@ Vil du slette den alligevel?</translation>
     <message>
         <source>Connection reset by peer</source>
         <translation>Forbindelsen blev nulstillet af peer</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Ukendt fejl</translation>
     </message>
 </context>
 <context>
@@ -2738,53 +2586,18 @@ Vil du slette den alligevel?</translation>
     </message>
 </context>
 <context>
-    <name>QNetworkAccessFtpBackend</name>
-    <message>
-        <source>Cannot open %1: is a directory</source>
-        <translation>Kan ikke åbne %1: er en mappe</translation>
-    </message>
-    <message>
-        <source>Logging in to %1 failed: authentication required</source>
-        <translation>Logning til %1 fejlede: autentifikation kræves</translation>
-    </message>
-    <message>
-        <source>Error while downloading %1: %2</source>
-        <translation>Fejl under download af %1: %2</translation>
-    </message>
-    <message>
-        <source>Error while uploading %1: %2</source>
-        <translation>Fejl under upload af %1: %2</translation>
-    </message>
-    <message>
-        <source>No suitable proxy found</source>
-        <translation>Der blev ikke fundet en egnet proxy</translation>
-    </message>
-</context>
-<context>
     <name>QNetworkReply</name>
-    <message>
-        <source>Protocol &quot;%1&quot; is unknown</source>
-        <translation>Protokollen &quot;%1&quot; er ukendt</translation>
-    </message>
     <message>
         <source>Error transferring %1 - server replied: %2</source>
         <translation>Fejl ved overførsel af %1 - serveren svarede: %2</translation>
-    </message>
-    <message>
-        <source>Background request not allowed.</source>
-        <translation>Baggrundsanmodning ikke tilladt.</translation>
-    </message>
-    <message>
-        <source>Network session error.</source>
-        <translation>Netværkssessionsfejl.</translation>
     </message>
     <message>
         <source>backend start error.</source>
         <translation>backend startfejl.</translation>
     </message>
     <message>
-        <source>Temporary network failure.</source>
-        <translation>Midlertidig netværksfejl.</translation>
+        <source>Protocol &quot;%1&quot; is unknown</source>
+        <translation>Protokollen &quot;%1&quot; er ukendt</translation>
     </message>
 </context>
 <context>
@@ -2806,45 +2619,15 @@ Vil du slette den alligevel?</translation>
     </message>
 </context>
 <context>
-    <name>QNetworkSession</name>
-    <message>
-        <source>Invalid configuration.</source>
-        <translation>Ugyldig konfiguration.</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkSessionPrivateImpl</name>
-    <message>
-        <source>Unknown session error.</source>
-        <translation>Ukendt sessionsfejl.</translation>
-    </message>
-    <message>
-        <source>The session was aborted by the user or system.</source>
-        <translation>Sessionen blev afbrudt af brugeren eller systemet.</translation>
-    </message>
-    <message>
-        <source>The requested operation is not supported by the system.</source>
-        <translation>Den anmodede handling understøttes ikke af systemet.</translation>
-    </message>
-    <message>
-        <source>The specified configuration cannot be used.</source>
-        <translation>Den angivne konfiguration kan ikke bruges.</translation>
-    </message>
-    <message>
-        <source>Roaming was aborted or is not possible.</source>
-        <translation>Roaming blev afbrudt eller er ikke mulig.</translation>
-    </message>
-</context>
-<context>
     <name>QOCIDriver</name>
-    <message>
-        <source>Unable to logon</source>
-        <translation>Kunne ikke logge ind</translation>
-    </message>
     <message>
         <source>Unable to initialize</source>
         <comment>QOCIDriver</comment>
         <translation>Kunne ikke initialisere</translation>
+    </message>
+    <message>
+        <source>Unable to logon</source>
+        <translation>Kunne ikke logge ind</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -2882,6 +2665,10 @@ Vil du slette den alligevel?</translation>
         <translation>Kunne ikke forberede udsagn</translation>
     </message>
     <message>
+        <source>Unable to get statement type</source>
+        <translation>Kunne ikke hente udsagnstype</translation>
+    </message>
+    <message>
         <source>Unable to bind value</source>
         <translation>Kunne ikke binde værdi</translation>
     </message>
@@ -2889,16 +2676,16 @@ Vil du slette den alligevel?</translation>
         <source>Unable to execute statement</source>
         <translation>Kunne ikke eksekvere udsagn</translation>
     </message>
-    <message>
-        <source>Unable to get statement type</source>
-        <translation>Kunne ikke hente udsagnstype</translation>
-    </message>
 </context>
 <context>
     <name>QODBCDriver</name>
     <message>
         <source>Unable to connect</source>
         <translation>Kunne ikke oprette forbindelsen</translation>
+    </message>
+    <message>
+        <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
+        <translation>Kunne ikke oprette forbindelsen - driveren understøtter ikke alle de krævede funktionaliteter</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
@@ -2916,13 +2703,13 @@ Vil du slette den alligevel?</translation>
         <source>Unable to enable autocommit</source>
         <translation>Kunne ikke aktivere auto-gennemfør</translation>
     </message>
-    <message>
-        <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
-        <translation>Kunne ikke oprette forbindelsen - driveren understøtter ikke alle de krævede funktionaliteter</translation>
-    </message>
 </context>
 <context>
     <name>QODBCResult</name>
+    <message>
+        <source>Unable to fetch last</source>
+        <translation>Kunne ikke hente sidste</translation>
+    </message>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
         <translation>QODBCResult::reset: kunne ikke sætte &apos;SQL_CURSOR_STATIC&apos; som udsagnsattribut. Tjek venligst din ODBC-driverkonfiguration</translation>
@@ -2932,8 +2719,20 @@ Vil du slette den alligevel?</translation>
         <translation>Kunne ikke eksekvere udsagn</translation>
     </message>
     <message>
+        <source>Unable to fetch</source>
+        <translation>Kunne ikke hente</translation>
+    </message>
+    <message>
         <source>Unable to fetch next</source>
         <translation>Kunne ikke hente næste</translation>
+    </message>
+    <message>
+        <source>Unable to fetch first</source>
+        <translation>Kunne ikke hente første</translation>
+    </message>
+    <message>
+        <source>Unable to fetch previous</source>
+        <translation>Kunne ikke hente forrige</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
@@ -2944,20 +2743,8 @@ Vil du slette den alligevel?</translation>
         <translation>Kunne ikke binde variablen</translation>
     </message>
     <message>
-        <source>Unable to fetch last</source>
-        <translation>Kunne ikke hente sidste</translation>
-    </message>
-    <message>
-        <source>Unable to fetch</source>
-        <translation>Kunne ikke hente</translation>
-    </message>
-    <message>
-        <source>Unable to fetch first</source>
-        <translation>Kunne ikke hente første</translation>
-    </message>
-    <message>
-        <source>Unable to fetch previous</source>
-        <translation>Kunne ikke hente forrige</translation>
+        <source>QODBCResult::reset: Unable to set &apos;SQL_ATTR_CURSOR_TYPE&apos; as statement attribute. Please check your ODBC driver configuration</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2986,20 +2773,20 @@ Vil du slette den alligevel?</translation>
         <source>Unable to unsubscribe</source>
         <translation>Kunne ikke afmelde</translation>
     </message>
+    <message>
+        <source>Unable to set client encoding to &apos;UNICODE&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QPSQLResult</name>
     <message>
-        <source>Unable to create query</source>
-        <translation>Kunne ikke oprette forespørgsel</translation>
-    </message>
-    <message>
-        <source>Unable to prepare statement</source>
-        <translation>Kunne ikke forberede udsagn</translation>
-    </message>
-    <message>
         <source>Query results lost - probably discarded on executing another SQL query.</source>
         <translation>Forespørgselsresultater tabt - formodentligt forkastet ved eksekvering af en anden SQL-forespørgsel.</translation>
+    </message>
+    <message>
+        <source>Unable to create query</source>
+        <translation>Kunne ikke oprette forespørgsel</translation>
     </message>
     <message>
         <source>Unable to get result</source>
@@ -3009,21 +2796,13 @@ Vil du slette den alligevel?</translation>
         <source>Unable to send query</source>
         <translation>Kunne ikke sende forespørgsel</translation>
     </message>
+    <message>
+        <source>Unable to prepare statement</source>
+        <translation>Kunne ikke forberede udsagn</translation>
+    </message>
 </context>
 <context>
     <name>QPageSetupWidget</name>
-    <message>
-        <source>Millimeters (mm)</source>
-        <translation>Millimeter (mm)</translation>
-    </message>
-    <message>
-        <source>Inches (in)</source>
-        <translation>Tommer (tommer)</translation>
-    </message>
-    <message>
-        <source>Points (pt)</source>
-        <translation>Punkter (pt)</translation>
-    </message>
     <message>
         <source>Form</source>
         <translation>Form</translation>
@@ -3099,6 +2878,18 @@ Vil du slette den alligevel?</translation>
     <message>
         <source>Pages per sheet:</source>
         <translation>Sider pr. ark:</translation>
+    </message>
+    <message>
+        <source>Millimeters (mm)</source>
+        <translation>Millimeter (mm)</translation>
+    </message>
+    <message>
+        <source>Inches (in)</source>
+        <translation>Tommer (tommer)</translation>
+    </message>
+    <message>
+        <source>Points (pt)</source>
+        <translation>Punkter (pt)</translation>
     </message>
     <message>
         <source>Pica (P̸)</source>
@@ -3703,66 +3494,16 @@ Vil du slette den alligevel?</translation>
 <context>
     <name>QPluginLoader</name>
     <message>
-        <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
-    </message>
-    <message>
         <source>The plugin was not loaded.</source>
         <translation>Pluginet blev ikke indlæst.</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Ukendt fejl</translation>
     </message>
 </context>
 <context>
     <name>QPrintDialog</name>
-    <message>
-        <source>Print To File ...</source>
-        <translation>Udskriv til fil...</translation>
-    </message>
-    <message>
-        <source>File %1 is not writable.
-Please choose a different file name.</source>
-        <translation>Der kan ikke skrives til filen %1.
-Vælg venligst et andet filnavn.</translation>
-    </message>
-    <message>
-        <source>%1 already exists.
-Do you want to overwrite it?</source>
-        <translation>%1 findes allerede.
-Vil du overskrive den?</translation>
-    </message>
-    <message>
-        <source>%1 is a directory.
-Please choose a different file name.</source>
-        <translation>%1 er en mappe.
-Vælg venligst et andet filnavn.</translation>
-    </message>
-    <message>
-        <source>&amp;Options &gt;&gt;</source>
-        <translation>&amp;Valgmuligheder &gt;&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Print</source>
-        <translation>&amp;Udskriv</translation>
-    </message>
-    <message>
-        <source>&amp;Options &lt;&lt;</source>
-        <translation>&amp;Valgmuligheder &lt;&lt;</translation>
-    </message>
-    <message>
-        <source>Print to File (PDF)</source>
-        <translation>Udskriv til fil (PDF)</translation>
-    </message>
-    <message>
-        <source>Local file</source>
-        <translation>Lokal fil</translation>
-    </message>
-    <message>
-        <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
-        <translation>&apos;Fra&apos;-værdien kan ikke være større end &apos;Til&apos;-værdien.</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
-    </message>
     <message>
         <source>Print</source>
         <translation>Udskriv</translation>
@@ -3836,14 +3577,16 @@ Vælg venligst et andet filnavn.</translation>
         <translation>Lige sider</translation>
     </message>
     <message>
-        <source>Write PDF file</source>
-        <translation>Skriv PDF-fil</translation>
+        <source>&amp;Options &gt;&gt;</source>
+        <translation>&amp;Valgmuligheder &gt;&gt;</translation>
     </message>
     <message>
-        <source>Options &apos;Pages Per Sheet&apos; and &apos;Page Set&apos; cannot be used together.
-Please turn one of those options off.</source>
-        <translation>Valgmuligheder &apos;Sider pr. ark&apos; og &apos;Sidesæt&apos; kan ikke bruges sammen.
-Slå venligst en at disse valgmuligheder fra.</translation>
+        <source>&amp;Print</source>
+        <translation>&amp;Udskriv</translation>
+    </message>
+    <message>
+        <source>&amp;Options &lt;&lt;</source>
+        <translation>&amp;Valgmuligheder &lt;&lt;</translation>
     </message>
     <message>
         <source>Invalid Pages Definition</source>
@@ -3861,12 +3604,60 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <source>There are conflicts in duplex settings. Do you want to fix them?</source>
         <translation>Der er konflikter i dupleksindstillingerne. Vil du rette dem?</translation>
     </message>
+    <message>
+        <source>Print to File (PDF)</source>
+        <translation>Udskriv til fil (PDF)</translation>
+    </message>
+    <message>
+        <source>Local file</source>
+        <translation>Lokal fil</translation>
+    </message>
+    <message>
+        <source>Write PDF file</source>
+        <translation>Skriv PDF-fil</translation>
+    </message>
+    <message>
+        <source>Print To File ...</source>
+        <translation>Udskriv til fil...</translation>
+    </message>
+    <message>
+        <source>%1 is a directory.
+Please choose a different file name.</source>
+        <translation>%1 er en mappe.
+Vælg venligst et andet filnavn.</translation>
+    </message>
+    <message>
+        <source>File %1 is not writable.
+Please choose a different file name.</source>
+        <translation>Der kan ikke skrives til filen %1.
+Vælg venligst et andet filnavn.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to overwrite it?</source>
+        <translation>%1 findes allerede.
+Vil du overskrive den?</translation>
+    </message>
+    <message>
+        <source>Options &apos;Pages Per Sheet&apos; and &apos;Page Set&apos; cannot be used together.
+Please turn one of those options off.</source>
+        <translation>Valgmuligheder &apos;Sider pr. ark&apos; og &apos;Sidesæt&apos; kan ikke bruges sammen.
+Slå venligst en at disse valgmuligheder fra.</translation>
+    </message>
+    <message>
+        <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
+        <translation>&apos;Fra&apos;-værdien kan ikke være større end &apos;Til&apos;-værdien.</translation>
+    </message>
 </context>
 <context>
     <name>QPrintPreviewDialog</name>
     <message>
         <source>Page Setup</source>
         <translation>Sideopsætning</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
     </message>
     <message>
         <source>Print Preview</source>
@@ -3935,10 +3726,6 @@ Slå venligst en at disse valgmuligheder fra.</translation>
     <message>
         <source>Export to PDF</source>
         <translation>Eksportér til PDF</translation>
-    </message>
-    <message>
-        <source>%1%</source>
-        <translation>%1%</translation>
     </message>
 </context>
 <context>
@@ -4014,8 +3801,16 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>til</translation>
     </message>
     <message>
+        <source>Current Page</source>
+        <translation>Nuværende side</translation>
+    </message>
+    <message>
         <source>Selection</source>
         <translation>Valg</translation>
+    </message>
+    <message>
+        <source>Page Set:</source>
+        <translation>Sidesæt:</translation>
     </message>
     <message>
         <source>Output Settings</source>
@@ -4048,14 +3843,6 @@ Slå venligst en at disse valgmuligheder fra.</translation>
     <message>
         <source>Grayscale</source>
         <translation>Gråtone</translation>
-    </message>
-    <message>
-        <source>Current Page</source>
-        <translation>Nuværende side</translation>
-    </message>
-    <message>
-        <source>Page Set:</source>
-        <translation>Sidesæt:</translation>
     </message>
     <message>
         <source>Pages</source>
@@ -4124,16 +3911,12 @@ Slå venligst en at disse valgmuligheder fra.</translation>
 <context>
     <name>QProcess</name>
     <message>
-        <source>Could not open input redirection for reading</source>
-        <translation>Kunne ikke åbne input-omdirigering for læsning</translation>
+        <source>Process failed to start</source>
+        <translation>Processen kunne ikke starte</translation>
     </message>
     <message>
-        <source>Could not open output redirection for writing</source>
-        <translation>Kunne ikke åbne output-omdirigering for skrivning</translation>
-    </message>
-    <message>
-        <source>Resource error (fork failure): %1</source>
-        <translation>Ressourcefejl (fork fejl): %1</translation>
+        <source>Process crashed</source>
+        <translation>Processen holdt op med at virke</translation>
     </message>
     <message>
         <source>Process operation timed out</source>
@@ -4148,20 +3931,40 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>Fejl ved skrivning til proces</translation>
     </message>
     <message>
-        <source>Process crashed</source>
-        <translation>Processen holdt op med at virke</translation>
-    </message>
-    <message>
         <source>No program defined</source>
         <translation>Intet program defineret</translation>
     </message>
     <message>
-        <source>Process failed to start</source>
-        <translation>Processen kunne ikke starte</translation>
+        <source>Could not open input redirection for reading</source>
+        <translation>Kunne ikke åbne input-omdirigering for læsning</translation>
+    </message>
+    <message>
+        <source>Resource error (fork failure): %1</source>
+        <translation>Ressourcefejl (fork fejl): %1</translation>
+    </message>
+    <message>
+        <source>Could not open output redirection for writing</source>
+        <translation>Kunne ikke åbne output-omdirigering for skrivning</translation>
     </message>
     <message>
         <source>Process failed to start: %1</source>
         <translation>Processen kunne ikke starte: %1</translation>
+    </message>
+    <message>
+        <source>Child process modifier threw an exception: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Child process set up failed: %1: %2</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4169,57 +3972,6 @@ Slå venligst en at disse valgmuligheder fra.</translation>
     <message>
         <source>Cancel</source>
         <translation>Annuller</translation>
-    </message>
-</context>
-<context>
-    <name>QRegExp</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>der opstod ingen fejl</translation>
-    </message>
-    <message>
-        <source>disabled feature used</source>
-        <translation>deaktiveret facilitet blev brugt</translation>
-    </message>
-    <message>
-        <source>bad char class syntax</source>
-        <translation>dårlig tegnklasse-syntaks</translation>
-    </message>
-    <message>
-        <source>bad lookahead syntax</source>
-        <translation>dårlig fremadseende syntaks</translation>
-    </message>
-    <message>
-        <source>bad repetition syntax</source>
-        <translation>dårlig gentagelsessyntaks</translation>
-    </message>
-    <message>
-        <source>invalid octal value</source>
-        <translation>ugyldigt oktal-værdi</translation>
-    </message>
-    <message>
-        <source>missing left delim</source>
-        <translation>manglende venstre afgrænser</translation>
-    </message>
-    <message>
-        <source>unexpected end</source>
-        <translation>uventet afslutning</translation>
-    </message>
-    <message>
-        <source>met internal limit</source>
-        <translation>mødte intern grænse</translation>
-    </message>
-    <message>
-        <source>lookbehinds not supported, see QTBUG-2371</source>
-        <translation>lookbehinds understøttes ikke, se QTBUG-2371</translation>
-    </message>
-    <message>
-        <source>invalid interval</source>
-        <translation>ugyldigt interval</translation>
-    </message>
-    <message>
-        <source>invalid category</source>
-        <translation>ugyldig kategori</translation>
     </message>
 </context>
 <context>
@@ -4305,10 +4057,6 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>ukendt egenskabsnavn efter \P eller \p</translation>
     </message>
     <message>
-        <source>too many named subpatterns (maximum 10000)</source>
-        <translation type="unfinished">for mange navngivne undermønstre (maksimum 256) {10000)?}</translation>
-    </message>
-    <message>
         <source>internal error: overran compiling workspace</source>
         <translation>intern fejl: overløb kompileringsarbejdsområde</translation>
     </message>
@@ -4369,10 +4117,6 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>ugyldigt område i tegnklasse</translation>
     </message>
     <message>
-        <source>parentheses are too deeply nested (stack check)</source>
-        <translation>parenteser er indlejret for dybt (staktjek)</translation>
-    </message>
-    <message>
         <source>quantifier does not follow a repeatable item</source>
         <translation>kvantor følger ikke punktum der kan gentages</translation>
     </message>
@@ -4411,6 +4155,10 @@ Slå venligst en at disse valgmuligheder fra.</translation>
     <message>
         <source>this version of PCRE2 does not have Unicode support</source>
         <translation>denne version af PCRE2 har ikke Unicode-understøttelse</translation>
+    </message>
+    <message>
+        <source>parentheses are too deeply nested (stack check)</source>
+        <translation>parenteser er indlejret for dybt (staktjek)</translation>
     </message>
     <message>
         <source>character code point value in \x{} or \o{} is too large</source>
@@ -4785,6 +4533,10 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>too many named subpatterns (maximum 10000)</source>
+        <translation type="unfinished">for mange navngivne undermønstre (maksimum 256) {10000)?}</translation>
+    </message>
+    <message>
         <source>DEFINE subpattern contains more than one branch</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4888,35 +4640,9 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <source>PCRE2_MATCH_INVALID_UTF is not supported for DFA matching</source>
         <translation type="unfinished"></translation>
     </message>
-</context>
-<context>
-    <name>QSQLite2Driver</name>
     <message>
-        <source>Unable to begin transaction</source>
-        <translation>Kunne ikke påbegynde transaktionen</translation>
-    </message>
-    <message>
-        <source>Unable to commit transaction</source>
-        <translation>Kunne ikke gennemføre transaktionen</translation>
-    </message>
-    <message>
-        <source>Error opening database</source>
-        <translation>Fejl ved åbning af databasen</translation>
-    </message>
-    <message>
-        <source>Unable to rollback transaction</source>
-        <translation>Kunne ikke tilbagetrække transaktionen</translation>
-    </message>
-</context>
-<context>
-    <name>QSQLite2Result</name>
-    <message>
-        <source>Unable to fetch results</source>
-        <translation>Kunne ikke hente resultater</translation>
-    </message>
-    <message>
-        <source>Unable to execute statement</source>
-        <translation>Kunne ikke eksekvere udsagn</translation>
+        <source>INTERNAL ERROR: invalid substring offset</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4949,8 +4675,16 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>Kunne ikke hente række</translation>
     </message>
     <message>
+        <source>No query</source>
+        <translation>Ingen forespørgsel</translation>
+    </message>
+    <message>
         <source>Unable to execute statement</source>
         <translation>Kunne ikke eksekvere udsagn</translation>
+    </message>
+    <message>
+        <source>Unable to execute multiple statements at a time</source>
+        <translation>Kunne ikke eksekvere flere udsagn på samme tid</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
@@ -4963,14 +4697,6 @@ Slå venligst en at disse valgmuligheder fra.</translation>
     <message>
         <source>Parameter count mismatch</source>
         <translation>Uoverensstemmende parameter antal</translation>
-    </message>
-    <message>
-        <source>No query</source>
-        <translation>Ingen forespørgsel</translation>
-    </message>
-    <message>
-        <source>Unable to execute multiple statements at a time</source>
-        <translation>Kunne ikke eksekvere flere udsagn på samme tid</translation>
     </message>
 </context>
 <context>
@@ -5057,10 +4783,6 @@ Slå venligst en at disse valgmuligheder fra.</translation>
 <context>
     <name>QSharedMemory</name>
     <message>
-        <source>%1: unable to set key on lock</source>
-        <translation>%1: kunne ikke sætte nøgle på lås</translation>
-    </message>
-    <message>
         <source>%1: create size is less then 0</source>
         <translation>%1: oprettelsesstørrelse er mindre end 0</translation>
     </message>
@@ -5073,28 +4795,12 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>%1: kunne ikke låse op</translation>
     </message>
     <message>
-        <source>%1: permission denied</source>
-        <translation>%1: tilladelse nægtet</translation>
-    </message>
-    <message>
-        <source>%1: already exists</source>
-        <translation>%1: findes allerede</translation>
-    </message>
-    <message>
-        <source>%1: out of resources</source>
-        <translation>%1: ikke flere ressourcer</translation>
-    </message>
-    <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: ukendt fejl %2</translation>
-    </message>
-    <message>
         <source>%1: key is empty</source>
         <translation>%1: nøglen er tom</translation>
     </message>
     <message>
-        <source>%1: ftok failed</source>
-        <translation>%1: ftok fejlede</translation>
+        <source>%1: bad name</source>
+        <translation>%1: dårligt navn</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
@@ -5109,6 +4815,22 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>%1: ikke tilkoblet</translation>
     </message>
     <message>
+        <source>%1: permission denied</source>
+        <translation>%1: tilladelse nægtet</translation>
+    </message>
+    <message>
+        <source>%1: already exists</source>
+        <translation>%1: findes allerede</translation>
+    </message>
+    <message>
+        <source>%1: doesn&apos;t exist</source>
+        <translation>%1: findes ikke</translation>
+    </message>
+    <message>
+        <source>%1: out of resources</source>
+        <translation>%1: ikke flere ressourcer</translation>
+    </message>
+    <message>
         <source>%1: invalid size</source>
         <translation>%1: ugyldig størrelse</translation>
     </message>
@@ -5121,16 +4843,16 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>%1: størrelsesforespørgsel fejlede</translation>
     </message>
     <message>
-        <source>%1: bad name</source>
-        <translation>%1: dårligt navn</translation>
+        <source>%1: unsupported key type</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1: UNIX key file doesn&apos;t exist</source>
-        <translation>%1: UNIX-nøglefil findes ikke</translation>
+        <source>%1: unable to set key on lock (%2)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1: doesn&apos;t exist</source>
-        <translation>%1: findes ikke</translation>
+        <source>%1: unknown error: %2</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5305,6 +5027,20 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>Medie optag</translation>
     </message>
     <message>
+        <source>Media Pause</source>
+        <extracomment>Media player pause button</extracomment>
+        <translation>Medie pause</translation>
+    </message>
+    <message>
+        <source>Toggle Media Play/Pause</source>
+        <extracomment>Media player button to toggle between playing and paused</extracomment>
+        <translation>Medie afspil/pause til/fra</translation>
+    </message>
+    <message>
+        <source>Home Page</source>
+        <translation>Startside</translation>
+    </message>
+    <message>
         <source>Favorites</source>
         <translation>Favoritter</translation>
     </message>
@@ -5391,131 +5127,6 @@ Slå venligst en at disse valgmuligheder fra.</translation>
     <message>
         <source>Launch (F)</source>
         <translation>Start (F)</translation>
-    </message>
-    <message>
-        <source>Print Screen</source>
-        <translation>Print Screen</translation>
-    </message>
-    <message>
-        <source>Page Up</source>
-        <translation>Side op</translation>
-    </message>
-    <message>
-        <source>Page Down</source>
-        <translation>Side ned</translation>
-    </message>
-    <message>
-        <source>Caps Lock</source>
-        <translation>Caps Lock</translation>
-    </message>
-    <message>
-        <source>Num Lock</source>
-        <translation>Num Lock</translation>
-    </message>
-    <message>
-        <source>Number Lock</source>
-        <translation>Number Lock</translation>
-    </message>
-    <message>
-        <source>Scroll Lock</source>
-        <translation>Scroll Lock</translation>
-    </message>
-    <message>
-        <source>Insert</source>
-        <translation>Indsæt</translation>
-    </message>
-    <message>
-        <source>Delete</source>
-        <translation>Slet</translation>
-    </message>
-    <message>
-        <source>Escape</source>
-        <translation>Escape</translation>
-    </message>
-    <message>
-        <source>System Request</source>
-        <translation>System Request</translation>
-    </message>
-    <message>
-        <source>Select</source>
-        <translation>Vælg</translation>
-    </message>
-    <message>
-        <source>Yes</source>
-        <translation>Ja</translation>
-    </message>
-    <message>
-        <source>No</source>
-        <translation>Nej</translation>
-    </message>
-    <message>
-        <source>Context1</source>
-        <translation>Kontekst1</translation>
-    </message>
-    <message>
-        <source>Context2</source>
-        <translation>Kontekst2</translation>
-    </message>
-    <message>
-        <source>Context3</source>
-        <translation>Kontekst3</translation>
-    </message>
-    <message>
-        <source>Context4</source>
-        <translation>Kontekst4</translation>
-    </message>
-    <message>
-        <source>Call</source>
-        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
-        <translation>Ring op</translation>
-    </message>
-    <message>
-        <source>Hangup</source>
-        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
-        <translation>Læg på</translation>
-    </message>
-    <message>
-        <source>Flip</source>
-        <translation>Vend</translation>
-    </message>
-    <message>
-        <source>Ctrl</source>
-        <translation>Ctrl</translation>
-    </message>
-    <message>
-        <source>Shift</source>
-        <translation>Skift</translation>
-    </message>
-    <message>
-        <source>Alt</source>
-        <translation>Alt</translation>
-    </message>
-    <message>
-        <source>Meta</source>
-        <translation>Meta</translation>
-    </message>
-    <message>
-        <source>+</source>
-        <extracomment>Key separator in shortcut string</extracomment>
-        <translation>+</translation>
-    </message>
-    <message>
-        <source>F%1</source>
-        <translation>F%1</translation>
-    </message>
-    <message>
-        <source>Home Page</source>
-        <translation>Startside</translation>
-    </message>
-    <message>
-        <source>Media Pause</source>
-        <extracomment>Media player pause button</extracomment>
-        <translation>Medie pause</translation>
-    </message>
-    <message>
-        <source>Toggle Media Play/Pause</source>
-        <extracomment>Media player button to toggle between playing and paused</extracomment>
-        <translation>Medie afspil/pause til/fra</translation>
     </message>
     <message>
         <source>Monitor Brightness Up</source>
@@ -5946,9 +5557,95 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>Omgør</translation>
     </message>
     <message>
+        <source>Print Screen</source>
+        <translation>Print Screen</translation>
+    </message>
+    <message>
+        <source>Page Up</source>
+        <translation>Side op</translation>
+    </message>
+    <message>
+        <source>Page Down</source>
+        <translation>Side ned</translation>
+    </message>
+    <message>
+        <source>Caps Lock</source>
+        <translation>Caps Lock</translation>
+    </message>
+    <message>
+        <source>Num Lock</source>
+        <translation>Num Lock</translation>
+    </message>
+    <message>
+        <source>Number Lock</source>
+        <translation>Number Lock</translation>
+    </message>
+    <message>
+        <source>Scroll Lock</source>
+        <translation>Scroll Lock</translation>
+    </message>
+    <message>
+        <source>Insert</source>
+        <translation>Indsæt</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Slet</translation>
+    </message>
+    <message>
+        <source>Escape</source>
+        <translation>Escape</translation>
+    </message>
+    <message>
+        <source>System Request</source>
+        <translation>System Request</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Vælg</translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation>Ja</translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation>Nej</translation>
+    </message>
+    <message>
+        <source>Context1</source>
+        <translation>Kontekst1</translation>
+    </message>
+    <message>
+        <source>Context2</source>
+        <translation>Kontekst2</translation>
+    </message>
+    <message>
+        <source>Context3</source>
+        <translation>Kontekst3</translation>
+    </message>
+    <message>
+        <source>Context4</source>
+        <translation>Kontekst4</translation>
+    </message>
+    <message>
+        <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
+        <translation>Ring op</translation>
+    </message>
+    <message>
+        <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
+        <translation>Læg på</translation>
+    </message>
+    <message>
         <source>Toggle Call/Hangup</source>
         <extracomment>Button that will hang up if we&apos;re in call, or make a call if we&apos;re not.</extracomment>
         <translation>Ring op/læg på til/fra</translation>
+    </message>
+    <message>
+        <source>Flip</source>
+        <translation>Vend</translation>
     </message>
     <message>
         <source>Voice Dial</source>
@@ -6127,8 +5824,33 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <translation>Pegeplade fra</translation>
     </message>
     <message>
+        <source>Ctrl</source>
+        <translation>Ctrl</translation>
+    </message>
+    <message>
+        <source>Shift</source>
+        <translation>Skift</translation>
+    </message>
+    <message>
+        <source>Alt</source>
+        <translation>Alt</translation>
+    </message>
+    <message>
+        <source>Meta</source>
+        <translation>Meta</translation>
+    </message>
+    <message>
         <source>Num</source>
         <translation>Num</translation>
+    </message>
+    <message>
+        <source>+</source>
+        <extracomment>Key separator in shortcut string</extracomment>
+        <translation>+</translation>
+    </message>
+    <message>
+        <source>F%1</source>
+        <translation>F%1</translation>
     </message>
     <message>
         <source>Launch (G)</source>
@@ -6154,13 +5876,13 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <source>To-do list</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Control</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
-    <message>
-        <source>Network operation timed out</source>
-        <translation>Netværkshandlingen fik timeout</translation>
-    </message>
     <message>
         <source>Connection to proxy refused</source>
         <translation>Proxy-forbindelsen blev nægtet</translation>
@@ -6213,6 +5935,10 @@ Slå venligst en at disse valgmuligheder fra.</translation>
         <source>Unknown SOCKSv5 proxy error code 0x%1</source>
         <translation>Ukendt SOCKSv5-proxy fejlkode 0x%1</translation>
     </message>
+    <message>
+        <source>Network operation timed out</source>
+        <translation>Netværkshandlingen fik timeout</translation>
+    </message>
 </context>
 <context>
     <name>QSpiAccessibleBridge</name>
@@ -6263,9 +5989,7 @@ Slå venligst en at disse valgmuligheder fra.</translation>
     </message>
     <message>
         <source>frame</source>
-        <extracomment>Role of an accessible object: a window with frame and title
-----------
-Role of an accessible object</extracomment>
+        <extracomment>Role of an accessible object: a window with frame and title</extracomment>
         <translation>ramme</translation>
     </message>
     <message>
@@ -6569,11 +6293,6 @@ Role of an accessible object</extracomment>
         <translation>supplerende indhold</translation>
     </message>
     <message>
-        <source>unknown</source>
-        <extracomment>Role of an accessible object</extracomment>
-        <translation>ukendt</translation>
-    </message>
-    <message>
         <source>terminal</source>
         <extracomment>Role of an accessible object</extracomment>
         <translation>terminal</translation>
@@ -6587,6 +6306,11 @@ Role of an accessible object</extracomment>
         <source>notification</source>
         <extracomment>Role of an accessible object</extracomment>
         <translation>underretning</translation>
+    </message>
+    <message>
+        <source>unknown</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation>ukendt</translation>
     </message>
 </context>
 <context>
@@ -6607,36 +6331,28 @@ Role of an accessible object</extracomment>
 <context>
     <name>QSslSocket</name>
     <message>
-        <source>Unable to write data: %1</source>
-        <translation>Kunne ikke skrive data: %1</translation>
-    </message>
-    <message>
-        <source>Error while reading: %1</source>
-        <translation>Fejl under læsning: %1</translation>
-    </message>
-    <message>
-        <source>Error during SSL handshake: %1</source>
-        <translation>Fejl under SSL-håndtryk: %1</translation>
+        <source>Error when setting the elliptic curves (%1)</source>
+        <translation>Fejl under indstilling af de elliptiske kurver (%1)</translation>
     </message>
     <message>
         <source>Error creating SSL context (%1)</source>
         <translation>Fejl under oprettelse af SSL-kontekst (%1)</translation>
     </message>
     <message>
+        <source>unsupported protocol</source>
+        <translation>protokollen understøttes ikke</translation>
+    </message>
+    <message>
+        <source>Error while setting the minimal protocol version</source>
+        <translation>Fejl under indstilling af den laveste protokolversion</translation>
+    </message>
+    <message>
+        <source>Error while setting the maximum protocol version</source>
+        <translation>Fejl under indstilling af den højeste protokolversion</translation>
+    </message>
+    <message>
         <source>Invalid or empty cipher list (%1)</source>
         <translation>Ugyldig eller tom chifferliste (%1)</translation>
-    </message>
-    <message>
-        <source>Error creating SSL session, %1</source>
-        <translation>Fejl under oprettelse af SSL-session, %1</translation>
-    </message>
-    <message>
-        <source>Error creating SSL session: %1</source>
-        <translation>Fejl under oprettelse af SSL-session: %1</translation>
-    </message>
-    <message>
-        <source>Cannot provide a certificate with no key, %1</source>
-        <translation>Kan ikke give et certifikat uden nøgle, %1</translation>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>
@@ -6647,16 +6363,44 @@ Role of an accessible object</extracomment>
         <translation>Fejl under indlæsning af privat nøgle, %1</translation>
     </message>
     <message>
-        <source>Error when setting the elliptic curves (%1)</source>
-        <translation>Fejl under indstilling af de elliptiske kurver (%1)</translation>
-    </message>
-    <message>
-        <source>unsupported protocol</source>
-        <translation>protokollen understøttes ikke</translation>
-    </message>
-    <message>
         <source>Private key does not certify public key, %1</source>
         <translation>Privat nøgle certificere ikke offentlig nøgle, %1</translation>
+    </message>
+    <message>
+        <source>Diffie-Hellman parameters are not valid</source>
+        <translation>Diffie-Hellman-parametre er ikke gyldige</translation>
+    </message>
+    <message>
+        <source>OpenSSL version with disabled elliptic curves</source>
+        <translation>OpenSSL-version med deaktiveret elliptiske kurver</translation>
+    </message>
+    <message>
+        <source>Error when setting the OpenSSL configuration (%1)</source>
+        <translation>Fejl under indstilling af OpenSSL-konfigurationen (%1)</translation>
+    </message>
+    <message>
+        <source>Expecting QByteArray for %1</source>
+        <translation>Forventer QByteArray for %1</translation>
+    </message>
+    <message>
+        <source>An error occurred attempting to set %1 to %2</source>
+        <translation>Der opstod en fejl under forsøg på at sætte %1 til %2</translation>
+    </message>
+    <message>
+        <source>Wrong value for %1 (%2)</source>
+        <translation>Forkert værdi til %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Unrecognized command %1 = %2</source>
+        <translation>Ikke-genkendt kommando %1 = %2</translation>
+    </message>
+    <message>
+        <source>SSL_CONF_finish() failed</source>
+        <translation>SSL_CONF_finish() fejlede</translation>
+    </message>
+    <message>
+        <source>SSL_CONF_CTX_new() failed</source>
+        <translation>SSL_CONF_CTX_new() fejlede</translation>
     </message>
     <message>
         <source>No error</source>
@@ -6759,56 +6503,32 @@ Role of an accessible object</extracomment>
         <translation>TLS-/SSL-forbindelsen er blevet lukket</translation>
     </message>
     <message>
+        <source>Error creating SSL session, %1</source>
+        <translation>Fejl under oprettelse af SSL-session, %1</translation>
+    </message>
+    <message>
+        <source>Error creating SSL session: %1</source>
+        <translation>Fejl under oprettelse af SSL-session: %1</translation>
+    </message>
+    <message>
         <source>Unable to init SSL Context: %1</source>
         <translation>Kunne ikke initialisere SSL-kontekst: %1</translation>
+    </message>
+    <message>
+        <source>Unable to write data: %1</source>
+        <translation>Kunne ikke skrive data: %1</translation>
     </message>
     <message>
         <source>Unable to decrypt data: %1</source>
         <translation>Kunne ikke dekryptere data: %1</translation>
     </message>
     <message>
-        <source>Error while setting the minimal protocol version</source>
-        <translation>Fejl under indstilling af den laveste protokolversion</translation>
+        <source>Error while reading: %1</source>
+        <translation>Fejl under læsning: %1</translation>
     </message>
     <message>
-        <source>Error while setting the maximum protocol version</source>
-        <translation>Fejl under indstilling af den højeste protokolversion</translation>
-    </message>
-    <message>
-        <source>Diffie-Hellman parameters are not valid</source>
-        <translation>Diffie-Hellman-parametre er ikke gyldige</translation>
-    </message>
-    <message>
-        <source>OpenSSL version with disabled elliptic curves</source>
-        <translation>OpenSSL-version med deaktiveret elliptiske kurver</translation>
-    </message>
-    <message>
-        <source>Error when setting the OpenSSL configuration (%1)</source>
-        <translation>Fejl under indstilling af OpenSSL-konfigurationen (%1)</translation>
-    </message>
-    <message>
-        <source>Expecting QByteArray for %1</source>
-        <translation>Forventer QByteArray for %1</translation>
-    </message>
-    <message>
-        <source>An error occurred attempting to set %1 to %2</source>
-        <translation>Der opstod en fejl under forsøg på at sætte %1 til %2</translation>
-    </message>
-    <message>
-        <source>Wrong value for %1 (%2)</source>
-        <translation>Forkert værdi til %1 (%2)</translation>
-    </message>
-    <message>
-        <source>Unrecognized command %1 = %2</source>
-        <translation>Ikke-genkendt kommando %1 = %2</translation>
-    </message>
-    <message>
-        <source>SSL_CONF_finish() failed</source>
-        <translation>SSL_CONF_finish() fejlede</translation>
-    </message>
-    <message>
-        <source>SSL_CONF_CTX_new() failed</source>
-        <translation>SSL_CONF_CTX_new() fejlede</translation>
+        <source>Error during SSL handshake: %1</source>
+        <translation>Fejl under SSL-håndtryk: %1</translation>
     </message>
     <message>
         <source>TLS initialization failed</source>
@@ -6860,6 +6580,14 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Attempted to use an unsupported protocol.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot provide a certificate with no key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TLS certificate unexpectedly changed during renegotiation!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7010,10 +6738,6 @@ Role of an accessible object</extracomment>
         <source>Schannel failed to encrypt data: %1</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Cannot provide a certificate with no key</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>QStandardPaths</name>
@@ -7089,27 +6813,25 @@ Role of an accessible object</extracomment>
         <source>Application Configuration</source>
         <translation>Programkonfiguration</translation>
     </message>
-</context>
-<context>
-    <name>QStateMachine</name>
     <message>
-        <source>Missing initial state in compound state &apos;%1&apos;</source>
-        <translation>Manglende indledende tilstand i den sammensatte tilstand &apos;%1&apos;</translation>
+        <source>State</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Missing default state in history state &apos;%1&apos;</source>
-        <translation>Manglende standardtilstand i historiktilstanden &apos;%1&apos;</translation>
+        <source>Shared State</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No common ancestor for targets and source of transition from state &apos;%1&apos;</source>
-        <translation>Ingen fælles forfader for mål og kilde af overgang fra tilstanden &apos;%1&apos;</translation>
+        <source>Public</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
+        <source>Templates</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Child mode of state machine &apos;%1&apos; is not &apos;ExclusiveStates&apos;.</source>
+        <source>Temporary Items</source>
+        <extracomment>macOS: Temporary directory</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7132,19 +6854,32 @@ Role of an accessible object</extracomment>
         <translation>%1: ikke flere ressourcer</translation>
     </message>
     <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: ukendt fejl %2</translation>
-    </message>
-</context>
-<context>
-    <name>QTDSDriver</name>
-    <message>
-        <source>Unable to open connection</source>
-        <translation>Kunne ikke åbne forbindelsen</translation>
+        <source>%1: unsupported key type</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Unable to use database</source>
-        <translation>Kunne ikke bruge databasen</translation>
+        <source>%1: key too long</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unknown error: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: key is empty</source>
+        <translation type="unfinished">%1: nøglen er tom</translation>
+    </message>
+    <message>
+        <source>%1: System V semaphores are not available for sandboxed applications. Please build Qt with -feature-ipc_posix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unable to make key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: ftok failed</source>
+        <translation type="unfinished">%1: ftok fejlede</translation>
     </message>
 </context>
 <context>
@@ -7268,10 +7003,6 @@ Role of an accessible object</extracomment>
         <translation>PDF Pop directional formatting (glem retningsformatering)</translation>
     </message>
     <message>
-        <source>Insert Unicode control character</source>
-        <translation>Indsæt unicode-kontroltegn</translation>
-    </message>
-    <message>
         <source>LRI Left-to-right isolate</source>
         <translation>LRI Left-to-right isolate (venstre-til-højre-isolering)</translation>
     </message>
@@ -7286,6 +7017,10 @@ Role of an accessible object</extracomment>
     <message>
         <source>PDI Pop directional isolate</source>
         <translation>PDI Pop directional isolate (glem retningsisolering)</translation>
+    </message>
+    <message>
+        <source>Insert Unicode control character</source>
+        <translation>Indsæt unicode-kontroltegn</translation>
     </message>
 </context>
 <context>
@@ -7340,16 +7075,16 @@ Role of an accessible object</extracomment>
 <context>
     <name>QWindowsDirect2DIntegration</name>
     <message>
-        <source>Cannot load direct2d platform plugin</source>
-        <translation>Kan ikke indlæse direct2d-platform-plugin</translation>
-    </message>
-    <message>
         <source>Qt cannot load the direct2d platform plugin because the Direct2D version on this system is too old. The minimum system requirement for this platform plugin is Windows 7 SP1 with Platform Update.
 
 The minimum Direct2D version required is %1. The Direct2D version on this system is %2.</source>
         <translation>Qt kan ikke indlæse direct2d-platform-pluginet fordi Direct2D-versionen på dette system er for gammel. Minimum systemkrav for dette platform-plugin er Windows 7 SP1 med platformsopdatering.
 
 Direct2D-versionen skal minimum være %1. Direct2D-versionen på dette system er %2.</translation>
+    </message>
+    <message>
+        <source>Cannot load direct2d platform plugin</source>
+        <translation>Kan ikke indlæse direct2d-platform-plugin</translation>
     </message>
 </context>
 <context>
@@ -7359,8 +7094,20 @@ Direct2D-versionen skal minimum være %1. Direct2D-versionen på dette system er
         <translation>Gå tilbage</translation>
     </message>
     <message>
+        <source>&lt; &amp;Back</source>
+        <translation>&lt; &amp;Tilbage</translation>
+    </message>
+    <message>
         <source>Continue</source>
         <translation>Fortsæt</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation>&amp;Næste</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation>&amp;Næste &gt;</translation>
     </message>
     <message>
         <source>Commit</source>
@@ -7371,14 +7118,6 @@ Direct2D-versionen skal minimum være %1. Direct2D-versionen på dette system er
         <translation>Færdig</translation>
     </message>
     <message>
-        <source>Help</source>
-        <translation>Hjælp</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Tilbage</translation>
-    </message>
-    <message>
         <source>&amp;Finish</source>
         <translation>&amp;Slut</translation>
     </message>
@@ -7387,111 +7126,12 @@ Direct2D-versionen skal minimum være %1. Direct2D-versionen på dette system er
         <translation>Annuller</translation>
     </message>
     <message>
+        <source>Help</source>
+        <translation>Hjælp</translation>
+    </message>
+    <message>
         <source>&amp;Help</source>
         <translation>&amp;Hjælp</translation>
-    </message>
-    <message>
-        <source>&amp;Next</source>
-        <translation>&amp;Næste</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>&amp;Næste &gt;</translation>
-    </message>
-</context>
-<context>
-    <name>QXml</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>der opstod ingen fejl</translation>
-    </message>
-    <message>
-        <source>error triggered by consumer</source>
-        <translation>fejl udløst af forbruger</translation>
-    </message>
-    <message>
-        <source>unexpected end of file</source>
-        <translation>uventet afslutning på fil</translation>
-    </message>
-    <message>
-        <source>more than one document type definition</source>
-        <translation>mere end én dokumenttypedefinition</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing element</source>
-        <translation>fejl under fortolkning af element</translation>
-    </message>
-    <message>
-        <source>tag mismatch</source>
-        <translation>uoverensstemmende tag</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing content</source>
-        <translation>fejl under fortolkning af indhold</translation>
-    </message>
-    <message>
-        <source>unexpected character</source>
-        <translation>uventet tegn</translation>
-    </message>
-    <message>
-        <source>invalid name for processing instruction</source>
-        <translation>ugyldigt navn for behandlende instruktion</translation>
-    </message>
-    <message>
-        <source>version expected while reading the XML declaration</source>
-        <translation>version ventet under læsning af XML-deklarationen</translation>
-    </message>
-    <message>
-        <source>wrong value for standalone declaration</source>
-        <translation>forkert værdi for selvstændig deklaration</translation>
-    </message>
-    <message>
-        <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>kodningsdeklaration eller selvstændig deklaration ventet ved læsning af XML-deklarationen</translation>
-    </message>
-    <message>
-        <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>selvstændig deklaration ventet ved læsning af XML-deklarationen</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing document type definition</source>
-        <translation>fejl under fortolkning af dokumenttypedefinition</translation>
-    </message>
-    <message>
-        <source>letter is expected</source>
-        <translation>bogstav er ventet</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing comment</source>
-        <translation>fejl under fortolkning af kommentar</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing reference</source>
-        <translation>fejl under fortolkning af reference</translation>
-    </message>
-    <message>
-        <source>internal general entity reference not allowed in DTD</source>
-        <translation>intern generel entitetsreference ikke tilladt i DTD</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>eksternt fortolket generel entitetsreference ikke tilladt i attributværdi</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>eksternt fortolket generel entitetsreference ikke tilladt i DTD</translation>
-    </message>
-    <message>
-        <source>unparsed entity reference in wrong context</source>
-        <translation>ufortolket enhedsreference i forkert kontekst</translation>
-    </message>
-    <message>
-        <source>recursive entities</source>
-        <translation>rekursive entiteter</translation>
-    </message>
-    <message>
-        <source>error in the text declaration of an external entity</source>
-        <translation>fejl i tekstdeklaration på en ekstern entitet</translation>
     </message>
 </context>
 <context>
@@ -7513,8 +7153,20 @@ Direct2D-versionen skal minimum være %1. Direct2D-versionen på dette system er
         <translation>Sekvensen &apos;]]&gt;&apos; ikke tilladt i indhold.</translation>
     </message>
     <message>
+        <source>Encountered incorrectly encoded content.</source>
+        <translation>Mødte forkert kodet indhold.</translation>
+    </message>
+    <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
         <translation>Navnerumspræfikset &apos;%1&apos; ikke deklareret</translation>
+    </message>
+    <message>
+        <source>Illegal namespace declaration.</source>
+        <translation>Ulovligt navnerumsdeklaration.</translation>
+    </message>
+    <message>
+        <source>Attribute &apos;%1&apos; redefined.</source>
+        <translation>Attributten &apos;%1&apos; redefineret.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
@@ -7529,6 +7181,10 @@ Direct2D-versionen skal minimum være %1. Direct2D-versionen på dette system er
         <translation>XML-versionen understøttes ikke.</translation>
     </message>
     <message>
+        <source>The standalone pseudo attribute must appear after the encoding.</source>
+        <translation>Den selvstændige pseudo-attribut skal optræde efter kodningen.</translation>
+    </message>
+    <message>
         <source>%1 is an invalid encoding name.</source>
         <translation>%1 er et ugyldigt kodningsnavn.</translation>
     </message>
@@ -7541,84 +7197,12 @@ Direct2D-versionen skal minimum være %1. Direct2D-versionen på dette system er
         <translation>Selvstændig accepterer kun ja eller nej.</translation>
     </message>
     <message>
-        <source>Invalid attribute in XML declaration.</source>
-        <translation>Ugyldig attribut i XML-deklaration.</translation>
-    </message>
-    <message>
         <source>Premature end of document.</source>
         <translation>For tidlig slutning på dokument.</translation>
     </message>
     <message>
         <source>Invalid document.</source>
         <translation>Ugyldigt dokument.</translation>
-    </message>
-    <message>
-        <source>Expected character data.</source>
-        <translation>Ventet tegndata.</translation>
-    </message>
-    <message>
-        <source>Start tag expected.</source>
-        <translation>Start-tag ventet.</translation>
-    </message>
-    <message>
-        <source>XML declaration not at start of document.</source>
-        <translation>XML-deklaration ikke i start af dokument.</translation>
-    </message>
-    <message>
-        <source>NDATA in parameter entity declaration.</source>
-        <translation>NDATA i parameterentitetsdeklaration.</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid processing instruction name.</source>
-        <translation>%1 er et ugyldigt behandlende instruktionsnavn.</translation>
-    </message>
-    <message>
-        <source>Invalid processing instruction name.</source>
-        <translation>Ugyldigt behandlende instruktionsnavn.</translation>
-    </message>
-    <message>
-        <source>Illegal namespace declaration.</source>
-        <translation>Ulovligt navnerumsdeklaration.</translation>
-    </message>
-    <message>
-        <source>Invalid XML name.</source>
-        <translation>Ugyldigt XML-navn.</translation>
-    </message>
-    <message>
-        <source>Opening and ending tag mismatch.</source>
-        <translation>Uoverensstemmende åbnende og afsluttende tag.</translation>
-    </message>
-    <message>
-        <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation>Reference to ufortolket entitet &apos;%1&apos;.</translation>
-    </message>
-    <message>
-        <source>Entity &apos;%1&apos; not declared.</source>
-        <translation>Entiteten &apos;%1&apos; ikke deklareret.</translation>
-    </message>
-    <message>
-        <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
-        <translation>Reference til ekstern enhed &apos;%1&apos; i attributværdi.</translation>
-    </message>
-    <message>
-        <source>Invalid character reference.</source>
-        <translation>Ugyldig tegnreference.</translation>
-    </message>
-    <message>
-        <source>Encountered incorrectly encoded content.</source>
-        <translation>Mødte forkert kodet indhold.</translation>
-    </message>
-    <message>
-        <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation>Den selvstændige pseudo-attribut skal optræde efter kodningen.</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid PUBLIC identifier.</source>
-        <translation>%1 er en ugyldig PUBLIC-identifikator.</translation>
-    </message>
-    <message>
-        <source>Attribute &apos;%1&apos; redefined.</source>
-        <translation>Attributten &apos;%1&apos; redefineret.</translation>
     </message>
     <message>
         <source>&apos;%1&apos;</source>
@@ -7653,11 +7237,358 @@ Direct2D-versionen skal minimum være %1. Direct2D-versionen på dette system er
         <translation>Uventet &apos;%1&apos;.</translation>
     </message>
     <message>
+        <source>Expected character data.</source>
+        <translation>Ventet tegndata.</translation>
+    </message>
+    <message>
+        <source>Start tag expected.</source>
+        <translation>Start-tag ventet.</translation>
+    </message>
+    <message>
+        <source>NDATA in parameter entity declaration.</source>
+        <translation>NDATA i parameterentitetsdeklaration.</translation>
+    </message>
+    <message>
+        <source>XML declaration not at start of document.</source>
+        <translation>XML-deklaration ikke i start af dokument.</translation>
+    </message>
+    <message>
+        <source>%1 is an invalid processing instruction name.</source>
+        <translation>%1 er et ugyldigt behandlende instruktionsnavn.</translation>
+    </message>
+    <message>
+        <source>Invalid processing instruction name.</source>
+        <translation>Ugyldigt behandlende instruktionsnavn.</translation>
+    </message>
+    <message>
+        <source>%1 is an invalid PUBLIC identifier.</source>
+        <translation>%1 er en ugyldig PUBLIC-identifikator.</translation>
+    </message>
+    <message>
+        <source>Invalid XML name.</source>
+        <translation>Ugyldigt XML-navn.</translation>
+    </message>
+    <message>
+        <source>Opening and ending tag mismatch.</source>
+        <translation>Uoverensstemmende åbnende og afsluttende tag.</translation>
+    </message>
+    <message>
+        <source>Entity &apos;%1&apos; not declared.</source>
+        <translation>Entiteten &apos;%1&apos; ikke deklareret.</translation>
+    </message>
+    <message>
+        <source>Reference to unparsed entity &apos;%1&apos;.</source>
+        <translation>Reference to ufortolket entitet &apos;%1&apos;.</translation>
+    </message>
+    <message>
+        <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
+        <translation>Reference til ekstern enhed &apos;%1&apos; i attributværdi.</translation>
+    </message>
+    <message>
+        <source>Invalid character reference.</source>
+        <translation>Ugyldig tegnreference.</translation>
+    </message>
+    <message>
+        <source>Invalid attribute in XML declaration: %1 = %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length of XML attribute name exceeds implementation limits (4KiB characters).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected token type %1 in %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Found second DTD token in %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Self-referencing entity detected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Entity expands to more characters than the entity expansion limit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Assets::Downloader::AssetDownloader</name>
+    <message>
+        <source>Downloading JSON file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading zip file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unzipping...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading assets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copying assets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QFactoryLoader</name>
+    <message>
+        <source>Metadata parsing error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid metadata version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected metadata contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QAbstractFileIconProvider</name>
+    <message>
+        <source>Drive</source>
+        <translation type="unfinished">Drev</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation type="unfinished">Fil</translation>
+    </message>
+    <message>
+        <source>File Folder</source>
+        <comment>Match Windows Explorer</comment>
+        <translation type="unfinished">Filmappe</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <comment>All other platforms</comment>
+        <translation type="unfinished">Mappe</translation>
+    </message>
+    <message>
+        <source>Alias</source>
+        <comment>macOS Finder</comment>
+        <translation type="unfinished">Alias</translation>
+    </message>
+    <message>
+        <source>Shortcut</source>
+        <comment>All other platforms</comment>
+        <translation type="unfinished">Genvej</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation type="unfinished">Ukendt</translation>
+    </message>
+</context>
+<context>
+    <name>QCocoaMenuBar</name>
+    <message>
+        <source>Edit</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>quiaccessibilityelement</name>
+    <message>
+        <source>checked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unchecked</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQL</name>
+    <message>
+        <source>No Mimer SQL error for code %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generic Mimer SQL error</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult</name>
+    <message>
+        <source>Could not get %1, column %2</source>
+        <extracomment>Data type, column</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not set %1, parameter %2</source>
+        <extracomment>Data type, parameter</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not close cursor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not close statement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fetch did not succeed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fetch first did not succeed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not fetch next row</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown data type %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not check null, column %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not prepare/execute statement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wrong number of parameters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown datatype, parameter %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not execute statement/open cursor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only input parameters can be used in batch operations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not add batch %1</source>
+        <extracomment>%1 is the batch number</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not execute batch</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult:</name>
+    <message>
+        <source>Fetch last did not succeed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Column %1 out of range</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLDriver</name>
+    <message>
+        <source>Could not connect to database</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start transaction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not commit transaction</source>
+        <translation type="unfinished">Kunne ikke gennemføre transaktionen</translation>
+    </message>
+    <message>
+        <source>Could not roll back transaction</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Print Device Input Slot</name>
+    <message>
+        <source>Automatic</source>
+        <translation type="unfinished">Automatisk</translation>
+    </message>
+</context>
+<context>
+    <name>Print Device Output Bin</name>
+    <message>
+        <source>Automatic</source>
+        <translation type="unfinished">Automatisk</translation>
+    </message>
+</context>
+<context>
+    <name>QDomParser</name>
+    <message>
+        <source>Error occurred while processing XML declaration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Multiple DTD sections are not allowed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing document type declaration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing comment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing a processing instruction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing a start element</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected end element &apos;%1&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing an end element</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing the element content</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing comments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing an entity reference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected token</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tag mismatch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing entity declaration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing notation declaration</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

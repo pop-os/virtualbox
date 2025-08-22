@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -706,7 +706,8 @@ static DECLCALLBACK(int) rtZipTarWriterPush_QueryInfo(void *pvThis, PRTFSOBJINFO
     /* Basic info (w/ additional unix attribs). */
     *pObjInfo = pPush->ObjInfo;
     pObjInfo->cbObject = pPush->cbCurrent;
-    pObjInfo->cbAllocated = RT_ALIGN_64(pPush->cbCurrent, rtZipTarFssWrite_GetBlockSize(pPush->pParent));
+    size_t const cbBlock = rtZipTarFssWrite_GetBlockSize(pPush->pParent);
+    pObjInfo->cbAllocated = RT_ALIGN_64(pPush->cbCurrent, cbBlock);
 
     /* Additional info. */
     switch (enmAddAttr)

@@ -17,7 +17,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -222,6 +222,27 @@ struct NATHostLoopbackOffset
 };
 
 typedef std::list<NATHostLoopbackOffset> NATLoopbackOffsetList;
+
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
+struct SharedFolder
+{
+    SharedFolder();
+
+    bool operator==(const SharedFolder &a) const;
+
+    com::Utf8Str    strName,
+                    strHostPath;
+    bool            fWritable;
+    bool            fAutoMount;
+    com::Utf8Str    strAutoMountPoint;
+    SymlinkPolicy_T enmSymlinkPolicy;
+};
+
+typedef std::list<SharedFolder> SharedFoldersList;
 
 typedef std::vector<uint8_t> IconBlob;
 
@@ -512,6 +533,7 @@ public:
 
     void readMachineRegistry(const xml::ElementNode &elmMachineRegistry);
     void readNATNetworks(const xml::ElementNode &elmNATNetworks);
+    void readSharedFolders(const xml::ElementNode &elmSharedFolders);
 #ifdef VBOX_WITH_VMNET
     void readHostOnlyNetworks(const xml::ElementNode &elmHostOnlyNetworks);
 #endif /* VBOX_WITH_VMNET */
@@ -528,6 +550,7 @@ public:
     MachinesRegistry        llMachines;
     DHCPServersList         llDhcpServers;
     NATNetworksList         llNATNetworks;
+    SharedFoldersList       llGlobalSharedFolders;
 #ifdef VBOX_WITH_VMNET
     HostOnlyNetworksList    llHostOnlyNetworks;
 #endif /* VBOX_WITH_VMNET */
@@ -639,9 +662,6 @@ struct NvramSettings
     com::Utf8Str    strKeyStore;
 };
 
-/** List for keeping a recording feature list. */
-typedef std::map<RecordingFeature_T, bool> RecordingFeatureMap;
-
 /**
  * Recording settings for a single screen (e.g. virtual monitor).
  *
@@ -653,7 +673,10 @@ struct RecordingScreen
 {
     RecordingScreen(uint32_t idScreen = UINT32_MAX);
 
-    virtual ~RecordingScreen();
+#if RT_CPLUSPLUS_PREREQ(201100) /* VC2022: Excplit default copy constructor and copy assignment operator to avoid warnings. */
+    RecordingScreen(RecordingScreen const &) = default;
+    RecordingScreen &operator=(RecordingScreen const &) = default;
+#endif
 
     void applyDefaults(void);
 
@@ -663,17 +686,13 @@ struct RecordingScreen
 
     static const char *getDefaultOptions(void);
 
-    static int featuresFromString(const com::Utf8Str &strFeatures, RecordingFeatureMap &featureMap);
+    static int featuresFromString(const com::Utf8Str &strFeatures, std::map<RecordingFeature_T, bool> &featureMap);
 
-    static void featuresToString(const RecordingFeatureMap &featureMap, com::Utf8Str &strFeatures);
+    static void featuresToString(const std::map<RecordingFeature_T, bool> &featureMap, com::Utf8Str &strFeatures);
 
     static int audioCodecFromString(const com::Utf8Str &strCodec, RecordingAudioCodec_T &enmCodec);
 
-    static void audioCodecToString(const RecordingAudioCodec_T &enmCodec, com::Utf8Str &strCodec);
-
     static int videoCodecFromString(const com::Utf8Str &strCodec, RecordingVideoCodec_T &enmCodec);
-
-    static void videoCodecToString(const RecordingVideoCodec_T &enmCodec, com::Utf8Str &strCodec);
 
     bool operator==(const RecordingScreen &d) const;
 
@@ -685,7 +704,8 @@ struct RecordingScreen
     /** Destination to record to. */
     RecordingDestination_T enmDest;
     /** Which features are enable or not. */
-    RecordingFeatureMap    featureMap; // requires settings version 1.19 (VirtualBox 7.0)
+    std::map<RecordingFeature_T, bool>
+                           featureMap; // requires settings version 1.19 (VirtualBox 7.0)
     /** Maximum time (in s) to record. If set to 0, no time limit is set. */
     uint32_t               ulMaxTimeS; // requires settings version 1.14 (VirtualBox 4.3)
     /** Options string for hidden / advanced / experimental features.
@@ -877,6 +897,7 @@ struct NAT
     bool                    fAliasUseSamePorts;
     bool                    fLocalhostReachable;
     bool                    fForwardBroadcast;
+    bool                    fEnableTFTP;
     NATRulesMap             mapRules;
 };
 
@@ -992,27 +1013,6 @@ struct AudioAdapter
     AudioDriverType_T       driverType;
     settings::StringsMap properties;
 };
-
-/**
- * NOTE: If you add any fields in here, you must update a) the constructor and b)
- * the operator== which is used by MachineConfigFile::operator==(), or otherwise
- * your settings might never get saved.
- */
-struct SharedFolder
-{
-    SharedFolder();
-
-    bool operator==(const SharedFolder &a) const;
-
-    com::Utf8Str    strName,
-                    strHostPath;
-    bool            fWritable;
-    bool            fAutoMount;
-    com::Utf8Str    strAutoMountPoint;
-    SymlinkPolicy_T enmSymlinkPolicy;
-};
-
-typedef std::list<SharedFolder> SharedFoldersList;
 
 /**
  * NOTE: If you add any fields in here, you must update a) the constructor and b)
@@ -1197,12 +1197,6 @@ struct StorageController
     bool                    fUseHostIOCache;
     bool                    fBootable;
 
-    // only for when controllerType == StorageControllerType_IntelAhci:
-    int32_t                 lIDE0MasterEmulationPort,
-                            lIDE0SlaveEmulationPort,
-                            lIDE1MasterEmulationPort,
-                            lIDE1SlaveEmulationPort;
-
     AttachedDevicesList     llAttachedDevices;
 };
 
@@ -1229,6 +1223,11 @@ struct PlatformARM
     PlatformARM();
 
     bool operator==(const PlatformARM&) const;
+
+    /** Nested hardware virtualization. */
+    bool                    fNestedHWVirt;              //< requires settings version 1.20 (VirtualBox 7.1)
+    /** Whether GIC ITS is enabled. */
+    bool                    fGicIts;                    //< requires settings version 1.21 (VirtualBox 7.2)
 };
 #endif /* VBOX_WITH_VIRT_ARMV8 */
 
@@ -1341,7 +1340,6 @@ struct Hardware
 
     com::Utf8Str        strVersion;             // hardware version, optional
     com::Guid           uuid;                   // hardware uuid, optional (null).
-    bool                fSyntheticCpu;
     uint32_t            cCPUs;
     bool                fCpuHotPlug;            // requires settings version 1.10 (VirtualBox 3.2)
     CpuList             llCpus;                 // requires settings version 1.10 (VirtualBox 3.2)
@@ -1578,6 +1576,9 @@ private:
     void readStorageControllerAttributes(const xml::ElementNode &elmStorageController, StorageController &sctl);
     void readPlatformCPUIDTreeX86(const xml::ElementNode &elmChild, PlatformX86 &platX86);
     void readPlatformX86(const xml::ElementNode &elmPlatformX86OrHardware, PlatformX86 &platX86);
+#ifdef VBOX_WITH_VIRT_ARMV8
+    void readPlatformARM(const xml::ElementNode &elmPlatformARM, PlatformARM &platARM);
+#endif
     void readPlatform(const xml::ElementNode &elmPlatformOrHardware, Hardware &hw, Platform &plat);
     void readHardware(const xml::ElementNode &elmHardware, Hardware &hw);
     void readHardDiskAttachments_pre1_7(const xml::ElementNode &elmHardDiskAttachments, Storage &strg);
@@ -1601,6 +1602,9 @@ private:
     void readMachineEncrypted(const xml::ElementNode &elmMachine, PCVBOXCRYPTOIF pCryptoIf, const char *pszPassword);
 
     void buildPlatformX86XML(xml::ElementNode &elmParent, xml::ElementNode &elmCPU, const PlatformX86 &plat);
+#ifdef VBOX_WITH_VIRT_ARMV8
+    void buildPlatformARMXML(xml::ElementNode &elmParent, const PlatformARM &plat);
+#endif
     void buildPlatformXML(xml::ElementNode &elmParent, const Hardware &h, const Platform &plat);
     void buildHardwareXML(xml::ElementNode &elmParent, const Hardware &hw, uint32_t fl, std::list<xml::ElementNode*> *pllElementsWithUuidAttributes);
     void buildNetworkXML(NetworkAttachmentType_T mode, bool fEnabled, xml::ElementNode &elmParent, const NetworkAdapter &nic);

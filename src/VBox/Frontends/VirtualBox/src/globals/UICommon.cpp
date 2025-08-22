@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -149,10 +149,12 @@ UICommon::UICommon(UIType enmType)
 #ifdef VBOX_WS_MAC
     , m_enmMacOSVersion(MacOSXRelease_Old)
 #endif
+#ifdef VBOX_WS_WIN
+    , m_enmWindowsVersion(WindowsRelease_Unknown)
+#endif
 #ifdef VBOX_WS_NIX
     , m_enmWindowManagerType(X11WMType_Unknown)
     , m_fCompositingManagerRunning(false)
-    , m_enmDisplayServerType(VBGHDISPLAYSERVERTYPE_NONE)
 #endif
     , m_fDarkMode(false)
     , m_fSeparateProcess(false)
@@ -177,6 +179,8 @@ UICommon::UICommon(UIType enmType)
     , m_fSettingsPwSet(false)
     , m_pThreadPool(0)
     , m_pThreadPoolCloud(0)
+    , m_iOriginalFontPixelSize(-1)
+    , m_iOriginalFontPointSize(-1)
 {
     /* Assign instance: */
     s_pInstance = this;
@@ -207,11 +211,6 @@ void UICommon::prepare()
     m_enmMacOSVersion = determineOsRelease();
 #endif
 
-#ifdef VBOX_WS_NIX
-    /* Detect display server type: */
-    m_enmDisplayServerType = VBGHDisplayServerTypeDetect();
-#endif
-
     /* Create converter: */
     UIConverter::create();
 
@@ -235,6 +234,11 @@ void UICommon::prepare()
         return;
     connect(gpGlobalSession, &UIGlobalSession::sigVBoxSVCAvailabilityChange,
             this, &UICommon::sltHandleVBoxSVCAvailabilityChange);
+
+#ifdef VBOX_WS_WIN
+    /* As we're using gpConverter & hostOperatingSystem(), we'll need everything to be created first: */
+    m_enmWindowsVersion = gpConverter->fromInternalString<WindowsRelease>(hostOperatingSystem());
+#endif
 
     /* Create extra-data manager right after COM init: */
     UIExtraDataManager::create();
@@ -277,10 +281,10 @@ void UICommon::prepare()
 
 #ifdef VBOX_WS_NIX
     /* Check whether we have compositing manager running: */
-    m_fCompositingManagerRunning = NativeWindowSubsystem::isCompositingManagerRunning(X11ServerAvailable());
+    m_fCompositingManagerRunning = NativeWindowSubsystem::isCompositingManagerRunning();
 
     /* Acquire current Window Manager type: */
-    m_enmWindowManagerType = NativeWindowSubsystem::windowManagerType(X11ServerAvailable());
+    m_enmWindowManagerType = NativeWindowSubsystem::windowManagerType();
 #endif /* VBOX_WS_NIX */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -685,8 +689,9 @@ void UICommon::prepare()
     checkForWrongUSBMounted();
 #endif /* RT_OS_LINUX */
 
-    iOriginalFontPixelSize = qApp->font().pixelSize();
-    iOriginalFontPointSize = qApp->font().pointSize();
+    /* Initialize font size settings: */
+    m_iOriginalFontPixelSize = qApp->font().pixelSize();
+    m_iOriginalFontPointSize = qApp->font().pointSize();
     sltHandleFontScaleFactorChanged(gEDataManager->fontScaleFactor());
 }
 
@@ -786,6 +791,12 @@ void UICommon::cleanup()
     LogRel(("GUI: UICommon: aboutToQuit request handled!\n"));
 }
 
+QString UICommon::hostOperatingSystem() const
+{
+    const CHost comHost = gpGlobalSession->host();
+    return comHost.GetOperatingSystem();
+}
+
 #ifdef VBOX_WS_MAC
 /* static */
 MacOSXRelease UICommon::determineOsRelease()
@@ -808,24 +819,6 @@ MacOSXRelease UICommon::determineOsRelease()
     return MacOSXRelease_Old;
 }
 #endif /* VBOX_WS_MAC */
-
-#ifdef VBOX_WS_NIX
-bool UICommon::X11ServerAvailable() const
-{
-    return VBGHDisplayServerTypeIsXAvailable(m_enmDisplayServerType);
-}
-
-VBGHDISPLAYSERVERTYPE UICommon::displayServerType() const
-{
-    return m_enmDisplayServerType;
-}
-#endif
-
-QString UICommon::hostOperatingSystem() const
-{
-    const CHost comHost = gpGlobalSession->host();
-    return comHost.GetOperatingSystem();
-}
 
 #if defined(VBOX_WS_MAC)
 // Provided by UICocoaApplication ..
@@ -940,7 +933,8 @@ void UICommon::loadColorTheme()
 #elif defined(VBOX_WS_WIN)
 
     /* For the Dark mode! */
-    if (isInDarkMode())
+    if (   osRelease() < WindowsRelease_11
+        && isInDarkMode())
     {
         qApp->setStyle(QStyleFactory::create("Fusion"));
         QPalette darkPalette;
@@ -1428,11 +1422,11 @@ void UICommon::sltHandleFontScaleFactorChanged(int iFontScaleFactor)
     };
 
     /* Do we have pixel font? */
-    if (iOriginalFontPixelSize != -1)
-        appFont.setPixelSize(roundUp(iFontScaleFactor / 100.f * iOriginalFontPixelSize));
+    if (m_iOriginalFontPixelSize != -1)
+        appFont.setPixelSize(roundUp(iFontScaleFactor / 100.f * m_iOriginalFontPixelSize));
     /* Point font otherwise: */
     else
-        appFont.setPointSize(roundUp(iFontScaleFactor / 100.f * iOriginalFontPointSize));
+        appFont.setPointSize(roundUp(iFontScaleFactor / 100.f * m_iOriginalFontPointSize));
 
     qApp->setFont(appFont);
 }

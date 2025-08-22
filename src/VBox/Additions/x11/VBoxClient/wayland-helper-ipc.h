@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -54,14 +54,22 @@
 
 /** Path to Gtk helper tool which raises popup window and gets
  * access to Wayland clipboard. */
-#define VBOXWL_PATH                     "/usr/bin/vboxwl"
+#ifndef VBOXWL_PATH
+# define VBOXWL_PATH                    "/usr/bin/vboxwl"
+#endif
 /** Limit maximum log verbosity level for popup tool. */
-#define VBOXWL_VERBOSITY_MAX    (5)
+#define VBOXWL_VERBOSITY_MAX            (5)
+
+/** IPC server socket name prefixes. */
+#define VBOXWL_SRV_NAME_PREFIX_CLIP     "clip"
+#define VBOXWL_SRV_NAME_PREFIX_DND      "dnd"
 
 /** Arguments to vboxwl tool. */
 #define VBOXWL_ARG_CLIP_HG_COPY         "--clip-hg-copy"
 #define VBOXWL_ARG_CLIP_GH_ANNOUNCE     "--clip-gh-announce"
 #define VBOXWL_ARG_CLIP_GH_COPY         "--clip-gh-copy"
+#define VBOXWL_ARG_DND_GH               "--dnd-gh"
+#define VBOXWL_ARG_DND_HG               "--dnd-hg"
 #define VBOXWL_ARG_SESSION_ID           "--session-id"
 
 /** Time in milliseconds to wait for IPC socket events. */
@@ -78,12 +86,12 @@ namespace vbcl
             CMD_UNKNOWN = 0,
             /** Send or receive list of clipboard formats which
              *  host or guest announces. */
-            CLIP_FORMATS,
+            VBOX_FORMATS,
             /** Send or receive a clipboard format which host
              *  or guest requests. */
-            CLIP_FORMAT,
+            VBOX_FORMAT,
             /** Send or receive clipboard data in given format. */
-            CLIP_DATA,
+            VBOX_DATA,
             /** Termination of commands list. */
             CMD_MAX
         } command_t;
@@ -141,10 +149,11 @@ namespace vbcl
          *          is validated and its fields, such as packet size, can be trusted.
          * @param   uSessionId      IPC session ID.
          * @param   hSession        IPC session handle.
+         * @param   msTimeout       Read operation timeout in milliseconds.
          * @param   ppvData         Output buffer structured as validated
          *                          IPC packet (contains size inside).
          */
-        int packet_read(uint32_t uSessionId, RTLOCALIPCSESSION hSession, void **ppvData);
+        int packet_read(uint32_t uSessionId, RTLOCALIPCSESSION hSession, uint32_t msTimeout, void **ppvData);
 
         /**
          * Write entire IPC packet into IPC socket.
@@ -155,9 +164,9 @@ namespace vbcl
          */
         int packet_write(RTLOCALIPCSESSION hSession, vbcl::ipc::packet_t *pPacket);
 
-        namespace clipboard
+        namespace data
         {
-            /** Payload for IPC commands CLIP_FORMATS and CLIP_FORMAT. */
+            /** Payload for IPC commands VBOX_FORMATS and VBOX_FORMAT. */
             typedef struct
             {
                 /** IPC command header. */
@@ -166,7 +175,7 @@ namespace vbcl
                 SHCLFORMATS fFormats;
             } formats_packet_t;
 
-            /** Payload for IPC command CLIP_DATA. */
+            /** Payload for IPC command VBOX_DATA. */
             typedef struct
             {
                 /* IPC command header. */
@@ -189,41 +198,65 @@ namespace vbcl
              * IPC session is aborted.
              */
 
-            /** IPC flow description: Copy clipboard from host to guest. */
+            /** IPC flow description (clipboard): Copy clipboard from host to guest. */
             const flow_t HGCopyFlow[4] =
             {
-                { CLIP_FORMATS, FLOW_DIRECTION_CLIENT },
-                { CLIP_FORMAT,  FLOW_DIRECTION_SERVER },
-                { CLIP_DATA,    FLOW_DIRECTION_CLIENT },
+                { VBOX_FORMATS, FLOW_DIRECTION_CLIENT },
+                { VBOX_FORMAT,  FLOW_DIRECTION_SERVER },
+                { VBOX_DATA,    FLOW_DIRECTION_CLIENT },
                 { CMD_MAX,      false }
             };
 
-            /** IPC flow description: Copy clipboard from guest to host. */
+            /** IPC flow description (clipboard): Copy clipboard from guest to host. */
             const flow_t GHCopyFlow[3] =
             {
-                { CLIP_FORMAT,  FLOW_DIRECTION_CLIENT },
-                { CLIP_DATA,    FLOW_DIRECTION_SERVER },
+                { VBOX_FORMAT,  FLOW_DIRECTION_CLIENT },
+                { VBOX_DATA,    FLOW_DIRECTION_SERVER },
                 { CMD_MAX,      false }
             };
 
-            /** IPC flow description: Announce guest's clipboard to the host
+            /** IPC flow description (clipboard): Announce guest's clipboard to the host
              *  and copy it to the host in format selected by host. */
             const flow_t GHAnnounceAndCopyFlow[4] =
             {
-                { CLIP_FORMATS, FLOW_DIRECTION_SERVER },
-                { CLIP_FORMAT,  FLOW_DIRECTION_CLIENT },
-                { CLIP_DATA,    FLOW_DIRECTION_SERVER },
+                { VBOX_FORMATS, FLOW_DIRECTION_SERVER },
+                { VBOX_FORMAT,  FLOW_DIRECTION_CLIENT },
+                { VBOX_DATA,    FLOW_DIRECTION_SERVER },
                 { CMD_MAX,      false }
             };
 
-            class ClipboardIpc
+            /** IPC flow description (DnD): DnD operation started inside guest and
+             *  guest reports DnD content mime-type list. Host side picks up one
+             *  of the formats and requests data in this format. Guest sends
+             *  data in requested format. */
+            const flow_t GHDragFlow[4] =
+            {
+                { VBOX_FORMATS, FLOW_DIRECTION_SERVER },
+                { VBOX_FORMAT,  FLOW_DIRECTION_CLIENT },
+                { VBOX_DATA,    FLOW_DIRECTION_SERVER },
+                { CMD_MAX,      false }
+            };
+
+            /** IPC flow description (DnD): DnD operation started on host and
+             *  host reports DnD content mime-type list. Guest side picks up one
+             *  of the formats and requests data in this format. Host sends
+             *  data in requested format. */
+            const flow_t HGDragFlow[4] =
+            {
+                { VBOX_FORMATS, FLOW_DIRECTION_CLIENT },
+                { VBOX_FORMAT,  FLOW_DIRECTION_SERVER },
+                { VBOX_DATA,    FLOW_DIRECTION_CLIENT },
+                { CMD_MAX,      false }
+            };
+
+            class DataIpc
             {
                 public:
 
 #ifdef RT_NEED_NEW_AND_DELETE
                     RTMEM_IMPLEMENT_NEW_AND_DELETE();
 #endif
-                    ClipboardIpc()
+                    DataIpc()
                     {}
 
                     /**
@@ -239,8 +272,8 @@ namespace vbcl
                     {
                         m_fFmts.init(VBOX_SHCL_FMT_NONE, VBCL_WAYLAND_VALUE_WAIT_TIMEOUT_MS);
                         m_uFmt.init(VBOX_SHCL_FMT_NONE, VBCL_WAYLAND_VALUE_WAIT_TIMEOUT_MS);
-                        m_pvClipboardBuf.init(0, VBCL_WAYLAND_DATA_WAIT_TIMEOUT_MS);
-                        m_cbClipboardBuf.init(0, VBCL_WAYLAND_DATA_WAIT_TIMEOUT_MS);
+                        m_pvDataBuf.init(0, VBCL_WAYLAND_DATA_WAIT_TIMEOUT_MS);
+                        m_cbDataBuf.init(0, VBCL_WAYLAND_DATA_WAIT_TIMEOUT_MS);
                         m_fServer = fServer;
                         m_uSessionId = uSessionId;
                     }
@@ -250,13 +283,13 @@ namespace vbcl
                      */
                     void reset()
                     {
-                        void *pvData = (void *)m_pvClipboardBuf.reset();
+                        void *pvData = (void *)m_pvDataBuf.reset();
                         if (RT_VALID_PTR(pvData))
                             RTMemFree(pvData);
 
                         m_fFmts.reset();
                         m_uFmt.reset();
-                        m_cbClipboardBuf.reset();
+                        m_cbDataBuf.reset();
                     }
 
                     /**
@@ -284,8 +317,8 @@ namespace vbcl
                     /** IPC session internal data. */
                     Waitable<volatile SHCLFORMATS> m_fFmts;
                     Waitable<volatile SHCLFORMAT> m_uFmt;
-                    Waitable<volatile uint64_t> m_pvClipboardBuf;
-                    Waitable<volatile uint32_t> m_cbClipboardBuf;
+                    Waitable<volatile uint64_t> m_pvDataBuf;
+                    Waitable<volatile uint32_t> m_cbDataBuf;
 
                 protected:
 
@@ -366,7 +399,7 @@ namespace vbcl
 
                         switch(enmCmd)
                         {
-                            case CLIP_FORMATS:
+                            case VBOX_FORMATS:
                             {
                                 if (fShouldSend)
                                     rc = send_formats(m_uSessionId, hIpcSession);
@@ -375,7 +408,7 @@ namespace vbcl
                                 break;
                             }
 
-                            case CLIP_FORMAT:
+                            case VBOX_FORMAT:
                             {
                                 if (fShouldSend)
                                     rc = send_format(m_uSessionId, hIpcSession);
@@ -384,7 +417,7 @@ namespace vbcl
                                 break;
                             }
 
-                            case CLIP_DATA:
+                            case VBOX_DATA:
                             {
                                 if (fShouldSend)
                                     rc = send_data(m_uSessionId, hIpcSession);
@@ -412,13 +445,14 @@ namespace vbcl
  *
  * This function should be used by both IPC server and client code
  * in order to connect one to another. Output string will be in
- * format: GtkHlpIpcServer-&lt;active tty&gt;-&lt;user name&gt;.
+ * format: GtkHlpIpcServer-&lt;prefix&gt;--&lt;active tty&gt;-&lt;user name&gt;.
  *
  * @returns     IPRT status code.
- * @param       szBuf   Where to store generated name string.
- * @param       cbBuf   Size of buffer.
+ * @param       szNamePrefix    Name prefix.
+ * @param       szBuf           Where to store generated name string.
+ * @param       cbBuf           Size of buffer.
  */
-RTDECL(int) vbcl_wayland_hlp_gtk_ipc_srv_name(char *szBuf, size_t cbBuf);
+RTDECL(int) vbcl_wayland_hlp_gtk_ipc_srv_name(const char *szNamePrefix, char *szBuf, size_t cbBuf);
 
 #endif /* !GA_INCLUDED_SRC_x11_VBoxClient_wayland_helper_ipc_h */
 

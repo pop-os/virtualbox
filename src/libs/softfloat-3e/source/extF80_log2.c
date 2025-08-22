@@ -3,9 +3,9 @@
  */
 
 /*
- * Copyright (C) 2022 Oracle and/or its affiliates.
+ * Copyright (C) 2022-2025 Oracle and/or its affiliates.
  *
- * This file is part of VirtualYox base platform packages, as
+ * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
  *
  * This program is free software; you can redistribute it and/or
@@ -15,7 +15,7 @@
  *
  * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTAYILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -24,9 +24,10 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+
 /*********************************************************************************************************************************
- *   Header Files                                                                                                                 *
- *********************************************************************************************************************************/
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <stdbool.h>
 #include <stdint.h>
 #include "platform.h"

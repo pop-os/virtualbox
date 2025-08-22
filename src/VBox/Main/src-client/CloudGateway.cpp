@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -187,13 +187,16 @@ void CloudClient::stopCloudGateway(const GatewayInfo& gateway)
 
 HRESULT startCloudGateway(ComPtr<IVirtualBox> virtualBox, ComPtr<ICloudNetwork> network, GatewayInfo& gateway)
 {
-    HRESULT hrc = S_OK;
+    HRESULT hrc;
 
-    try {
+    try
+    {
         hrc = network->COMGETTER(Provider)(gateway.mCloudProvider.asOutParam());
+        AssertComRCReturnRC(hrc);
         hrc = network->COMGETTER(Profile)(gateway.mCloudProfile.asOutParam());
+        AssertComRCReturnRC(hrc);
         CloudClient client(virtualBox, gateway.mCloudProvider, gateway.mCloudProfile);
-        client.startCloudGateway(network, gateway);
+        client.startCloudGateway(network, gateway); /* Throws CloudError on failure. */
     }
     catch (CloudError e)
     {

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -46,12 +46,16 @@
 #if defined(_MSC_VER) && RT_INLINE_ASM_USES_INTRIN
 /* Emit the intrinsics at all optimization levels. */
 # include <iprt/sanitized/intrin.h>
-# pragma intrinsic(__cpuid)
-# pragma intrinsic(__stosd)
-# pragma intrinsic(__stosw)
-# pragma intrinsic(__stosb)
-# ifdef RT_ARCH_AMD64
-#  pragma intrinsic(__stosq)
+# if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
+#  pragma intrinsic(__cpuid)
+#  pragma intrinsic(__stosd)
+#  pragma intrinsic(__stosw)
+#  pragma intrinsic(__stosb)
+#  ifdef RT_ARCH_AMD64
+#   pragma intrinsic(__stosq)
+#  endif
+# elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+#  pragma intrinsic(__iso_volatile_load8)
 # endif
 #endif
 
@@ -179,7 +183,7 @@ DECLINLINE(void) ASMMemFill32(volatile void RT_FAR *pv, size_t cb, uint32_t u32)
  * @param   cb      Number of bytes in the block.
  */
 #if !defined(RDESKTOP) && (!defined(RT_OS_LINUX) || !defined(__KERNEL__))
-DECLASM(void RT_FAR *) ASMMemFirstNonZero(void const RT_FAR *pv, size_t cb) RT_NOTHROW_PROTO;
+RT_DECL_ASM(void RT_FAR *) ASMMemFirstNonZero(void const RT_FAR *pv, size_t cb) RT_NOTHROW_PROTO;
 #else
 DECLINLINE(void RT_FAR *) ASMMemFirstNonZero(void const RT_FAR *pv, size_t cb) RT_NOTHROW_DEF
 {
@@ -228,7 +232,7 @@ DECLINLINE(bool) ASMMemIsZero(void const RT_FAR *pv, size_t cb) RT_NOTHROW_DEF
  */
 #if    (!defined(RT_OS_LINUX) || !defined(__KERNEL__)) \
     && (!defined(RT_OS_FREEBSD) || !defined(_KERNEL))
-DECLASM(void *) ASMMemFirstMismatchingU8(void const RT_FAR *pv, size_t cb, uint8_t u8) RT_NOTHROW_PROTO;
+RT_DECL_ASM(void *) ASMMemFirstMismatchingU8(void const RT_FAR *pv, size_t cb, uint8_t u8) RT_NOTHROW_PROTO;
 #else
 DECLINLINE(void *) ASMMemFirstMismatchingU8(void const RT_FAR *pv, size_t cb, uint8_t u8) RT_NOTHROW_DEF
 {
@@ -325,16 +329,20 @@ DECLINLINE(uint8_t) ASMProbeReadByte(const void RT_FAR *pvByte) RT_NOTHROW_DEF
     return u8;
 
 # elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+#  if RT_INLINE_ASM_USES_INTRIN
+    return (uint8_t)__iso_volatile_load8((volatile const char *)pvByte);
+#  else
     uint32_t u32;
     __asm__ __volatile__("Lstart_ASMProbeReadByte_%=:\n\t"
-#  if defined(RT_ARCH_ARM64)
+#   if defined(RT_ARCH_ARM64)
                          "ldxrb     %w[uDst], %[pMem]\n\t"
-#  else
+#   else
                          "ldrexb    %[uDst], %[pMem]\n\t"
-#  endif
+#   endif
                          : [uDst] "=&r" (u32)
                          : [pMem] "Q" (*(uint8_t const *)pvByte));
     return (uint8_t)u32;
+#  endif
 
 # else
 #  error "Port me"

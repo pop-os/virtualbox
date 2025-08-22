@@ -46,6 +46,10 @@
         <file alias="cd_create_disabled_16px.png">images/cd_create_disabled_16px.png</file>
         <file alias="cd_create_disabled_32px.png">images/cd_create_disabled_32px.png</file>
         <file alias="cd_disabled_16px.png">images/cd_disabled_16px.png</file>
+        <file alias="cd_edit_16px.png">images/cd_edit_16px.png</file>
+        <file alias="cd_edit_32px.png">images/cd_edit_32px.png</file>
+        <file alias="cd_edit_disabled_16px.png">images/cd_edit_disabled_16px.png</file>
+        <file alias="cd_edit_disabled_32px.png">images/cd_edit_disabled_32px.png</file>
         <file alias="cd_modify_16px.png">images/cd_modify_16px.png</file>
         <file alias="cd_modify_32px.png">images/cd_modify_32px.png</file>
         <file alias="cd_modify_disabled_16px.png">images/cd_modify_disabled_16px.png</file>
@@ -54,6 +58,10 @@
         <file alias="cd_move_32px.png">images/cd_move_32px.png</file>
         <file alias="cd_move_disabled_16px.png">images/cd_move_disabled_16px.png</file>
         <file alias="cd_move_disabled_32px.png">images/cd_move_disabled_32px.png</file>
+        <file alias="cd_open_16px.png">images/cd_open_16px.png</file>
+        <file alias="cd_open_32px.png">images/cd_open_32px.png</file>
+        <file alias="cd_open_disabled_16px.png">images/cd_open_disabled_16px.png</file>
+        <file alias="cd_open_disabled_32px.png">images/cd_open_disabled_32px.png</file>
         <file alias="cd_read_16px.png">images/cd_read_16px.png</file>
         <file alias="cd_release_16px.png">images/cd_release_16px.png</file>
         <file alias="cd_release_32px.png">images/cd_release_32px.png</file>
@@ -499,8 +507,5 @@
         <file alias="keep_object_16px.png">images/keep_object_16px.png</file>
         <file alias="keyboard_16px.png">images/keyboard_16px.png</file>
         <file alias="keyboard_24px.png">images/keyboard_24px.png</file>
-        <file alias="keyboard_32px.png">images/keyboard_32px.png</file>
-        <file alias="keyboard_settings_16px.png">images/keyboard_settings_16px.png</file>
-        <file alias="keyboard_settings_disabled_16px.png">images/keyboard_settings_disabled_16px.png</file>
     </qresource>
 </RCC>

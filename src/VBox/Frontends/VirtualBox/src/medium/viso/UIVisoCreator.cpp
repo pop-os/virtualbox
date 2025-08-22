@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -307,8 +307,8 @@ UIVisoCreatorWidget::Settings UIVisoSettingWidget::settings() const
 *   UIVisoCreatorWidget implementation.                                                                                          *
 *********************************************************************************************************************************/
 
-UIVisoCreatorWidget::UIVisoCreatorWidget(UIActionPool *pActionPool, QWidget *pParent,
-                                         bool fShowToolBar, const QString& strVisoFilePath, const QString& strMachineName)
+UIVisoCreatorWidget::UIVisoCreatorWidget(UIActionPool *pActionPool, QWidget *pParent, bool fShowToolBar,
+                                         const QString& strVisoFilePath, const QString& strMachineName)
     : QWidget(pParent)
     , m_pActionPreferences(0)
     , m_pAddAction(0)
@@ -439,11 +439,14 @@ void UIVisoCreatorWidget::sltOpenAction()
     QString strFileName =  QIFileDialog::getOpenFileName(UIMediumTools::defaultFolderPathForType(UIMediumDeviceType_DVD),
                                                          "VISO files (*.viso)", pActive, UIVisoCreatorWidget::tr("Select a VISO file to load"));
     if (!strFileName.isEmpty() && m_pVISOContentBrowser)
-    {
-        setVisoFilePath(QFileInfo(strFileName).absolutePath());
-        setVisoName(QFileInfo(strFileName).baseName());
-        m_pVISOContentBrowser->parseVisoFileContent(strFileName);
-    }
+        openVISOFile(strFileName);
+}
+
+void UIVisoCreatorWidget::openVISOFile(const QString &strFileName)
+{
+    setVisoFilePath(QFileInfo(strFileName).absolutePath());
+    setVisoName(QFileInfo(strFileName).baseName());
+    m_pVISOContentBrowser->parseVisoFileContent(strFileName);
 }
 
 void UIVisoCreatorWidget::sltSaveAsAction()
@@ -669,12 +672,6 @@ void UIVisoCreatorWidget::populateMenuMainToolbar()
             m_pMainMenu->addAction(m_pOpenAction);
         if (m_pSaveAsAction)
             m_pMainMenu->addAction(m_pSaveAsAction);
-        if (m_pAddAction)
-            m_pMainMenu->addAction(m_pAddAction);
-        if (m_pImportISOAction)
-            m_pMainMenu->addAction(m_pImportISOAction);
-        if (m_pRemoveISOAction)
-            m_pMainMenu->addAction(m_pRemoveISOAction);
     }
 
     if (m_pHostFileBrowser)
@@ -752,7 +749,7 @@ QString UIVisoCreatorWidget::visoFileFullPath() const
 *   UIVisoCreatorDialog implementation.                                                                                          *
 *********************************************************************************************************************************/
 UIVisoCreatorDialog::UIVisoCreatorDialog(UIActionPool *pActionPool, QWidget *pParent,
-                                         const QString& strVisoFilePath, const QString& strMachineName /* = QString() */)
+                                         const QString& strVisoFilePath  /* = QString() */, const QString& strMachineName /* = QString() */)
     : QIWithRestorableGeometry<QIMainDialog>(pParent)
     , m_pVisoCreatorWidget(0)
     , m_pButtonBox(0)
@@ -848,7 +845,7 @@ void UIVisoCreatorDialog::prepareWidgets(const QString& strVisoFilePath, const Q
     connect(m_pButtonBox, &QIDialogButtonBox::accepted, this, &UIVisoCreatorDialog::accept);
 
 
-    uiCommon().setHelpKeyword(m_pButtonBox->button(QDialogButtonBox::Help), "create-optical-disk-image");
+    uiCommon().setHelpKeyword(m_pButtonBox->button(QDialogButtonBox::Help), "tk_create-optical-disk-image" /* help keyword */);
 
     sltRetranslateUI();
     connect(&translationEventListener(), &UITranslationEventListener::sigRetranslateUI,
@@ -982,6 +979,35 @@ QUuid UIVisoCreatorDialog::createViso(UIActionPool *pActionPool, QWidget *pParen
     return mediumId;
 }
 
+/* static */
+QUuid UIVisoCreatorDialog::editViso(UIActionPool *pActionPool, QWidget *pParent, const QString &strVISOFilePath)
+{
+    Q_UNUSED(pActionPool);
+    Q_UNUSED(pParent);
+    if (!QFileInfo(strVISOFilePath).exists())
+        return QUuid();
+
+    QWidget *pDialogParent = windowManager().realParentWindow(pParent);
+    UIVisoCreatorDialog *pVisoCreator = new UIVisoCreatorDialog(pActionPool, pDialogParent);
+    AssertPtrReturn(pVisoCreator, QUuid());
+    windowManager().registerNewParent(pVisoCreator, pDialogParent);
+    pVisoCreator->openVISOFile(strVISOFilePath);
+    QUuid mediumId;
+    if (pVisoCreator->exec(false /* not application modal */))
+    {
+        if (pVisoCreator->saveVISOFile())
+        {
+            QString strFilePath = pVisoCreator->visoFileFullPath();
+            gEDataManager->setVISOCreatorRecentFolder(pVisoCreator->currentPath());
+            mediumId = UIMediumTools::openMedium(UIMediumDeviceType_DVD, strFilePath);
+        }
+    }
+
+    delete pVisoCreator;
+
+    return mediumId;
+}
+
 bool UIVisoCreatorDialog::saveVISOFile()
 {
     QStringList VisoEntryList = entryList();
@@ -1008,6 +1034,12 @@ bool UIVisoCreatorDialog::saveVISOFile()
         file.close();
     }
     return true;
+}
+
+void UIVisoCreatorDialog::openVISOFile(const QString &strFileName)
+{
+    if (m_pVisoCreatorWidget)
+        m_pVisoCreatorWidget->openVISOFile(strFileName);
 }
 
 #include "UIVisoCreator.moc"

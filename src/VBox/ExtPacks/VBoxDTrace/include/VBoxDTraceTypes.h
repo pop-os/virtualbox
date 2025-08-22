@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from http://www.virtualbox.org.
@@ -129,6 +129,14 @@ typedef char                       *caddr_t;
 #  define _LP64                     1
 # endif
 # if !defined(_LITTLE_ENDIAN) || (!defined(RT_OS_SOLARIS) && !defined(RT_OS_FREEBSD))
+#  define _LITTLE_ENDIAN            1
+# endif
+
+#elif defined(RT_ARCH_ARM64)
+# ifndef _LP64
+#  define _LP64                     1
+# endif
+# if !defined(_LITTLE_ENDIAN)
 #  define _LITTLE_ENDIAN            1
 # endif
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -466,12 +466,12 @@ static DECLCALLBACK(int) usbProxyWinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pU
             return VERR_INVALID_PARAMETER;
     }
 
-    Log(("usbproxy: Queue URB %p ep=%d cbData=%d abData=%p cIsocPkts=%d\n", pUrb, pUrb->EndPt, pUrb->cbData, pUrb->abData, pUrb->cIsocPkts));
+    Log(("usbproxy: Queue URB %p ep=%d cbData=%d pbData=%p cIsocPkts=%d\n", pUrb, pUrb->EndPt, pUrb->cbData, pUrb->pbData, pUrb->cIsocPkts));
 
     pQUrbWin->urb           = pUrb;
     pQUrbWin->urbwin.ep     = pUrb->EndPt;
     pQUrbWin->urbwin.len    = pUrb->cbData;
-    pQUrbWin->urbwin.buf    = pUrb->abData;
+    pQUrbWin->urbwin.buf    = pUrb->pbData;
     pQUrbWin->urbwin.error  = USBSUP_XFER_OK;
     pQUrbWin->urbwin.flags  = USBSUP_FLAG_NONE;
     if (pUrb->enmDir == VUSBDIRECTION_IN && !pUrb->fShortNotOk)

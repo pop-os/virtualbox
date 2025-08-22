@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2022-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2022-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -372,6 +372,8 @@ VTABLE_ENTRY(CPUMGetHostMicroarch)
 VTABLE_ENTRY(CPUMGetGuestCpuVendor)
 VTABLE_ENTRY(CPUMGetGuestArch)
 VTABLE_ENTRY(CPUMGetGuestMicroarch)
+VTABLE_ENTRY(CPUMCpuVendorName)
+VTABLE_ENTRY(CPUMMicroarchName)
 
 VTABLE_RESERVED(pfnCPUMR3Reserved1)
 VTABLE_RESERVED(pfnCPUMR3Reserved2)
@@ -637,6 +639,7 @@ VTABLE_ENTRY(PDMR3UsbDriverAttach)
 VTABLE_ENTRY(PDMR3UsbDriverDetach)
 VTABLE_ENTRY(PDMR3UsbQueryLun)
 VTABLE_ENTRY(PDMR3UsbQueryDriverOnLun)
+VTABLE_ENTRY(PDMR3UsbQueryDeviceLun)
 
 VTABLE_ENTRY(PDMR3DriverEnumInstances)
 
@@ -660,7 +663,7 @@ VTABLE_ENTRY(PGMPhysSimpleReadGCPtr)
 VTABLE_ENTRY(PGMPhysSimpleWriteGCPhys)
 VTABLE_ENTRY(PGMPhysSimpleWriteGCPtr)
 VTABLE_ENTRY(PGMPhysWriteGCPtr)
-VTABLE_ENTRY(PGMShwMakePageWritable)
+VTABLE_RESERVED(pfnPGMR3Reserved0)
 VTABLE_ENTRY(PGMR3QueryGlobalMemoryStats)
 VTABLE_ENTRY(PGMR3QueryMemoryStats)
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2022-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2022-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -54,8 +54,21 @@ using namespace std;
 *   Unattended Stub Implementation                                                                                               *
 *********************************************************************************************************************************/
 Unattended::Unattended()
-    : mhThreadReconfigureVM(NIL_RTNATIVETHREAD), mfRtcUseUtc(false), mfGuestOs64Bit(false)
-    , mpInstaller(NULL), mpTimeZoneInfo(NULL), mfIsDefaultAuxiliaryBasePath(true), mfDoneDetectIsoOS(false)
+    : mhThreadReconfigureVM(NIL_RTNATIVETHREAD)
+    , mfRtcUseUtc(false)
+    , mfGuestOs64Bit(false)
+    , menmFirmwareType(FirmwareType_EFI)
+    , mpInstaller(NULL)
+    , mfInstallGuestAdditions(false)
+    , mfInstallTestExecService(false)
+    , mfInstallUserPayload(false)
+    , mpTimeZoneInfo(NULL)
+    , mfIsDefaultAuxiliaryBasePath(true)
+    , midxImage(0)
+    , mfDoneDetectIsoOS(false)
+    , mEnmOsType(VBOXOSTYPE_Unknown)
+    , mfAvoidUpdatesOverNetwork(false)
+    , mfDoneSupportedGuestOSList(false)
 {
     mStrUser                            = "vboxuser";
     mStrUserPassword                    = "changeme";
@@ -65,6 +78,7 @@ Unattended::Unattended()
     mStrIsoPath                         = "/iso/path/file.iso";
     mStrAdditionsIsoPath                = "/iso/path/addition.iso";
     mfInstallGuestAdditions             = true;
+    mfProductKeyRequired                = false;
     mfInstallTestExecService            = true;
     mStrValidationKitIsoPath            = "/iso/path/valkit.iso";
     mStrTimeZone                        = "cet";
@@ -207,6 +221,12 @@ HRESULT Unattended::setFullUserName(const com::Utf8Str &fullUserName)
 HRESULT Unattended::getProductKey(com::Utf8Str &productKey)
 {
     RT_NOREF(productKey);
+    return E_NOTIMPL;
+}
+
+HRESULT Unattended::getProductKeyRequired(BOOL *productKeyRequired)
+{
+    RT_NOREF(productKeyRequired);
     return E_NOTIMPL;
 }
 

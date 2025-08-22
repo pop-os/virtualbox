@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -198,6 +198,8 @@ private slots:
         void sltToggleMediumSearchVisibility(bool fVisible);
         /** Handles command to refresh medium. */
         void sltRefreshAll();
+        /** Handles command to edir viso. */
+        void sltEditVISO();
     /** @} */
 
     /** @name Menu/action handler stuff.
@@ -319,6 +321,7 @@ private:
         void setCurrentItem(QITreeWidget *pTreeWidget, QTreeWidgetItem *pItem);
 
     void enableClearAction();
+    void enableEditAction();
     /** @} */
 
     /** @name Search stuff.

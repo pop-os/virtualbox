@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -294,7 +294,7 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVirtualBox,
                         }
                         RTMemFree(pInfo);
                     }
-                    if ((vrc = pclose(fp)) != 0)
+                    if (pclose(fp) != 0)
                     {
                         progress->i_notifyComplete(E_FAIL,
                                                    COM_IIDOF(IHostNetworkInterface),

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -33,10 +33,11 @@
 #define PDMPCIDEV_INCLUDE_PRIVATE  /* Hack to get pdmpcidevint.h included at the right point. */
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
-#if defined(VBOX_VMM_TARGET_ARMV8)
-# include <VBox/vmm/gic.h>
-#else
-# include <VBox/vmm/apic.h>
+#ifdef VBOX_VMM_TARGET_ARMV8
+# include <VBox/vmm/pdmgic.h>
+# include <VBox/vmm/pmu.h>
+#elif defined(VBOX_VMM_TARGET_X86)
+# include <VBox/vmm/pdmapic.h>
 #endif
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/dbgf.h>
@@ -287,13 +288,14 @@ int pdmR3DevInit(PVM pVM)
             return rc;
         }
 
-        /* RZEnabled, R0Enabled, RCEnabled*/
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0) /** @todo not entirely correct for new-RC; */
+        /* R0Enabled, RCEnabled*/
         bool fR0Enabled = false;
         bool fRCEnabled = false;
         if (   (pReg->fFlags & (PDM_DEVREG_FLAGS_R0 | PDM_DEVREG_FLAGS_RC))
-#ifdef VBOX_WITH_PGM_NEM_MODE
+# ifdef VBOX_WITH_PGM_NEM_MODE
             && !PGMR3IsNemModeEnabled(pVM) /* No ring-0 in simplified memory mode. */
-#endif
+# endif
             && !SUPR3IsDriverless())
         {
             if (pReg->fFlags & PDM_DEVREG_FLAGS_R0)
@@ -321,6 +323,7 @@ int pdmR3DevInit(PVM pVM)
                 fRCEnabled = false;
             }
         }
+#endif /* VBOX_WITH_R0_MODULES && !VBOX_WITH_MINIMAL_R0 */
 
 #ifdef VBOX_WITH_DBGF_TRACING
         DBGFTRACEREVTSRC hDbgfTraceEvtSrc = NIL_DBGFTRACEREVTSRC;
@@ -366,6 +369,7 @@ int pdmR3DevInit(PVM pVM)
                            VERR_PDM_TOO_MANY_DEVICE_INSTANCES);
         PPDMDEVINS   pDevIns;
         PPDMCRITSECT pCritSect;
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
         if (fR0Enabled || fRCEnabled)
         {
             AssertLogRel(fR0Enabled /* not possible to just enabled raw-mode atm. */);
@@ -394,11 +398,11 @@ int pdmR3DevInit(PVM pVM)
             Req.afReserved[0]     = false;
             Req.afReserved[1]     = false;
             Req.afReserved[2]     = false;
-#ifdef VBOX_WITH_DBGF_TRACING
+# ifdef VBOX_WITH_DBGF_TRACING
             Req.hDbgfTracerEvtSrc = hDbgfTraceEvtSrc;
-#else
+# else
             Req.hDbgfTracerEvtSrc = NIL_DBGFTRACEREVTSRC;
-#endif
+# endif
             rc = RTStrCopy(Req.szDevName, sizeof(Req.szDevName), pReg->szName);
             AssertLogRelRCReturn(rc, rc);
             rc = RTStrCopy(Req.szModName, sizeof(Req.szModName), pReg->pszR0Mod);
@@ -415,6 +419,7 @@ int pdmR3DevInit(PVM pVM)
             AssertLogRelReturn(pVM->pdm.s.apDevRing0Instances[pDevIns->Internal.s.idxR0Device] == pDevIns, VERR_PDM_DEV_IPE_1);
         }
         else
+#endif /* VBOX_WITH_R0_MODULES && !VBOX_WITH_MINIMAL_R0 */
         {
             /* The code in this else branch works by the same rules as the PDMR0Device.cpp
                code, except there is only the ring-3 components of the device instance.
@@ -567,6 +572,7 @@ int pdmR3DevInit(PVM pVM)
             return rc == VERR_VERSION_MISMATCH ? VERR_PDM_DEVICE_VERSION_MISMATCH : rc;
         }
 
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
         /*
          * Call the ring-0 constructor if applicable.
          */
@@ -592,6 +598,7 @@ int pdmR3DevInit(PVM pVM)
                 return rc == VERR_VERSION_MISMATCH ? VERR_PDM_DEVICE_VERSION_MISMATCH : rc;
             }
         }
+#endif /* VBOX_WITH_R0_MODULES && !VBOX_WITH_MINIMAL_R0 */
 
     } /* for device instances */
 
@@ -692,24 +699,35 @@ static int pdmR3DevLoadModules(PVM pVM)
     RegCB.pVM              = pVM;
     RegCB.pCfgNode         = NULL;
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
     /*
-     * Register the internal VMM GIC device.
+     * Register internal VMM devices.
      */
+#ifdef VBOX_VMM_TARGET_ARMV8
+    /* Register the internal VMM GIC device. */
     int rc = pdmR3DevReg_Register(&RegCB.Core, &g_DeviceGIC);
     AssertRCReturn(rc, rc);
 
-    /*
-     * Register the internal VMM GIC device, NEM variant.
-     */
+# ifdef VBOX_WITH_NATIVE_NEM
+    /* Register the internal VMM GIC device, NEM variant. */
     rc = pdmR3DevReg_Register(&RegCB.Core, &g_DeviceGICNem);
     AssertRCReturn(rc, rc);
-#else
-    /*
-     * Register the internal VMM APIC device.
-     */
+# endif
+
+    /* Register the internal VMM PMU device. */
+    rc = pdmR3DevReg_Register(&RegCB.Core, &g_DevicePMU);
+    AssertRCReturn(rc, rc);
+#endif
+
+#ifdef VBOX_VMM_TARGET_X86
+    /* Register the internal VMM APIC device. */
     int rc = pdmR3DevReg_Register(&RegCB.Core, &g_DeviceAPIC);
     AssertRCReturn(rc, rc);
+
+# if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
+    /* Register the internal VMM APIC device for NEM mode. */
+    rc = pdmR3DevReg_Register(&RegCB.Core, &g_DeviceAPICNem);
+    AssertRCReturn(rc, rc);
+# endif
 #endif
 
     /*

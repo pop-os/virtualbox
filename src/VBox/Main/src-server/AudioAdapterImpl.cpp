@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -555,6 +555,7 @@ HRESULT AudioAdapter::getProperty(const com::Utf8Str &aKey, com::Utf8Str &aValue
     if (cit != m->bd->properties.end())
         aValue = cit->second;
 
+    /** @todo r=andy Shouldn't we return an error here if not found? */
     return S_OK;
 }
 

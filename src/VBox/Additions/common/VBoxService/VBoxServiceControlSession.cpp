@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -544,7 +544,7 @@ static int vgsvcGstCtrlSessionHandleFileClose(const PVBOXSERVICECTRLSESSION pSes
         PVBOXSERVICECTRLFILE pFile = vgsvcGstCtrlSessionFileAcquire(pSession, uHandle);
         if (pFile)
         {
-            VGSvcVerbose(2, "[File %s] Closing (handle=%RU32)\n", pFile ? pFile->pszName : "<Not found>", uHandle);
+            VGSvcVerbose(2, "[File %s] Closing (handle=%RU32)\n", pFile->pszName, uHandle);
             rc = vgsvcGstCtrlSessionFileFree(pFile);
         }
         else
@@ -668,7 +668,7 @@ static int vgsvcGstCtrlSessionHandleFileReadAt(const PVBOXSERVICECTRLSESSION pSe
             rc = RTFileReadAt(pFile->hFile, (RTFOFF)offReadAt, *ppvScratchBuf, RT_MIN(cbToRead, *pcbScratchBuf), &cbRead);
             if (RT_SUCCESS(rc))
             {
-                offNew = offReadAt + cbRead;
+                offNew = (int64_t)(offReadAt + cbRead);
                 RTFileSeek(pFile->hFile, offNew, RTFILE_SEEK_BEGIN, NULL); /* RTFileReadAt does not always change position. */
             }
             else
@@ -1147,7 +1147,7 @@ static int vgsvcGstCtrlSessionHandleDirClose(const PVBOXSERVICECTRLSESSION pSess
         PVBOXSERVICECTRLDIR pDir = vgsvcGstCtrlSessionDirAcquire(pSession, uHandle);
         if (pDir)
         {
-            VGSvcVerbose(2, "[Dir %s] Closing (handle=%RU32)\n", pDir ? pDir->pszPathAbs : "<Not found>", uHandle);
+            VGSvcVerbose(2, "[Dir %s] Closing (handle=%RU32)\n", pDir->pszPathAbs, uHandle);
             rc = vgsvcGstCtrlSessionDirFree(pDir);
         }
         else
@@ -1307,7 +1307,7 @@ static int vgsvcGstCtrlSessionHandleDirRewind(const PVBOXSERVICECTRLSESSION pSes
         PVBOXSERVICECTRLDIR pDir = vgsvcGstCtrlSessionDirAcquire(pSession, uHandle);
         if (pDir)
         {
-            VGSvcVerbose(2, "[Dir %s] Rewinding (handle=%RU32)\n", pDir ? pDir->pszPathAbs : "<Not found>", uHandle);
+            VGSvcVerbose(2, "[Dir %s] Rewinding (handle=%RU32)\n", pDir->pszPathAbs, uHandle);
 
             rc = RTDirRewind(pDir->hDir);
 
@@ -1356,7 +1356,7 @@ static int vgsvcGstCtrlSessionHandleDirCreate(const PVBOXSERVICECTRLSESSION pSes
         if (!(fCreate & ~GSTCTL_CREATEDIRECTORY_F_VALID_MASK))
         {
             /* Translate flags. */
-            int fCreateRuntime = 0; /* RTDIRCREATE_FLAGS_XXX */
+            uint32_t fCreateRuntime = 0; /* RTDIRCREATE_FLAGS_XXX */
             if (fCreate & GSTCTL_CREATEDIRECTORY_F_NO_SYMLINKS)
                 fCreateRuntime |= RTDIRCREATE_FLAGS_NO_SYMLINKS;
             if (fCreate & GSTCTL_CREATEDIRECTORY_F_IGNORE_UMASK)
@@ -3201,7 +3201,7 @@ int VGSvcGstCtrlSessionProcessAdd(PVBOXSERVICECTRLSESSION pSession, PVBOXSERVICE
             rc = rc2;
     }
 
-    return VINF_SUCCESS;
+    return rc;
 }
 
 /**

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -95,17 +95,37 @@ void int_1b(void);
 
 
 #define none 0
-#define MAX_SCAN_CODE 0x58
+/* Max scan code we're expecting to see from hardware */
+#define MAX_HW_SCAN_CODE    0x58
+/* Max scan code that can be looked up in the table; includes synthetic codes. */
+#define MAX_TBL_SCAN_CODE   (MAX_HW_SCAN_CODE + 2)
 
-struct {
+/* Note: Some key combination produce nothing, for example Ctrl-1
+ * or Alt-NumPad Del.
+ *
+ * Modifiers have a defined priority, from highest to lowest:
+ * Alt, Ctrl, Shift. Only the highest priority modifier is
+ * considered.
+ *
+ * Alt plus NumPad sequence produces a synthetic key with an
+ * ASCII code entered by the user and a zero scan code.
+ *
+ * Some keystrokes will place a special 0xF0 ASCII code in the
+ * keyboard queue. These need special treatment by INT 16h
+ * depending on whether the extended or standard function
+ * was called.
+ */
+typedef struct {
     uint16_t    normal;
     uint16_t    shift;
     uint16_t    control;
     uint16_t    alt;
     uint8_t     lock_flags;
-} static const scan_to_scanascii[MAX_SCAN_CODE + 1] = {
+} scan_to_kcode;
+
+static const scan_to_kcode scan_to_scanascii[MAX_TBL_SCAN_CODE + 1] = {
     {   none,   none,   none,   none, none },
-    { 0x011b, 0x011b, 0x011b, 0x0100, none }, /* escape */
+    { 0x011b, 0x011b, 0x011b, 0x0100, none }, /* Esc */
     { 0x0231, 0x0221,   none, 0x7800, none }, /* 1! */
     { 0x0332, 0x0340, 0x0300, 0x7900, none }, /* 2@ */
     { 0x0433, 0x0423,   none, 0x7a00, none }, /* 3# */
@@ -118,8 +138,8 @@ struct {
     { 0x0b30, 0x0b29,   none, 0x8100, none }, /* 0) */
     { 0x0c2d, 0x0c5f, 0x0c1f, 0x8200, none }, /* -_ */
     { 0x0d3d, 0x0d2b,   none, 0x8300, none }, /* =+ */
-    { 0x0e08, 0x0e08, 0x0e7f,   none, none }, /* backspace */
-    { 0x0f09, 0x0f00,   none,   none, none }, /* tab */
+    { 0x0e08, 0x0e08, 0x0e7f, 0x0e00, none }, /* backspace */
+    { 0x0f09, 0x0f00, 0x9400, 0xa500, none }, /* Tab */
     { 0x1071, 0x1051, 0x1011, 0x1000, 0x40 }, /* Q */
     { 0x1177, 0x1157, 0x1117, 0x1100, 0x40 }, /* W */
     { 0x1265, 0x1245, 0x1205, 0x1200, 0x40 }, /* E */
@@ -130,9 +150,9 @@ struct {
     { 0x1769, 0x1749, 0x1709, 0x1700, 0x40 }, /* I */
     { 0x186f, 0x184f, 0x180f, 0x1800, 0x40 }, /* O */
     { 0x1970, 0x1950, 0x1910, 0x1900, 0x40 }, /* P */
-    { 0x1a5b, 0x1a7b, 0x1a1b,   none, none }, /* [{ */
-    { 0x1b5d, 0x1b7d, 0x1b1d,   none, none }, /* ]} */
-    { 0x1c0d, 0x1c0d, 0x1c0a,   none, none }, /* Enter */
+    { 0x1a5b, 0x1a7b, 0x1a1b, 0x1af0, none }, /* [{ */
+    { 0x1b5d, 0x1b7d, 0x1b1d, 0x1bf0, none }, /* ]} */
+    { 0x1c0d, 0x1c0d, 0x1c0a, 0x1cf0, none }, /* Return */
     {   none,   none,   none,   none, none }, /* L Ctrl */
     { 0x1e61, 0x1e41, 0x1e01, 0x1e00, 0x40 }, /* A */
     { 0x1f73, 0x1f53, 0x1f13, 0x1f00, 0x40 }, /* S */
@@ -143,11 +163,11 @@ struct {
     { 0x246a, 0x244a, 0x240a, 0x2400, 0x40 }, /* J */
     { 0x256b, 0x254b, 0x250b, 0x2500, 0x40 }, /* K */
     { 0x266c, 0x264c, 0x260c, 0x2600, 0x40 }, /* L */
-    { 0x273b, 0x273a,   none,   none, none }, /* ;: */
-    { 0x2827, 0x2822,   none,   none, none }, /* '" */
-    { 0x2960, 0x297e,   none,   none, none }, /* `~ */
+    { 0x273b, 0x273a,   none, 0x27f0, none }, /* ;: */
+    { 0x2827, 0x2822,   none, 0x28f0, none }, /* '" */
+    { 0x2960, 0x297e,   none, 0x29f0, none }, /* `~ */
     {   none,   none,   none,   none, none }, /* L shift */
-    { 0x2b5c, 0x2b7c, 0x2b1c,   none, none }, /* |\ */
+    { 0x2b5c, 0x2b7c, 0x2b1c, 0x2bf0, none }, /* |\ */
     { 0x2c7a, 0x2c5a, 0x2c1a, 0x2c00, 0x40 }, /* Z */
     { 0x2d78, 0x2d58, 0x2d18, 0x2d00, 0x40 }, /* X */
     { 0x2e63, 0x2e43, 0x2e03, 0x2e00, 0x40 }, /* C */
@@ -155,14 +175,14 @@ struct {
     { 0x3062, 0x3042, 0x3002, 0x3000, 0x40 }, /* B */
     { 0x316e, 0x314e, 0x310e, 0x3100, 0x40 }, /* N */
     { 0x326d, 0x324d, 0x320d, 0x3200, 0x40 }, /* M */
-    { 0x332c, 0x333c,   none,   none, none }, /* ,< */
-    { 0x342e, 0x343e,   none,   none, none }, /* .> */
-    { 0x352f, 0x353f,   none,   none, none }, /* /? */
+    { 0x332c, 0x333c,   none, 0x33f0, none }, /* ,< */
+    { 0x342e, 0x343e,   none, 0x34f0, none }, /* .> */
+    { 0x352f, 0x353f,   none, 0x35f0, none }, /* /? */
     {   none,   none,   none,   none, none }, /* R Shift */
-    { 0x372a, 0x372a,   none,   none, none }, /* * */
+    { 0x372a, 0x372a, 0x9600, 0x37f0, none }, /* * */
     {   none,   none,   none,   none, none }, /* L Alt */
-    { 0x3920, 0x3920, 0x3920, 0x3920, none }, /* space */
-    {   none,   none,   none,   none, none }, /* caps lock */
+    { 0x3920, 0x3920, 0x3920, 0x3920, none }, /* Space */
+    {   none,   none,   none,   none, none }, /* Caps Lock */
     { 0x3b00, 0x5400, 0x5e00, 0x6800, none }, /* F1 */
     { 0x3c00, 0x5500, 0x5f00, 0x6900, none }, /* F2 */
     { 0x3d00, 0x5600, 0x6000, 0x6a00, none }, /* F3 */
@@ -175,28 +195,31 @@ struct {
     { 0x4400, 0x5d00, 0x6700, 0x7100, none }, /* F10 */
     {   none,   none,   none,   none, none }, /* Num Lock */
     {   none,   none,   none,   none, none }, /* Scroll Lock */
-    { 0x4700, 0x4737, 0x7700,   none, 0x20 }, /* 7 Home */
-    { 0x4800, 0x4838,   none,   none, 0x20 }, /* 8 UP */
-    { 0x4900, 0x4939, 0x8400,   none, 0x20 }, /* 9 PgUp */
-    { 0x4a2d, 0x4a2d,   none,   none, none }, /* - */
-    { 0x4b00, 0x4b34, 0x7300,   none, 0x20 }, /* 4 Left */
-    { 0x4c00, 0x4c35,   none,   none, 0x20 }, /* 5 */
-    { 0x4d00, 0x4d36, 0x7400,   none, 0x20 }, /* 6 Right */
-    { 0x4e2b, 0x4e2b,   none,   none, none }, /* + */
-    { 0x4f00, 0x4f31, 0x7500,   none, 0x20 }, /* 1 End */
-    { 0x5000, 0x5032,   none,   none, 0x20 }, /* 2 Down */
-    { 0x5100, 0x5133, 0x7600,   none, 0x20 }, /* 3 PgDn */
-    { 0x5200, 0x5230,   none,   none, 0x20 }, /* 0 Ins */
-    { 0x5300, 0x532e,   none,   none, 0x20 }, /* Del */
+    { 0x4700, 0x4737, 0x7700, 0x9707, 0x20 }, /* 7 Home */
+    { 0x4800, 0x4838, 0x8d00, 0x9808, 0x20 }, /* 8 UP */
+    { 0x4900, 0x4939, 0x8400, 0x9909, 0x20 }, /* 9 PgUp */
+    { 0x4a2d, 0x4a2d, 0x8e00, 0x4af0, none }, /* - */
+    { 0x4b00, 0x4b34, 0x7300, 0x9b04, 0x20 }, /* 4 Left */
+    { 0x4cf0, 0x4c35, 0x8f00, 0x9c05, 0x20 }, /* 5 */
+    { 0x4d00, 0x4d36, 0x7400, 0x9d06, 0x20 }, /* 6 Right */
+    { 0x4e2b, 0x4e2b, 0x9000, 0x4ef0, none }, /* + */
+    { 0x4f00, 0x4f31, 0x7500, 0x9f01, 0x20 }, /* 1 End */
+    { 0x5000, 0x5032, 0x9100, 0xa002, 0x20 }, /* 2 Down */
+    { 0x5100, 0x5133, 0x7600, 0xa103, 0x20 }, /* 3 PgDn */
+    { 0x5200, 0x5230, 0x9200, 0xa200, 0x20 }, /* 0 Ins */
+    { 0x5300, 0x532e, 0x9300,   none, 0x20 }, /* Del */
     {   none,   none,   none,   none, none },
     {   none,   none,   none,   none, none },
     { 0x565c, 0x567c,   none,   none, none }, /* \| */
     { 0x8500, 0x8700, 0x8900, 0x8b00, none }, /* F11 */
-    { 0x8600, 0x8800, 0x8a00, 0x8c00, none }  /* F12 */
+    { 0x8600, 0x8800, 0x8a00, 0x8c00, none }, /* F12 */
+/* Keypad / and Enter keys need special handling. These
+ * two keys send an E0h prefix but do not behave in a
+ * regular manner like other extended keys.
+ */
+    { 0xe00d, 0xe00d, 0xe00a, 0xa600, none }, /* Enter */
+    { 0xe02f, 0xe02f, 0x9500, 0xa400, none }  /* / */
 };
-
-
-/* Keyboard initialization. */
 
 //--------------------------------------------------------------------------
 // keyboard_panic
@@ -476,6 +499,11 @@ void BIOSCALL int09_function(uint16_t ES, uint16_t DI, uint16_t SI, uint16_t BP,
             mf2_flags &= ~0x02;
             write_byte(0x0040, 0x18, mf2_flags);
         }
+        /* Collect Alt input from BDA */
+        asciicode = read_byte(0x0040, 0x19);
+        write_byte(0x0040, 0x19, 0);
+        if (asciicode)
+            enqueue_key(0, asciicode);
         break;
 
     case 0x45: /* Num Lock/Pause press */
@@ -573,13 +601,40 @@ void BIOSCALL int09_function(uint16_t ES, uint16_t DI, uint16_t SI, uint16_t BP,
             }
             break; /* toss key releases ... */
         }
-        if (scancode > MAX_SCAN_CODE) {
+        if (scancode > MAX_HW_SCAN_CODE) {
             BX_INFO("KBD: int09h_handler(): unknown scancode read: 0x%02x!\n", scancode);
             return;
         }
+
+        /* Synthesize fake scan codes for keypad / and Enter. */
+        if (mf2_state & 0x02)
+            if (scancode == 0x1c)
+                scancode = MAX_HW_SCAN_CODE + 1;
+            else if (scancode == 0x35)
+                scancode = MAX_HW_SCAN_CODE + 2;
+
         if (shift_flags & 0x08) { /* ALT */
             asciicode = scan_to_scanascii[scancode].alt;
             scancode = scan_to_scanascii[scancode].alt >> 8;
+            /* Trigger special alt input processing for keys in a given range.
+             * NB: ASCII code 0 cannot be entered this way because it's thrown
+             * away further down.
+             */
+            if ((scancode >= 0x97) && (scancode <= 0xa2)) {
+                if (!(mf2_state & 0x02)) {
+                    /* Alt input only when extended key was not used. We have
+                     * to figure out the value from the fake ASCII code.
+                     */
+                    write_byte(0x0040, 0x0019, read_byte(0x0040, 0x19) * 10 + asciicode);
+                    scancode = asciicode = 0;   /* throw away current key */
+                } else {
+                    asciicode = 0;  /* Clear the fake ASCII code. */
+                }
+                /* Else process key normally and leave partial Alt input undisturbed! */
+            } else {
+                /* Clear any partial Alt input unless a few special keys were used. */
+                write_byte(0x0040, 0x0019, 0);
+            }
         } else if (shift_flags & 0x04) { /* CONTROL */
             asciicode = scan_to_scanascii[scancode].control;
             scancode = scan_to_scanascii[scancode].control >> 8;
@@ -608,10 +663,13 @@ void BIOSCALL int09_function(uint16_t ES, uint16_t DI, uint16_t SI, uint16_t BP,
                 scancode = scan_to_scanascii[scancode].normal >> 8;
             }
         }
-        if (scancode==0 && asciicode==0) {
-            BX_INFO("KBD: int09h_handler(): scancode & asciicode are zero?\n");
-        }
-        enqueue_key(scancode, asciicode);
+
+        /* Some key combinations produce no scan code and no ASCII code;
+         * those are thrown away.
+         */
+        if (scancode || asciicode)
+            enqueue_key(scancode, asciicode);
+
         break;
     }
     if ((scancode & 0x7f) != 0x1d) {
@@ -700,6 +758,7 @@ void BIOSCALL int16_function(volatile kbd_regs_t r)
     switch (GET_AH()) {
     case 0x00: /* read keyboard input */
         if ( !dequeue_key(&scan_code, &ascii_code, 1) ) {
+            /* Waiting logic is in int16_handler in orgs.asm */
             BX_PANIC("KBD: int16h: out of keyboard input\n");
         }
         if (scan_code !=0 && ascii_code == 0xF0)
@@ -780,6 +839,7 @@ void BIOSCALL int16_function(volatile kbd_regs_t r)
 
     case 0x10: /* read MF-II keyboard input */
         if ( !dequeue_key(&scan_code, &ascii_code, 1) ) {
+            /* Waiting logic is in int16_handler in orgs.asm */
             BX_PANIC("KBD: int16h: out of keyboard input\n");
         }
         if (scan_code !=0 && ascii_code == 0xF0)
@@ -810,6 +870,12 @@ void BIOSCALL int16_function(volatile kbd_regs_t r)
         break;
 
     case 0x92: /* keyboard capability check called by DOS 5.0+ keyb */
+        /* This is not an actual BIOS function. IBM INT 16h handler decrements
+         * AH in a series of DEC/JZ instructions. It will return with modified
+         * AH even when a function is not supported. The extended BIOS will
+         * decrement AH further than the original BIOS, which KEYB uses to
+         * distinguish the two.
+         */
         SET_AH(0x80); // function int16 ah=0x10-0x12 supported
         break;
 

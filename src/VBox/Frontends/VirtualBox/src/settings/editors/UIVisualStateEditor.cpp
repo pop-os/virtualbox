@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -88,7 +88,7 @@ void UIVisualStateEditor::setMinimumLayoutIndent(int iIndent)
 void UIVisualStateEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Visual &State:"));
+        m_pLabel->setText(tr("&Appearance"));
     if (m_pCombo)
     {
         for (int i = 0; i < m_pCombo->count(); ++i)
@@ -96,7 +96,7 @@ void UIVisualStateEditor::sltRetranslateUI()
             const UIVisualStateType enmType = m_pCombo->itemData(i).value<UIVisualStateType>();
             m_pCombo->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pCombo->setToolTip(tr("Selects the visual state. If machine is running it will be applied "
+        m_pCombo->setToolTip(tr("Virtual machine visual appearance. If machine is running it will be applied "
                                 "as soon as possible, otherwise desired one will be defined."));
     }
 }

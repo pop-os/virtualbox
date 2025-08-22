@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -63,10 +63,12 @@ if !defined(VBOX_ONLY_EXTPACKS)
   DLLS       += VBoxDDU VBoxDD VBoxDD2
   ifdef VBOX_WITH_R0_MODULES
    LIBRARIES += ServicesR0
-   ifdef VBOX_WITH_VBOXR0_AS_DLL
-    DLLS     += VBoxDDR0
-   else
-    SYSMODS  += VBoxDDR0
+   ifndef VBOX_WITH_MINIMAL_R0
+    ifdef VBOX_WITH_VBOXR0_AS_DLL
+     DLLS     += VBoxDDR0
+    else
+     SYSMODS  += VBoxDDR0
+    endif
    endif
   endif
   ifdef VBOX_WITH_RAW_MODE
@@ -165,9 +167,6 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
  	build \
  	$(VBOX_GRAPHICS_INCS)
 
- ifndef VBOX_WITH_LIBSLIRP
-  VBoxDD_INCS       += Network/slirp
- endif
  VBoxDD_DEFS             = \
  	VBOX_HGCM_HOST_CODE \
  	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
@@ -217,6 +216,7 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
  	Network/DevPCNet.cpp \
  	Network/DevDP8390.cpp \
  	Network/Dev3C501.cpp \
+ 	Network/UsbNet.cpp \
  	PC/DevDMA.cpp \
  	PC/DevHPET.cpp \
  	PC/DevIoApic.cpp \
@@ -308,9 +308,6 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
  ifdef VBOXWDDM_WITH_VBVA
   VBoxDD_DEFS           += VBOXWDDM_WITH_VBVA
  endif
- ifdef VBOX_WITH_VIDEOHWACCEL
-  VBoxDD_DEFS           += VBOX_WITH_VIDEOHWACCEL
- endif
 
  ifdef VBOX_WITH_HGSMI
   VBoxDD_DEFS           += VBOX_WITH_HGSMI
@@ -321,7 +318,9 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   	$(PATH_STAGE_LIB)/HGSMIHostR3Lib$(VBOX_SUFF_LIB)
  endif
 
- ifdef VBOX_WITH_WDDM
+ # HACK ALERT! Code no longer builds without VBOX_WITH_WDDM, so while it's temporairly
+ # disabled on win.arm64 we keep pretending it is still enabled here. >-----vvvvvvvvv
+ if defined(VBOX_WITH_WDDM) || "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "win.arm64"
   VBoxDD_DEFS           += VBOX_WITH_WDDM
   VBoxDD_SOURCES        += \
   	Graphics/HGSMI/SHGSMIHost.cpp
@@ -349,19 +348,30 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   	Graphics/DevVGA-SVGA3d-savedstate.cpp
   ifdef VBOX_WITH_VMSVGA3D_DX
    VBoxDD_DEFS          += VMSVGA3D_DX
+   VBoxDD_DEFS          += \
+   	$(if $(VBOX_WITH_DXVK),VBOX_WITH_DXVK,) \
+   	$(if $(VBOX_WITH_DXMT),VBOX_WITH_DXMT,)
    VBoxDD_SOURCES       += \
    	Graphics/DevVGA-SVGA3d-dx.cpp \
    	Graphics/DevVGA-SVGA3d-dx-savedstate.cpp \
    	Graphics/DevVGA-SVGA3d-dx-shader.cpp
-   if "$(KBUILD_TARGET)" == "win" || defined(VBOX_WITH_DXVK)
+   if "$(KBUILD_TARGET)" == "win" || defined(VBOX_WITH_DXVK) || defined(VBOX_WITH_DXMT)
     VBoxDD_SDKS.linux   += VBoxDxVk
-    VBoxDD_SDKS.darwin  += VBoxDxVk
+    ifdef VBOX_WITH_DXMT
+     VBoxDD_SDKS.darwin  += VBoxDxMt
+    else
+     VBoxDD_SDKS.darwin  += VBoxDxVk
+    endif
+    # DXVK is not used on Windows however VBOX_WITH_DXVK can be enabled for development purposes
+    VBoxDD_SDKS.win     += $(if $(VBOX_WITH_DXVK),VBoxDxVk,)
     VBoxDD_DEFS         += VMSVGA3D_DX_BACKEND
     VBoxDD_SOURCES      += \
     	Graphics/DevVGA-SVGA3d-dx-dx11.cpp
-    # @todo This is probably not the nicest way to do this...
-    VBoxDD_POST_CMDS.darwin  += \
-    	$(INSTALL) -m 0644 $(lastword $(sort $(wildcard $(KBUILD_DEVTOOLS_TRG)/moltenvk/v*)))/libMoltenVK.dylib $(PATH_STAGE_BIN)/libMoltenVK.dylib
+    ifdef VBOX_WITH_DXVK
+     # @todo This is probably not the nicest way to do this...
+     VBoxDD_POST_CMDS.darwin  += \
+     	$(INSTALL) -m 0644 $(lastword $(sort $(wildcard $(KBUILD_DEVTOOLS_TRG)/moltenvk/v*)))/libMoltenVK.dylib $(PATH_STAGE_BIN)/libMoltenVK.dylib
+    endif
 
     # mac2 clang is too old to know the -Wclass-conversion switch in the ignore pragma it seems.
     Graphics/DevVGA-SVGA3d-dx-dx11.cpp_CXXFLAGS.darwin += -Wno-error
@@ -421,7 +431,9 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   endif
  endif
 
- ifdef VBOX_WITH_VDMA
+ # HACK ALERT! Code no longer builds without VBOX_WITH_VDMA, so while it's temporairly
+ # disabled on win.arm64 we keep pretending it is still enabled here. >-----vvvvvvvvv
+ if defined(VBOX_WITH_VDMA) || "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "win.arm64"
   VBoxDD_DEFS           += VBOX_WITH_VDMA
   VBoxDD_SOURCES        += \
   	Graphics/DevVGA_VDMA.cpp
@@ -507,7 +519,9 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
     VBoxDD_SOURCES.linux += \
     	$(PATH_ROOT)/src/VBox/ExtPacks/Puel/UsbWebcam/DrvHostWebcam/HostWebcam-v4l2.cpp
     VBoxDD_LIBS += \
-    	$(PATH_STAGE_LIB)/VBox-libjpeg$(VBOX_SUFF_LIB)
+    	$(PATH_STAGE_LIB)/VBox-libjpeg$(VBOX_SUFF_LIB) \
+    	$(PATH_STAGE_LIB)/VBox-libjpeg12$(VBOX_SUFF_LIB) \
+    	$(PATH_STAGE_LIB)/VBox-libjpeg16$(VBOX_SUFF_LIB)
    endif
   endif
 
@@ -535,16 +549,10 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
  # --- Networking bits. ---
 
  ifdef VBOX_WITH_INIP
-  ifndef LWIP_SOURCES
-   include $(PATH_SUB_CURRENT)/Network/lwip-new/Config.kmk
-  endif
   VBoxDD_DEFS           += VBOX_WITH_INIP
   VBoxDD_SOURCES        += \
-  	Network/DevINIP.cpp \
-  	$(addprefix Network/lwip-new/,$(LWIP_SOURCES))
-  VBoxDD_INCS           += \
-  	Network \
-  	$(addprefix Network/lwip-new/,$(LWIP_INCS))
+  	Network/DevINIP.cpp
+  VBoxDD_SDKS           += VBoxLwip
  endif # VBOX_WITH_INIP
 
  ifdef VBOX_WITH_E1000
@@ -561,7 +569,6 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   	VirtIO/VirtioCore.cpp \
   	Network/DevVirtioNet.cpp
  endif
-
 
  ifdef VBOX_WITH_UDPTUNNEL
   VBoxDD_DEFS           += VBOX_WITH_UDPTUNNEL
@@ -581,6 +588,16 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   VBoxDD_SOURCES        += \
   	Network/DrvNetShaper.cpp
  endif
+
+ # NAT is always available
+ VBoxDD_SOURCES += \
+ 	Network/DrvNAT.cpp
+ VBoxDD_SOURCES.win += \
+ 	Network/RTWinSocketPair.cpp
+ VBoxDD_LIBS    += $(PATH_STAGE_LIB)/VBox-libslirp$(VBOX_SUFF_LIB)
+ VBoxDD_LIBS.darwin += resolv
+ Network/DrvNAT.cpp_INCS = \
+ 	$(PATH_ROOT)/src/libs/libslirp-4.9.1/include
 
  ifdef VBOX_WITH_VMNET
   VBoxDD_DEFS.darwin    += VBOX_WITH_VMNET
@@ -624,7 +641,7 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   	Storage/DevLsiLogicSCSI.cpp
  endif
 
- if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+ if defined(VBOX_WITH_NVME_IMPL)
   VBoxDD_DEFS          += VBOX_WITH_NVME_IMPL
   VBoxDD_SOURCES       += \
   	Storage/DevNVMe.cpp
@@ -667,11 +684,6 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   	Storage/DrvSCSI.cpp
  endif
 
- ifdef VBOX_WITH_ISCSI
-  $(eval $(call def_vbox_lwip_flags, \
-                    VBoxDD, Storage/DrvVD.cpp, Network/lwip-new))
- endif
-
  ifdef VBOX_WITH_DRV_DISK_INTEGRITY
   VBoxDD_DEFS           += VBOX_WITH_DRV_DISK_INTEGRITY
   VBoxDD_SOURCES        += \
@@ -693,10 +705,6 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
 
  ifdef VBOX_WITH_MSI_DEVICES
   VBoxDD_DEFS           += VBOX_WITH_MSI_DEVICES
- endif
-
- ifdef VBOX_WITH_DYNAMIC_DSDT
-  VBoxDD_DEFS           += VBOX_WITH_DYNAMIC_DSDT
  endif
 
  # --- Audio bits (see also VBOX_AUDIO_DEFS in ./Config.kmk). ---
@@ -769,127 +777,6 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   VBoxDD_SOURCES += \
   	Audio/DrvHostAudioPulseAudio.cpp \
   	Audio/DrvHostAudioPulseAudioStubs.cpp
- endif
-
- ifdef VBOX_WITH_LIBSLIRP
-  VBoxDD_LIBS   += $(PATH_STAGE_LIB)/VBox-libslirp$(VBOX_SUFF_LIB)
-  VBoxDD_LIBS.darwin += resolv
-  VBoxDD_DEFS   += VBOX_WITH_LIBSLIRP
-  VBoxDD_SOURCES += \
-  	Network/DrvNATlibslirp.cpp
-  VBoxDD_SOURCES.win += \
-  	Network/RTWinSocketPair.cpp
-  Network/DrvNATlibslirp.cpp_INCS   += \
-  	$(PATH_ROOT)/src/libs/libslirp-4.8.0/src \
-  	$(PATH_OUT)/obj/VBox-libslirp
- endif
-
- # --- WARNING! SLIRP MESS AHEAD! ;-) ---
- ifndef VBOX_WITH_LIBSLIRP
-  VBOX_SLIRP_SOURCES = \
-  	Network/DrvNAT.cpp \
-  	Network/slirp/bootp.c \
-  	Network/slirp/debug.c \
-  	Network/slirp/ip_icmp.c \
-  	Network/slirp/ip_input.c \
-  	Network/slirp/ip_output.c \
-  	Network/slirp/misc.c \
-  	Network/slirp/sbuf.c \
-  	Network/slirp/slirp.c \
-  	Network/slirp/slirp_dns.c \
-  	Network/slirp/socket.c \
-  	Network/slirp/tcp_input.c \
-  	Network/slirp/tcp_output.c \
-  	Network/slirp/tcp_subr.c \
-  	Network/slirp/tcp_timer.c \
-  	Network/slirp/udp.c \
-  	Network/slirp/hostres.c \
-  	Network/slirp/dnsproxy/hash.c \
-  	Network/slirp/tftp.c \
-  	Network/slirp/dnsproxy/dnsproxy.c
-
-  ifeq ($(KBUILD_TARGET),win)
-   VBOX_SLIRP_SOURCES += Network/slirp/ip_icmpwin.c
-  else ifneq ($(KBUILD_TARGET),darwin)
-   # helper for debugging unprivileged
-   #  Network/slirp/ip_icmp.c_DEFS += VBOX_RAWSOCK_DEBUG_HELPER
-   #  VBOX_SLIRP_SOURCES += ../NetworkServices/NAT/getrawsock.c
-  endif
-
-  ifneq ($(KBUILD_TARGET),win)
-   VBOX_SLIRP_SOURCES += Network/slirp/resolv_conf_parser.c
-  endif
-
-  VBOX_SLIRP_BSD_ARCH = $(subst x86,i386,$(KBUILD_TARGET_ARCH))
-  VBOX_SLIRP_BSD_SOURCES += \
-  	Network/slirp/bsd/kern/kern_mbuf.c \
-  	Network/slirp/bsd/kern/uipc_mbuf.c \
-  	Network/slirp/bsd/kern/uipc_mbuf2.c \
-  	Network/slirp/bsd/$(VBOX_SLIRP_BSD_ARCH)/in_cksum.c
-  VBOX_SLIRP_ALIAS_SOURCES = \
-  	Network/slirp/libalias/alias.c \
-  	Network/slirp/libalias/alias_db.c \
-  	Network/slirp/libalias/alias_mod.c \
-  	Network/slirp/libalias/alias_proxy.c \
-  	Network/slirp/libalias/alias_ftp.c \
-  	Network/slirp/libalias/alias_nbt.c \
-  	Network/slirp/libalias/alias_util.c
-
-  # Enable VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER here for a while, then move to
-  # $(file)_DEFS or clean the code disabled with this definition.
-  VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER = 1
-
-  # dump memory related operations.
-  Network/slirp/misc.c_DEFS += $(if $(VBOX_NAT_MEM_DEBUG),VBOX_NAT_MEM_DEBUG,)
-
-  VBoxDD_SOURCES += $(VBOX_SLIRP_SOURCES)
-  define def_vbox_slirp_cflags
-   $(file)_DEFS += \
-   	$(if $(VBOX_WITH_SLIRP_MEMORY_CHECK),RTMEM_WRAP_TO_EF_APIS,) \
-   	$(if $(VBOX_WITH_DEBUG_NAT_SOCKETS),VBOX_WITH_DEBUG_NAT_SOCKETS,) \
-   	$(if $(VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER),VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER,) \
-   	$(if $(VBOX_WITH_NAT_SEND2HOME),VBOX_WITH_NAT_SEND2HOME,) \
-   	$(if $(VBOX_WITH_HIDDEN_TCPTEMPLATE),VBOX_WITH_HIDDEN_TCPTEMPLATE,) \
-   	$(if $(VBOX_WITH_SLIRP_MT),VBOX_WITH_SLIRP_MT,)
-   $(file)_INCS += \
-   	$(1)/slirp/bsd/sys \
-   	$(1)/slirp/bsd/sys/sys \
-   	$(1)/slirp/bsd/$(VBOX_SLIRP_BSD_ARCH)/include \
-   	$(1)/slirp/bsd/netinet \
-   	$(1)/slirp \
-   	$(1)/slirp/libalias
-   ifeq ($(KBUILD_TARGET),win)
-    $(file)_CFLAGS = -wd4018
-   else
-    $(file)_CFLAGS += -Wno-sign-compare -Wno-format -Wno-bad-function-cast
-   endif
-  endef
-
-  $(foreach file,$(VBOX_SLIRP_SOURCES),$(eval $(call def_vbox_slirp_cflags, Network)))
-
-  VBoxDD_SOURCES += $(VBOX_SLIRP_ALIAS_SOURCES)
-  define def_vbox_slirp_alias_cflags
-   $(file)_DEFS += VBOX_SLIRP_ALIAS \
-   	$(if $(VBOX_WITH_DEBUG_LIBALIAS),VBOX_WITH_DEBUG_LIBALIAS,)
-   $(file)_INCS += \
-   	$(1)/slirp/libalias \
-   	$(1)/slirp \
-   	$(1)/slirp/dnsproxy
-   ifneq ($(KBUILD_TARGET),win)
-    $(file)_CFLAGS += -Wno-shadow
-   endif
-  endef
-  $(foreach file,$(VBOX_SLIRP_ALIAS_SOURCES),$(eval $(call def_vbox_slirp_cflags, Network)))
-  $(foreach file,$(VBOX_SLIRP_ALIAS_SOURCES),$(eval $(call def_vbox_slirp_alias_cflags, Network)))
-
-  VBOX_SLIRP_BSD_SOURCES += $(VBOX_SLIRP_BSD_SOURCES.${KBUILD_TARGET_ARCH})
-  VBoxDD_SOURCES += $(VBOX_SLIRP_BSD_SOURCES)
-  define def_vbox_slirp_bsd_cflags
-   $(file)_DEFS += VBOX_SLIRP_BSD
-   $(file)_INCS += $(1)/slirp/dnsproxy
-  endef
-  $(foreach file,$(VBOX_SLIRP_BSD_SOURCES),$(eval $(call def_vbox_slirp_cflags, Network)))
-  $(foreach file,$(VBOX_SLIRP_BSD_SOURCES),$(eval $(call def_vbox_slirp_bsd_cflags, Network)))
  endif
 
 
@@ -970,93 +857,28 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
  endif
 
 
- ifdef VBOX_WITH_DYNAMIC_DSDT
-  VBoxDD_CLEAN          += $(VBoxDD_0_OUTDIR)/vboxdsl.hex
-  PC/ACPI/VBoxAcpi.cpp_DEPS = $(VBoxDD_0_OUTDIR)/vboxdsl.hex
+ # VBoxAcpi.cpp needs vboxaml.hex which we generate from PC/vbox.dsl
+ VBoxDD_CLEAN       += \
+ 	$(VBoxDD_0_OUTDIR)/vboxaml.hex \
+ 	$(if $(VBOX_WITH_TPM),$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.hex,)
+ PC/ACPI/VBoxAcpi.cpp_DEPS = \
+ 	$(VBoxDD_0_OUTDIR)/vboxaml.hex \
+ 	$(if $(VBOX_WITH_TPM),$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.hex,)
 
-  $$(VBoxDD_0_OUTDIR)/vboxdsl.hex: $(PATH_SUB_CURRENT)/PC/vbox.dsl | $$(dir $$@)
-	$(call MSG_TOOL,bin2c,VBoxDD,$<,$@)
-	$(QUIET)$(VBOX_BIN2C) -export VboxDslSource $< $@
-
-  vboxdsl.hex:: $$(VBoxDD_0_OUTDIR)/vboxdsl.hex
-
- else  # !VBOX_WITH_DYNAMIC_DSDT
-  # VBoxAcpi.cpp needs vboxaml.hex which we generate from PC/vbox.dsl
-  VBoxDD_CLEAN       += \
-  	$(VBoxDD_0_OUTDIR)/vboxaml.hex \
-  	$(VBoxDD_0_OUTDIR)/vboxaml.aml \
-  	$(VBoxDD_0_OUTDIR)/vboxaml.aml.tmp \
-  	$(VBoxDD_0_OUTDIR)/vboxssdt_standard.hex \
-  	$(VBoxDD_0_OUTDIR)/vboxssdt_standard.aml \
-  	$(VBoxDD_0_OUTDIR)/vboxssdt_standard.aml.tmp \
-  	$(VBoxDD_0_OUTDIR)/vboxssdt_cpuhotplug.hex \
-  	$(VBoxDD_0_OUTDIR)/vboxssdt_cpuhotplug.aml \
-  	$(VBoxDD_0_OUTDIR)/vboxssdt_cpuhotplug.aml.tmp \
-  	$(VBoxDD_0_OUTDIR)/vboxssdt_cpuhotplug.aml.pre \
-  	$(if $(VBOX_WITH_TPM),$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.hex,) \
-  	$(if $(VBOX_WITH_TPM),$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.aml,) \
-  	$(if $(VBOX_WITH_TPM),$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.aml.tmp,)
-  PC/ACPI/VBoxAcpi.cpp_DEPS = \
-  	$(VBoxDD_0_OUTDIR)/vboxaml.hex \
-  	$(VBoxDD_0_OUTDIR)/vboxssdt_standard.hex \
-  	$(VBoxDD_0_OUTDIR)/vboxssdt_cpuhotplug.hex \
-  	$(if $(VBOX_WITH_TPM),$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.hex,)
-
-  $$(VBoxDD_0_OUTDIR)/vboxaml.hex: $(PATH_SUB_CURRENT)/PC/vbox.dsl | $$(dir $$@)
+ $$(VBoxDD_0_OUTDIR)/vboxaml.hex: $(PATH_SUB_CURRENT)/PC/vbox.dsl $(VBOX_RTIASL) | $$(dir $$@)
 	$(call MSG_TOOL,iasl,VBoxDD,$<,$@)
-	$(QUIET)$(VBOX_IASLCMD) -tc -vs -p $@ $<
-	$(QUIET)$(MV) -f $@ $@.tmp
-	$(QUIET)$(SED) -e "s/vboxaml_aml_code/AmlCode/g" \
-		--output $@ $@.tmp
-	$(QUIET)$(RM) -f $@.tmp
+	$(QUIET)$(VBOX_RTIASL) --text-c-hdr AmlCode -o $@ $<
 
-  vboxaml.hex:: $$(VBoxDD_0_OUTDIR)/vboxaml.hex
+ vboxaml.hex:: $$(VBoxDD_0_OUTDIR)/vboxaml.hex
 
-  $$(VBoxDD_0_OUTDIR)/vboxssdt_standard.hex: $(PATH_SUB_CURRENT)/PC/vbox-standard.dsl | $$(dir $$@)
+ if defined(VBOX_WITH_TPM)
+  $$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.hex: $(PATH_SUB_CURRENT)/PC/vbox-tpm.dsl $(VBOX_RTIASL) | $$(dir $$@)
 	$(call MSG_TOOL,iasl,VBoxDD,$<,$@)
-	$(QUIET)$(RM) -f $@ $@.tmp
-	$(QUIET)$(VBOX_IASLCMD) -tc -vs -p $@ $<
-	$(QUIET)$(MV) -f $@ $@.tmp
-	$(QUIET)$(SED) -e "s/AmlCode\|vboxssdt_standard_aml_code/AmlCodeSsdtStandard/g" \
-		--output $@ $@.tmp
-	$(QUIET)$(RM) -f $@.tmp
+	$(QUIET)$(VBOX_RTIASL) --text-c-hdr AmlCodeSsdtTpm -o $@ $<
 
+  vboxssdt_tpm.hex:: $$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.hex
+ endif # !VBOX_WITH_TPM
 
-  vboxssdt_standard.hex:: $$(VBoxDD_0_OUTDIR)/vboxssdt_standard.hex
-
-  $$(VBoxDD_0_OUTDIR)/vboxssdt_cpuhotplug.hex: $(PATH_SUB_CURRENT)/PC/vbox-cpuhotplug.dsl | $$(dir $$@)
-	$(call MSG_TOOL,iasl,VBoxDD,$<,$@)
-	$(QUIET)$(RM) -f $@ $@.tmp $@.pre
-  ifneq ($(KBUILD_HOST),win)
-	$(QUIET)$(TOOL_$(VBOX_GCC_TOOL)_CC) -E -P -x c -o $@.pre $<
-  else
-	$(QUIET)$(REDIRECT) -wto $@.pre -- $(TOOL_$(VBOX_VCC_TOOL)_CC) /nologo /EP /Tc $<
-  endif
-	$(QUIET)$(SED) -e "/^[ ]*$$/d" -e "s/<NL>/\n/g" \
-		--output $@.pre1 $@.pre
-	$(QUIET)$(VBOX_IASLCMD) -tc -vs -p $@ $@.pre1
-	$(QUIET)$(MV) -f $@ $@.tmp
-	$(QUIET)$(SED) -e "s/AmlCode\|vboxssdt_cpuhotplug_aml_code/AmlCodeSsdtCpuHotPlug/g" \
-		--output $@ $@.tmp
-	$(QUIET)$(RM) -f $@.tmp $@.pre $@.pre1
-
-
-  vboxssdt_cpuhotplug.hex:: $$(VBoxDD_0_OUTDIR)/vboxssdt_cpuhotplug.hex
-
-  if defined(VBOX_WITH_TPM)
-   $$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.hex: $(PATH_SUB_CURRENT)/PC/vbox-tpm.dsl | $$(dir $$@)
-	$(call MSG_TOOL,iasl,VBoxDD,$<,$@)
-	$(QUIET)$(RM) -f $@ $@.tmp
-	$(QUIET)$(VBOX_IASLCMD) -tc -vs -p $@ $<
-	$(QUIET)$(MV) -f $@ $@.tmp
-	$(QUIET)$(SED) -e "s/AmlCode\|vboxssdt_tpm_aml_code/AmlCodeSsdtTpm/g" \
-		--output $@ $@.tmp
-	$(QUIET)$(RM) -f $@.tmp
-
-   vboxssdt_tpm.hex:: $$(VBoxDD_0_OUTDIR)/vboxssdt_tpm.hex
-  endif # !VBOX_WITH_TPM
-
- endif # !VBOX_WITH_DYNAMIC_DSDT
  PC/ACPI/VBoxAcpi.cpp_INCS = $(VBoxDD_0_OUTDIR)
 
  # For finding PCIInternal.h from VBox/pci.h.
@@ -1181,10 +1003,6 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
    endif
   endif
 
-  ifdef VBOX_WITH_VIDEOHWACCEL
-   VBoxDDRC_DEFS        += VBOX_WITH_VIDEOHWACCEL
-  endif
-
   ifdef VBOX_WITH_AHCI
    VBoxDDRC_DEFS        += VBOX_WITH_AHCI IN_AHCI_GC
    VBoxDDRC_SOURCES     += \
@@ -1203,9 +1021,9 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
    	Storage/DevLsiLogicSCSI.cpp
   endif
 
-  if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
-   VBoxDDGC_DEFS       += VBOX_WITH_NVME_IMPL
-   VBoxDDGC_SOURCES    += \
+  if defined(VBOX_WITH_NVME_IMPL)
+   VBoxDDRC_DEFS       += VBOX_WITH_NVME_IMPL
+   VBoxDDRC_SOURCES    += \
    	Storage/DevNVMe.cpp
   endif
 
@@ -1248,18 +1066,23 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   VBoxDD2_SOURCES.amd64 += EFI/DevEFI-binaries.asm
   EFI/DevEFI-binaries.asm_ASINCS = $(PATH_STAGE)/$(INST_BIN)
   EFI/DevEFI-binaries.asm_DEPS   = \
-  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI32.fd \
-  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI64.fd
+  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI-x86.fd \
+  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI-amd64.fd
+  ifdef VBOX_WITH_VIRT_ARMV8
+   EFI/DevEFI-binaries.asm_DEPS   += \
+   	$(PATH_STAGE)/$(INST_BIN)VBoxEFI-arm32.fd \
+   	$(PATH_STAGE)/$(INST_BIN)VBoxEFI-arm64.fd
+  endif
 
   VBoxDD2_SOURCES.arm64 += EFI/DevEFI-binaries.S
   EFI/DevEFI-binaries.S_ASINCS = $(PATH_STAGE)/$(INST_BIN)
   EFI/DevEFI-binaries.S_DEPS   = \
-  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI32.fd \
-  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI64.fd
+  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI-x86.fd \
+  	$(PATH_STAGE)/$(INST_BIN)VBoxEFI-amd64.fd
   ifdef VBOX_WITH_VIRT_ARMV8
    EFI/DevEFI-binaries.S_DEPS   += \
-   	$(PATH_STAGE)/$(INST_BIN)VBoxEFIAArch32.fd \
-   	$(PATH_STAGE)/$(INST_BIN)VBoxEFIAArch64.fd
+   	$(PATH_STAGE)/$(INST_BIN)VBoxEFI-arm32.fd \
+   	$(PATH_STAGE)/$(INST_BIN)VBoxEFI-arm64.fd
   endif
  endif
 
@@ -1279,9 +1102,9 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   TEMPLATE_VBoxDDR0OldGCC_EXTENDS := VBoxR0
   TEMPLATE_VBoxDDR0OldGCC_CXXFLAGS = $(filter-out -pedantic,$(TEMPLATE_$(TEMPLATE_VBoxDDR0OldGCC_EXTENDS)_CXXFLAGS))
 
-  VBoxDDR0_TEMPLATE       = VBoxDDR0OldGCC
+  VBoxDDR0_TEMPLATE     := VBoxDDR0OldGCC
  else
-  VBoxDDR0_TEMPLATE       = VBoxR0
+  VBoxDDR0_TEMPLATE     := VBoxR0
  endif
  VBoxDDR0_DEFS           = \
  	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
@@ -1291,7 +1114,7 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
  VBoxDDR0_DEFS.win      += VBOX_WITH_WIN_PARPORT_SUP
  VBoxDDR0_INCS           = build $(VBOX_GRAPHICS_INCS)
  VBoxDDR0_INCS          += $(VBOX_PATH_VMSVGA_DEVICE_INC)
- VBoxDDR0_SDKS.win        = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
+ VBoxDDR0_SDKS.win       = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
  VBoxDDR0_SOURCES        = \
  	build/VBoxDDR0.cpp \
  	Bus/DevPCI.cpp \
@@ -1426,7 +1249,7 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
   	Storage/DevLsiLogicSCSI.cpp
  endif
 
- if defined(VBOX_WITH_NVME_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+ if defined(VBOX_WITH_NVME_IMPL)
   VBoxDDR0_DEFS       += VBOX_WITH_NVME_IMPL
   VBoxDDR0_SOURCES    += \
   	Storage/DevNVMe.cpp
@@ -1447,9 +1270,6 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
  ifdef VBOX_WITH_HGSMI
   VBoxDDR0_DEFS         += VBOX_WITH_HGSMI
  endif
- ifdef VBOX_WITH_VIDEOHWACCEL
-  VBoxDDR0_DEFS         += VBOX_WITH_VIDEOHWACCEL
- endif
 
  if1of ($(VBOX_LDR_FMT), pe lx)
   VBoxDDR0_LIBS          = \
@@ -1458,7 +1278,9 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
  VBoxDDR0_LIBS          += \
  	$(VBOX_LIB_SUPR0)
 
- $(call VBOX_SET_VER_INFO_R0,VBoxDDR0,VirtualBox VMM Devices and Drivers$(COMMA) ring-0) # (last!)
+ if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
+  $(call VBOX_SET_VER_INFO_R0,VBoxDDR0,VirtualBox VMM Devices and Drivers$(COMMA) ring-0) # (last!)
+ endif
 
  ifdef VBOX_WITH_KMOD_WRAPPED_R0_MODS
   # Wrapper kmod for VBoxDDR0.r0
@@ -1520,7 +1342,7 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
    tstIntNet-1_TEMPLATE   = VBoxR3HardenedTstDll
   else
    PROGRAMS += tstIntNet-1
-   tstIntNet-1_TEMPLATE   = VBoxR3TstExe
+   tstIntNet-1_TEMPLATE   = VBoxR3SignedTstExe
   endif
   tstIntNet-1_SOURCES     = \
   	Network/testcase/tstIntNet-1.cpp \
@@ -1593,59 +1415,11 @@ if defined(VBOX_WITH_EXTPACK) && defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX
   $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += VBoxPciRawR0
   VBoxPciRawR0_TEMPLATE     = VBoxR0ExtPackPuel
   VBoxPciRawR0_SOURCES      = Bus/DevPciRaw.cpp
-  $(call VBOX_SET_VER_INFO_R0,VBoxPciRawR0,PUEL Extension Pack - PCI Passthrough Driver$(COMMA) ring-0)
+  if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
+   $(call VBOX_SET_VER_INFO_R0,VBoxPciRawR0,PUEL Extension Pack - PCI Passthrough Driver$(COMMA) ring-0)
+  endif
 
   Bus/DevPciRaw.cpp_INCS    = Bus
- endif
-
- #
- # The NVMe Extension Pack Modules.
- #
- if defined(VBOX_WITH_NVME_IMPL)
-  DLLS += VBoxNvmeR3
-  VBoxNvmeR3_TEMPLATE = VBoxR3ExtPackPuel
-  VBoxNvmeR3_SOURCES  = \
-  	Storage/DevNVMe.cpp
-  $(call VBOX_SET_VER_INFO_DLL,VBoxNvmeR3,PUEL Extension Pack - NVMe Device)
-
-  ifdef VBOX_WITH_R0_MODULES
-   ifdef VBOX_WITH_VBOXR0_AS_DLL
-    DLLS    += VBoxNvmeR0
-   else
-    SYSMODS += VBoxNvmeR0
-   endif
-   VBoxNvmeR0_TEMPLATE = VBoxR0ExtPackPuel
-   VBoxNvmeR0_SOURCES  = \
-   	Storage/DevNVMe.cpp
-   $(call VBOX_SET_VER_INFO_R0,VBoxNvmeR0,PUEL Extension Pack - NVMe Device$(COMMA) ring-0)
-   ifdef VBOX_WITH_KMOD_WRAPPED_R0_MODS # Wrapper kmod for VBoxEhciR0.r0
-    INSTALLS.linux += vbox_vboxnvmer0-src
-    vbox_vboxnvmer0-src_INST = bin/src/vbox_vboxnvmer0/
-    vbox_vboxnvmer0-src_SYMLINKS = \
-    	SUPWrapperMod-linux.c=>../common/SUPWrapperMod-linux.c \
-    	Makefile-wrapper.gmk=>../common/Makefile-wrapper.gmk
-    vbox_vboxnvmer0-src_SOURCES = \
-    	$(PATH_ROOT)/src/VBox/HostDrivers/Support/linux/Makefile-vbox_vboxnvmer0.gmk=>Makefile \
-    	$(VBoxNvmeR0_0_OUTDIR)/VBoxNvmeR0.r0=>VBoxNvmeR0.r0 \
-    	$(VBoxNvmeR0_0_OUTDIR)/VBoxNvmeR0.debug=>VBoxNvmeR0.debug
-   endif
-  endif
-
-  ifdef VBOX_WITH_RAW_MODE
-   SYSMODS += VBoxNvmeRC
-   VBoxNvmeRC_TEMPLATE = VBoxRcExtPackPuel
-   VBoxNvmeRC_SOURCES  = \
-   	Storage/DevNVMe.cpp
-   $(call VBOX_SET_VER_INFO_RC,VBoxNvmeRC,PUEL Extension Pack - NVMe Device$(COMMA) raw-mode)
-  endif
-
-  # Hacky but MSI support *must* be enabled
-  ifdef VBOX_WITH_MSI_DEVICES
-   VBoxNvmeR3_DEFS += VBOX_WITH_MSI_DEVICES
-   VBoxNvmeR0_DEFS += VBOX_WITH_MSI_DEVICES
-   VBoxNvmeRC_DEFS += VBOX_WITH_MSI_DEVICES
-  endif
-
  endif
 
 

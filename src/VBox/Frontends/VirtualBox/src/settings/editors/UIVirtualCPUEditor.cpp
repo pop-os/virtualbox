@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -83,10 +83,10 @@ void UIVirtualCPUEditor::setMinimumLayoutIndent(int iIndent)
 void UIVirtualCPUEditor::sltRetranslateUI()
 {
     if (m_pLabelVCPU)
-        m_pLabelVCPU->setText(tr("&Processors:"));
+        m_pLabelVCPU->setText(tr("&Number of CPUs"));
 
-    QString strToolTip(tr("Holds the number of virtual CPUs in the virtual machine. You need hardware "
-                          "virtualization support on your host system to use more than one virtual CPU."));
+    QString strToolTip(tr("Number of virtual CPUs in this VM"));
+
     if (m_pSlider)
         m_pSlider->setToolTip(strToolTip);
     if (m_pSpinBox)
@@ -95,12 +95,12 @@ void UIVirtualCPUEditor::sltRetranslateUI()
     if (m_pLabelVCPUMin)
     {
         m_pLabelVCPUMin->setText(tr("%1 CPU", "%1 is 1 for now").arg(m_uMinVCPUCount));
-        m_pLabelVCPUMin->setToolTip(tr("Minimum possible virtual CPU count."));
+        m_pLabelVCPUMin->setToolTip(tr("Minimum number of virtual CPUs"));
     }
     if (m_pLabelVCPUMax)
     {
         m_pLabelVCPUMax->setText(tr("%1 CPUs", "%1 is host cpu count * 2 for now").arg(m_uMaxVCPUCount));
-        m_pLabelVCPUMax->setToolTip(tr("Maximum possible virtual CPU count."));
+        m_pLabelVCPUMax->setToolTip(tr("Maximum number of virtual CPUs"));
     }
 }
 

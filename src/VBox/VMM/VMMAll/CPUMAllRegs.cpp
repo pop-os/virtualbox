@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -32,7 +32,7 @@
 #define LOG_GROUP LOG_GROUP_CPUM
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/dbgf.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/em.h>
@@ -715,7 +715,7 @@ VMMDECL(int) CPUMGetGuestCRx(PCVMCPUCC pVCpu, unsigned iReg, uint64_t *pValue)
         {
             CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_APIC_TPR);
             uint8_t u8Tpr;
-            int rc = APICGetTpr(pVCpu, &u8Tpr, NULL /* pfPending */, NULL /* pu8PendingIrq */);
+            int rc = PDMApicGetTpr(pVCpu, &u8Tpr, NULL /* pfPending */, NULL /* pu8PendingIrq */);
             if (RT_FAILURE(rc))
             {
                 AssertMsg(rc == VERR_PDM_NO_APIC_INSTANCE, ("%Rrc\n", rc));
@@ -1074,7 +1074,7 @@ VMMDECL(bool) CPUMSetGuestCpuIdPerCpuApicFeature(PVMCPU pVCpu, bool fVisible)
  */
 VMMDECL(CPUMCPUVENDOR) CPUMGetHostCpuVendor(PVM pVM)
 {
-    return (CPUMCPUVENDOR)pVM->cpum.s.HostFeatures.enmCpuVendor;
+    return (CPUMCPUVENDOR)pVM->cpum.s.HostFeatures.Common.enmCpuVendor;
 }
 
 
@@ -1086,7 +1086,7 @@ VMMDECL(CPUMCPUVENDOR) CPUMGetHostCpuVendor(PVM pVM)
  */
 VMMDECL(CPUMMICROARCH) CPUMGetHostMicroarch(PCVM pVM)
 {
-    return pVM->cpum.s.HostFeatures.enmMicroarch;
+    return pVM->cpum.s.HostFeatures.Common.enmMicroarch;
 }
 
 
@@ -1630,19 +1630,6 @@ VMM_INT_DECL(bool) CPUMIsGuestIn64BitCodeSlow(PCCPUMCTX pCtx)
 VMMDECL(void) CPUMSetChangedFlags(PVMCPU pVCpu, uint32_t fChangedAdd)
 {
     pVCpu->cpum.s.fChanged |= fChangedAdd;
-}
-
-
-/**
- * Checks if the CPU supports the XSAVE and XRSTOR instruction.
- *
- * @returns true if supported.
- * @returns false if not supported.
- * @param   pVM     The cross context VM structure.
- */
-VMMDECL(bool) CPUMSupportsXSave(PVM pVM)
-{
-    return pVM->cpum.s.HostFeatures.fXSaveRstor != 0;
 }
 
 

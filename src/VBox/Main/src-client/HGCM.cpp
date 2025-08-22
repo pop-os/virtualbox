@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -549,11 +549,22 @@ class HGCMMsgHeader: public HGCMMsgCore
 class HGCMMsgCall: public HGCMMsgHeader
 {
     public:
-        HGCMMsgCall() : pcCounter(NULL)
+        HGCMMsgCall()
+            : pcCounter(NULL)
+            , u32ClientId(0)
+            , u32Function(0)
+            , cParms(0)
+            , paParms(NULL)
+            , tsArrival(0)
         { }
 
         HGCMMsgCall(HGCMThread *pThread)
             : pcCounter(NULL)
+            , u32ClientId(0)
+            , u32Function(0)
+            , cParms(0)
+            , paParms(NULL)
+            , tsArrival(0)
         {
             InitializeCore(SVC_MSG_GUESTCALL, pThread);
             Initialize();
@@ -2646,14 +2657,13 @@ int HGCMHostRegisterServiceExtension(HGCMSVCEXTHANDLE *pHandle,
     return vrc;
 }
 
-void HGCMHostUnregisterServiceExtension(HGCMSVCEXTHANDLE handle)
+int HGCMHostUnregisterServiceExtension(HGCMSVCEXTHANDLE handle)
 {
     LogFlowFunc(("handle = %p\n", handle));
 
     /* Forward the request to the main hgcm thread. */
     HGCMMsgCore *pCoreMsg;
     int vrc = hgcmMsgAlloc(g_pHgcmThread, &pCoreMsg, HGCM_MSG_UNREGEXT, hgcmMainMessageAlloc);
-
     if (RT_SUCCESS(vrc))
     {
         /* Initialize the message. */
@@ -2665,7 +2675,7 @@ void HGCMHostUnregisterServiceExtension(HGCMSVCEXTHANDLE handle)
     }
 
     LogFlowFunc(("vrc = %Rrc\n", vrc));
-    return;
+    return vrc;
 }
 
 /* Find a service and inform it about a client connection, create a client handle.

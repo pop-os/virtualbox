@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -50,7 +50,6 @@ class QPropertyAnimation;
 class QStateMachine;
 class UIActionPool;
 class UIChooserItemGroup;
-class UIChooserItemGlobal;
 class UIChooserItemMachine;
 class UIChooserModel;
 class UIChooserNode;
@@ -115,8 +114,6 @@ public:
 
         /** Casts item to group one. */
         UIChooserItemGroup *toGroupItem();
-        /** Casts item to global one. */
-        UIChooserItemGlobal *toGlobalItem();
         /** Casts item to machine one. */
         UIChooserItemMachine *toMachineItem();
 
@@ -134,11 +131,6 @@ public:
         QString description() const;
         /** Returns item definition. */
         QString definition() const;
-
-        /** Returns whether item is favorite. */
-        bool isFavorite() const;
-        /** Defines whether item is @a fFavorite. */
-        virtual void setFavorite(bool fFavorite);
 
         /** Returns item position. */
         int position() const;
@@ -173,8 +165,8 @@ public:
         /** Returns children items of certain @a enmType. */
         virtual QList<UIChooserItem*> items(UIChooserNodeType enmType = UIChooserNodeType_Any) const = 0;
 
-        /** Adds possible @a fFavorite child @a pItem to certain @a iPosition. */
-        virtual void addItem(UIChooserItem *pItem, bool fFavorite, int iPosition) = 0;
+        /** Adds a child @a pItem to certain @a iPosition. */
+        virtual void addItem(UIChooserItem *pItem, int iPosition) = 0;
         /** Removes child @a pItem. */
         virtual void removeItem(UIChooserItem *pItem) = 0;
 

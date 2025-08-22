@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -68,7 +68,7 @@
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/nem.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/iom.h>
@@ -575,6 +575,7 @@ static DECLCALLBACK(int) vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCT
 #endif
 
 
+#ifdef VBOX_WITH_R0_MODULES
     /*
      * Load the VMMR0.r0 module so that we can call GVMMR0CreateVM.
      */
@@ -590,12 +591,13 @@ static DECLCALLBACK(int) vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCT
             return vmR3SetErrorU(pUVM, rc, RT_SRC_POS, N_("Failed to load VMMR0.r0"));
         }
     }
+#endif
 
     /*
      * Request GVMM to create a new VM for us.
      */
     RTR0PTR pVMR0;
-    int rc = GVMMR3CreateVM(pUVM, cCpus, pUVM->vm.s.pSession, &pUVM->pVM, &pVMR0);
+    int rc = GVMMR3CreateVM(pUVM, VMTARGET_DEFAULT, cCpus, pUVM->vm.s.pSession, &pUVM->pVM, &pVMR0);
     if (RT_SUCCESS(rc))
     {
         PVM pVM = pUVM->pVM;
@@ -604,6 +606,7 @@ static DECLCALLBACK(int) vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCT
         AssertRelease(pVM->pSession == pUVM->vm.s.pSession);
         AssertRelease(pVM->cCpus == cCpus);
         AssertRelease(pVM->uCpuExecutionCap == 100);
+        AssertRelease(pVM->enmTarget == VMTARGET_DEFAULT);
         AssertCompileMemberAlignment(VM, cpum, 64);
         AssertCompileMemberAlignment(VM, tm, 64);
 
@@ -749,9 +752,10 @@ static int vmR3ReadBaseConfig(PVM pVM, PUVM pUVM, uint32_t cCpus)
     /*
      * Base EM and HM config properties.
      */
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    /** @todo get rid of this carp.   */
+#if (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)) && defined(VBOX_VMM_TARGET_X86)
     pVM->fHMEnabled = true;
-#else /* Other architectures must fall back on IEM for the time being: */
+#else
     pVM->fHMEnabled = false;
 #endif
 
@@ -872,10 +876,10 @@ static int vmR3InitRing3(PVM pVM, PUVM pUVM)
                         rc = VMMR3Init(pVM);
                         if (RT_SUCCESS(rc))
                         {
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_X86
                             rc = SELMR3Init(pVM);
-#endif
                             if (RT_SUCCESS(rc))
+#endif
                             {
                                 rc = TRPMR3Init(pVM);
                                 if (RT_SUCCESS(rc))
@@ -903,10 +907,10 @@ static int vmR3InitRing3(PVM pVM, PUVM pUVM)
                                                             rc = GIMR3Init(pVM);
                                                             if (RT_SUCCESS(rc))
                                                             {
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_X86
                                                                 rc = GCMR3Init(pVM);
-#endif
                                                                 if (RT_SUCCESS(rc))
+#endif
                                                                 {
                                                                     rc = PDMR3Init(pVM);
                                                                     if (RT_SUCCESS(rc))
@@ -930,7 +934,7 @@ static int vmR3InitRing3(PVM pVM, PUVM pUVM)
                                                                         int rc2 = PDMR3Term(pVM);
                                                                         AssertRC(rc2);
                                                                     }
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_X86
                                                                     int rc2 = GCMR3Term(pVM);
                                                                     AssertRC(rc2);
 #endif
@@ -955,7 +959,7 @@ static int vmR3InitRing3(PVM pVM, PUVM pUVM)
                                     int rc2 = TRPMR3Term(pVM);
                                     AssertRC(rc2);
                                 }
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_X86
                                 int rc2 = SELMR3Term(pVM);
                                 AssertRC(rc2);
 #endif
@@ -1078,11 +1082,11 @@ VMMR3_INT_DECL(void) VMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     PGMR3Relocate(pVM, 0);              /* Repeat after PDM relocation. */
     CPUMR3Relocate(pVM);
     HMR3Relocate(pVM);
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_X86
     SELMR3Relocate(pVM);
 #endif
     VMMR3Relocate(pVM, offDelta);
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_X86
     SELMR3Relocate(pVM);                /* !hack! fix stack! */
 #endif
     TRPMR3Relocate(pVM, offDelta);
@@ -2234,7 +2238,7 @@ DECLCALLBACK(int) vmR3Destroy(PVM pVM)
         AssertRC(rc);
         rc = TRPMR3Term(pVM);
         AssertRC(rc);
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_X86
         rc = SELMR3Term(pVM);
         AssertRC(rc);
 #endif
@@ -2618,7 +2622,7 @@ static DECLCALLBACK(VBOXSTRICTRC) vmR3HardReset(PVM pVM, PVMCPU pVCpu, void *pvU
         GIMR3Reset(pVM);                /* This must come *before* PDM and TM. */
         PDMR3Reset(pVM);
         PGMR3Reset(pVM);
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_X86
         SELMR3Reset(pVM);
 #endif
         TRPMR3Reset(pVM);
@@ -2924,7 +2928,7 @@ VMMR3DECL(PRTUUID) VMR3GetUuid(PUVM pUVM, PRTUUID pUuid)
  */
 VMMR3DECL(VMSTATE) VMR3GetState(PVM pVM)
 {
-    AssertMsgReturn(RT_VALID_ALIGNED_PTR(pVM, HOST_PAGE_SIZE), ("%p\n", pVM), VMSTATE_TERMINATED);
+    AssertMsgReturn(RT_VALID_ALIGNED_PTR(pVM, HOST_PAGE_SIZE_DYNAMIC), ("%p\n", pVM), VMSTATE_TERMINATED);
     VMSTATE enmVMState = pVM->enmVMState;
     return enmVMState >= VMSTATE_CREATING && enmVMState <= VMSTATE_TERMINATED ? enmVMState : VMSTATE_TERMINATED;
 }
@@ -3805,7 +3809,6 @@ DECLCALLBACK(void) vmR3SetErrorUV(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char
     /*
      * Call the at error callbacks.
      */
-    bool fCalledSomeone = false;
     RTCritSectEnter(&pUVM->vm.s.AtErrorCritSect);
     ASMAtomicIncU32(&pUVM->vm.s.cErrors);
     for (PVMATERROR pCur = pUVM->vm.s.pAtError; pCur; pCur = pCur->pNext)
@@ -3814,7 +3817,6 @@ DECLCALLBACK(void) vmR3SetErrorUV(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char
         va_copy(va2, *pArgs);
         pCur->pfnAtError(pUVM, pCur->pvUser, rc, RT_SRC_POS_ARGS, pszFormat, va2);
         va_end(va2);
-        fCalledSomeone = true;
     }
     RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
 }
@@ -4238,13 +4240,16 @@ VMMR3_INT_DECL(bool) VMR3IsLongModeAllowed(PVM pVM)
 {
     switch (pVM->bMainExecutionEngine)
     {
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_WITH_HWVIRT
         case VM_EXEC_ENGINE_HW_VIRT:
             return HMIsLongModeAllowed(pVM);
 #endif
 
         case VM_EXEC_ENGINE_NATIVE_API:
             return NEMHCIsLongModeAllowed(pVM);
+
+        case VM_EXEC_ENGINE_IEM:
+            return true;
 
         case VM_EXEC_ENGINE_NOT_SET:
             AssertFailed();

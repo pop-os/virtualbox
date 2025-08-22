@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -32,7 +32,8 @@
 #define LOG_GROUP LOG_GROUP_CPUM
 #include <VBox/vmm/cpum.h>
 #include "CPUMInternal-armv8.h"
-#include <VBox/vmm/gic.h>
+#include <VBox/vmm/pdmgic.h>
+#include <VBox/vmm/pmu.h>
 #include <VBox/vmm/vmcc.h>
 #include <VBox/err.h>
 
@@ -51,11 +52,11 @@
  */
 #define CPUM_SYSREG_ASSERT_CPUMCPU_OFFSET_RETURN(a_pVCpu, a_pRange, a_Type, a_VarName) \
     AssertMsgReturn(   (a_pRange)->offCpumCpu >= 8 \
-                    && (a_pRange)->offCpumCpu < sizeof(CPUMCPU) \
+                    && (a_pRange)->offCpumCpu < sizeof(CPUMCTX) \
                     && !((a_pRange)->offCpumCpu & (RT_MIN(sizeof(a_Type), 8) - 1)) \
                     , ("offCpumCpu=%#x %s\n", (a_pRange)->offCpumCpu, (a_pRange)->szName), \
                     VERR_CPUM_MSR_BAD_CPUMCPU_OFFSET); \
-    a_Type *a_VarName = (a_Type *)((uintptr_t)&(a_pVCpu)->cpum.s + (a_pRange)->offCpumCpu)
+    a_Type *a_VarName = (a_Type *)((uintptr_t)&(a_pVCpu)->cpum.s.Guest + (a_pRange)->offCpumCpu)
 
 
 /*********************************************************************************************************************************
@@ -144,20 +145,41 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegWr_ReadOnly(PVMCPUCC pVCpu, uint32_t
 }
 
 
-
 /** @callback_method_impl{FNCPUMRDSYSREG} */
-static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegRd_GicV3Icc(PVMCPUCC pVCpu, uint32_t idSysReg, PCCPUMSYSREGRANGE pRange, uint64_t *puValue)
+static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegRd_ReadCpumOff(PVMCPUCC pVCpu, uint32_t idSysReg, PCCPUMSYSREGRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pRange);
-    return GICReadSysReg(pVCpu, idSysReg, puValue);
+    RT_NOREF(idSysReg);
+
+    CPUM_SYSREG_ASSERT_CPUMCPU_OFFSET_RETURN(pVCpu, pRange, CPUMCTXSYSREG, pSysReg);
+    *puValue = pSysReg->u64;
+    return VINF_SUCCESS;
 }
 
 
 /** @callback_method_impl{FNCPUMWRSYSREG} */
-static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegWr_GicV3Icc(PVMCPUCC pVCpu, uint32_t idSysReg, PCCPUMSYSREGRANGE pRange, uint64_t uValue, uint64_t uRawValue)
+static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegWr_WriteCpumOff(PVMCPUCC pVCpu, uint32_t idSysReg, PCCPUMSYSREGRANGE pRange, uint64_t uValue, uint64_t uRawValue)
+{
+    RT_NOREF(idSysReg, uRawValue);
+
+    CPUM_SYSREG_ASSERT_CPUMCPU_OFFSET_RETURN(pVCpu, pRange, CPUMCTXSYSREG, pSysReg);
+    pSysReg->u64 = uValue;
+    return VINF_SUCCESS;
+}
+
+
+/** @callback_method_impl{FNCPUMRDSYSREG} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegRd_GicIcc(PVMCPUCC pVCpu, uint32_t idSysReg, PCCPUMSYSREGRANGE pRange, uint64_t *puValue)
+{
+    RT_NOREF_PV(pRange);
+    return PDMGicReadSysReg(pVCpu, idSysReg, puValue);
+}
+
+
+/** @callback_method_impl{FNCPUMWRSYSREG} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegWr_GicIcc(PVMCPUCC pVCpu, uint32_t idSysReg, PCCPUMSYSREGRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
     RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
-    return GICWriteSysReg(pVCpu, idSysReg, uValue);
+    return PDMGicWriteSysReg(pVCpu, idSysReg, uValue);
 }
 
 
@@ -181,6 +203,23 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegWr_OslarEl1(PVMCPUCC pVCpu, uint32_t
 }
 
 
+
+/** @callback_method_impl{FNCPUMRDSYSREG} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegRd_Pmu(PVMCPUCC pVCpu, uint32_t idSysReg, PCCPUMSYSREGRANGE pRange, uint64_t *puValue)
+{
+    RT_NOREF_PV(pRange);
+    return PMUReadSysReg(pVCpu, idSysReg, puValue);
+}
+
+
+/** @callback_method_impl{FNCPUMWRSYSREG} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumSysRegWr_Pmu(PVMCPUCC pVCpu, uint32_t idSysReg, PCCPUMSYSREGRANGE pRange, uint64_t uValue, uint64_t uRawValue)
+{
+    RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
+    return PMUWriteSysReg(pVCpu, idSysReg, uValue);
+}
+
+
 /**
  * System register read function table.
  */
@@ -190,8 +229,10 @@ static const struct READSYSREGCLANG11WEIRDNOTHROW { PFNCPUMRDSYSREG pfnRdSysReg;
     { cpumSysRegRd_FixedValue },
     { NULL }, /* Alias */
     { cpumSysRegRd_WriteOnly },
-    { cpumSysRegRd_GicV3Icc  },
+    { cpumSysRegRd_ReadCpumOff },
+    { cpumSysRegRd_GicIcc  },
     { cpumSysRegRd_OslsrEl1  },
+    { cpumSysRegRd_Pmu       }
 };
 
 
@@ -204,8 +245,10 @@ static const struct WRITESYSREGCLANG11WEIRDNOTHROW { PFNCPUMWRSYSREG pfnWrSysReg
     { cpumSysRegWr_IgnoreWrite },
     { cpumSysRegWr_ReadOnly },
     { NULL }, /* Alias */
-    { cpumSysRegWr_GicV3Icc },
+    { cpumSysRegWr_WriteCpumOff },
+    { cpumSysRegWr_GicIcc },
     { cpumSysRegWr_OslarEl1 },
+    { cpumSysRegWr_Pmu      }
 };
 
 
@@ -447,14 +490,18 @@ DECLHIDDEN(int) cpumR3SysRegStrictInitChecks(void)
     AssertReturn(g_aCpumRdSysRegFns[kCpumSysRegRdFn_Invalid].pfnRdSysReg == NULL, VERR_CPUM_IPE_2);
     CPUM_ASSERT_RD_SYSREG_FN(FixedValue);
     CPUM_ASSERT_RD_SYSREG_FN(WriteOnly);
-    CPUM_ASSERT_RD_SYSREG_FN(GicV3Icc);
+    CPUM_ASSERT_RD_SYSREG_FN(ReadCpumOff);
+    CPUM_ASSERT_RD_SYSREG_FN(GicIcc);
     CPUM_ASSERT_RD_SYSREG_FN(OslsrEl1);
+    CPUM_ASSERT_RD_SYSREG_FN(Pmu);
 
     AssertReturn(g_aCpumWrSysRegFns[kCpumSysRegWrFn_Invalid].pfnWrSysReg == NULL, VERR_CPUM_IPE_2);
     CPUM_ASSERT_WR_SYSREG_FN(IgnoreWrite);
     CPUM_ASSERT_WR_SYSREG_FN(ReadOnly);
-    CPUM_ASSERT_WR_SYSREG_FN(GicV3Icc);
+    CPUM_ASSERT_WR_SYSREG_FN(WriteCpumOff);
+    CPUM_ASSERT_WR_SYSREG_FN(GicIcc);
     CPUM_ASSERT_WR_SYSREG_FN(OslarEl1);
+    CPUM_ASSERT_WR_SYSREG_FN(Pmu);
 
     return VINF_SUCCESS;
 }

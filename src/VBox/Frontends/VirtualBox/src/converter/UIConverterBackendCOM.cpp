@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -301,7 +301,7 @@ template<> SHARED_LIBRARY_STUFF QString UIConverter::toString(const KPointingHID
         case KPointingHIDType_USBTablet:                  return QApplication::translate("UICommon", "USB Tablet", "PointingHIDType");
         case KPointingHIDType_ComboMouse:                 return QApplication::translate("UICommon", "PS/2 and USB Mouse", "PointingHIDType");
         case KPointingHIDType_USBMultiTouch:              return QApplication::translate("UICommon", "USB Multi-Touch Tablet", "PointingHIDType");
-        case KPointingHIDType_USBMultiTouchScreenPlusPad: return QApplication::translate("UICommon", "USB MT TouchScreen and TouchPad", "PointingHIDType");
+        case KPointingHIDType_USBMultiTouchScreenPlusPad: return QApplication::translate("UICommon", "USB Multi-Touch TouchScreen and TouchPad", "PointingHIDType");
         default: AssertMsgFailed(("No text for %d", type)); break;
     }
     return QString();
@@ -431,6 +431,7 @@ template<> SHARED_LIBRARY_STUFF QString UIConverter::toString(const KNetworkAdap
         case KNetworkAdapterType_WD8003:     return QApplication::translate("UICommon", "WD EtherCard Plus (WD8013E)", "NetworkAdapterType");
         case KNetworkAdapterType_ELNK2:      return QApplication::translate("UICommon", "3Com EtherLink II (3C503)", "NetworkAdapterType");
         case KNetworkAdapterType_ELNK1:      return QApplication::translate("UICommon", "3Com EtherLink (3C501)", "NetworkAdapterType");
+        case KNetworkAdapterType_UsbNet:     return QApplication::translate("UICommon", "Ethernet over USB (usbnet)", "NetworkAdapterType");
         default: AssertMsgFailed(("No text for %d", type)); break;
     }
     return QString();
@@ -548,6 +549,7 @@ template<> SHARED_LIBRARY_STUFF QString UIConverter::toString(const KAudioDriver
         case KAudioDriverType_OSS:         return QApplication::translate("UICommon", "OSS Audio", "AudioDriverType");
         case KAudioDriverType_ALSA:        return QApplication::translate("UICommon", "ALSA Audio", "AudioDriverType");
         case KAudioDriverType_Pulse:       return QApplication::translate("UICommon", "PulseAudio", "AudioDriverType");
+        /* Deprecated; not (ever) supported; leave this in for backwards compatibility. See @bugref{10845} */
         case KAudioDriverType_WinMM:       return QApplication::translate("UICommon", "Windows Multimedia", "AudioDriverType");
         case KAudioDriverType_DirectSound: return QApplication::translate("UICommon", "Windows DirectSound", "AudioDriverType");
         case KAudioDriverType_WAS:         return QApplication::translate("UICommon", "Windows Audio Session", "AudioDriverType");
@@ -568,6 +570,7 @@ template<> SHARED_LIBRARY_STUFF KAudioDriverType UIConverter::fromString<KAudioD
     list.insert(QApplication::translate("UICommon", "OSS Audio", "AudioDriverType"),             KAudioDriverType_OSS);
     list.insert(QApplication::translate("UICommon", "ALSA Audio", "AudioDriverType"),            KAudioDriverType_ALSA);
     list.insert(QApplication::translate("UICommon", "PulseAudio", "AudioDriverType"),            KAudioDriverType_Pulse);
+    /* Deprecated; not (ever) supported; leave this in for backwards compatibility. See @bugref{10845} */
     list.insert(QApplication::translate("UICommon", "Windows Multimedia", "AudioDriverType"),    KAudioDriverType_WinMM);
     list.insert(QApplication::translate("UICommon", "Windows DirectSound", "AudioDriverType"),   KAudioDriverType_DirectSound);
     list.insert(QApplication::translate("UICommon", "Windows Audio Session", "AudioDriverType"), KAudioDriverType_WAS);
@@ -736,8 +739,8 @@ template<> SHARED_LIBRARY_STUFF QString UIConverter::toString(const KTpmType &ty
     switch (type)
     {
         case KTpmType_None:  return QApplication::translate("UICommon", "None", "TpmType");
-        case KTpmType_v1_2:  return QApplication::translate("UICommon", "v1.2", "TpmType");
-        case KTpmType_v2_0:  return QApplication::translate("UICommon", "v2.0", "TpmType");
+        case KTpmType_v1_2:  return QApplication::translate("UICommon", "1.2", "TpmType");
+        case KTpmType_v2_0:  return QApplication::translate("UICommon", "2.0", "TpmType");
         case KTpmType_Host:  return QApplication::translate("UICommon", "Host", "TpmType");
         case KTpmType_Swtpm: return QApplication::translate("UICommon", "SWTPM", "TpmType");
         default: AssertMsgFailed(("No text for %d", type)); break;

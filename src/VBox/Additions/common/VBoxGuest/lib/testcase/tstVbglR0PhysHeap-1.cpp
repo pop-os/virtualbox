@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -54,6 +54,14 @@
 #define IN_RING0 /* pretend we're in ring-0 so we get access to the functions */
 #include <iprt/memobj.h>
 #include "../VBoxGuestR0LibInternal.h"
+#if defined(RT_OS_LINUX) && defined(RT_ARCH_ARM64)
+# undef PAGE_SIZE
+# undef PAGE_OFFSET_MASK
+# undef PAGE_SHIFT
+# define PAGE_SIZE _4K /* Assume a page size of 4KiB, the real page size doesn't matter for this testcase. */
+# define PAGE_OFFSET_MASK ((uintptr_t)(PAGE_SIZE - 1))
+# define PAGE_SHIFT 12
+#endif
 
 
 /*********************************************************************************************************************************

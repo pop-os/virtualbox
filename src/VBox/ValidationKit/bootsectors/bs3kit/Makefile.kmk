@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -72,6 +72,7 @@ bs3-bootsector-63MB_SOURCES  = bs3-bootsector.asm
 VBOX_BS3KIT_COMMON_SOURCES = \
 	bs3-cmn-A20Disable.asm \
 	bs3-cmn-A20Enable.asm \
+	bs3-cmn-Assert.c \
 	bs3-cmn-GetCpuVendor.c \
 	bs3-cmn-GetModeName.c \
 	bs3-cmn-GetModeNameShortLower.c \

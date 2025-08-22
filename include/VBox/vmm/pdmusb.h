@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1435,6 +1435,34 @@ DECLINLINE(void *) PDMUsbHlpQueryGenericUserObject(PPDMUSBINS pUsbIns, PCRTUUID 
     return pUsbIns->pHlpR3->pfnQueryGenericUserObject(pUsbIns, pUuid);
 }
 
+/**
+ * Same as pfnSTAMRegister except that the name is specified in a
+ * RTStrPrintf like fashion.
+ *
+ * @param   pUsbIns             The USB device instance.
+ * @param   pvSample            Pointer to the sample.
+ * @param   enmType             Sample type. This indicates what pvSample is
+ *                              pointing at.
+ * @param   enmVisibility       Visibility type specifying whether unused
+ *                              statistics should be visible or not.
+ * @param   enmUnit             Sample unit.
+ * @param   pszDesc             Sample description.
+ * @param   pszName             Sample name format string, unix path style.  If
+ *                              this does not start with a '/', the default
+ *                              prefix will be prepended, otherwise it will be
+ *                              used as-is.
+ * @param   ...                 Arguments to the format string.
+ */
+DECLINLINE(void) RT_IPRT_FORMAT_ATTR(7, 8) PDMUsbHlpSTAMRegisterF(PPDMUSBINS pUsbIns, void *pvSample, STAMTYPE enmType,
+                                                                  STAMVISIBILITY enmVisibility, STAMUNIT enmUnit,
+                                                                  const char *pszDesc, const char *pszName, ...)
+{
+    va_list va;
+    va_start(va, pszName);
+    pUsbIns->pHlpR3->pfnSTAMRegisterV(pUsbIns, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, va);
+    va_end(va);
+}
+
 #endif /* IN_RING3 */
 
 
@@ -1491,6 +1519,7 @@ VMMR3DECL(int)  PDMR3UsbDriverDetach(PUVM pUVM, const char *pszDevice, unsigned 
 VMMR3DECL(int)  PDMR3UsbQueryLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase);
 VMMR3DECL(int)  PDMR3UsbQueryDriverOnLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun,
                                          const char *pszDriver, PPPDMIBASE ppBase);
+VMMR3DECL(int)  PDMR3UsbQueryDeviceLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase);
 
 /** @} */
 

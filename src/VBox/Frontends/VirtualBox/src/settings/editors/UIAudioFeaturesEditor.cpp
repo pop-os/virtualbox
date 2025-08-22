@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -97,17 +97,17 @@ void UIAudioFeaturesEditor::setMinimumLayoutIndent(int iIndent)
 void UIAudioFeaturesEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Extended Features:"));
+        m_pLabel->setText(tr("Features"));
     if (m_pCheckBoxEnableOutput)
     {
-        m_pCheckBoxEnableOutput->setText(tr("Enable Audio &Output"));
-        m_pCheckBoxEnableOutput->setToolTip(tr("When checked, output to the virtual audio device will reach the host. "
+        m_pCheckBoxEnableOutput->setText(tr("Audio &Output"));
+        m_pCheckBoxEnableOutput->setToolTip(tr("Output to the virtual audio device will reach the host. "
                                                "Otherwise the guest is muted."));
     }
     if (m_pCheckBoxEnableInput)
     {
-        m_pCheckBoxEnableInput->setText(tr("Enable Audio &Input"));
-        m_pCheckBoxEnableInput->setToolTip(tr("When checked, the guest will be able to capture audio input from the host. "
+        m_pCheckBoxEnableInput->setText(tr("Audio &Input"));
+        m_pCheckBoxEnableInput->setToolTip(tr("The guest will be able to capture audio input from the host. "
                                               "Otherwise the guest will capture only silence."));
     }
 }

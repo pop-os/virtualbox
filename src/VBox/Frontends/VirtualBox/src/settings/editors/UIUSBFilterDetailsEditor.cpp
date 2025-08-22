@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -177,55 +177,55 @@ void UIUSBFilterDetailsEditor::sltRetranslateUI()
     setWindowTitle(tr("USB Filter Details"));
 
     if (m_pLabelName)
-        m_pLabelName->setText(tr("&Name:"));
+        m_pLabelName->setText(tr("&Name"));
     if (m_pEditorName)
-        m_pEditorName->setToolTip(tr("Holds the filter name."));
+        m_pEditorName->setToolTip(tr("Filter name"));
 
     if (m_pLabelVendorID)
-        m_pLabelVendorID->setText(tr("&Vendor ID:"));
+        m_pLabelVendorID->setText(tr("&Vendor ID"));
     if (m_pEditorVendorID)
-        m_pEditorVendorID->setToolTip(tr("Holds the vendor ID filter. The exact match string format is 'XXXX' "
+        m_pEditorVendorID->setToolTip(tr("Vendor ID filter. The exact match string format is 'XXXX' "
                                          "where 'X' is a hexadecimal digit. An empty string will match any value."));
 
     if (m_pLabelProductID)
-        m_pLabelProductID->setText(tr("&Product ID:"));
+        m_pLabelProductID->setText(tr("&Product ID"));
     if (m_pEditorProductID)
-        m_pEditorProductID->setToolTip(tr("Holds the product ID filter. The exact match string format is 'XXXX' "
+        m_pEditorProductID->setToolTip(tr("Product ID filter. The exact match string format is 'XXXX' "
                                           "where 'X' is a hexadecimal digit. An empty string will match any value."));
 
     if (m_pLabelRevision)
-        m_pLabelRevision->setText(tr("&Revision:"));
+        m_pLabelRevision->setText(tr("&Revision"));
     if (m_pEditorRevision)
-        m_pEditorRevision->setToolTip(tr("Holds the revision number filter. The exact match string format is "
+        m_pEditorRevision->setToolTip(tr("Revision number filter. The exact match string format is "
                                          "'IIFF' where 'I' is a decimal digit of the integer part and 'F' "
                                          "is a decimal digit of the fractional part. An empty string will match any value."));
 
     if (m_pLabelManufacturer)
-        m_pLabelManufacturer->setText(tr("&Manufacturer:"));
+        m_pLabelManufacturer->setText(tr("&Manufacturer"));
     if (m_pEditorManufacturer)
-        m_pEditorManufacturer->setToolTip(tr("Holds the manufacturer filter as an exact match string. An empty string "
+        m_pEditorManufacturer->setToolTip(tr("Manufacturer filter as an exact match string. An empty string "
                                              "will match any value."));
 
     if (m_pLabelProduct)
-        m_pLabelProduct->setText(tr("Pro&duct:"));
+        m_pLabelProduct->setText(tr("Pro&duct"));
     if (m_pEditorProduct)
-        m_pEditorProduct->setToolTip(tr("Holds the product name filter as an exact match string. An empty string will "
+        m_pEditorProduct->setToolTip(tr("Product name filter as an exact match string. An empty string will "
                                         "match any value."));
 
     if (m_pLabelSerialNo)
-        m_pLabelSerialNo->setText(tr("&Serial No.:"));
+        m_pLabelSerialNo->setText(tr("&Serial No."));
     if (m_pEditorSerialNo)
-        m_pEditorSerialNo->setToolTip(tr("Holds the serial number filter as an exact match string. An empty string will "
+        m_pEditorSerialNo->setToolTip(tr("Serial number filter as an exact match string. An empty string will "
                                          "match any value."));
 
     if (m_pLabelPort)
-        m_pLabelPort->setText(tr("Por&t:"));
+        m_pLabelPort->setText(tr("Por&t"));
     if (m_pEditorPort)
-        m_pEditorPort->setToolTip(tr("Holds the host USB port filter as an exact match string. An empty string will match "
+        m_pEditorPort->setToolTip(tr("Host USB port filter as an exact match string. An empty string will match "
                                      "any value."));
 
     if (m_pLabelRemote)
-        m_pLabelRemote->setText(tr("R&emote:"));
+        m_pLabelRemote->setText(tr("R&emote"));
     if (m_pComboRemote)
     {
         for (int i = 0; i < m_pComboRemote->count(); ++i)
@@ -233,8 +233,10 @@ void UIUSBFilterDetailsEditor::sltRetranslateUI()
             const UIRemoteMode enmType = m_pComboRemote->itemData(i).value<UIRemoteMode>();
             m_pComboRemote->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pComboRemote->setToolTip(tr("Holds whether this filter applies to USB devices attached locally to the host computer "
-                                      "(No), to a VRDP client's computer (Yes), or both (Any)."));
+        m_pComboRemote->setToolTip(tr("Coverage of the USB filter. "
+                                      "Defines whether it's applied to devices "
+                                      "attached locally to the host computer (No), "
+                                      "to a VRDP client's computer (Yes), or both (Any)."));
     }
 }
 

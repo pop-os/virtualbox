@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1063,7 +1063,7 @@ static VBOXSTRICTRC vbe_ioport_write_data(PPDMDEVINS pDevIns, PVGASTATE pThis, P
                 !(pThis->vbe_regs[VBE_DISPI_INDEX_ENABLE] & VBE_DISPI_ENABLED)) {
                 int h, shift_control;
                 /* Check the values before we screw up with a resolution which is too big or small. */
-                size_t cb = pThis->vbe_regs[VBE_DISPI_INDEX_XRES];
+                size_t cb;
                 if (pThis->vbe_regs[VBE_DISPI_INDEX_BPP] == 4)
                     cb = pThis->vbe_regs[VBE_DISPI_INDEX_XRES] >> 1;
                 else
@@ -1875,7 +1875,13 @@ static int vgaR3DrawText(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATER3 pThisC
             return rc;
         AssertRCReturn(rc, rc);
     }
-    AssertReturn(scr_width == (int)pDrv->cx && scr_height == (int)pDrv->cy, VERR_INVALID_STATE);
+
+    if (   scr_width != (int)pDrv->cx
+        || scr_height != (int)pDrv->cy)
+    {
+        AssertReturn(pDrv->cx == 0 && pDrv->cy == 0, VERR_INVALID_STATE);
+        return VINF_SUCCESS;
+    }
 
     x_incr = cw * ((pDrv->cBits + 7) >> 3);
 
@@ -2353,7 +2359,7 @@ static int vmsvgaR3DrawGraphic(PVGASTATE pThis, PVGASTATER3 pThisCC, bool fFullU
             v = VGA_DRAW_LINE32;
             break;
         default:
-        case 0:
+        /*case 0: - Superfluous, checked already in the if above */
             AssertFailed();
             return VERR_NOT_IMPLEMENTED;
     }
@@ -3330,7 +3336,7 @@ vgaR3IOPortHgsmiWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32
         {
             case VGA_PORT_HGSMI_HOST: /* Host */
             {
-# if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_VDMA) || defined(VBOX_WITH_WDDM)
+# if defined(VBOX_WITH_VDMA) || defined(VBOX_WITH_WDDM)
                 if (u32 == HGSMIOFFSET_VOID)
                 {
                     int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSectIRQ, VERR_SEM_BUSY);
@@ -4378,7 +4384,7 @@ static DECLCALLBACK(void) vgaR3InfoState(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
     NOREF(pszArgs);
 
     is_graph  = pThis->gr[6] & 1;
-    char_dots = (pThis->sr[0x01] & 1) ? 8 : 9;
+    char_dots = is_graph ? 8 : (pThis->sr[0x01] & 1) ? 8 : 9;
     double_scan = pThis->cr[9] >> 7;
     pHlp->pfnPrintf(pHlp, "decoding memory at %s\n", mem_map[(pThis->gr[6] >> 2) & 3]);
     pHlp->pfnPrintf(pHlp, "Misc status reg. MSR:%02X\n", pThis->msr);
@@ -4392,7 +4398,7 @@ static DECLCALLBACK(void) vgaR3InfoState(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
     val = pThis->cr[1] + 1;
     w   = val * char_dots;
     pHlp->pfnPrintf(pHlp, "hdisp : %d px (%d cclk)\n", w, val);
-    val = pThis->cr[0x12] + ((pThis->cr[7] & 2) << 7) + ((pThis->cr[7] & 0x40) << 4) + 1;
+    val = pThis->cr[0x12] + ((pThis->cr[7] & 2) << 7) + ((pThis->cr[7] & 0x40) << 3) + 1;
     h   = val;
     pHlp->pfnPrintf(pHlp, "vdisp : %d px\n", val);
     val = ((pThis->cr[9] & 0x40) << 3) + ((pThis->cr[7] & 0x10) << 4) + pThis->cr[0x18];
@@ -4785,9 +4791,7 @@ static DECLCALLBACK(void *) vgaR3PortQueryInterface(PPDMIBASE pInterface, const 
     PVGASTATECC pThisCC = RT_FROM_MEMBER(pInterface, VGASTATECC, IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThisCC->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIDISPLAYPORT, &pThisCC->IPort);
-# if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
-    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIDISPLAYVBVACALLBACKS, &pThisCC->IVBVACallbacks);
-# endif
+    /* pThisCC->IVBVACallbacks not used currently. */
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pThisCC->ILeds);
     return NULL;
 }
@@ -5581,10 +5585,6 @@ static DECLCALLBACK(void) vgaR3TimerRefresh(PPDMDEVINS pDevIns, TMTIMERHANDLE hT
     if (pThis->cMilliesRefreshInterval)
         PDMDevHlpTimerSetMillies(pDevIns, hTimer, pThis->cMilliesRefreshInterval);
 
-# ifdef VBOX_WITH_VIDEOHWACCEL
-    vbvaTimerCb(pDevIns, pThis, pThisCC);
-# endif
-
 # ifdef VBOX_WITH_VMSVGA
     /*
      * Call the VMSVGA FIFO poller/watchdog so we can wake up the thread if
@@ -5659,8 +5659,7 @@ static DECLCALLBACK(int) vgaR3PciIORegionVRamMapUnmap(PPDMDEVINS pDevIns, PPDMPC
          * Make sure the dirty page tracking state is up to date before mapping it.
          */
 # ifdef VBOX_WITH_VMSVGA
-        rc = PDMDevHlpMmio2ControlDirtyPageTracking(pDevIns, pThis->hMmio2VRam,
-                                                    !pThis->svga.fEnabled ||(pThis->svga.fEnabled && pThis->svga.fVRAMTracking));
+        rc = PDMDevHlpMmio2ControlDirtyPageTracking(pDevIns, pThis->hMmio2VRam, !pThis->svga.fEnabled || pThis->svga.fVRAMTracking);
 # else
         rc = PDMDevHlpMmio2ControlDirtyPageTracking(pDevIns, pThis->hMmio2VRam, true /*fEnabled*/);
 # endif
@@ -5839,13 +5838,8 @@ static DECLCALLBACK(int) vgaR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint
  */
 static DECLCALLBACK(int) vgaR3SavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-# ifdef VBOX_WITH_VIDEOHWACCEL
-    RT_NOREF(pSSM);
-    return vboxVBVASaveStatePrep(pDevIns);
-# else
     RT_NOREF(pDevIns, pSSM);
     return VINF_SUCCESS;
-# endif
 }
 
 
@@ -5854,13 +5848,8 @@ static DECLCALLBACK(int) vgaR3SavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) vgaR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-# ifdef VBOX_WITH_VIDEOHWACCEL
-    RT_NOREF(pSSM);
-    return vboxVBVASaveStateDone(pDevIns);
-# else
     RT_NOREF(pDevIns, pSSM);
     return VINF_SUCCESS;
-# endif
 }
 
 
@@ -5992,6 +5981,8 @@ static DECLCALLBACK(int) vgaR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint
         {
             uint32_t u32;
             rc = pHlp->pfnSSMGetU32(pSSM, &u32);
+            AssertRCReturn(rc, rc);
+
             if (u32)
             {
 # ifdef VBOX_WITH_VDMA
@@ -6268,14 +6259,6 @@ static DECLCALLBACK(int)  vgaAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
                         pThisCC->pDrvBase = NULL;
                         rc = VERR_INTERNAL_ERROR;
                     }
-# ifdef VBOX_WITH_VIDEOHWACCEL
-                    if(rc == VINF_SUCCESS)
-                    {
-                        rc = vbvaVHWAConstruct(pDevIns, pThis, pThisCC);
-                        if (rc != VERR_NOT_IMPLEMENTED)
-                            AssertRC(rc);
-                    }
-# endif
                 }
                 else
                 {
@@ -6386,7 +6369,7 @@ static DECLCALLBACK(int) vgaR3Destruct(PPDMDEVINS pDevIns)
         pThisCC->pbLogo = NULL;
     }
 
-# if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_VDMA) || defined(VBOX_WITH_WDDM)
+# if defined(VBOX_WITH_VDMA) || defined(VBOX_WITH_WDDM)
     PDMDevHlpCritSectDelete(pDevIns, &pThis->CritSectIRQ);
 # endif
     PDMDevHlpCritSectDelete(pDevIns, &pThis->CritSect);
@@ -6639,7 +6622,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     PDMPciDevSetClassSub(pPciDev,               0x00);   /* VGA controller */
     PDMPciDevSetClassBase(pPciDev,              0x03);
     PDMPciDevSetHeaderType(pPciDev,             0x00);
-# if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_VDMA) || defined(VBOX_WITH_WDDM))
+# if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VDMA) || defined(VBOX_WITH_WDDM))
     PDMPciDevSetInterruptPin(pPciDev,           1);
 # endif
 
@@ -6668,10 +6651,6 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     pThisCC->IPort.pfnSendModeHint      = vbvaR3PortSendModeHint;
     pThisCC->IPort.pfnReportHostCursorCapabilities = vgaR3PortReportHostCursorCapabilities;
     pThisCC->IPort.pfnReportHostCursorPosition = vgaR3PortReportHostCursorPosition;
-
-# if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
-    pThisCC->IVBVACallbacks.pfnVHWACommandCompleteAsync = vbvaR3VHWACommandCompleteAsync;
-# endif
 
     pThisCC->ILeds.pfnQueryStatusLed    = vgaR3PortQueryStatusLed;
     pThis->Led3D.u32Magic               = PDMLED_MAGIC;
@@ -6866,8 +6845,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
                 }
                 rc = VINF_SUCCESS;
             }
-            else
-                rc = VERR_NO_MEMORY;
+            /* else: Out of memory condition is ignored, see below. */
         }
         else
             pThisCC->pbVgaBios = NULL;
@@ -7441,7 +7419,7 @@ static DECLCALLBACK(int) vgaRZConstruct(PPDMDEVINS pDevIns)
         AssertRCReturn(rc, rc);
     }
     else
-        AssertReturn(!pThis->fVMSVGAEnabled, VERR_INVALID_STATE);
+        AssertReturn(!pThis->fVMSVGAEnabled || pThis->fVmSvga3, VERR_INVALID_STATE);
 
     if (pThis->hMmioSvga3 != NIL_IOMMMIOHANDLE)
     {

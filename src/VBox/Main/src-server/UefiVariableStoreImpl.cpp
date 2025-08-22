@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -373,23 +373,26 @@ HRESULT UefiVariableStore::queryVariables(std::vector<com::Utf8Str> &aNames,
         RTDIRENTRYEX DirEntry;
 
         vrc = RTVfsDirReadEx(hVfsDir, &DirEntry, NULL, RTFSOBJATTRADD_NOTHING);
-        for (;;)
+        if (RT_SUCCESS(vrc))
         {
-            RTUUID OwnerUuid;
-            vrc = i_uefiVarStoreQueryVarOwnerUuid(DirEntry.szName, &OwnerUuid);
-            if (RT_FAILURE(vrc))
-                break;
+            for (;;)
+            {
+                RTUUID OwnerUuid;
+                vrc = i_uefiVarStoreQueryVarOwnerUuid(DirEntry.szName, &OwnerUuid);
+                if (RT_FAILURE(vrc))
+                    break;
 
-            aNames.push_back(Utf8Str(DirEntry.szName));
-            aOwnerUuids.push_back(com::Guid(OwnerUuid));
+                aNames.push_back(Utf8Str(DirEntry.szName));
+                aOwnerUuids.push_back(com::Guid(OwnerUuid));
 
-            vrc = RTVfsDirReadEx(hVfsDir, &DirEntry, NULL, RTFSOBJATTRADD_NOTHING);
-            if (RT_FAILURE(vrc))
-                break;
+                vrc = RTVfsDirReadEx(hVfsDir, &DirEntry, NULL, RTFSOBJATTRADD_NOTHING);
+                if (RT_FAILURE(vrc))
+                    break;
+            }
+
+            if (vrc == VERR_NO_MORE_FILES)
+                vrc = VINF_SUCCESS;
         }
-
-        if (vrc == VERR_NO_MORE_FILES)
-            vrc = VINF_SUCCESS;
 
         RTVfsDirRelease(hVfsDir);
     }

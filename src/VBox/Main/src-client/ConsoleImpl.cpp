@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2005-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -101,7 +101,7 @@
 #include "ThreadTask.h"
 
 #ifdef VBOX_WITH_RECORDING
-# include "Recording.h"
+# include "RecordingContext.h"
 #endif
 
 #include "CryptoUtils.h"
@@ -405,7 +405,10 @@ VBOX_LISTENER_DECLARE(VmEventListenerImpl)
 /////////////////////////////////////////////////////////////////////////////
 
 Console::Console()
-    : mSavedStateDataLoaded(false)
+    : mcVRDPClients(0)
+    , mu32SingleRDPClientId(0)
+    , mfGuestCredentialsProvided(false)
+    , mSavedStateDataLoaded(false)
     , mConsoleVRDPServer(NULL)
     , mfVRDEChangeInProcess(false)
     , mfVRDEChangePending(false)
@@ -435,6 +438,8 @@ Console::Console()
     , muLedTypeGen(0)
     , mcLedSets(0)
     , m_pKeyStore(NULL)
+    , m_cDisksEncrypted(0)
+    , m_cDisksPwProvided(0)
     , mpIfSecKey(NULL)
     , mpIfSecKeyHlp(NULL)
     , mVMStateChangeCallbackDisabled(false)
@@ -443,6 +448,16 @@ Console::Console()
     , mhLdrModCrypto(NIL_RTLDRMOD)
     , mcRefsCrypto(0)
     , mpCryptoIf(NULL)
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    , m_fEncryptedLog(false)
+    , m_hVfsFileLog(NIL_RTVFSFILE)
+#endif
+#ifdef VBOX_WITH_SHARED_CLIPBOARD
+    , m_hHgcmSvcExtShCl(NULL)
+#endif
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    , m_hHgcmSvcExtDragAndDrop(NULL)
+#endif
 {
     RT_ZERO(maLedSets);
     RT_ZERO(maLedTypes);
@@ -542,10 +557,9 @@ HRESULT Console::initWithMachine(IMachine *aMachine, IInternalMachineControl *aC
     hrc = mEventSource->init();
     AssertComRCReturnRC(hrc);
 
-    mcAudioRefs = 0;
     mcVRDPClients = 0;
     mu32SingleRDPClientId = 0;
-    mcGuestCredentialsProvided = false;
+    mfGuestCredentialsProvided = false;
 
     ComPtr<IPlatform> pPlatform;
     hrc = mMachine->COMGETTER(Platform)(pPlatform.asOutParam());
@@ -564,7 +578,7 @@ HRESULT Console::initWithMachine(IMachine *aMachine, IInternalMachineControl *aC
         switch (platformArch)
         {
             case PlatformArchitecture_x86:
-#ifdef VBOX_WITH_VIRT_ARMV8
+#if !defined(RT_ARCH_AMD64) && !defined(VBOX_WITH_X86_ON_ARM_ENABLED)
                 {
                     ComPtr<IVirtualBox> pVirtualBox;
                     hrc = mMachine->COMGETTER(Parent)(pVirtualBox.asOutParam());
@@ -587,11 +601,32 @@ HRESULT Console::initWithMachine(IMachine *aMachine, IInternalMachineControl *aC
                 break;
 #ifdef VBOX_WITH_VIRT_ARMV8
             case PlatformArchitecture_ARM:
+#if !defined(RT_ARCH_ARM64) && !defined(VBOX_WITH_ARM_ON_X86_ENABLED)
+                {
+                    ComPtr<IVirtualBox> pVirtualBox;
+                    hrc = mMachine->COMGETTER(Parent)(pVirtualBox.asOutParam());
+                    if (SUCCEEDED(hrc))
+                    {
+                        Bstr bstrEnableArmOnX86;
+                        hrc = pVirtualBox->GetExtraData(Bstr("VBoxInternal2/EnableArmOnX86").raw(), bstrEnableArmOnX86.asOutParam());
+                        if (FAILED(hrc) || !bstrEnableArmOnX86.equals("1"))
+                        {
+                            hrc = setError(VBOX_E_PLATFORM_ARCH_NOT_SUPPORTED,
+                                           tr("Cannot run the machine because its platform architecture %s is not supported on %s"),
+                                           Global::stringifyPlatformArchitecture(platformArch),
+                                           Global::stringifyPlatformArchitecture(PlatformArchitecture_x86));
+                            break;
+                        }
+                    }
+                }
+#endif
                 pszVMM = "VBoxVMMArm";
                 break;
 #endif
             default:
-                hrc = VBOX_E_PLATFORM_ARCH_NOT_SUPPORTED;
+                hrc = setError(VBOX_E_PLATFORM_ARCH_NOT_SUPPORTED,
+                               tr("Cannot run the machine because its platform architecture %s is not supported"),
+                               Global::stringifyPlatformArchitecture(platformArch));
                 break;
         }
 
@@ -616,6 +651,7 @@ HRESULT Console::initWithMachine(IMachine *aMachine, IInternalMachineControl *aC
 
         ULONG cCpus = 1;
         hrc = mMachine->COMGETTER(CPUCount)(&cCpus);
+        AssertComRCReturnRC(hrc);
         mGuest->i_setCpuCount(cCpus);
 
         unconst(mKeyboard).createObject();
@@ -1455,7 +1491,7 @@ int Console::i_VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const 
         if (SUCCEEDED(hrc) && noLoggedInUsersValue != "false")
         {
             /* And only if there are no connected clients. */
-            if (ASMAtomicCmpXchgBool(&mcGuestCredentialsProvided, true, false))
+            if (ASMAtomicCmpXchgBool(&mfGuestCredentialsProvided, true, false))
             {
                 fProvideGuestCredentials = TRUE;
             }
@@ -1608,7 +1644,7 @@ void Console::i_VRDPClientDisconnect(uint32_t u32ClientId,
 #endif /* VBOX_WITH_GUEST_PROPS */
 
     if (u32Clients == 0)
-        mcGuestCredentialsProvided = false;
+        mfGuestCredentialsProvided = false;
 
     LogFlowFuncLeave();
     return;
@@ -1697,6 +1733,8 @@ inline static const char *networkAdapterTypeToName(NetworkAdapterType_T adapterT
             return "dp8390";
         case NetworkAdapterType_ELNK1:
             return "3c501";
+        case NetworkAdapterType_UsbNet:
+            return "UsbNet";
         default:
             AssertFailed();
             return "unknown";
@@ -2866,6 +2904,8 @@ HRESULT Console::getGuestEnteredACPIMode(BOOL *aEntered)
                     vrc = VERR_PDM_MISSING_INTERFACE;
             }
         }
+
+        /** @todo r=andy Communicate (some of the) vrc errors to hrc (+ set error). */
     }
 
     LogFlowThisFuncLeave();
@@ -3334,7 +3374,7 @@ HRESULT Console::removeSharedFolder(const com::Utf8Str &aName)
         if (FAILED(hrc))
             return hrc;
 
-        /* first, remove the machine or the global folder if there is any */
+        /* second, add the machine or the global folder if there is any */
         SharedFolderDataMap::const_iterator it;
         if (i_findOtherSharedFolder(aName, it))
         {
@@ -4352,7 +4392,11 @@ HRESULT Console::i_onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL
                     alock.release();
 
                     PPDMIBASE pBase = NULL;
-                    int vrc = ptrVM.vtable()->pfnPDMR3QueryDeviceLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
+                    int vrc = VINF_SUCCESS;
+                    if (adapterType == NetworkAdapterType_UsbNet)
+                        vrc = ptrVM.vtable()->pfnPDMR3UsbQueryDeviceLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
+                    else
+                        vrc = ptrVM.vtable()->pfnPDMR3QueryDeviceLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
                     if (RT_SUCCESS(vrc))
                     {
                         Assert(pBase);
@@ -4461,7 +4505,11 @@ HRESULT Console::i_onNATRedirectRuleChanged(ULONG ulInstance, BOOL aNatRuleRemov
 
             const char *pszAdapterName = networkAdapterTypeToName(adapterType);
             PPDMIBASE pBase;
-            int vrc = ptrVM.vtable()->pfnPDMR3QueryLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
+            int vrc;
+            if (adapterType == NetworkAdapterType_UsbNet)
+                vrc = ptrVM.vtable()->pfnPDMR3UsbQueryLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
+            else
+                vrc = ptrVM.vtable()->pfnPDMR3QueryLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
             if (RT_FAILURE(vrc))
             {
                 /* This may happen if the NAT network adapter is currently not attached.
@@ -6210,7 +6258,7 @@ int Console::i_recordingEnable(BOOL fEnable, util::AutoWriteLock *pAutoLock, Com
                 if (   mRecording.mCtx.IsFeatureEnabled(RecordingFeature_Audio)
                     && mRecording.mAudioRec)
                 {
-                    vrc = mRecording.mAudioRec->applyConfiguration(mRecording.mCtx.GetConfig());
+                    vrc = mRecording.mAudioRec->applyConfiguration(mRecording.mCtx.GetSettings());
                     if (RT_SUCCESS(vrc))
                         vrc = mRecording.mAudioRec->doAttachDriverViaEmt(ptrVM.rawUVM(), ptrVM.vtable(), pAutoLock);
 
@@ -6258,14 +6306,17 @@ int Console::i_recordingEnable(BOOL fEnable, util::AutoWriteLock *pAutoLock, Com
 /**
  * Called by IInternalSessionControl::OnRecordingStateChange().
  */
-HRESULT Console::i_onRecordingStateChange(BOOL aEnable, ComPtr<IProgress> &aProgress)
+HRESULT Console::i_onRecordingStateChange(RecordingState_T aState, ComPtr<IProgress> &aProgress)
 {
 #ifdef VBOX_WITH_RECORDING
     HRESULT hrc = S_OK;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogRel2(("Recording: State changed (%s)\n", aEnable ? "enabled" : "disabled"));
+    /* Note: Currently we only support starting / stopping recording. See @bugref{10947}. */
+    BOOL const fEnable = aState == RecordingState_Started;
+
+    LogRel2(("Recording: State changed (%s)\n", fEnable ? "enabled" : "disabled"));
 
     /* Don't trigger recording changes if the VM isn't running. */
     SafeVMPtrQuiet ptrVM(this);
@@ -6273,7 +6324,7 @@ HRESULT Console::i_onRecordingStateChange(BOOL aEnable, ComPtr<IProgress> &aProg
     {
         ComPtr<IVirtualBoxErrorInfo> pErrorInfo;
 
-        int vrc = i_recordingEnable(aEnable, &alock, aProgress);
+        int vrc = i_recordingEnable(fEnable, &alock, aProgress);
         if (RT_FAILURE(vrc))
         {
             /* If available, get the error information from the progress object and fire it via the event below. */
@@ -6287,7 +6338,7 @@ HRESULT Console::i_onRecordingStateChange(BOOL aEnable, ComPtr<IProgress> &aProg
         alock.release(); /* Release lock before firing event. */
 
         if (vrc != VINF_NO_CHANGE)
-            ::FireRecordingStateChangedEvent(mEventSource, aEnable, pErrorInfo);
+            ::FireRecordingStateChangedEvent(mEventSource, aState, pErrorInfo);
 
         if (RT_FAILURE(vrc))
             hrc = VBOX_E_RECORDING_ERROR;
@@ -6297,7 +6348,7 @@ HRESULT Console::i_onRecordingStateChange(BOOL aEnable, ComPtr<IProgress> &aProg
 
     return hrc;
 #else
-    RT_NOREF(aEnable, aProgress);
+    RT_NOREF(aState, aProgress);
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_RECORDING */
 }
@@ -6305,9 +6356,9 @@ HRESULT Console::i_onRecordingStateChange(BOOL aEnable, ComPtr<IProgress> &aProg
 /**
  * Called by IInternalSessionControl::OnRecordingScreenStateChange().
  */
-HRESULT Console::i_onRecordingScreenStateChange(BOOL aEnable, ULONG aScreen)
+HRESULT Console::i_onRecordingScreenStateChange(RecordingState_T aState, ULONG aScreen)
 {
-    RT_NOREF(aEnable, aScreen);
+    RT_NOREF(aState, aScreen);
     ReturnComNotImplemented();
 }
 
@@ -7583,7 +7634,7 @@ HRESULT Console::i_saveState(Reason_T aReason, const ComPtr<IProgress> &aProgres
     }
 
     LogFlowFuncLeave();
-    return S_OK;
+    return hrc;
 }
 
 /**
@@ -7634,94 +7685,6 @@ HRESULT Console::i_recordingSendAudio(const void *pvData, size_t cbData, uint64_
 #endif /* VBOX_WITH_AUDIO_RECORDING */
 
 #ifdef VBOX_WITH_RECORDING
-
-int Console::i_recordingGetSettings(settings::Recording &Settings)
-{
-    Assert(mMachine.isNotNull());
-
-    Settings.applyDefaults();
-
-    ComPtr<IRecordingSettings> pRecordSettings;
-    HRESULT hrc = mMachine->COMGETTER(RecordingSettings)(pRecordSettings.asOutParam());
-    AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-
-    BOOL fTemp;
-    hrc = pRecordSettings->COMGETTER(Enabled)(&fTemp);
-    AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-    Settings.common.fEnabled = RT_BOOL(fTemp);
-
-    SafeIfaceArray<IRecordingScreenSettings> paRecScreens;
-    hrc = pRecordSettings->COMGETTER(Screens)(ComSafeArrayAsOutParam(paRecScreens));
-    AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-
-    for (unsigned long i = 0; i < (unsigned long)paRecScreens.size(); ++i)
-    {
-        settings::RecordingScreen recScreenSettings;
-        ComPtr<IRecordingScreenSettings> pRecScreenSettings = paRecScreens[i];
-
-        hrc = pRecScreenSettings->COMGETTER(Enabled)(&fTemp);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        recScreenSettings.fEnabled = RT_BOOL(fTemp);
-        com::SafeArray<RecordingFeature_T> vecFeatures;
-        hrc = pRecScreenSettings->COMGETTER(Features)(ComSafeArrayAsOutParam(vecFeatures));
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        /* Make sure to clear map first, as we want to (re-)set enabled features. */
-        recScreenSettings.featureMap.clear();
-        for (size_t f = 0; f < vecFeatures.size(); ++f)
-        {
-            if (vecFeatures[f] == RecordingFeature_Audio)
-                recScreenSettings.featureMap[RecordingFeature_Audio] = true;
-            else if (vecFeatures[f] == RecordingFeature_Video)
-                recScreenSettings.featureMap[RecordingFeature_Video] = true;
-        }
-        hrc = pRecScreenSettings->COMGETTER(MaxTime)((ULONG *)&recScreenSettings.ulMaxTimeS);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(MaxFileSize)((ULONG *)&recScreenSettings.File.ulMaxSizeMB);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        Bstr bstrTemp;
-        hrc = pRecScreenSettings->COMGETTER(Filename)(bstrTemp.asOutParam());
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        recScreenSettings.File.strName = bstrTemp;
-        hrc = pRecScreenSettings->COMGETTER(Options)(bstrTemp.asOutParam());
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        recScreenSettings.strOptions = bstrTemp;
-        hrc = pRecScreenSettings->COMGETTER(AudioCodec)(&recScreenSettings.Audio.enmCodec);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(AudioDeadline)(&recScreenSettings.Audio.enmDeadline);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(AudioRateControlMode)(&recScreenSettings.Audio.enmRateCtlMode);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(AudioHz)((ULONG *)&recScreenSettings.Audio.uHz);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(AudioBits)((ULONG *)&recScreenSettings.Audio.cBits);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(AudioChannels)((ULONG *)&recScreenSettings.Audio.cChannels);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(VideoCodec)(&recScreenSettings.Video.enmCodec);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(VideoWidth)((ULONG *)&recScreenSettings.Video.ulWidth);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(VideoHeight)((ULONG *)&recScreenSettings.Video.ulHeight);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(VideoDeadline)(&recScreenSettings.Video.enmDeadline);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(VideoRateControlMode)(&recScreenSettings.Video.enmRateCtlMode);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(VideoScalingMode)(&recScreenSettings.Video.enmScalingMode);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(VideoRate)((ULONG *)&recScreenSettings.Video.ulRate);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-        hrc = pRecScreenSettings->COMGETTER(VideoFPS)((ULONG *)&recScreenSettings.Video.ulFPS);
-        AssertComRCReturn(hrc, VERR_INVALID_PARAMETER);
-
-        Settings.mapScreens[i] = recScreenSettings;
-    }
-
-    Assert(Settings.mapScreens.size() == paRecScreens.size());
-
-    return VINF_SUCCESS;
-}
-
 /**
  * Creates the recording context.
  *
@@ -7729,11 +7692,7 @@ int Console::i_recordingGetSettings(settings::Recording &Settings)
  */
 int Console::i_recordingCreate(ComPtr<IProgress> &pProgress)
 {
-    settings::Recording Settings;
-    int vrc = i_recordingGetSettings(Settings);
-    if (RT_SUCCESS(vrc))
-        vrc = mRecording.mCtx.Create(this, Settings, pProgress);
-
+    int vrc = mRecording.mCtx.Create(this, pProgress);
     if (RT_FAILURE(vrc))
         setErrorBoth(VBOX_E_RECORDING_ERROR, vrc, tr("Recording initialization failed (%Rrc) -- please consult log file for details"), vrc);
 
@@ -8132,11 +8091,12 @@ HRESULT Console::i_loadVMM(const char *pszVMMMod) RT_NOEXCEPT
                             return S_OK;
                         }
 
-                        hrc = setErrorVrc(vrc, "Bogus VMM vtable: uMagicVersion=%#RX64 uMagicVersionEnd=%#RX64",
+                        hrc = setErrorVrc(VWRN_INVALID_MAGIC, "Bogus VMM vtable: uMagicVersion=%#RX64 uMagicVersionEnd=%#RX64",
                                           pVMM->uMagicVersion, pVMM->uMagicVersionEnd);
                     }
                     else
-                        hrc = setErrorVrc(vrc, "Incompatible of bogus VMM version magic: %#RX64", pVMM->uMagicVersion);
+                        hrc = setErrorVrc(VERR_VERSION_MISMATCH, "Incompatible of bogus VMM version magic: %#RX64",
+                                          pVMM->uMagicVersion);
                 }
                 else
                     hrc = setErrorVrc(vrc, "pfnGetVTable return NULL!");
@@ -8717,7 +8677,7 @@ HRESULT Console::i_powerUp(IProgress **aProgress, bool aPaused)
         /* Setup task object and thread to carry out the operation
          * asynchronously */
         try { task = new VMPowerUpTask(this, pPowerupProgress); }
-        catch (std::bad_alloc &) { throw hrc = E_OUTOFMEMORY; }
+        catch (std::bad_alloc &) { throw E_OUTOFMEMORY; }
         if (!task->isOk())
             throw task->hrc();
 
@@ -8726,7 +8686,7 @@ HRESULT Console::i_powerUp(IProgress **aProgress, bool aPaused)
         task->mStartPaused = aPaused;
         if (mMachineState == MachineState_Saved || mMachineState == MachineState_AbortedSaved)
             try { task->mSavedStateFile = strSavedStateFile; }
-            catch (std::bad_alloc &) { throw hrc = E_OUTOFMEMORY; }
+            catch (std::bad_alloc &) { throw E_OUTOFMEMORY; }
         task->mTeleporterEnabled = fTeleporterEnabled;
 
         /* Reset differencing hard disks for which autoReset is true,
@@ -9451,7 +9411,99 @@ HRESULT Console::i_fetchSharedFolders(BOOL aGlobal)
     {
         if (aGlobal)
         {
-            /// @todo grab & process global folders when they are done
+            SharedFolderDataMap oldFolders;
+            oldFolders = m_mapGlobalSharedFolders;
+
+            m_mapGlobalSharedFolders.clear();
+
+            ComPtr<IVirtualBox> ptrVirtualBox;
+            hrc = mMachine->COMGETTER(Parent)(ptrVirtualBox.asOutParam());
+            if (FAILED(hrc)) throw hrc;
+            SafeIfaceArray<ISharedFolder> folders;
+            hrc = ptrVirtualBox->COMGETTER(SharedFolders)(ComSafeArrayAsOutParam(folders));
+            if (FAILED(hrc)) throw hrc;
+
+            for (size_t i = 0; i < folders.size(); ++i)
+            {
+                ComPtr<ISharedFolder> pSharedFolder = folders[i];
+
+                Bstr bstr;
+                hrc = pSharedFolder->COMGETTER(Name)(bstr.asOutParam());
+                if (FAILED(hrc)) throw hrc;
+                Utf8Str strName(bstr);
+
+                hrc = pSharedFolder->COMGETTER(HostPath)(bstr.asOutParam());
+                if (FAILED(hrc)) throw hrc;
+                Utf8Str strHostPath(bstr);
+
+                BOOL writable;
+                hrc = pSharedFolder->COMGETTER(Writable)(&writable);
+                if (FAILED(hrc)) throw hrc;
+
+                BOOL autoMount;
+                hrc = pSharedFolder->COMGETTER(AutoMount)(&autoMount);
+                if (FAILED(hrc)) throw hrc;
+
+                hrc = pSharedFolder->COMGETTER(AutoMountPoint)(bstr.asOutParam());
+                if (FAILED(hrc)) throw hrc;
+                Utf8Str strAutoMountPoint(bstr);
+
+                m_mapGlobalSharedFolders.insert(std::make_pair(strName,
+                                                               SharedFolderData(strHostPath, !!writable,
+                                                                                 !!autoMount, strAutoMountPoint)));
+
+                /* send changes to HGCM if the VM is running */
+                if (online)
+                {
+                    SharedFolderDataMap::iterator it = oldFolders.find(strName);
+                    if (    it == oldFolders.end()
+                         || it->second.m_strHostPath != strHostPath)
+                    {
+                        /* a new global folder is added or
+                         * the existing global folder is changed */
+                        if (m_mapSharedFolders.find(strName) != m_mapSharedFolders.end())
+                            ; /* the console folder exists, nothing to do */
+                        else if (m_mapMachineSharedFolders.find(strName) != m_mapMachineSharedFolders.end())
+                            ; /* the machine folder exists, nothing to do */
+                        else
+                        {
+                            /* remove the old global folder (when changed) */
+                            if (it != oldFolders.end())
+                            {
+                                hrc = i_removeSharedFolder(strName);
+                                if (FAILED(hrc)) throw hrc;
+                            }
+
+                            /* create the new global folder */
+                            hrc = i_createSharedFolder(strName,
+                                                       SharedFolderData(strHostPath, !!writable, !!autoMount, strAutoMountPoint));
+                            if (FAILED(hrc)) throw hrc;
+                        }
+                    }
+                    /* forget the processed (or identical) folder */
+                    if (it != oldFolders.end())
+                        oldFolders.erase(it);
+                }
+            }
+
+            /* process outdated (removed) folders */
+            if (online)
+            {
+                for (SharedFolderDataMap::const_iterator it = oldFolders.begin();
+                     it != oldFolders.end(); ++it)
+                {
+                    if (m_mapSharedFolders.find(it->first) != m_mapSharedFolders.end())
+                        ; /* the console folder exists, nothing to do */
+                    else if (m_mapMachineSharedFolders.find(it->first) != m_mapMachineSharedFolders.end())
+                        ; /* the machine folder exists, nothing to do */
+                    else
+                    {
+                        /* remove the outdated global folder */
+                        hrc = i_removeSharedFolder(it->first);
+                        if (FAILED(hrc)) throw hrc;
+                    }
+                }
+            }
         }
         else
         {
@@ -9589,7 +9641,7 @@ bool Console::i_findOtherSharedFolder(const Utf8Str &strName,
     if (aIt != m_mapMachineSharedFolders.end())
         return true;
 
-    /* second, search machine folders */
+    /* second, search global folders */
     aIt = m_mapGlobalSharedFolders.find(strName);
     if (aIt != m_mapGlobalSharedFolders.end())
         return true;

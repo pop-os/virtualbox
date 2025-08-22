@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -540,7 +540,6 @@ static DECLCALLBACK(int) vdIfTcpNetSelectOneExNoPoll(VDSOCKET hVdSock, uint32_t 
 /** @interface_method_impl{VDINTERFACETCPNET,pfnPoke} */
 static DECLCALLBACK(int) vdIfTcpNetPoke(VDSOCKET hVdSock)
 {
-    int rc = VINF_SUCCESS;
     size_t cbWritten = 0;
     PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
 
@@ -548,8 +547,8 @@ static DECLCALLBACK(int) vdIfTcpNetPoke(VDSOCKET hVdSock)
 
     if (ASMAtomicReadBool(&pSockInt->fWaiting))
     {
-        rc = RTPipeWrite(pSockInt->hPipeW, "", 1, &cbWritten);
-        Assert(RT_SUCCESS(rc) || cbWritten == 0);
+        int rc = RTPipeWrite(pSockInt->hPipeW, "", 1, &cbWritten);
+        Assert(RT_SUCCESS(rc) || cbWritten == 0); RT_NOREF(rc);
     }
 
     return VINF_SUCCESS;

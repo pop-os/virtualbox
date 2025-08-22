@@ -3,7 +3,7 @@
 # libraries VBox OSE depends on.
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -89,7 +89,6 @@ TARGET_CPU=""
 WITH_XPCOM=1
 WITH_PYTHON=1
 WITH_JAVA=1
-WITH_VMMRAW=1
 WITH_QT6=1
 WITH_SDL=1
 WITH_SDL_TTF=1
@@ -129,7 +128,6 @@ CXX="g++"
 CXX32=""
 CXX64=""
 YASM="yasm"
-IASL="iasl"
 XSLTPROC="xsltproc"
 INCCRYPTO=""
 LIBCRYPTO="-lssl -lcrypto"
@@ -174,8 +172,16 @@ PYTHONDIR="/usr /usr/local"
 QT6DIR="/usr/lib/qt6 /usr/share/qt6 /usr/lib64/qt6 /usr /usr/local"
 QT6DIR_PKGCONFIG=1
 QT6MAJ=6
-QT6MIN=3
-KBUILDDIR="`cd \`dirname $0\`; pwd`/kBuild"
+QT6MIN=8
+#
+# Git submodules can only mirror whole repositories, not sub directories,
+# meaning that kBuild is residing a level deeper than with svn externals.
+#
+if [ -d "`cd \`dirname $0\`; pwd`/kBuild/kBuild" ]; then
+  KBUILDDIR="`cd \`dirname $0\`; pwd`/kBuild/kBuild"
+else
+  KBUILDDIR="`cd \`dirname $0\`; pwd`/kBuild"
+fi
 DEVDIR="`cd \`dirname $0\`; pwd`/tools"
 if [ -d "/lib/modules/`uname -r`/build" ]; then
   LINUX="/lib/modules/`uname -r`/build"
@@ -422,6 +428,10 @@ check_environment()
         BUILD_MACHINE='sparc32'
         BUILD_CPU='blend'
         ;;
+    aarch64|arm64)
+        BUILD_MACHINE='arm64'
+        BUILD_CPU='blend'
+        ;;
     *)
       log_failure "Cannot determine system"
       exit 1
@@ -508,7 +518,7 @@ check_gcc()
         [ -z "$CC64"  ] && CC64="$CC -m64"
         [ -z "$CXX64" ] && CXX64="$CXX -m64"
       fi
-      if [ "$TARGET_MACHINE" = "amd64" -a $WITH_VMMRAW -eq 0 ]; then
+      if [ "$TARGET_MACHINE" = "amd64" ]; then
         CC32="undefined"
         CXX32="undefined"
       fi
@@ -656,25 +666,6 @@ check_yasm()
         [ "$YASM" != "yasm" ] && cnf_append "PATH_TOOL_YASM" "`dirname $YASM`"
         log_success "found version $yasm_ver"
       fi
-    fi
-  fi
-}
-
-
-#
-# Check for the iasl ACPI compiler, needed to compile vbox.dsl
-#
-check_iasl()
-{
-  test_header iasl
-  if check_avail "$IASL" IASL; then
-    iasl_ver=`$IASL|grep "ASL.*version"|sed 's+^ASL.*version \([0-9]*\).*+\1+'`
-    if [ $? -ne 0 ]; then
-      log_failure "iasl not found"
-      fail
-    else
-      log_success "found version $iasl_ver"
-      cnf_append "VBOX_IASLCMD" "`which_wrapper $IASL`"
     fi
   fi
 }
@@ -1846,7 +1837,7 @@ check_libvorbis()
     if [ $? -eq 0 ]; then
       FLGVRB=`pkg-config vorbis --cflags`
       INCVRB=`strip_I "$FLGVRB"`
-      LIBVRB=`pkg-config vorbis --libs`
+      LIBVRB=`pkg-config vorbis vorbisenc --libs`
     fi
     cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
@@ -1855,8 +1846,18 @@ extern "C" int main(void)
 {
   vorbis_info v;
   vorbis_info_init(&v);
-  printf("found, OK.\n");
-  return 0;
+  int vorbis_rc = vorbis_encode_init_vbr(&v, 2 /* channels */, 44100 /* hz */, (float).4 /* quality */);
+  if (vorbis_rc == 0)
+  {
+    vorbis_rc = vorbis_encode_setup_init(&v);
+    if (vorbis_rc)
+      printf("vorbis_encode_setup_init() failed (%d)\n", vorbis_rc);
+  }
+  else
+    printf("vorbis_encode_init_vbr() failed (%d)\n", vorbis_rc);
+  if (vorbis_rc == 0)
+    printf("Vorbis found, OK.\n");
+  return vorbis_rc;
 }
 EOF
     [ -n "$INCVRB" ] && I_INCVRB=`prefix_I "$INCVRB"`
@@ -2085,45 +2086,6 @@ EOF
   fi
 }
 
-#
-# Check if we are able to build 32-bit applications (needed for the guest additions)
-#
-check_32bit()
-{
-  test_header "32-bit support"
-  cat > $ODIR.tmp_src.c << EOF
-#include <stdint.h>
-int main(void)
-{
-  return 0;
-}
-EOF
-  echo "compiling the following source file:" >> $LOG
-  cat $ODIR.tmp_src.c >> $LOG
-  echo "using the following command line:" >> $LOG
-  echo "$CC -m32 -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c" >> $LOG
-  $CC -m32 -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c >> $LOG 2>&1
-  if [ $? -ne 0 ]; then
-    echo
-    echo "  Cannot compile 32-bit applications (missing headers and/or libraries)!"
-    echo "  Check the file $LOG for detailed error information."
-    fail
-  else
-    echo "executing the binary" >> $LOG
-    $ODIR.tmp_out 2> $ODIR.test_execute.log
-    rc=$?
-    cat $ODIR.test_execute.log >> $LOG
-    if [ $rc -ne 0 ]; then
-      echo
-      echo "  Cannot execute 32-bit applications! Either enable 32-bit support in the"
-      echo "  kernel configuration or use --disable-vmmraw to disable 32-bit guests."
-      fail
-      return 1
-    fi
-  fi
-  log_success ""
-}
-
 
 #
 # Check for Python
@@ -2196,7 +2158,15 @@ EOF
 check_java()
 {
   test_header "Java support"
-  log_success
+  if ! which_wrapper javac > /dev/null; then
+    echo "  javac not found, automatically disabling Java bindings!"
+    WITH_JAVA=0
+  elif ! which_wrapper wsimport > /dev/null; then
+    echo "  wsimport not found, automatically disabling Java bindings!"
+    WITH_JAVA=0
+  else
+    log_success
+  fi
 }
 
 
@@ -2206,10 +2176,6 @@ check_java()
 setup_wine()
 {
   test_header "Wine support"
-  if ! which_wrapper wine > /dev/null; then
-    echo "  wine binary not found"
-    fail
-  fi
   if ! which_wrapper wine > /dev/null; then
     echo "  wine not found"
     fail
@@ -2498,7 +2464,6 @@ EOF
 [ $WITH_XPCOM   -eq 1 ] && echo "  --disable-xpcom          disable XPCOM and related stuff"
 [ $WITH_PYTHON  -eq 1 ] && echo "  --disable-python         disable python bindings"
 [ $WITH_JAVA    -eq 1 ] && echo "  --disable-java           disable java bindings"
-[ $WITH_VMMRAW  -eq 1 ] && echo "  --disable-vmmraw         disable VMM raw mode (VT-x/AMD-V mandatory!)"
 [ $WITH_SDL_TTF -eq 1 ] && echo "  --disable-sdl-ttf        disable SDL_ttf detection"
 [ $WITH_QT6     -eq 1 ] && echo "  --disable-qt             disable Qt detection"
 [ $WITH_ALSA    -eq 1 ] && echo "  --disable-alsa           disable the ALSA sound backend"
@@ -2537,8 +2502,7 @@ Paths:
   --with-gcc=PATH          location of the gcc compiler [$CC]
   --with-g++=PATH          location of the g++ compiler [$CXX]
   --with-kbuild=DIR        kbuild directory [$KBUILDDIR]
-  --with-iasl=PATH         location of the iasl compiler [$IASL]
-  --with-yasm=PATH         location of the iasl compiler [$YASM]
+  --with-yasm=PATH         location of the yasm compiler [$YASM]
   --with-makeself=PATH     location of makeself [$MAKESELF]
 EOF
 [ "$OS"   = "darwin" ] && echo "  --with-xcode-dir=DIR     custom path to Xcode root directory; it is assumed that Xcode"
@@ -2670,9 +2634,6 @@ for option in "$@"; do
     --with-gsoap-import=*)
       GSOAP_IMPORT=`echo $option | cut -d'=' -f2`
       ;;
-    --with-iasl=*)
-      IASL=`echo $option | cut -d'=' -f2`
-      ;;
     --with-yasm=*)
       YASM=`echo $option | cut -d'=' -f2`
       ;;
@@ -2698,7 +2659,6 @@ for option in "$@"; do
       [ $WITH_JAVA -eq 1 ] && WITH_JAVA=0
       ;;
     --disable-vmmraw)
-      [ $WITH_VMMRAW -eq 1 ] && WITH_VMMRAW=0
       ;;
     --disable-sdl-ttf)
       [ $WITH_SDL_TTF -eq 1 ] && WITH_SDL_TTF=0
@@ -2952,7 +2912,6 @@ fi
 if [ $WITH_OPENGL -eq 0 ]; then
   cnf_append "VBOX_WITH_VMSVGA3D" ""
   cnf_append "VBOX_WITH_3D_ACCELERATION" ""
-  cnf_append "VBOX_WITH_VIDEOHWACCEL" ""
   cnf_append "VBOX_GUI_USE_QGL" ""
 fi
 [ $WITH_XPCOM     -eq 0 ] && cnf_append "VBOX_WITH_MAIN" ""
@@ -2963,7 +2922,6 @@ fi
 [ $WITH_JAVA      -eq 0 ] && cnf_append "VBOX_WITH_JWS" ""
 [ $WITH_HARDENING -eq 0 ] && cnf_append "VBOX_WITHOUT_HARDENING" "1"
 [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
-[ $WITH_VMMRAW    -eq 0 ] && cnf_append "VBOX_WITH_RAW_MODE" ""
 [ $WITH_LIBTPMS   -eq 0 ] && cnf_append "VBOX_WITH_LIBTPMS" ""
 [ $WITH_LIBLZMA   -eq 0 ] && cnf_append "VBOX_WITH_LIBLZMA" ""
 if [ $WITH_LIBVPX -eq 0 ]; then
@@ -2983,7 +2941,6 @@ fi
 [ "$OS" = "darwin"  ] && check_xcode
 if [ $ONLY_ADDITIONS -eq 0 ]; then
   check_open_watcom
-  [ "$OS" != "darwin"  ] && check_iasl
   [ $OSE -ge 1 ] && check_yasm
   [ "$OS" != "darwin"  ] && check_xsltproc
 fi
@@ -3058,7 +3015,6 @@ if [ "$OS" = "linux" ]; then
     check_libcap
   fi
   check_compiler_h
-  [ $ONLY_ADDITIONS -eq 0 -a "$BUILD_MACHINE" = "amd64" -a $WITH_VMMRAW -eq 1 ] && check_32bit
   # tools/common/makeself*
   [ $OSE -ge 1 ] && check_makeself
 fi

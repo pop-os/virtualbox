@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -414,7 +414,7 @@ int GuestFile::i_close(int *prcGuest)
 
     /* Prepare HGCM call. */
     VBOXHGCMSVCPARM paParms[4];
-    int i = 0;
+    unsigned i = 0;
     HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
     HGCMSvcSetU32(&paParms[i++], mObjectID /* Guest file ID */);
 
@@ -453,6 +453,7 @@ Utf8Str GuestFile::i_guestErrorToString(int rcGuest, const char *pcszWhat)
         CASE_MSG(VERR_ACCESS_DENIED     , tr("Access to guest file \"%s\" denied"), pcszWhat);
         CASE_MSG(VERR_ALREADY_EXISTS    , tr("Guest file \"%s\" already exists"), pcszWhat);
         CASE_MSG(VERR_FILE_NOT_FOUND    , tr("Guest file \"%s\" not found"), pcszWhat);
+        CASE_MSG(VERR_PATH_NOT_FOUND    , tr("Path to guest file \"%s\" not found"), pcszWhat);
         CASE_MSG(VERR_NET_HOST_NOT_FOUND, tr("Host name \"%s\", not found"), pcszWhat);
         CASE_MSG(VERR_SHARING_VIOLATION , tr("Sharing violation for guest file \"%s\""), pcszWhat);
         default:
@@ -587,7 +588,7 @@ int GuestFile::i_onNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALL
             AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
             if (offNew < 0) /* non-seekable */
                 offNew = mData.mOffCurrent + cbRead;
-            mData.mOffCurrent = offNew;
+            mData.mOffCurrent = (uint64_t)offNew;
             alock.release();
 
             try
@@ -642,7 +643,7 @@ int GuestFile::i_onNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALL
             AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
             if (offNew < 0) /* non-seekable */
                 offNew = mData.mOffCurrent + cbWritten;
-            mData.mOffCurrent = offNew;
+            mData.mOffCurrent = (uint64_t)offNew;
             alock.release();
 
             HRESULT hrc2 = ::FireGuestFileWriteEvent(mEventSource, mSession, this, offNew, cbWritten);
@@ -864,7 +865,7 @@ int GuestFile::i_open(uint32_t uTimeoutMS, int *prcGuest)
 
     /* Prepare HGCM call. */
     VBOXHGCMSVCPARM paParms[8];
-    int i = 0;
+    unsigned i = 0;
     HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
     HGCMSvcSetPv(&paParms[i++], (void*)mData.mOpenInfo.mFilename.c_str(),
                  (ULONG)mData.mOpenInfo.mFilename.length() + 1);
@@ -946,7 +947,7 @@ int GuestFile::i_readData(uint32_t uSize, uint32_t uTimeoutMS,
 
     /* Prepare HGCM call. */
     VBOXHGCMSVCPARM paParms[4];
-    int i = 0;
+    unsigned i = 0;
     HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
     HGCMSvcSetU32(&paParms[i++], mObjectID /* File handle */);
     HGCMSvcSetU32(&paParms[i++], uSize /* Size (in bytes) to read */);
@@ -1016,7 +1017,7 @@ int GuestFile::i_readDataAt(uint64_t uOffset, uint32_t uSize, uint32_t uTimeoutM
 
     /* Prepare HGCM call. */
     VBOXHGCMSVCPARM paParms[4];
-    int i = 0;
+    unsigned i = 0;
     HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
     HGCMSvcSetU32(&paParms[i++], mObjectID /* File handle */);
     HGCMSvcSetU64(&paParms[i++], uOffset /* Offset (in bytes) to start reading */);
@@ -1085,7 +1086,7 @@ int GuestFile::i_seekAt(int64_t iOffset, GUEST_FILE_SEEKTYPE eSeekType,
 
     /* Prepare HGCM call. */
     VBOXHGCMSVCPARM paParms[4];
-    int i = 0;
+    unsigned i = 0;
     HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
     HGCMSvcSetU32(&paParms[i++], mObjectID /* File handle */);
     HGCMSvcSetU32(&paParms[i++], eSeekType /* Seek method */);
@@ -1411,7 +1412,7 @@ int GuestFile::i_writeData(uint32_t uTimeoutMS, const void *pvData, uint32_t cbD
 
     /* Prepare HGCM call. */
     VBOXHGCMSVCPARM paParms[8];
-    int i = 0;
+    unsigned i = 0;
     HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
     HGCMSvcSetU32(&paParms[i++], mObjectID /* File handle */);
     HGCMSvcSetU32(&paParms[i++], cbData /* Size (in bytes) to write */);
@@ -1485,7 +1486,7 @@ int GuestFile::i_writeDataAt(uint64_t uOffset, uint32_t uTimeoutMS,
 
     /* Prepare HGCM call. */
     VBOXHGCMSVCPARM paParms[8];
-    int i = 0;
+    unsigned i = 0;
     HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
     HGCMSvcSetU32(&paParms[i++], mObjectID /* File handle */);
     HGCMSvcSetU64(&paParms[i++], uOffset /* Offset where to starting writing */);

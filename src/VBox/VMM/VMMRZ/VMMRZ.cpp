@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -35,7 +35,6 @@
 #include <VBox/vmm/vmcc.h>
 
 #include <iprt/assert.h>
-#include <iprt/asm-amd64-x86.h>
 #include <iprt/errcore.h>
 #include <iprt/string.h>
 

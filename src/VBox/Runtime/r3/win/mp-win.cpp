@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -54,7 +54,7 @@
 #if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
 # include <iprt/asm-amd64-x86.h>
 #endif
-#if defined(VBOX) && !defined(IN_GUEST) && !defined(IN_RT_STATIC)
+#if defined(VBOX) && !defined(IN_GUEST) && !defined(IN_RT_STATIC) && !defined(RT_ARCH_ARM64) && !defined(RT_ARCH_ARM32)
 # include <VBox/sup.h>
 # define IPRT_WITH_GIP_MP_INFO
 #else
@@ -639,6 +639,8 @@ RTDECL(RTCPUID) RTMpCpuId(void)
     {
 #if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
         ProcNum.Number = ASMGetApicId();
+#elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+        return NIL_RTCPUID; /* Not supported. */
 #else
 # error "Not ported to this architecture."
         return NIL_RTCPUID;

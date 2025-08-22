@@ -1,11 +1,11 @@
 #!/bin/sh
-# $Id$
+# $Id: deffiles $
 ## @file
 # Oracle VirtualBox - linux default files list.
 #
 
 #
-# Copyright (C) 2007-2024 Oracle and/or its affiliates.
+# Copyright (C) 2007-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -35,6 +35,7 @@
 # wrong with an installation...
 
 DEFAULT_FILE_NAMES=" \
+    .autoreg \
     VBoxDD.so \
     VBoxDD2.so \
     VBoxDTrace \
@@ -49,6 +50,7 @@ DEFAULT_FILE_NAMES=" \
     VBoxSVCM.so \
     VBoxDDU.so \
     VBoxVMM.so \
+    VBoxVMMArm.so \
     VBoxXPCOM.so \
     VBoxXPCOMC.so \
     VBoxXPCOMIPCD \
@@ -90,6 +92,7 @@ DEFAULT_FILE_NAMES=" \
     components/VBoxDDU.so \
     components/VBoxRT.so \
     components/VBoxVMM.so \
+    components/VBoxVMMArm.so \
     components/VBoxXPCOM.so \
     components/VBoxXPCOMBase.xpt \
     components/VBoxXPCOMIPCC.so \

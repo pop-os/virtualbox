@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2015-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -64,6 +64,9 @@ static RTEXITCODE extractUnit(const char *pszFilename, const char *pszUnitname, 
                         break;
                     size_t cbWritten;
                     rc = RTFileWrite(hFile, &u8, sizeof(u8), &cbWritten);
+                    if (RT_FAILURE(rc))
+                        RTPrintf("Writing unit '%s' to '%s' failed with %Rrc\n",
+                                 pszUnitname, pszOutputFilename, rc);
                     cbUnit++;
                 }
                 RTPrintf("Unit size %zu bytes, version %d\n", cbUnit, version);

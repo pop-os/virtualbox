@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -381,6 +381,8 @@ typedef struct DEVPL011
     PL011FIFO                       FifoXmit;
     /** The receive FIFO. */
     PL011FIFO                       FifoRecv;
+    /** The current state of the IRQ line. */
+    bool                            fIrqAsserted;
 } DEVPL011;
 /** Pointer to the shared serial device state. */
 typedef DEVPL011 *PDEVPL011;
@@ -488,11 +490,14 @@ DECLINLINE(void) pl011IrqUpdate(PPDMDEVINS pDevIns, PDEVPL011 pThis, PDEVPL011CC
     LogFlowFunc(("pThis=%#p uRegIrqSts=%#RX16 uRegIrqMask=%#RX16\n",
                  pThis, pThis->uRegIrqSts, pThis->uRegIrqMask));
 
+    /* Only set the IRQ state if it actually changed. */
+    bool fAssert = RT_BOOL(pThis->uRegIrqSts & ~pThis->uRegIrqMask);
     RT_NOREF(pThisCC);
-    if (pThis->uRegIrqSts & ~pThis->uRegIrqMask)
-        PDMDevHlpISASetIrqNoWait(pDevIns, pThis->u16Irq, 1);
-    else
-        PDMDevHlpISASetIrqNoWait(pDevIns, pThis->u16Irq, 0);
+    if (pThis->fIrqAsserted ^ fAssert)
+    {
+        PDMDevHlpISASetIrqNoWait(pDevIns, pThis->u16Irq, fAssert);
+        pThis->fIrqAsserted = fAssert;
+    }
 }
 
 

@@ -2,7 +2,7 @@
     VirtualBox Windows Installation Script (WiX)
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -48,18 +48,15 @@
     <!-- Device driver directory -->
     <Directory Id="dir_VBoxAppDrivers" Name="drivers">
         <Directory Id="dir_VBoxAppVBoxSup" Name="vboxsup">
-<?if $(env.VBOX_SIGNING_MODE) != none ?>
-            <Component Id="cp_VBoxSupCat_PreW10" Guid="673195c2-f315-42e7-ff00-5acbd91ea0bd" Bitness="$(var.Property_Bitness)" Condition="(NOT VBOX_IS_WINDOWS_10)">
-                <File Id="file_VBoxSup_PreW10.cat" Name="VBoxSup.cat" Source="$(env.PATH_OUT)\bin\VBoxSup-PreW10.cat" />
-            </Component>
-            <Component Id="cp_VBoxSupCat_W10" Guid="589be90d-0286-4684-503d-a1681f9587bc" Bitness="$(var.Property_Bitness)" Condition="(VBOX_IS_WINDOWS_10)">
-                <File Id="file_VBoxSup.cat" Name="VBoxSup.cat" Source="$(env.PATH_OUT)\bin\VBoxSup.cat" />
+<?if $(env.VBOX_SIGNING_MODE) != "none" ?>
+            <Component Id="cp_VBoxSupCat_W10" Guid="589be90d-0286-4684-503d-a1681f9587bc" Bitness="$(var.Property_Bitness)">
+                <File Id="file_VBoxSup.cat" Name="VBoxSup.cat" Source="$(env.VBOX_PATH_ATTESTATION_SIGNED)\VBoxSup.cat" />
             </Component>
 <?endif?>
             <Component Id="cp_VBoxSup" Guid="D3E2F2BB-569F-46A2-836C-BDF30FF1EDF8" Bitness="$(var.Property_Bitness)">
                 <!-- Note: Driver gets installed via custom action via VBoxInstallHelper. -->
-                <File Id="file_VBoxSup.sys" Name="VBoxSup.sys" KeyPath="yes" Source="$(env.PATH_OUT)\bin\VBoxSup.sys" />
-                <File Id="file_VBoxSup.inf" Name="VBoxSup.inf" Source="$(env.PATH_OUT)\bin\VBoxSup.inf" />
+                <File Id="file_VBoxSup.sys" Name="VBoxSup.sys" KeyPath="yes" Source="$(env.VBOX_PATH_ATTESTATION_SIGNED)\VBoxSup.sys" />
+                <File Id="file_VBoxSup.inf" Name="VBoxSup.inf" Source="$(env.VBOX_PATH_ATTESTATION_SIGNED)\VBoxSup.inf" />
             </Component>
         </Directory>
     </Directory> <!-- Directory "drivers" -->
@@ -75,36 +72,40 @@
 <?endif?>
 
     <!-- COM components have a separate entry mainly because of the KeyPath attribute (that hints the
-         TypeLib element where to take the TLB resource from) may appear only once per component -->
+         TypeLib element where to take the TLB resource from) may appear only once per component.
+
+         Note: Before we VBoxSDS in an own component (cp_VBoxSDS), however, this makes the MSI validator freak
+               out, as our (generated) typelib definitions we install below use files (VBoxC.dll + VBoxSDS.exe)
+               from different components then. So we have to keep VBoxC.dll and VBoxSDS.exe in the same component -->
     <Component Id="cp_MainCOM" Guid="CD4A3C6C-C2D5-428D-90A1-B6DA3D0777D6" Bitness="$(var.Property_Bitness)">
 
         <!-- Note: This file ID *must not* be changed because of our typelib template generation file! -->
-        <File Id="VBoxSVC" Name="VBoxSVC.exe" Source="$(env.PATH_OUT)\bin\VBoxSVC.exe">
-        </File>
+        <File Id="VBoxSVC" Name="VBoxSVC.exe" Source="$(env.PATH_OUT)\bin\VBoxSVC.exe" />
 
+        <!-- The following ifdef is needed to not have two files with a KeyPath attribute set, which breaks the build.
+             If VBOX_WITH_SDS is defined, the VBoxSDS.exe below is being used as a KeyPath, as ServiceInstall uses the
+             file for which the KeyPath attribute has been set as the service binary being written to the registry.
+             So we have to prefer VBoxSDS in that case -->
+<?if $(env.VBOX_WITH_SDS) = "yes" ?>
+        <File Id="VBoxC" Name="VBoxC.dll" Source="$(env.PATH_OUT)\bin\VBoxC.dll" />
+<?else?>
         <!-- We set KeyPath on this file to instruct TypeLib to read the TLB resource from it
-             and create appropriate Interface registry entries. Note that the same TLB is present
-             in VBoxSVC.exe - it's just a matter of choice which one to use -->
-        <!-- Note: This file ID *must not* be changed because of our typelib template generation file! -->
-        <File Id="VBoxC" Name="VBoxC.dll" Source="$(env.PATH_OUT)\bin\VBoxC.dll" KeyPath="yes">
-        </File>
+             and create appropriate Interface registry entries
 
-<?if $(env.VBOX_WITH_MIDL_PROXY_STUB) != "yes" ?>
+             Note that the same TLB is present in VBoxSVC.exe and VBoxSDS.exe - it's just a matter of choice which one to use
+             The file ID *must not* be changed because of our typelib template generation file! -->
+        <File Id="VBoxC" Name="VBoxC.dll" Source="$(env.PATH_OUT)\bin\VBoxC.dll" KeyPath="$(var.Property_VBoxCDllAsTypelib)" />
+<?endif?>
         <!-- Include the auto-generated TypeLib block -->
         <?include $(env.PATH_TARGET)\VirtualBox_TypeLib.wxi ?>
-<?endif?>
-    </Component>
 
 <?if $(env.VBOX_WITH_SDS) = "yes" ?>
-    <Component Id="cp_VBoxSDS" Guid="{3DC151E0-CA53-4213-8711-D983FDA28132}">
-        <File Id="VBoxSDS" Name="VBoxSDS.exe" Vital="yes" KeyPath="yes" Source="$(env.PATH_OUT)\bin\VBoxSDS.exe">
-        </File>
-        <!--
-            The Name of windows service is referenced in different places.
-            Don't forget to change it in other places too If you change it here :
-                VirtualBox.idl (module name),
-                VBoxSDS.cpp and VBoxProxyStub.cpp
-            -->
+        <File Id="VBoxSDS" Name="VBoxSDS.exe" Vital="yes" Source="$(env.PATH_OUT)\bin\VBoxSDS.exe" KeyPath="yes" />
+
+        <!-- The name of the Windows service is referenced in different places.
+             Don't forget to change it in other places too If you change it here :
+               - VirtualBox.idl (module name),
+               - VBoxSDS.cpp and VBoxProxyStub.cpp -->
         <ServiceInstall Id="VBoxSDSInstall" Account="LocalSystem" Type="ownProcess"
                         Name="VBoxSDS" DisplayName="VirtualBox system service"
                         Description="Used as a COM server for VirtualBox API."
@@ -112,76 +113,19 @@
             <ServiceDependency Id="RPCSS" />
         </ServiceInstall>
         <ServiceControl Id="VBoxSDSControl" Name="VBoxSDS" Stop="both" Remove="uninstall" />
-    </Component>
 <?endif?>
+    </Component>
 
 <?if $(env.VBOX_WITH_MIDL_PROXY_STUB) = "yes" ?>
-
-    <Component Id="cp_ProxyStub" Guid="CDD09BA4-8D87-4383-DCA6-1CCCF9D11091" Bitness="$(var.Property_Bitness)" Condition="(VersionNT &gt;= 601)">
-        <!-- Only install this proxy stub DLL on Windows 7 and later (OLE32.ObjectStublessClientXX imports). -->
-
+    <Component Id="cp_ProxyStub" Guid="CDD09BA4-8D87-4383-DCA6-1CCCF9D11091" Bitness="$(var.Property_Bitness)">
         <File Id="file_VBoxProxyStub" Name="VBoxProxyStub.dll" KeyPath="yes" Source="$(env.PATH_OUT)\bin\VBoxProxyStub.dll">
             <Class Id="$(env.VBOX_MIDL_PROXY_CLSID)" Context="InprocServer32" Description="PSFactoryBuffer" ThreadingModel="both" />
         </File>
-        <?include $(env.PATH_TARGET)\VirtualBox_TypeLib.wxi ?>
     </Component>
-
-    <Component Id="cp_ProxyStubLegacy" Guid="97F12055-5B6D-481C-E8CD-F41D8C733280" Bitness="$(var.Property_Bitness)" Condition="(VersionNT &lt; 601)">
-        <!-- Only install this proxy stub DLL pre-Windows 7 (AMD64: legacy NDR stuff; Both: No ObjectStublessClientXX). -->
-
-        <File Id="file_VBoxProxyStubLegacy" Name="VBoxProxyStubLegacy.dll" KeyPath="yes" Source="$(env.PATH_OUT)\bin\VBoxProxyStubLegacy.dll">
-            <Class Id="$(env.VBOX_MIDL_PROXY_CLSID)" Context="InprocServer32" Description="PSFactoryBuffer" ThreadingModel="both" />
-        </File>
-        <?include $(env.PATH_TARGET)\VirtualBox_TypeLib.wxi ?>
-    </Component>
-
 <?endif?>
 
 <?if $(env.VBOX_WITH_DTRACE) = "yes" ?>
     <?include $(env.PATH_TARGET)\DirComponentsAndFiles_DTrace.wxi ?>
-<?endif?>
-
-    <!---->
-
-<?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
-    <Component Id="cp_RegisterExtensions" Guid="FEB8943E-5D60-4E2D-846F-458207019D40" Bitness="$(var.Property_Bitness)" KeyPath="yes"
-               Condition="(VBOX_REGISTERFILEEXTENSIONS=&quot;1&quot;)">
-        <!-- Register file extensions. Note: Extension IDs *must not* be changed! These specify the actual
-             file extension to handle. Also, here would be the place to add more fancy DDE stuff later.
-             Important: The IDs in "IconIndex" *must* be matching "Resources\resource.h" -->
-        <ProgId Id="progId_VirtualBox.Shell.vbox" Description="VirtualBox Machine Definition" Icon="file_VBoxRes.dll" IconIndex="-201">
-            <Extension Id="vbox" ContentType="application/x-virtualbox-vbox">
-                <Verb Id="open" Command="Open" TargetFile="file_VirtualBox.exe" Argument="&quot;%1&quot;" />
-            </Extension>
-        </ProgId>
-        <ProgId Id="progId_VirtualBox.Shell.vbox-extpack" Description="VirtualBox Extension Pack" Icon="file_VBoxRes.dll" IconIndex="-202">
-            <Extension Id="vbox-extpack" ContentType="application/x-virtualbox-vbox-extpack">
-                <Verb Id="open" Command="Open" TargetFile="file_VirtualBox.exe" Argument="&quot;%1&quot;" />
-            </Extension>
-        </ProgId>
-        <ProgId Id="progId_VirtualBox.Shell.ovf" Description="Open Virtualization Format" Icon="file_VBoxRes.dll" IconIndex="-301">
-            <Extension Id="ovf" ContentType="application/x-virtualbox-ovf">
-                <Verb Id="open" Command="Open" TargetFile="file_VirtualBox.exe" Argument="&quot;%1&quot;" />
-            </Extension>
-        </ProgId>
-        <ProgId Id="progId_VirtualBox.Shell.ova" Description="Open Virtualization Format Archive" Icon="file_VBoxRes.dll" IconIndex="-302">
-            <Extension Id="ova" ContentType="application/x-virtualbox-ova">
-                <Verb Id="open" Command="Open" TargetFile="file_VirtualBox.exe" Argument="&quot;%1&quot;" />
-            </Extension>
-        </ProgId>
-        <ProgId Id="progId_VirtualBox.Shell.vdi" Description="Virtual Disk Image" Icon="file_VBoxRes.dll" IconIndex="-303">
-            <Extension Id="vdi" ContentType="application/x-virtualbox-vdi" />
-        </ProgId>
-        <ProgId Id="progId_VirtualBox.Shell.vmdk" Description="Virtual Machine Disk Format" Icon="file_VBoxRes.dll" IconIndex="-304">
-            <Extension Id="vmdk" ContentType="application/x-virtualbox-vmdk" />
-        </ProgId>
-        <ProgId Id="progId_VirtualBox.Shell.vhd" Description="Virtual Hard Disk" Icon="file_VBoxRes.dll" IconIndex="-305">
-            <Extension Id="vhd" ContentType="application/x-virtualbox-vhd" />
-        </ProgId>
-        <ProgId Id="progId_VirtualBox.Shell.hdd" Description="Virtual Hard Disk" Icon="file_VBoxRes.dll" IconIndex="-306">
-            <Extension Id="hdd" ContentType="application/x-virtualbox-hdd" />
-        </ProgId>
-    </Component> <!-- cp_RegisterExtensions -->
 <?endif?>
 
     <!-- All Binaries, DLLs (except COM) and drivers are in one component because they belong together. Additional
@@ -242,8 +186,13 @@
         <File Id="file_VBoxDD2.dll" Name="VBoxDD2.dll" Source="$(env.PATH_OUT)\bin\VBoxDD2.dll" />
         <File Id="file_VBoxDDU.dll" Name="VBoxDDU.dll" Source="$(env.PATH_OUT)\bin\VBoxDDU.dll" />
         <File Id="file_VBoxRT.dll" Name="VBoxRT.dll" Source="$(env.PATH_OUT)\bin\VBoxRT.dll" />
+<?if $(env.VBOX_WITH_HARDENING) = "yes" ?>
         <File Id="file_VBoxSupLib.dll" Name="VBoxSupLib.dll" Source="$(env.PATH_OUT)\bin\VBoxSupLib.dll" />
+<?endif?>
         <File Id="file_VBoxVMM.dll" Name="VBoxVMM.dll" Source="$(env.PATH_OUT)\bin\VBoxVMM.dll" />
+<?if $(env.VBOX_WITH_VIRT_ARMV8) = "yes" ?>
+        <File Id="file_VBoxVMMArm.dll" Name="VBoxVMMArm.dll" Source="$(env.PATH_OUT)\bin\VBoxVMMArm.dll" />
+<?endif?>
 <?if $(env.VBOX_WITH_LIBSSH) = "yes" ?>
         <File Id="file_VBoxLibSsh.dll" Name="VBoxLibSsh.dll" Source="$(env.PATH_OUT)\bin\VBoxLibSsh.dll" />
 <?endif?>
@@ -276,37 +225,78 @@
         <File Id="file_VMMRC.rc" Name="VMMRC.rc" Source="$(env.PATH_OUT)\bin\VMMRC.rc" />
         <File Id="file_VBoxDDRC.rc" Name="VBoxDDRC.rc" Source="$(env.PATH_OUT)\bin\VBoxDDRC.rc" />
 <?endif?>
-
-        <File Id="file_VMMR0.r0" Name="VMMR0.r0" Source="$(env.PATH_OUT)\bin\VMMR0.r0" />
-        <File Id="file_VBoxDDR0.r0" Name="VBoxDDR0.r0" Source="$(env.PATH_OUT)\bin\VBoxDDR0.r0" />
+<?if $(env.VBOX_WITH_R0_MODULES) = "yes" ?>
+        <File Id="file_VMMR0.r0" Name="VMMR0.r0" Source="$(env.VBOX_PATH_ATTESTATION_SIGNED)\VMMR0.r0" />
+    <?if $(env.VBOX_WITH_MINIMAL_R0) = "no" ?>
+        <File Id="file_VBoxDDR0.r0" Name="VBoxDDR0.r0" Source="$(env.VBOX_PATH_ATTESTATION_SIGNED)\VBoxDDR0.r0" />
+    <?endif?>
+<?endif?>
 
 <?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
         <!-- Qt frontend -->
-        <File Id="file_VirtualBox.exe" Name="VirtualBox.exe" Source="$(env.PATH_OUT)\bin\VirtualBox.exe">
-        </File>
-        <File Id="file_VirtualBoxVM.exe" Name="VirtualBoxVM.exe" Source="$(env.PATH_OUT)\bin\VirtualBoxVM.exe">
-        </File>
-        <File Id="file_UICommon.dll" Name="UICommon.dll" Source="$(env.PATH_OUT)\bin\UICommon.dll">
-        </File>
-        <?if $(env.VBOX_WITH_HARDENING) = "yes" ?>
-            <File Id="file_VirtualBoxVM.dll" Name="VirtualBoxVM.dll" Source="$(env.PATH_OUT)\bin\VirtualBoxVM.dll">
-            </File>
-        <?endif?>
+        <File Id="file_VirtualBox.exe" Name="VirtualBox.exe" Source="$(env.PATH_OUT)\bin\VirtualBox.exe" />
+        <File Id="file_VirtualBoxVM.exe" Name="VirtualBoxVM.exe" Source="$(env.PATH_OUT)\bin\VirtualBoxVM.exe" />
+        <File Id="file_UICommon.dll" Name="UICommon.dll" Source="$(env.PATH_OUT)\bin\UICommon.dll" />
+    <?if $(env.VBOX_WITH_HARDENING) = "yes" ?>
+        <File Id="file_VirtualBoxVM.dll" Name="VirtualBoxVM.dll" Source="$(env.PATH_OUT)\bin\VirtualBoxVM.dll" />
+    <?endif?>
+    <?if $(env.VBOX_WITH_ORACLE_QT) = "yes" ?>
         <File Id="file_Qt6Core$(var.VBOX_QT_INFIX).dll" Name="Qt6Core$(var.VBOX_QT_INFIX).dll" Source="$(env.PATH_OUT)\bin\Qt6Core$(var.VBOX_QT_INFIX).dll" />
         <File Id="file_Qt6Gui$(var.VBOX_QT_INFIX).dll" Name="Qt6Gui$(var.VBOX_QT_INFIX).dll" Source="$(env.PATH_OUT)\bin\Qt6Gui$(var.VBOX_QT_INFIX).dll" />
         <File Id="file_Qt6Widgets$(var.VBOX_QT_INFIX).dll" Name="Qt6Widgets$(var.VBOX_QT_INFIX).dll" Source="$(env.PATH_OUT)\bin\Qt6Widgets$(var.VBOX_QT_INFIX).dll" />
         <File Id="file_Qt6PrintSupport$(var.VBOX_QT_INFIX).dll" Name="Qt6PrintSupport$(var.VBOX_QT_INFIX).dll" Source="$(env.PATH_OUT)\bin\Qt6PrintSupport$(var.VBOX_QT_INFIX).dll" />
         <File Id="file_Qt6StateMachine$(var.VBOX_QT_INFIX).dll" Name="Qt6StateMachine$(var.VBOX_QT_INFIX).dll" Source="$(env.PATH_OUT)\bin\Qt6StateMachine$(var.VBOX_QT_INFIX).dll" />
         <File Id="file_Qt6Help$(var.VBOX_QT_INFIX).dll" Name="Qt6Help$(var.VBOX_QT_INFIX).dll" Source="$(env.PATH_OUT)\bin\Qt6Help$(var.VBOX_QT_INFIX).dll" />
+        <!-- @todo r=bird: why file_vSql* and not file_Qt6Sql* like the 6 files above? -->
         <File Id="file_vSql$(var.VBOX_QT_INFIX).dll" Name="Qt6Sql$(var.VBOX_QT_INFIX).dll" Source="$(env.PATH_OUT)\bin\Qt6Sql$(var.VBOX_QT_INFIX).dll" />
+    <?endif?>
         <File Id="file_VirtualBox.VisualElementsManifest.xml" Name="VirtualBox.VisualElementsManifest.xml" Source="$(env.PATH_OUT)\bin\VirtualBox.VisualElementsManifest.xml" />
         <File Id="file_VirtualBox_70px.png" Name="VirtualBox_70px.png" Source="$(env.PATH_OUT)\bin\VirtualBox_70px.png" />
         <File Id="file_VirtualBox_150px.png" Name="VirtualBox_150px.png" Source="$(env.PATH_OUT)\bin\VirtualBox_150px.png" />
-<?endif?>
-<?if $(env.VBOX_WITH_DEBUGGER_GUI) = "yes" ?>
+    <!-- Register file extensions. Note: Extension IDs *must not* be changed! These specify the actual
+         file extension to handle. Also, here would be the place to add more fancy DDE stuff later.
+         Important: The IDs in "IconIndex" *must* be matching "Resources\resource.h"
+
+         Note! Registering the file extensions must be done in the same component where the binaries of FE/Qt live.
+               Otherwise the MSI validation will fail.  -->
+    <ProgId Id="progId_VirtualBox.Shell.vbox" Description="VirtualBox Machine Definition" Icon="file_VBoxRes.dll" IconIndex="-201">
+        <Extension Id="vbox" ContentType="application/x-virtualbox-vbox">
+            <Verb Id="open" Command="Open" TargetFile="file_VirtualBox.exe" Argument="&quot;%1&quot;" />
+        </Extension>
+    </ProgId>
+    <ProgId Id="progId_VirtualBox.Shell.vbox-extpack" Description="VirtualBox Extension Pack" Icon="file_VBoxRes.dll" IconIndex="-202">
+        <Extension Id="vbox-extpack" ContentType="application/x-virtualbox-vbox-extpack">
+            <Verb Id="open" Command="Open" TargetFile="file_VirtualBox.exe" Argument="&quot;%1&quot;" />
+        </Extension>
+    </ProgId>
+    <ProgId Id="progId_VirtualBox.Shell.ovf" Description="Open Virtualization Format" Icon="file_VBoxRes.dll" IconIndex="-301">
+        <Extension Id="ovf" ContentType="application/x-virtualbox-ovf">
+            <Verb Id="open" Command="Open" TargetFile="file_VirtualBox.exe" Argument="&quot;%1&quot;" />
+        </Extension>
+    </ProgId>
+    <ProgId Id="progId_VirtualBox.Shell.ova" Description="Open Virtualization Format Archive" Icon="file_VBoxRes.dll" IconIndex="-302">
+        <Extension Id="ova" ContentType="application/x-virtualbox-ova">
+            <Verb Id="open" Command="Open" TargetFile="file_VirtualBox.exe" Argument="&quot;%1&quot;" />
+        </Extension>
+    </ProgId>
+    <ProgId Id="progId_VirtualBox.Shell.vdi" Description="Virtual Disk Image" Icon="file_VBoxRes.dll" IconIndex="-303">
+        <Extension Id="vdi" ContentType="application/x-virtualbox-vdi" />
+    </ProgId>
+    <ProgId Id="progId_VirtualBox.Shell.vmdk" Description="Virtual Machine Disk Format" Icon="file_VBoxRes.dll" IconIndex="-304">
+        <Extension Id="vmdk" ContentType="application/x-virtualbox-vmdk" />
+    </ProgId>
+    <ProgId Id="progId_VirtualBox.Shell.vhd" Description="Virtual Hard Disk" Icon="file_VBoxRes.dll" IconIndex="-305">
+        <Extension Id="vhd" ContentType="application/x-virtualbox-vhd" />
+    </ProgId>
+    <ProgId Id="progId_VirtualBox.Shell.hdd" Description="Virtual Hard Disk" Icon="file_VBoxRes.dll" IconIndex="-306">
+        <Extension Id="hdd" ContentType="application/x-virtualbox-hdd" />
+    </ProgId>
+    <!-- Debugger UI. -->
+    <?if $(env.VBOX_WITH_DEBUGGER_GUI) = "yes" ?>
         <File Id="file_VBoxDbg.dll" Name="VBoxDbg.dll" Source="$(env.PATH_OUT)\bin\VBoxDbg.dll" />
         <File Id="file_DbgPlugInDiggers.dll" Name="DbgPlugInDiggers.dll" Source="$(env.PATH_OUT)\bin\DbgPlugInDiggers.dll" />
-<?endif?>
+    <?endif?>
+<?endif?> <!-- $(env.VBOX_WITH_QTGUI) = "yes" -->
 
 <?if $(env.VBOX_WITH_CRT_PACKING) = "yes" ?>
         <!-- Include CRT Dlls (specific to the compiler). -->
@@ -315,8 +305,12 @@
 
         <!-- EFI firmware -->
 <?if $(env.VBOX_WITH_EFIFW_PACKING) = "yes" ?>
-        <File Id="file_VBoxEFI32.fd" Name="VBoxEFI32.fd" DiskId="$(var.Property_DiskIdCommon)" Source="$(env.PATH_OUT)\bin\VBoxEFI32.fd" />
-        <File Id="file_VBoxEFI64.fd" Name="VBoxEFI64.fd" DiskId="$(var.Property_DiskIdCommon)" Source="$(env.PATH_OUT)\bin\VBoxEFI64.fd" />
+        <File Id="file_VBoxEFI-x86.fd"   Name="VBoxEFI-x86.fd"   DiskId="$(var.Property_DiskIdCommon)" Source="$(env.PATH_OUT)\bin\VBoxEFI-x86.fd" />
+        <File Id="file_VBoxEFI-amd64.fd" Name="VBoxEFI-amd64.fd" DiskId="$(var.Property_DiskIdCommon)" Source="$(env.PATH_OUT)\bin\VBoxEFI-amd64.fd" />
+    <?if $(env.VBOX_WITH_VIRT_ARMV8) = "yes" ?>
+        <File Id="file_VBoxEFI-arm32.fd" Name="VBoxEFI-arm32.fd" DiskId="$(var.Property_DiskIdCommon)" Source="$(env.PATH_OUT)\bin\VBoxEFI-arm32.fd" />
+        <File Id="file_VBoxEFI-arm64.fd" Name="VBoxEFI-arm64.fd" DiskId="$(var.Property_DiskIdCommon)" Source="$(env.PATH_OUT)\bin\VBoxEFI-arm64.fd" />
+    <?endif?>
 <?endif?>
         <!-- VBox guest additions -->
 <?if $(env.VBOX_WITH_ADDITIONS_PACKING) = "yes" ?>
@@ -331,7 +325,7 @@
 
     </Component> <!-- MainBinaries -->
 
-<?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
+<?if $(env.VBOX_WITH_QTGUI) = "yes" And $(env.VBOX_WITH_ORACLE_QT) = "yes" ?>
     <!-- Qt platforms plugins -->
     <Directory Id="dir_VBoxAppPlatforms" Name="platforms">
         <Component Id="cp_QtPlatforms" Guid="842367ec-6094-4ddc-93d8-6ca70fc1ca24" Bitness="$(var.Property_Bitness)">
@@ -349,7 +343,7 @@
     <!-- Qt styles plugins -->
     <Directory Id="dir_VBoxAppStyles" Name="styles">
         <Component Id="cp_QtStyles" Guid="150837df-f3ae-416f-9ea3-94f1f41b9f41" Bitness="$(var.Property_Bitness)">
-            <File Id="file_qwindowsvistastyle$(var.VBOX_QT_INFIX).dll" Name="qwindowsvistastyle$(var.VBOX_QT_INFIX).dll" Source="$(env.PATH_OUT)\bin\styles\qwindowsvistastyle$(var.VBOX_QT_INFIX).dll" />
+            <File Id="file_qmodernwindowsstyle$(var.VBOX_QT_INFIX).dll" Name="qmodernwindowsstyle$(var.VBOX_QT_INFIX).dll" Source="$(env.PATH_OUT)\bin\styles\qmodernwindowsstyle$(var.VBOX_QT_INFIX).dll" />
         </Component>
     </Directory>
 <?endif?>

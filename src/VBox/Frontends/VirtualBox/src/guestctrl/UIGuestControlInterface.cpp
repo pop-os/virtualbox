@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -154,7 +154,8 @@ class CommandData
 {
 public:
     CommandData()
-        : m_bSessionIdGiven(false)
+        : m_uSessionId(0)
+        , m_bSessionIdGiven(false)
         , m_bSessionNameGiven(false)
         , m_bCreateParentDirectories(false){}
     QString m_strUserName;

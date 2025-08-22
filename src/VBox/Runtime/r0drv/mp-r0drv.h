@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -75,6 +75,10 @@ typedef struct RTMPARGS
 #endif
 #ifdef RT_OS_LINUX
     PRTCPUSET   pWorkerSet;
+#endif
+#if defined(RT_OS_DARWIN) && (defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32))
+    /** This is for use as the xcall synch parameter. */
+    uint32_t    cCpusLeftSynch;
 #endif
 } RTMPARGS;
 /** Pointer to a RTMpOn* argument packet. */

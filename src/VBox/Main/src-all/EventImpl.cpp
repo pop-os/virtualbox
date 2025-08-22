@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1568,9 +1568,11 @@ STDMETHODIMP EventSourceAggregator::RegisterListener(IEventListener *aListener,
         ComPtr<IEventSource> es = *it;
         /* Register active proxy listener on real event source */
         hrc = es->RegisterListener(proxy, ComSafeArrayInArg(aInterested), TRUE);
+        AssertComRC(hrc);
     }
     /* And add real listener on our event source */
     hrc = mSource->RegisterListener(aListener, ComSafeArrayInArg(aInterested), aActive);
+    AssertComRC(hrc);
 
     return S_OK;
 }
@@ -1594,9 +1596,10 @@ STDMETHODIMP EventSourceAggregator::UnregisterListener(IEventListener *aListener
          ++it)
     {
         ComPtr<IEventSource> es = *it;
-        hrc = es->UnregisterListener(proxy);
+        es->UnregisterListener(proxy);
     }
-    hrc = mSource->UnregisterListener(aListener);
+
+    mSource->UnregisterListener(aListener);
 
     return removeProxyListener(aListener);
 

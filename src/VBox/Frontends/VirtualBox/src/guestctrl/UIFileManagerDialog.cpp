@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -154,7 +154,6 @@ void UIFileManagerDialog::finalize()
     sltRetranslateUI();
     connect(&translationEventListener(), &UITranslationEventListener::sigRetranslateUI,
         this, &UIFileManagerDialog::sltRetranslateUI);
-    manageEscapeShortCut();
 }
 
 void UIFileManagerDialog::loadSettings()
@@ -184,12 +183,4 @@ void UIFileManagerDialog::sltSetCloseButtonShortCut(QKeySequence shortcut)
 {
     if (!closeEmitted() &&  button(ButtonType_Close))
         button(ButtonType_Close)->setShortcut(shortcut);
-}
-
-void UIFileManagerDialog::manageEscapeShortCut()
-{
-    UIFileManager *pWidget = qobject_cast<UIFileManager*>(widget());
-    if (!pWidget)
-        return;
-    pWidget->manageEscapeShortCut();
 }

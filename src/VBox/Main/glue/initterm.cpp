@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -167,14 +167,10 @@ DirectoryServiceProvider::GetFile(const char *aProp,
                                   PRBool *aPersistent,
                                   nsIFile **aRetval)
 {
-    nsCOMPtr <nsILocalFile> localFile;
-    nsresult rv = NS_ERROR_FAILURE;
-
     *aRetval = nsnull;
     *aPersistent = PR_TRUE;
 
-    const char *fileLocation = NULL;
-
+    const char *fileLocation;
     if (strcmp(aProp, NS_XPCOM_COMPONENT_REGISTRY_FILE) == 0)
         fileLocation = mCompRegLocation;
     else if (strcmp(aProp, NS_XPCOM_XPTI_REGISTRY_FILE) == 0)
@@ -186,8 +182,9 @@ DirectoryServiceProvider::GetFile(const char *aProp,
     else
         return NS_ERROR_FAILURE;
 
-    rv = NS_NewNativeLocalFile(nsEmbedCString(fileLocation),
-                               PR_TRUE, getter_AddRefs(localFile));
+    nsCOMPtr<nsILocalFile> localFile;
+    nsresult rv = NS_NewNativeLocalFile(nsEmbedCString(fileLocation),
+                                        PR_TRUE, getter_AddRefs(localFile));
     if (NS_FAILED(rv))
         return rv;
 
@@ -261,11 +258,11 @@ DLLHost_InvokeStub(IRpcStubBuffer *pThis, RPCOLEMESSAGE *pMsg, IRpcChannelBuffer
         hrc = CStdStubBuffer_Invoke(pThis, pMsg, pBuf);
     else
     {
-        LogRel(("DLLHost_InvokeStub: Rejected call to CDLLHost::%s: rpcFlags=%#x cbBuffer=%#x dataRepresentation=%d buffer=%p:{%.*Rhxs} reserved1=%p reserved2={%p,%p,%p,%p,%p}\n",
-                pMsg->iMethod == 0 ? "QueryInterface" :
-                pMsg->iMethod == 1 ? "AddRef" :
-                pMsg->iMethod == 2 ? "ReleaseRef" :
-                pMsg->iMethod == 3 ? "DllGetClassObject" : "Unknown", pMsg->rpcFlags, pMsg->cbBuffer,
+        LogRel(("DLLHost_InvokeStub: Rejected call to CDLLHost::%s: iMethod=%#x rpcFlags=%#x cbBuffer=%#x dataRepresentation=%d buffer=%p:{%.*Rhxs} reserved1=%p reserved2={%p,%p,%p,%p,%p}\n",
+                iMethod == 0 ? "QueryInterface" :
+                iMethod == 1 ? "AddRef" :
+                iMethod == 2 ? "ReleaseRef" :
+                iMethod == 3 ? "DllGetClassObject" : "Unknown", pMsg->iMethod, pMsg->rpcFlags, pMsg->cbBuffer,
                 pMsg->dataRepresentation, pMsg->Buffer, RT_VALID_PTR(pMsg->Buffer) ? pMsg->cbBuffer : 0, pMsg->Buffer,
                 pMsg->reserved1, pMsg->reserved2[0], pMsg->reserved2[1], pMsg->reserved2[2], pMsg->reserved2[3], pMsg->reserved2[4]));
         hrc = E_ACCESSDENIED;
@@ -465,11 +462,7 @@ HRESULT Initialize(uint32_t fInitFlags /*=VBOX_COM_INIT_F_DEFAULT*/)
             int vrc = RTPathAppPrivateArch(szPath, sizeof(szPath));
             if (RT_SUCCESS(vrc))
 #  ifndef VBOX_IN_32_ON_64_MAIN_API
-                vrc = RTPathAppend(szPath, sizeof(szPath),
-                                      RT_MAKE_U64(((PKUSER_SHARED_DATA)MM_SHARED_USER_DATA_VA)->NtMinorVersion,
-                                                  ((PKUSER_SHARED_DATA)MM_SHARED_USER_DATA_VA)->NtMajorVersion)
-                                   >= RT_MAKE_U64(1/*Lo*/,6/*Hi*/)
-                                   ? "VBoxProxyStub.dll" : "VBoxProxyStubLegacy.dll");
+                vrc = RTPathAppend(szPath, sizeof(szPath), "VBoxProxyStub.dll");
 #  else
                 vrc = RTPathAppend(szPath, sizeof(szPath), "x86\\VBoxProxyStub-x86.dll");
 #  endif
@@ -708,10 +701,10 @@ HRESULT Initialize(uint32_t fInitFlags /*=VBOX_COM_INIT_F_DEFAULT*/)
         if (NS_FAILED(hrc))
             break;
 
-        /* Setup the application path for NS_InitXPCOM2. Note that we properly
+        /* Setup the application path for NS_InitXPCOM2Ex. Note that we properly
          * answer the NS_XPCOM_CURRENT_PROCESS_DIR query in our directory
          * service provider but it seems to be activated after the directory
-         * service is used for the first time (see the source NS_InitXPCOM2). So
+         * service is used for the first time (see the source NS_InitXPCOM2Ex). So
          * use the same value here to be on the safe side. */
         nsCOMPtr <nsIFile> appDir;
         {
@@ -740,20 +733,13 @@ HRESULT Initialize(uint32_t fInitFlags /*=VBOX_COM_INIT_F_DEFAULT*/)
         /* Finally, initialize XPCOM */
         {
             nsCOMPtr<nsIServiceManager> serviceManager;
-            hrc = NS_InitXPCOM2(getter_AddRefs(serviceManager), appDir, dsProv);
+            hrc = NS_InitXPCOM2Ex(getter_AddRefs(serviceManager), appDir, dsProv,
+                                  NS_INIT_XPCOM_F_AUTO_REGISTER_COMPONENTS_WITH_STATUS);
             if (NS_SUCCEEDED(hrc))
             {
-                nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(serviceManager, &hrc);
-                if (NS_SUCCEEDED(hrc))
-                {
-                    hrc = registrar->AutoRegister(nsnull);
-                    if (NS_SUCCEEDED(hrc))
-                    {
-                        /* We succeeded, stop probing paths */
-                        LogFlowFunc(("Succeeded.\n"));
-                        break;
-                    }
-                }
+                /* We succeeded, stop probing paths */
+                LogFlowFunc(("Succeeded.\n"));
+                break;
             }
         }
 

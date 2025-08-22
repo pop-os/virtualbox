@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -64,28 +64,29 @@ typedef MYEXPORT *PMYEXPORT;
 *********************************************************************************************************************************/
 /** @name Options
  * @{ */
-static const char  *g_pszOutput   = NULL;
-static const char  *g_pszLibrary  = NULL;
-static const char  *g_apszInputs[8] = { NULL, NULL, NULL, NULL,  NULL, NULL, NULL, NULL };
-static unsigned     g_cInputs = 0;
-static bool         g_fIgnoreData = true;
-static bool         g_fWithExplictLoadFunction = false;
-static bool         g_fSystemLibrary = false;
-#if   defined(RT_ARCH_AMD64)
-static RTLDRARCH    g_enmTarget = RTLDRARCH_AMD64;
-#elif defined(RT_ARCH_X86)
-static RTLDRARCH    g_enmTarget = RTLDRARCH_X86_32;
-#elif defined(RT_ARCH_ARM64)
-static RTLDRARCH    g_enmTarget = RTLDRARCH_ARM64;
+static const char      *g_pszOutput   = NULL;
+static const char      *g_pszLibrary  = NULL;
+static const char      *g_apszInputs[8] = { NULL, NULL, NULL, NULL,  NULL, NULL, NULL, NULL };
+static unsigned         g_cInputs = 0;
+static bool             g_fIgnoreData = true;
+static bool             g_fWithExplictLoadFunction = false;
+static bool             g_fSystemLibrary = false;
+#if   defined(TARGET_AMD64)
+static RTLDRARCH const  g_enmTargetDefault = RTLDRARCH_AMD64;
+#elif defined(TARGET_X86)
+static RTLDRARCH const  g_enmTargetDefault = RTLDRARCH_X86_32;
+#elif defined(TARGET_ARM64)
+static RTLDRARCH const  g_enmTargetDefault = RTLDRARCH_ARM64;
 #else
 # error "Port me!"
 #endif
+static RTLDRARCH        g_enmTarget = g_enmTargetDefault;
 /** @} */
 
 /** Pointer to the export name list head. */
-static PMYEXPORT    g_pExpHead  = NULL;
+static PMYEXPORT        g_pExpHead  = NULL;
 /** Pointer to the next pointer for insertion. */
-static PMYEXPORT   *g_ppExpNext = &g_pExpHead;
+static PMYEXPORT       *g_ppExpNext = &g_pExpHead;
 
 
 
@@ -264,7 +265,7 @@ static RTEXITCODE parseInputInner(FILE *pInput, const char *pszInput)
             unsigned cchStdcall = 0;
             if (cchName > 3 && *pchName == '_' && isdigit(pchName[cchName - 1]))
             {
-                if (cchName > 3 && pchName[cchName - 2] == '@')
+                if (pchName[cchName - 2] == '@')
                     cchStdcall = 2;
                 else if (cchName > 4 && pchName[cchName - 3] == '@' && isdigit(pchName[cchName - 2]))
                     cchStdcall = 3;
@@ -422,6 +423,7 @@ static RTEXITCODE generateOutputInnerX86AndAMD64(FILE *pOutput)
             "; Import pointers. Initialized to point to lazy loading stubs.\n"
             ";\n"
             "BEGINDATA\n"
+            "ALIGNDATA(RTCCPTR_CB)\n"
             "g_apfnImports:\n");
     for (PMYEXPORT pExp = g_pExpHead; pExp; pExp = pExp->pNext)
         if (pExp->fData)
@@ -578,6 +580,7 @@ static RTEXITCODE generateOutputInnerX86AndAMD64(FILE *pOutput)
             "; The module handle.\n"
             ";\n"
             "BEGINDATA\n"
+            "ALIGNDATA(RTCCPTR_CB)\n"
             "g_hMod RTCCPTR_DEF 0\n"
             "\n"
             "\n"
@@ -1128,22 +1131,36 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
                     ".p2align 3\n"
                     ".globl NAME(%s)\n"
                     "NAME(%s):\n"
+                    "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                    "    adrp    x9, PAGE_GOT(NAME(g_pfn%s))\n"
+                    "    ldr     x9, [x9, PAGEOFF_GOT(NAME(g_pfn%s))]\n"
+                    "#else\n"
                     "    adrp    x9, PAGE(NAME(g_pfn%s))\n"
                     "    ldr     x9, [x9, PAGEOFF(NAME(g_pfn%s))]\n"
+                    "#endif\n"
                     "    br      x9\n",
-                    pExp->szName, pExp->szName, pExp->szName, pExp->szName);
+                    pExp->pszExportedNm, pExp->pszExportedNm, pExp->pszExportedNm, pExp->pszExportedNm,
+                    pExp->pszExportedNm, pExp->pszExportedNm);
         else
             fprintf(pOutput,
                     ".p2align 3\n"
                     ".globl NAME(LazyGetPtr_%s)\n"
                     "NAME(LazyGetPtr_%s):\n"
+                    "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                    "    adrp    x9, PAGE_GOT(NAME(g_LazyPtr_%s))\n"
+                    "    ldr     x9, [x9, PAGEOFF_GOT(NAME(g_LazyPtr_%s))]\n"
+                    "#else\n"
                     "    adrp    x9, PAGE(NAME(g_LazyPtr_%s))\n"
                     "    ldr     x9, [x9, PAGEOFF(NAME(g_LazyPtr_%s))]\n"
+                    "#endif\n"
                     "    cmp     x9, #0\n"
                     "    b.eq    ___LazyLoad___%s\n"
                     "    mov     x0, x9\n"
                     "    ret\n",
-                    pExp->szName, pExp->szName, pExp->szName, pExp->szName, pExp->pszExportedNm);
+                    pExp->pszExportedNm, pExp->pszExportedNm,
+                    pExp->pszExportedNm, pExp->pszExportedNm,
+                    pExp->pszExportedNm, pExp->pszExportedNm,
+                    pExp->pszExportedNm);
     fprintf(pOutput,
             "ENDCODE\n"
             "\n"
@@ -1168,8 +1185,8 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
                     "NAME(g_pfn%s):\n"
                     "    .quad ___LazyLoad___%s\n"
                     "\n",
-                    pExp->szName, pExp->szName,
-                    pExp->szName, pExp->szName,
+                    pExp->pszExportedNm, pExp->pszExportedNm,
+                    pExp->pszExportedNm, pExp->pszExportedNm,
                     pExp->pszExportedNm);
         else
             fprintf(pOutput,
@@ -1177,7 +1194,7 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
                     "NAME(g_LazyPtr_%s):\n"
                     "    .quad 0\n"
                     "\n",
-                    pExp->szName, pExp->szName);
+                    pExp->pszExportedNm, pExp->pszExportedNm);
     fprintf(pOutput,
             "    .quad 0 /* Terminator entry for traversal. */\n"
             "ENDDATA\n"
@@ -1223,36 +1240,60 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
             " */\n"
             "BEGINCODE\n"
             ".p2align 3\n");
+
     for (PMYEXPORT pExp = g_pExpHead; pExp; pExp = pExp->pNext)
     {
+        const char *pszPrefix = !pExp->fData ? "g_pfn" : "g_LazyPtr_";
+
         if (!pExp->fNoName)
             fprintf(pOutput,
                     "___LazyLoad___%s:\n"
+                    "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                    "    adrp    x9, PAGE_GOT(g_sz%s)\n"
+                    "    ldr     x9, [x9, PAGEOFF_GOT(g_sz%s)]\n"
+                    "    adrp    x10, PAGE_GOT(NAME(%s%s))\n"
+                    "    ldr     x10, [x10, PAGEOFF_GOT(NAME(%s%s))]\n"
+                    "#else\n"
                     "    adrp    x9, PAGE(g_sz%s)\n"
                     "    add     x9, x9, PAGEOFF(g_sz%s)\n"
                     "    adrp    x10, PAGE(NAME(%s%s))\n"
                     "    add     x10, x10, PAGEOFF(NAME(%s%s))\n"
+                    "#endif\n"
                     "    mov     x16, x30\n"
                     "    bl      LazyLoadResolver\n"
                     "    mov     x30, x16\n"
                     , pExp->pszExportedNm,
+                    /* #if defined(ASM_FORMAT_ELF) && defined(PIC) */
                     pExp->pszExportedNm, pExp->pszExportedNm,
-                    !pExp->fData ? "g_pfn" : "g_LazyPtr_", pExp->pszExportedNm,
-                    !pExp->fData ? "g_pfn" : "g_LazyPtr_", pExp->pszExportedNm);
+                    pszPrefix, pExp->pszExportedNm,
+                    pszPrefix, pExp->pszExportedNm,
+                    /* #else */
+                    pExp->pszExportedNm, pExp->pszExportedNm,
+                    pszPrefix, pExp->pszExportedNm,
+                    pszPrefix, pExp->pszExportedNm);
         else
             fprintf(pOutput,
                     "___LazyLoad___%s:\n"
                     "    movk    w9, #%u\n"
+                    "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                    "    adrp    x10, PAGE_GOT(NAME(%s%s))\n"
+                    "    ldr     x10, [x10, PAGEOFF_GOT(NAME(%s%s))]\n"
+                    "#else\n"
                     "    adrp    x10, PAGE(NAME(%s%s))\n"
                     "    add     x10, x10, PAGEOFF(NAME(%s%s))\n"
+                    "#endif\n"
                     , pExp->pszExportedNm,
                     pExp->uOrdinal,
-                    !pExp->fData ? "g_pfn" : "g_LazyPtr_", pExp->pszExportedNm,
-                    !pExp->fData ? "g_pfn" : "g_LazyPtr_", pExp->pszExportedNm);
+                    /* #if defined(ASM_FORMAT_ELF) && defined(PIC) */
+                    pszPrefix, pExp->pszExportedNm,
+                    pszPrefix, pExp->pszExportedNm,
+                    /* #else */
+                    pszPrefix, pExp->pszExportedNm,
+                    pszPrefix, pExp->pszExportedNm);
         if (!pExp->fData)
-            fprintf(pOutput, "    b       NAME(%s)\n", pExp->szName);
+            fprintf(pOutput, "    b       NAME(%s)\n", pExp->pszExportedNm);
         else
-            fprintf(pOutput, "    b       NAME(LazyGetPtr_%s)\n", pExp->szName);
+            fprintf(pOutput, "    b       NAME(LazyGetPtr_%s)\n", pExp->pszExportedNm);
         fprintf(pOutput, "\n");
     }
     fprintf(pOutput,
@@ -1327,8 +1368,13 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
             "    mov     x20, x10\n"
             "\n"
             "    /* Get the module handle and call RTLdrGetSymbol(RTLDRMOD hLdrMod, const char *pszSymbol, void **ppvValue) */\n"
+            "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+            "    adrp    x0, PAGE_GOT(g_hMod)\n"
+            "    ldr     x0, [x0, PAGEOFF_GOT(g_hMod)]\n"
+            "#else\n"
             "    adrp    x0, PAGE(g_hMod)\n"
             "    ldr     x0, [x0, PAGEOFF(g_hMod)]\n"
+            "#endif\n"
             "    cmp     x0, #0\n"
             "    b.ne    Lloaded\n"
             "    bl      LazyLoading\n"
@@ -1342,11 +1388,21 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
             "\n"
             "Lbadsym: /* Call sRTAssertMsg2Weak. Variadic (...) arguments are passed on the stack it seems. */\n"
             "    mov     x3, x0\n"
+            "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+            "    adrp    x2, PAGE_GOT(g_szLibrary)\n"
+            "    ldr     x2, [x2, PAGEOFF_GOT(g_szLibrary)]\n"
+            "#else\n"
             "    adrp    x2, PAGE(g_szLibrary)\n"
             "    add     x2, x2, PAGEOFF(g_szLibrary)\n"
+            "#endif\n"
             "    mov     x1, x19\n"
+            "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+            "    adrp    x0, PAGE_GOT(g_szFailLoadFmt)\n"
+            "    ldr     x0, [x0, PAGEOFF_GOT(g_szFailLoadFmt)]\n"
+            "#else\n"
             "    adrp    x0, PAGE(g_szFailLoadFmt)\n"
             "    add     x0, x0, PAGEOFF(g_szFailLoadFmt)\n"
+            "#endif\n"
             "    stp     x1, x2, [sp]\n"
             "    str     x3,     [sp, #16]\n"
             "    bl      NAME(RTAssertMsg2Weak)\n"
@@ -1413,19 +1469,36 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
                 "    /* Call SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fFlags, PRTERRINFO pErrInfo); */\n"
                 "    mov     x3, #0\n"
                 "    mov     x2, #0\n"
+                "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                "    adrp    x1, PAGE_GOT(g_hMod)\n"
+                "    ldr     x1, [x1, PAGEOFF_GOT(g_hMod)]\n"
+                "    adrp    x0, PAGE_GOT(g_szLibrary)\n"
+                "    ldr     x0, [x0, PAGEOFF_GOT(g_szLibrary)]\n"
+                "#else\n"
                 "    adrp    x1, PAGE(g_hMod)\n"
                 "    add     x1, x1, PAGEOFF(g_hMod)\n"
                 "    adrp    x0, PAGE(g_szLibrary)\n"
                 "    add     x0, x0, PAGEOFF(g_szLibrary)\n"
+                "#endif\n"
                 "    bl      NAME(SUPR3HardenedLdrLoadAppPriv)\n");
     else
         fprintf(pOutput,
                 "    /* Call RTLdrLoadSystem(const char *pszFilename, bool fNoUnload, PRTLDRMOD phLdrMod); */\n"
+                "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                "    adrp    x2, PAGE_GOT(g_hMod)\n"
+                "    ldr     x2, [x2, PAGEOFF_GOT(g_hMod)]\n"
+                "#else\n"
                 "    adrp    x2, PAGE(g_hMod)\n"
                 "    add     x2, x2, PAGEOFF(g_hMod)\n"
+                "#endif\n"
                 "    mov     x1, #1\n"
+                "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                "    adrp    x0, PAGE_GOT(g_szLibrary)\n"
+                "    ldr     x0, [x0, PAGEOFF_GOT(g_szLibrary)]\n"
+                "#else\n"
                 "    adrp    x0, PAGE(g_szLibrary)\n"
                 "    add     x0, x0, PAGEOFF(g_szLibrary)\n"
+                "#endif\n"
                 "    bl      NAME(RTLdrLoadSystem)\n");
 
     fprintf(pOutput,
@@ -1434,10 +1507,17 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
             "\n"
             "Lbadload: /* Call sRTAssertMsg2Weak. Variadic (...) arguments are passed on the stack it seems. */\n"
             "    mov     x2, x0\n"
+            "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+            "    adrp    x1, PAGE_GOT(g_szLibrary)\n"
+            "    ldr     x1, [x1, PAGEOFF_GOT(g_szLibrary)]\n"
+            "    adrp    x0, PAGE_GOT(g_szFailResolveFmt)\n"
+            "    ldr     x0, [x0, PAGEOFF_GOT(g_szFailResolveFmt)]\n"
+            "#else\n"
             "    adrp    x1, PAGE(g_szLibrary)\n"
             "    add     x1, x1, PAGEOFF(g_szLibrary)\n"
             "    adrp    x0, PAGE(g_szFailResolveFmt)\n"
             "    add     x0, x0, PAGEOFF(g_szFailResolveFmt)\n"
+            "#endif\n"
             "    stp     x1, x2, [sp]\n"
             "    bl      NAME(RTAssertMsg2Weak)\n"
             "Lbadloadloop:\n"
@@ -1494,8 +1574,13 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
                 "    /*\n"
                 "     * Is the module already loaded?\n"
                 "     */\n"
+                "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                "    adrp    x0, PAGE_GOT(g_hMod)\n"
+                "    ldr     x0, [x0, PAGEOFF_GOT(g_hMod)]\n"
+                "#else\n"
                 "    adrp    x0, PAGE(g_hMod)\n"
                 "    ldr     x0, [x0, PAGEOFF(g_hMod)]\n"
+                "#endif\n"
                 "    cmp     x0, #0\n"
                 "    b.ne    Lexplicit_loaded_module\n"
                 "\n"
@@ -1510,19 +1595,36 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
                     "    /* Call SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fFlags, PRTERRINFO pErrInfo); */\n"
                     "    mov     x3, x21\n"
                     "    mov     x2, #0\n"
+                    "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                    "    adrp    x1, PAGE_GOT(g_hMod)\n"
+                    "    ldr     x1, [x1, PAGEOFF_GOT(g_hMod)]\n"
+                    "    adrp    x0, PAGE_GOT(g_szLibrary)\n"
+                    "    ldr     x0, [x0, PAGEOFF_GOT(g_szLibrary)]\n"
+                    "#else\n"
                     "    adrp    x1, PAGE(g_hMod)\n"
                     "    add     x1, x1, PAGEOFF(g_hMod)\n"
                     "    adrp    x0, PAGE(g_szLibrary)\n"
                     "    add     x0, x0, PAGEOFF(g_szLibrary)\n"
+                    "#endif\n"
                     "    bl      NAME(SUPR3HardenedLdrLoadAppPriv)\n");
         else
             fprintf(pOutput,
                     "    /* Call RTLdrLoadSystem(const char *pszFilename, bool fNoUnload, PRTLDRMOD phLdrMod); */\n"
+                    "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                    "    adrp    x2, PAGE_GOT(g_hMod)\n"
+                    "    ldr     x2, [x2, PAGEOFF_GOT(g_hMod)]\n"
+                    "#else\n"
                     "    adrp    x2, PAGE(g_hMod)\n"
                     "    add     x2, x2, PAGEOFF(g_hMod)\n"
+                    "#endif\n"
                     "    mov     x1, #1\n"
+                    "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                    "    adrp    x0, PAGE_GOT(g_szLibrary)\n"
+                    "    ldr     x0, [x0, PAGEOFF_GOT(g_szLibrary)]\n"
+                    "#else\n"
                     "    adrp    x0, PAGE(g_szLibrary)\n"
                     "    add     x0, x0, PAGEOFF(g_szLibrary)\n"
+                    "#endif\n"
                     "    bl      NAME(RTLdrLoadSystem)\n");
         fprintf(pOutput,
                 "    cmp     x0, #0\n"
@@ -1537,18 +1639,30 @@ static RTEXITCODE generateOutputInnerArm64(FILE *pOutput)
                 "    cmp     w20, #0\n"
                 "    b.eq    Lexplicit_load_return\n"
                 "\n"
+                "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                "    adrp     x22, PAGE_GOT(g_szzNames)\n"
+                "    ldr      x22, [x22, PAGEOFF_GOT(g_szzNames)]\n"
+                "    adrp     x23, PAGE_GOT(g_apfnImports)\n"
+                "    ldr      x23, [x23, PAGEOFF_GOT(g_apfnImports)]\n"
+                "#else\n"
                 "    adrp     x22, PAGE(g_szzNames)\n"
                 "    add      x22, x22, PAGEOFF(g_szzNames)\n"
                 "    adrp     x23, PAGE(g_apfnImports)\n"
                 "    add      x23, x23, PAGEOFF(g_apfnImports)\n"
+                "#endif\n"
                 "Lexplicit_load_next_import:\n"
                 "    ldr     x0, [x23]\n"
                 "    cmp     x0, #0\n"
                 "    b.eq    Lexplicit_load_return\n"
                 "\n"
                 "    /* Get the module handle and call RTLdrGetSymbol(RTLDRMOD hLdrMod, const char *pszSymbol, void **ppvValue) */\n"
+                "#if defined(ASM_FORMAT_ELF) && defined(PIC)\n"
+                "    adrp    x0, PAGE_GOT(g_hMod)\n"
+                "    ldr     x0, [x0, PAGEOFF_GOT(g_hMod)]\n"
+                "#else\n"
                 "    adrp    x0, PAGE(g_hMod)\n"
                 "    ldr     x0, [x0, PAGEOFF(g_hMod)]\n"
+                "#endif\n"
                 "    mov     x1, x22\n"
                 "    mov     x2, x23\n"
                 "    bl      NAME(RTLdrGetSymbol)\n"
@@ -1653,7 +1767,7 @@ static int usage(const char *pszArgv0)
     /*      0         1         2         3         4         5         6         7         8
             012345678901234567890123456789012345678901234567890123456789012345678901234567890 */
     printf("VBoxDef2LazyLoad - Lazy DLL/SO/DYLIB loader code generator.\n"
-           "Copyright (C) 2013-2016 Oracle Corporation\n"
+           "Copyright (C) 2013-2025 Oracle and/or its affiliates.\n"
            "\n"
            "Description:\n"
            "------------\n"
@@ -1694,6 +1808,10 @@ static int usage(const char *pszArgv0)
            "  --system\n"
            "    The library is a system DLL to be loaded using RTLdrLoadSystem.\n"
            "    The default is to use SUPR3HardenedLdrLoadAppPriv to load it.\n"
+           "  --target <arch>, -t <arch>\n"
+           "    Sets the target architecture to produce assembly for.  Accepts: x86, amd64,\n"
+           "    arm64 and default.  Empty string is an alias for default.\n"
+           "    The build target architecture (KBUILD_TARGET_ARCH) is the default.\n"
            "\n"
            , pszArgv0);
 
@@ -1735,6 +1853,28 @@ int main(int argc, char **argv)
                 g_fWithExplictLoadFunction = false;
             else if (!strcmp(psz, "--system"))
                 g_fSystemLibrary = true;
+            else if (!strcmp(psz, "--target") || !strcmp(psz, "-t"))
+            {
+                if (++i >= argc)
+                {
+                    fprintf(stderr, "syntax error: Target architecture expected after '%s'.\n", psz);
+                    return RTEXITCODE_SYNTAX;
+                }
+                psz = argv[i];
+                if (strcmp(psz, "x86") == 0)
+                    g_enmTarget = RTLDRARCH_X86_32;
+                else if (strcmp(psz, "amd64") == 0)
+                    g_enmTarget = RTLDRARCH_AMD64;
+                else if (strcmp(psz, "arm64") == 0)
+                    g_enmTarget = RTLDRARCH_ARM64;
+                else if (*psz == '\0' || strcmp(psz, "default") == 0)
+                    g_enmTarget = g_enmTargetDefault;
+                else
+                {
+                    fprintf(stderr, "syntax error: Unknown target architecture '%s'!\n", psz);
+                    return RTEXITCODE_SYNTAX;
+                }
+            }
             /** @todo Support different load methods so this can be used on system libs and
              *        such if we like. */
             else if (   !strcmp(psz, "--help")
@@ -1745,7 +1885,7 @@ int main(int argc, char **argv)
             else if (   !strcmp(psz, "--version")
                      || !strcmp(psz, "-V"))
             {
-                printf("$Revision: 164827 $\n");
+                printf("$Revision: 170188 $\n");
                 return RTEXITCODE_SUCCESS;
             }
             else

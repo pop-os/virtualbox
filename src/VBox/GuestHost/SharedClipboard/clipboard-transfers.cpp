@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2603,7 +2603,8 @@ int ShClTransferWaitForStatus(PSHCLTRANSFER pTransfer, RTMSINTERVAL msTimeout, S
         if (enmCurStatus == enmStatus)
             break;
 
-        msLeft -= RT_MIN(msLeft, RTTimeMilliTS() - tsStartMs);
+        uint64_t const msElapsed = RTTimeMilliTS() - tsStartMs;
+        msLeft -= RT_MIN(msLeft, msElapsed);
         if (msLeft == 0)
         {
             rc = VERR_TIMEOUT;

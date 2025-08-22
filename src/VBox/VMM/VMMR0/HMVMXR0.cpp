@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -45,7 +45,7 @@
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/gcm.h>
 #include <VBox/vmm/gim.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include "HMInternal.h"
 #include <VBox/vmm/vmcc.h>
 #include <VBox/vmm/hmvmxinline.h>
@@ -951,7 +951,7 @@ static int hmR0VmxAllocVmcsInfo(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, bool fIs
         {
             if (PDMHasApic(pVM))
             {
-                rc = APICGetApicPageForCpu(pVCpu, &pVmcsInfo->HCPhysVirtApic, (PRTR0PTR)&pVmcsInfo->pbVirtApic, NULL /*pR3Ptr*/);
+                rc = PDMR0ApicGetApicPageForCpu(pVCpu, &pVmcsInfo->HCPhysVirtApic, (PRTR0PTR)&pVmcsInfo->pbVirtApic, NULL /*pR3Ptr*/);
                 if (RT_FAILURE(rc))
                     return rc;
                 Assert(pVmcsInfo->pbVirtApic);
@@ -5924,7 +5924,7 @@ static VBOXSTRICTRC hmR0VmxPreRunGuest(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransie
         && PDMHasApic(pVM))
     {
         /* Get the APIC base MSR from the virtual APIC device. */
-        uint64_t const uApicBaseMsr = APICGetBaseMsrNoCheck(pVCpu);
+        uint64_t const uApicBaseMsr = PDMApicGetBaseMsrNoCheck(pVCpu);
 
         /* Map the APIC access page. */
         int rc = hmR0VmxMapHCApicAccessPage(pVCpu, uApicBaseMsr & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK);
@@ -6431,7 +6431,7 @@ static void hmR0VmxPostRunGuest(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient, int
                 Assert(pVmcsInfo->pbVirtApic);
                 if (pVmxTransient->u8GuestTpr != pVmcsInfo->pbVirtApic[XAPIC_OFF_TPR])
                 {
-                    rc = APICSetTpr(pVCpu, pVmcsInfo->pbVirtApic[XAPIC_OFF_TPR]);
+                    rc = PDMApicSetTpr(pVCpu, pVmcsInfo->pbVirtApic[XAPIC_OFF_TPR]);
                     AssertRC(rc);
                     ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_GUEST_APIC_TPR);
                 }
@@ -6542,7 +6542,7 @@ static VBOXSTRICTRC hmR0VmxRunGuestCodeNormal(PVMCPUCC pVCpu, uint32_t *pcLoops)
     hmR0VmxSyncVmcsCache(VmxTransient.pVmcsInfo);
 #endif
 
-    VBOXSTRICTRC rcStrict = VERR_INTERNAL_ERROR_5;
+    VBOXSTRICTRC rcStrict;
     for (;;)
     {
         Assert(!HMR0SuspendPending());
@@ -6662,7 +6662,7 @@ static VBOXSTRICTRC hmR0VmxRunGuestCodeNested(PVMCPUCC pVCpu, uint32_t *pcLoops)
     /* Setup pointer so PGM/IEM can query VM-exit auxiliary info on demand in ring-0. */
     pVCpu->hmr0.s.vmx.pVmxTransient = &VmxTransient;
 
-    VBOXSTRICTRC rcStrict = VERR_INTERNAL_ERROR_5;
+    VBOXSTRICTRC rcStrict;
     for (;;)
     {
         Assert(!HMR0SuspendPending());
@@ -6799,7 +6799,7 @@ static VBOXSTRICTRC hmR0VmxRunGuestCodeDebug(PVMCPUCC pVCpu, uint32_t *pcLoops)
     /*
      * The loop.
      */
-    VBOXSTRICTRC rcStrict  = VERR_INTERNAL_ERROR_5;
+    VBOXSTRICTRC rcStrict;
     for (;;)
     {
         Assert(!HMR0SuspendPending());
@@ -7090,7 +7090,7 @@ VMMR0DECL(VBOXSTRICTRC) VMXR0RunGuestCode(PVMCPUCC pVCpu)
             if (   !pVCpu->hm.s.fUseDebugLoop
                 && (!VBOXVMM_ANY_PROBES_ENABLED() || !hmR0VmxAnyExpensiveProbesEnabled())
                 && !DBGFIsStepping(pVCpu)
-                && !pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledInt3Breakpoints)
+                && !pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledSwBreakpoints)
                 rcStrict = hmR0VmxRunGuestCodeNormal(pVCpu, &cLoops);
             else
                 rcStrict = hmR0VmxRunGuestCodeDebug(pVCpu, &cLoops);

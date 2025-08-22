@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,6 +42,7 @@
 #include <VBox/param.h>
 #include <iprt/initterm.h>
 #include <iprt/stream.h>
+#include <iprt/system.h>
 #include <string.h>
 
 
@@ -59,7 +60,7 @@ int main(int argc, char **argv)
         cErrors += rc != 0;
         if (!rc)
         {
-            memset(pv, 0xff, PAGE_SIZE);
+            memset(pv, 0xff, RTSystemGetPageSize());
             rc = SUPR3PageFree(pv, 1);
             cErrors += rc != 0;
             if (rc)
@@ -75,7 +76,7 @@ int main(int argc, char **argv)
         cErrors += rc != 0;
         if (!rc)
         {
-            memset(pv, 0xfe, 1023 << PAGE_SHIFT);
+            memset(pv, 0xfe, 1023 << RTSystemGetPageShift());
             rc = SUPR3PageFree(pv, 1023);
             cErrors += rc != 0;
             if (rc)

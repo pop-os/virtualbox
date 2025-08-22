@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -54,6 +54,11 @@
 
 MachineDebugger::MachineDebugger()
     : mParent(NULL)
+    , mSingleStepQueued(-1)
+    , mLogEnabledQueued(-1)
+    , mVirtualTimeRateQueued(UINT32_MAX)
+    , mFlushMode(false)
+    , m_hSampleReport(NULL)
 {
 }
 

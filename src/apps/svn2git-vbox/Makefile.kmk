@@ -1,0 +1,87 @@
+# $Id: Makefile.kmk $
+## @file
+# Sub-Makefile for svn2git-vbox.
+#
+
+#
+# Copyright (C) 2025 Oracle and/or its affiliates.
+#
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
+#
+
+SUB_DEPTH = ../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+# Lazy load the subversion libraries required for operation
+SVN2GIT_WITH_LAZYLOAD := 1
+
+PROGRAMS += svn2git-vbox
+
+svn2git-vbox_TEMPLATE = VBoxAdvBldProg
+svn2git-vbox_SOURCES = \
+	svn2git.cpp \
+	git.cpp \
+	../../VBox/Runtime/common/misc/json.cpp
+svn2git-vbox_INCS = \
+	$(PATH_ROOT)/src/VBox/Runtime/include
+
+if defined(SVN2GIT_WITH_LAZYLOAD)
+
+ svn2git-vbox_DEFS += SVN2GIT_WITH_LAZYLOAD
+
+ # Macro for generating the lazy loading assembly stub loader for a specific .def file.
+ #
+ # @param 1  The library name w/o suffix (e.g. "libFoo").
+ define def_svnLibToLazyLoad
+  svn2git-vbox_SOURCES       += \
+  	$$(svn2git-vbox_0_OUTDIR)/$(1)LazyLoad.asm
+  svn2git-vbox_CLEAN         += \
+  	$$(svn2git-vbox_0_OUTDIR)/$(1)LazyLoad.asm
+  $$$$(svn2git-vbox_0_OUTDIR)/$(1)LazyLoad.asm: $$(PATH_SUB_CURRENT)/$(1).def $$(VBOX_DEF_2_LAZY_LOAD) | $$$$(dir $$@)
+	$$(call MSG_TOOL,VBoxDef2LazyLoad,$$(PATH_SUB_CURRENT)/$(1).def,$$@)
+	$$(QUIET)$$(RM) -f -- "$$@"
+	$$(VBOX_DEF_2_LAZY_LOAD) --system --library $(1)$$(SUFF_DLL) --output "$$@" $$(filter %.def, $$^)
+ endef
+
+ $(evalcall2 def_svnLibToLazyLoad,libsvn_repos-1)
+ $(evalcall2 def_svnLibToLazyLoad,libsvn_fs-1)
+ $(evalcall2 def_svnLibToLazyLoad,libsvn_subr-1)
+ $(evalcall2 def_svnLibToLazyLoad,libapr-1)
+
+else
+ svn2git-vbox_INCS.linux = \
+ 	/usr/include/subversion-1 \
+ 	/usr/include/apr-1
+ svn2git-vbox_INCS.darwin = \
+ 	/opt/homebrew/include/subversion-1 \
+ 	/opt/homebrew/Cellar/apr/1.7.6/include/apr-1
+ svn2git-vbox_LIBPATH.linux = \
+ 	/usr/lib
+ svn2git-vbox_LIBPATH.darwin = \
+ 	/opt/homebrew/lib \
+ 	/opt/homebrew/Cellar/apr/1.7.6/lib
+ svn2git-vbox_LIBS = \
+ 	svn_repos-1 \
+ 	svn_fs-1 \
+ 	svn_subr-1 \
+ 	apr-1
+endif
+
+include $(FILE_KBUILD_SUB_FOOTER)
+

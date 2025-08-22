@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -577,7 +577,7 @@ void UICloudProfileManagerWidget::prepare()
     loadCloudStuff();
 
     /* Set help keyowrd for context sensitive help: */
-    uiCommon().setHelpKeyword(this, "cloud-using-cloud-profile-manager");
+    uiCommon().setHelpKeyword(this, "tk_using-cloud-profile-manager" /* help keyword */);
 
 }
 

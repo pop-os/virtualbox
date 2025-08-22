@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -500,7 +500,10 @@ RTDECL(int) RTLocalIpcServerListen(RTLOCALIPCSERVER hServer, PRTLOCALIPCSESSION 
                             RTMemFree(pSession);
                         }
                         else
+                        {
                             rc = VERR_NO_MEMORY;
+                            break;
+                        }
                     }
                     else if (   rc != VERR_INTERRUPTED
                              && rc != VERR_TRY_AGAIN)

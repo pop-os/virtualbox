@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -75,7 +75,7 @@
 /**
  * Optimization for PAE page tables that are modified often
  */
-#ifndef VBOX_VMM_TARGET_ARMV8
+#if !defined(VBOX_VMM_TARGET_ARMV8) && !defined(VBOX_WITH_ONLY_PGM_NEM_MODE)
 # define PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
 #endif
 
@@ -199,6 +199,9 @@ AssertCompile(PGM_MAX_PAGES_PER_ROM_RANGE <= PGM_MAX_PAGES_PER_RAM_RANGE);
 
 /** @} */
 
+#if defined(VBOX_WITH_PAGE_SHARING) && defined(VBOX_WITH_ONLY_PGM_NEM_MODE)
+# error "Misconfig! VBOX_WITH_ONLY_PGM_NEM_MODE implies no VBOX_WITH_PAGE_SHARING. Fix VBox/param.h."
+#endif
 
 /** @name PDPT and PML4 flags.
  * These are placed in the three bits available for system programs in
@@ -232,30 +235,31 @@ AssertCompile(PGM_MAX_PAGES_PER_ROM_RANGE <= PGM_MAX_PAGES_PER_RAM_RANGE);
 #define PGM_PTFLAGS_TRACK_DIRTY         RT_BIT_64(9)
 /** @} */
 
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
 /** @name Defines used to indicate the shadow and guest paging in the templates.
  * @{ */
-#define PGM_TYPE_REAL                   1
-#define PGM_TYPE_PROT                   2
-#define PGM_TYPE_32BIT                  3
-#define PGM_TYPE_PAE                    4
-#define PGM_TYPE_AMD64                  5
-#define PGM_TYPE_NESTED_32BIT           6
-#define PGM_TYPE_NESTED_PAE             7
-#define PGM_TYPE_NESTED_AMD64           8
-#define PGM_TYPE_EPT                    9
-#define PGM_TYPE_NONE                   10 /**< Dummy shadow paging mode for NEM. */
-#define PGM_TYPE_END                    (PGM_TYPE_NONE + 1)
-#define PGM_TYPE_FIRST_SHADOW           PGM_TYPE_32BIT /**< The first type used by shadow paging. */
+# define PGM_TYPE_REAL                  1
+# define PGM_TYPE_PROT                  2
+# define PGM_TYPE_32BIT                 3
+# define PGM_TYPE_PAE                   4
+# define PGM_TYPE_AMD64                 5
+# define PGM_TYPE_NESTED_32BIT          6
+# define PGM_TYPE_NESTED_PAE            7
+# define PGM_TYPE_NESTED_AMD64          8
+# define PGM_TYPE_EPT                   9
+# define PGM_TYPE_NONE                  10 /**< Dummy shadow paging mode for NEM. */
+# define PGM_TYPE_END                   (PGM_TYPE_NONE + 1)
+# define PGM_TYPE_FIRST_SHADOW          PGM_TYPE_32BIT /**< The first type used by shadow paging. */
 /** @} */
 
 /** @name Defines used to indicate the second-level
  * address translation (SLAT) modes in the templates.
  * @{ */
-#define PGM_SLAT_TYPE_DIRECT            (PGM_TYPE_END + 1)
-#define PGM_SLAT_TYPE_EPT               (PGM_TYPE_END + 2)
-#define PGM_SLAT_TYPE_32BIT             (PGM_TYPE_END + 3)
-#define PGM_SLAT_TYPE_PAE               (PGM_TYPE_END + 4)
-#define PGM_SLAT_TYPE_AMD64             (PGM_TYPE_END + 5)
+# define PGM_SLAT_TYPE_DIRECT           (PGM_TYPE_END + 1)
+# define PGM_SLAT_TYPE_EPT              (PGM_TYPE_END + 2)
+# define PGM_SLAT_TYPE_32BIT            (PGM_TYPE_END + 3)
+# define PGM_SLAT_TYPE_PAE              (PGM_TYPE_END + 4)
+# define PGM_SLAT_TYPE_AMD64            (PGM_TYPE_END + 5)
 /** @} */
 
 /** Macro for checking if the guest is using paging.
@@ -263,7 +267,7 @@ AssertCompile(PGM_MAX_PAGES_PER_ROM_RANGE <= PGM_MAX_PAGES_PER_RAM_RANGE);
  * @param   uShwType   PGM_TYPE_*
  * @remark  ASSUMES certain order of the PGM_TYPE_* values.
  */
-#define PGM_WITH_PAGING(uGstType, uShwType)  \
+# define PGM_WITH_PAGING(uGstType, uShwType)  \
     (   (uGstType) >= PGM_TYPE_32BIT \
      && (uShwType) < PGM_TYPE_NESTED_32BIT)
 
@@ -272,14 +276,14 @@ AssertCompile(PGM_MAX_PAGES_PER_ROM_RANGE <= PGM_MAX_PAGES_PER_RAM_RANGE);
  * @param   uShwType   PGM_TYPE_*
  * @remark  ASSUMES certain order of the PGM_TYPE_* values.
  */
-#define PGM_WITH_NX(uGstType, uShwType)  \
+# define PGM_WITH_NX(uGstType, uShwType)  \
     (   (uGstType) >= PGM_TYPE_PAE \
      && (uShwType) < PGM_TYPE_NESTED_32BIT)
 
 /** Macro for checking for nested.
  * @param   uType   PGM_TYPE_*
  */
-#define PGM_TYPE_IS_NESTED(uType) \
+# define PGM_TYPE_IS_NESTED(uType) \
      (   (uType) == PGM_TYPE_NESTED_32BIT \
       || (uType) == PGM_TYPE_NESTED_PAE \
       || (uType) == PGM_TYPE_NESTED_AMD64)
@@ -287,12 +291,22 @@ AssertCompile(PGM_MAX_PAGES_PER_ROM_RANGE <= PGM_MAX_PAGES_PER_RAM_RANGE);
 /** Macro for checking for nested or EPT.
  * @param   uType   PGM_TYPE_*
  */
-#define PGM_TYPE_IS_NESTED_OR_EPT(uType) \
+# define PGM_TYPE_IS_NESTED_OR_EPT(uType) \
       (   (uType) == PGM_TYPE_NESTED_32BIT \
        || (uType) == PGM_TYPE_NESTED_PAE \
        || (uType) == PGM_TYPE_NESTED_AMD64 \
        || (uType) == PGM_TYPE_EPT)
 
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+/** @name Defines used to indicate the guest paging in the templates.
+ * @{ */
+/** MMU disabled. */
+# define PGM_TYPE_NONE                  1
+/** @} */
+
+#else
+# error "Port me"
+#endif
 
 
 /** @def PGM_HCPHYS_2_PTR
@@ -773,7 +787,8 @@ typedef PPGMPAGE *PPPGMPAGE;
  * @param   a_uType     The page type (PGMPAGETYPE).
  * @param   a_uState    The page state (PGM_PAGE_STATE_XXX).
  */
-#define PGM_PAGE_INIT(a_pPage, a_HCPhys, a_idPage, a_uType, a_uState) \
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
+# define PGM_PAGE_INIT(a_pPage, a_HCPhys, a_idPage, a_uType, a_uState) \
     do { \
         RTHCPHYS SetHCPhysTmp = (a_HCPhys); \
         AssertFatalMsg(!(SetHCPhysTmp & ~UINT64_C(0x0000fffffffff000)), ("%RHp\n", SetHCPhysTmp)); \
@@ -783,6 +798,16 @@ typedef PPGMPAGE *PPPGMPAGE;
         (a_pPage)->s.uStateY         = (a_uState); \
         (a_pPage)->s.uTypeY          = (a_uType); \
     } while (0)
+#else
+# define PGM_PAGE_INIT(a_pPage, a_HCPhys, a_idPage, a_uType, a_uState) \
+    do { \
+        (a_pPage)->au64[0]           = 0; \
+        (a_pPage)->au64[1]           = 0; \
+        (a_pPage)->s.idPage          = (a_idPage); \
+        (a_pPage)->s.uStateY         = (a_uState); \
+        (a_pPage)->s.uTypeY          = (a_uType); \
+    } while (0)
+#endif
 
 /**
  * Initializes the page structure of a ZERO page.
@@ -864,7 +889,11 @@ typedef PPGMPAGE *PPPGMPAGE;
 # define PGM_PAGE_GET_HCPHYS_NA(a_pPage)        ( (a_pPage)->s.HCPhysFN << 12 )
 # define PGM_PAGE_GET_HCPHYS                    PGM_PAGE_GET_HCPHYS_NA
 #else
-# define PGM_PAGE_GET_HCPHYS_NA(a_pPage)        ( (a_pPage)->au64[0] & UINT64_C(0x0000fffffffff000) )
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
+#  define PGM_PAGE_GET_HCPHYS_NA(a_pPage)       ( (a_pPage)->au64[0] & UINT64_C(0x0000fffffffff000) )
+# else
+#  define PGM_PAGE_GET_HCPHYS_NA(a_pPage)       ( 0ULL )
+# endif
 # if defined(__GNUC__) && defined(VBOX_STRICT)
 #  define PGM_PAGE_GET_HCPHYS(a_pPage)      __extension__ ({ PGM_PAGE_ASSERT_LOCK(pVM); PGM_PAGE_GET_HCPHYS_NA(a_pPage); })
 # else
@@ -879,13 +908,21 @@ typedef PPGMPAGE *PPPGMPAGE;
  * @param   a_pPage      Pointer to the physical guest page tracking structure.
  * @param   a_HCPhys     The new host physical address.
  */
-#define PGM_PAGE_SET_HCPHYS(a_pVM, a_pPage, a_HCPhys) \
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
+# define PGM_PAGE_SET_HCPHYS(a_pVM, a_pPage, a_HCPhys) \
     do { \
         RTHCPHYS const SetHCPhysTmp = (a_HCPhys); \
         AssertFatal(!(SetHCPhysTmp & ~UINT64_C(0x0000fffffffff000))); \
         (a_pPage)->s.HCPhysFN = SetHCPhysTmp >> 12; \
         PGM_PAGE_ASSERT_LOCK(a_pVM); \
     } while (0)
+#else
+# define PGM_PAGE_SET_HCPHYS(a_pVM, a_pPage, a_HCPhys) \
+    do { \
+        (a_pPage)->s.HCPhysFN = 0; \
+        PGM_PAGE_ASSERT_LOCK(a_pVM); \
+    } while (0)
+#endif
 
 /**
  * Get the Page ID.
@@ -1839,7 +1876,7 @@ typedef PGMPAGER0MAPTLB *PPGMPAGER0MAPTLB;
 /** @name Context neutral page mapper TLB.
  *
  * Hoping to avoid some code and bug duplication parts of the GCxxx->CCPtr
- * code is writting in a kind of context neutral way. Time will show whether
+ * code is writing in a kind of context neutral way. Time will show whether
  * this actually makes sense or not...
  *
  * @todo this needs to be reconsidered and dropped/redone since the ring-0
@@ -1882,6 +1919,8 @@ typedef PPPGMCHUNKR3MAP                 PPPGMPAGEMAP;
 #endif
 /** @} */
 
+
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE /* No pool in NEM-only mode! */
 
 /** @name PGM Pool Indexes.
  * Aka. the unique shadow page identifier.
@@ -2482,11 +2521,17 @@ DECLINLINE(void *) pgmPoolMapPageStrict(PPGMPOOLPAGE a_pPage, const char *pszCal
 #define PGMPOOL_TD_GET_IDX(u16)         ( ((u16) >> PGMPOOL_TD_IDX_SHIFT)   & PGMPOOL_TD_IDX_MASK   )
 /** @} */
 
+#endif /* !VBOX_WITH_ONLY_PGM_NEM_MODE - No pool in NEM-only mode! */
+
 
 
 /** @name A20 gate macros
  * @{ */
-#define PGM_WITH_A20
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define PGM_WITH_A20
+#elif !defined(VBOX_VMM_TARGET_ARMV8) && !defined(IN_TSTVMSTRUCT)
+# error "Misconfig"
+#endif
 #ifdef PGM_WITH_A20
 # define PGM_A20_IS_ENABLED(a_pVCpu)                        ((a_pVCpu)->pgm.s.fA20Enabled)
 # define PGM_A20_APPLY(a_pVCpu, a_GCPhys)                   ((a_GCPhys) & (a_pVCpu)->pgm.s.GCPhysA20Mask)
@@ -2811,23 +2856,35 @@ typedef struct PGMMODEDATAGST
     DECLCALLBACKMEMBER(int, pfnGetPage,(PVMCPUCC pVCpu, RTGCPTR GCPtr, PPGMPTWALK pWalk));
     DECLCALLBACKMEMBER(int, pfnQueryPageFast,(PVMCPUCC pVCpu, RTGCPTR GCPtr, uint32_t fFlags, PPGMPTWALKFAST pWalk));
     DECLCALLBACKMEMBER(int, pfnModifyPage,(PVMCPUCC pVCpu, RTGCPTR GCPtr, size_t cbPages, uint64_t fFlags, uint64_t fMask));
+#if defined(VBOX_VMM_TARGET_X86)
     DECLCALLBACKMEMBER(int, pfnEnter,(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3));
+#else
+    DECLCALLBACKMEMBER(int, pfnWalk,(PVMCPUCC pVCpu, RTGCPTR GCPtr, PPGMPTWALK pWalk, PPGMPTWALKGST pGstWalk));
+    DECLCALLBACKMEMBER(int, pfnEnter,(PVMCPUCC pVCpu));
+#endif
     DECLCALLBACKMEMBER(int, pfnExit,(PVMCPUCC pVCpu));
-#ifdef IN_RING3
+#if defined(VBOX_VMM_TARGET_X86) && defined(IN_RING3)
     DECLCALLBACKMEMBER(int, pfnRelocate,(PVMCPUCC pVCpu, RTGCPTR offDelta)); /**< Only in ring-3. */
 #endif
 } PGMMODEDATAGST;
 
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
 /** The length of g_aPgmGuestModeData. */
-#if VBOX_WITH_64_BITS_GUESTS
-# define PGM_GUEST_MODE_DATA_ARRAY_SIZE     (PGM_TYPE_AMD64 + 1)
+# if VBOX_WITH_64_BITS_GUESTS
+#  define PGM_GUEST_MODE_DATA_ARRAY_SIZE     (PGM_TYPE_AMD64 + 1)
+# else
+#  define PGM_GUEST_MODE_DATA_ARRAY_SIZE     (PGM_TYPE_PAE + 1)
+# endif
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+# define PGM_GUEST_MODE_DATA_ARRAY_SIZE      (512 + 2) /** @todo Find a better way to express that. */
 #else
-# define PGM_GUEST_MODE_DATA_ARRAY_SIZE     (PGM_TYPE_PAE + 1)
+# error "Port me"
 #endif
 /** The guest mode data array. */
 extern PGMMODEDATAGST const g_aPgmGuestModeData[PGM_GUEST_MODE_DATA_ARRAY_SIZE];
 
 
+#if defined(VBOX_VMM_TARGET_X86)
 /**
  * Function pointers for shadow paging.
  */
@@ -2864,7 +2921,6 @@ typedef struct PGMMODEDATABTH
     DECLCALLBACKMEMBER(int, pfnInvalidatePage,(PVMCPUCC pVCpu, RTGCPTR GCPtrPage));
     DECLCALLBACKMEMBER(int, pfnSyncCR3,(PVMCPUCC pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, bool fGlobal));
     DECLCALLBACKMEMBER(int, pfnPrefetchPage,(PVMCPUCC pVCpu, RTGCPTR GCPtrPage));
-    DECLCALLBACKMEMBER(int, pfnVerifyAccessSyncPage,(PVMCPUCC pVCpu, RTGCPTR GCPtrPage, unsigned fFlags, unsigned uError));
     DECLCALLBACKMEMBER(int, pfnMapCR3,(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3));
     DECLCALLBACKMEMBER(int, pfnUnmapCR3,(PVMCPUCC pVCpu));
     DECLCALLBACKMEMBER(int, pfnEnter,(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3));
@@ -2883,6 +2939,7 @@ typedef struct PGMMODEDATABTH
 #define PGM_BOTH_MODE_DATA_ARRAY_SIZE       ((PGM_TYPE_END     - PGM_TYPE_FIRST_SHADOW) * PGM_TYPE_END)
 /** The guest+shadow mode data array. */
 extern PGMMODEDATABTH const g_aPgmBothModeData[PGM_BOTH_MODE_DATA_ARRAY_SIZE];
+#endif /* VBOX_VMM_TARGET_X86 */
 
 
 #ifdef VBOX_WITH_STATISTICS
@@ -2981,10 +3038,12 @@ typedef struct PGMSTATS
  */
 typedef struct PGM
 {
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     /** The zero page. */
     uint8_t                         abZeroPg[RT_MAX(HOST_PAGE_SIZE, GUEST_PAGE_SIZE)];
     /** The MMIO placeholder page. */
     uint8_t                         abMmioPg[RT_MAX(HOST_PAGE_SIZE, GUEST_PAGE_SIZE)];
+#endif
 
     /** @name   RAM, MMIO2 and ROM ranges
      * @{ */
@@ -3023,6 +3082,7 @@ typedef struct PGM
     uint8_t                         abAlignment1[2];
     /** @}  */
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     /** @name   The zero page (abPagePg).
      * @{ */
     /** The host physical address of the zero page. */
@@ -3039,13 +3099,19 @@ typedef struct PGM
      * @remarks Check fLessThan52PhysicalAddressBits before use. */
     RTHCPHYS                        HCPhysInvMmioPg;
     /** @} */
+#endif
 
     /** @cfgm{/RamPreAlloc, boolean, false}
      * Indicates whether the base RAM should all be allocated before starting
      * the VM (default), or if it should be allocated when first written to.
+     * This has no effect in NEM-mode.
      */
     bool                            fRamPreAlloc;
-#ifdef VBOX_WITH_PGM_NEM_MODE
+#ifndef VBOX_WITH_PGM_NEM_MODE
+# define PGM_IS_IN_NEM_MODE(a_pVM)  (false)
+#elif defined(VBOX_WITH_ONLY_PGM_NEM_MODE)
+# define PGM_IS_IN_NEM_MODE(a_pVM)  (true)
+#else
     /** Set if we're operating in NEM memory mode.
      *
      * NEM mode implies that memory is allocated in big chunks for each RAM range
@@ -3055,8 +3121,6 @@ typedef struct PGM
      * pointless as well.  */
     bool                            fNemMode;
 # define PGM_IS_IN_NEM_MODE(a_pVM)  ((a_pVM)->pgm.s.fNemMode)
-#else
-# define PGM_IS_IN_NEM_MODE(a_pVM)  (false)
 #endif
     /** Indicates whether write monitoring is currently in use.
      * This is used to prevent conflicts between live saving and page sharing
@@ -3090,7 +3154,7 @@ typedef struct PGM
     /** Large page enabled flag. */
     bool                            fUseLargePages;
     /** Alignment padding. */
-#ifndef VBOX_WITH_PGM_NEM_MODE
+#if !defined(VBOX_WITH_PGM_NEM_MODE) || defined(VBOX_WITH_ONLY_PGM_NEM_MODE)
     bool                            afAlignment2[2];
 #else
     bool                            afAlignment2[1];
@@ -3112,11 +3176,19 @@ typedef struct PGM
 
     /** RAM range TLB for R3. */
     R3PTRTYPE(PPGMRAMRANGE)         apRamRangesTlb[PGM_RAMRANGE_TLB_ENTRIES];
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     /** Shadow Page Pool - R3 Ptr. */
     R3PTRTYPE(PPGMPOOL)             pPoolR3;
+#else
+    RTR3PTR                         ReservedPoolR3;
+#endif
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     /** Shadow Page Pool - R0 Ptr. */
     R0PTRTYPE(PPGMPOOL)             pPoolR0;
+#else
+    RTR0PTR                         ReservedPoolR0;
+#endif
 
     /** Hack: Number of deprecated page mapping locks taken by the current lock
      *  owner via pgmPhysGCPhys2CCPtrInternalDepr. */
@@ -3138,7 +3210,10 @@ typedef struct PGM
     /** Caching the last physical handler we looked. */
     uint32_t                        idxLastPhysHandler;
 
-    uint32_t                        au64Padding3[9];
+    uint32_t                        au32Padding3[9];
+#ifdef VBOX_WITH_ONLY_PGM_NEM_MODE
+    uint64_t                        au64Padding4[3];
+#endif
 
     /** PGM critical section.
      * This protects the physical, ram ranges, and the page flag updating (some of
@@ -3146,6 +3221,7 @@ typedef struct PGM
      */
     PDMCRITSECT                     CritSectX;
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     /**
      * Data associated with managing the ring-3 mappings of the allocation chunks.
      */
@@ -3155,9 +3231,9 @@ typedef struct PGM
         PGMCHUNKR3MAPTLB            Tlb;
         /** The chunk tree, ordered by chunk id. */
         R3PTRTYPE(PAVLU32NODECORE)  pTree;
-#if HC_ARCH_BITS == 32
+# if HC_ARCH_BITS == 32
         uint32_t                    u32Alignment0;
-#endif
+# endif
         /** The number of mapped chunks. */
         uint32_t                    c;
         /** @cfgm{/PGM/MaxRing3Chunks, uint32_t, host dependent}
@@ -3169,6 +3245,7 @@ typedef struct PGM
         /** Alignment padding. */
         uint32_t                    au32Alignment1[3];
     } ChunkR3Map;
+#endif
 
     /** The page mapping TLB for ring-3. */
     PGMPAGER3MAPTLB                 PhysTlbR3;
@@ -3274,8 +3351,10 @@ typedef struct PGM
     uint32_t                        cWriteLockedPages;      /**< The number of write locked pages. */
     uint32_t                        cReadLockedPages;       /**< The number of read locked pages. */
     uint32_t                        cBalloonedPages;        /**< The number of ballooned pages. */
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     uint32_t                        cMappedChunks;          /**< Number of times we mapped a chunk. */
     uint32_t                        cUnmappedChunks;        /**< Number of times we unmapped a chunk. */
+#endif
     uint32_t                        cLargePages;            /**< The number of large pages. */
     uint32_t                        cLargePagesDisabled;    /**< The number of disabled large pages. */
 /*    uint32_t                        aAlignment4[1]; */
@@ -3304,12 +3383,14 @@ AssertCompileMemberAlignment(PGM, CritSectX, 8);
 AssertCompileMemberAlignment(PGM, CritSectX, 16);
 AssertCompileMemberAlignment(PGM, CritSectX, 32);
 AssertCompileMemberAlignment(PGM, CritSectX, 64);
-AssertCompileMemberAlignment(PGM, ChunkR3Map, 16);
 AssertCompileMemberAlignment(PGM, PhysTlbR3, 8);
 AssertCompileMemberAlignment(PGM, PhysTlbR3, 16);
 AssertCompileMemberAlignment(PGM, PhysTlbR3, 32);
 AssertCompileMemberAlignment(PGM, PhysTlbR0, 32);
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
+AssertCompileMemberAlignment(PGM, ChunkR3Map, 16);
 AssertCompileMemberAlignment(PGM, HCPhysZeroPg, 8);
+# endif
 AssertCompileMemberAlignment(PGM, aHandyPages, 8);
 #endif /* !IN_TSTVMSTRUCTGC */
 /** Pointer to the PGM instance data. */
@@ -3512,6 +3593,7 @@ typedef struct PGMCPUSTATS
  */
 typedef struct PGMCPU
 {
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
     /** A20 gate mask.
      * Our current approach to A20 emulation is to let REM do it and don't bother
      * anywhere else. The interesting Guests will be operating with it enabled anyway.
@@ -3677,10 +3759,12 @@ typedef struct PGMCPU
     uint64_t                        fGstEptShadowedPml4eMask;
     /** @} */
 
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     /** Pointer to the page of the current active CR3 - R3 Ptr. */
     R3PTRTYPE(PPGMPOOLPAGE)         pShwPageCR3R3;
     /** Pointer to the page of the current active CR3 - R0 Ptr. */
     R0PTRTYPE(PPGMPOOLPAGE)         pShwPageCR3R0;
+# endif
 
     /** For saving stack space, the disassembler state is allocated here instead of
      * on the stack. */
@@ -3688,6 +3772,27 @@ typedef struct PGMCPU
 
     /** Counts the number of times the netware WP0+RO+US hack has been applied. */
     uint64_t                        cNetwareWp0Hacks;
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+    /** What needs syncing (PGM_SYNC_*).
+     * This is used to queue operations for PGMSyncCR3, PGMInvalidatePage,
+     * PGMFlushTLB, and PGMR3Load. */
+    uint32_t                        fSyncFlags;
+
+    /** The guest paging mode, indexed by the exception level (EL0 isn't used). */
+    PGMMODE                         aenmGuestMode[3]; /** @todo Really necessary? */
+    /** The cached SCTLR_ELx register (EL0 isn't used). */
+    uint64_t                        au64RegSctlrEl[3];
+    /** The cached TCR_ELx register (EL0 isn't used). */
+    uint64_t                        au64RegTcrEl[3];
+    /** Guest mode data table index for a page translation going through TTBR0_ELx (PGM_TYPE_XXX). */
+    uint16_t volatile               aidxGuestModeDataTtbr0[4];
+    /** Guest mode data table index for a page translation going through TTBR1_ELx (PGM_TYPE_XXX). */
+    uint16_t volatile               aidxGuestModeDataTtbr1[4];
+    /** The initial lookup mask for translations going through TTBR0_ELx. */
+    uint64_t                        afLookupMaskTtbr0[4];
+    /** The initial lookup mask for translations going through TTBR1_ELx. */
+    uint64_t                        afLookupMaskTtbr1[4];
+#endif
 
     /** Count the number of pgm pool access handler calls. */
     uint64_t                        cPoolAccessHandler;
@@ -3813,6 +3918,7 @@ typedef struct PGMR0PERVM
     uint32_t                        acRomRangePages[PGM_MAX_ROM_RANGES];
     /** @} */
 
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     /** @name PGM Pool related stuff.
      * @{ */
     /** Critical section for serializing pool growth. */
@@ -3822,6 +3928,7 @@ typedef struct PGMR0PERVM
     /** The ring-3 mapping objects for the pool pages. */
     RTR0MEMOBJ                      ahPoolMapObjs[(PGMPOOL_IDX_LAST + PGMPOOL_CFG_MAX_GROW - 1) / PGMPOOL_CFG_MAX_GROW];
     /** @} */
+# endif
 
     /** Physical access handler types for ring-0.
      * Initialized to callback causing return to ring-3 and invalid enmKind. */
@@ -3903,7 +4010,9 @@ int             pgmPhysPageMakeWritable(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPh
 int             pgmPhysPageMakeWritableAndMap(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv);
 int             pgmPhysPageMap(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv);
 int             pgmPhysPageMapReadOnly(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void const **ppv);
+#if 0 /* unused */
 int             pgmPhysPageMapByPageID(PVMCC pVM, uint32_t idPage, RTHCPHYS HCPhys, void **ppv);
+#endif
 int             pgmPhysGCPhys2R3Ptr(PVMCC pVM, RTGCPHYS GCPhys, PRTR3PTR pR3Ptr);
 int             pgmPhysGCPhys2CCPtrLockless(PVMCPUCC pVCpu, RTGCPHYS GCPhys, void **ppv);
 int             pgmPhysCr3ToHCPtr(PVM pVM, RTGCPHYS GCPhys, PRTR3PTR pR3Ptr);
@@ -3945,7 +4054,9 @@ DECLHIDDEN(void)            pgmPhysSetNemStateForPages(PPGMPAGE paPages, RTGCPHY
 #endif
 
 #ifdef IN_RING3
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
 int             pgmR3PhysRamPreAllocate(PVM pVM);
+# endif
 int             pgmR3PhysRamReset(PVM pVM);
 int             pgmR3PhysRomReset(PVM pVM);
 int             pgmR3PhysRamZeroAll(PVM pVM);
@@ -3954,6 +4065,7 @@ int             pgmR3PhysRamTerm(PVM pVM);
 void            pgmR3PhysRomTerm(PVM pVM);
 void            pgmR3PhysAssertSharedPageChecksums(PVM pVM);
 
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
 int             pgmR3PoolInit(PVM pVM);
 void            pgmR3PoolRelocate(PVM pVM);
 void            pgmR3PoolResetUnpluggedCpu(PVM pVM, PVMCPU pVCpu);
@@ -3961,11 +4073,13 @@ void            pgmR3PoolReset(PVM pVM);
 void            pgmR3PoolClearAll(PVM pVM, bool fFlushRemTlb);
 DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, void *fpvFlushRemTbl);
 void            pgmR3PoolWriteProtectPages(PVM pVM);
+# endif
 
 #endif /* IN_RING3 */
-#ifdef IN_RING0
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
+# ifdef IN_RING0
 int             pgmR0PoolInitVM(PGVM pGVM);
-#endif
+# endif
 int             pgmPoolAlloc(PVMCC pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS enmAccess, bool fA20Enabled,
                              uint16_t iUser, uint32_t iUserTable, bool fLockPage, PPPGMPOOLPAGE ppPage);
 void            pgmPoolFree(PVM pVM, RTHCPHYS HCPhys, uint16_t iUser, uint32_t iUserTable);
@@ -4030,6 +4144,7 @@ DECLINLINE(R3PTRTYPE(PPGMPOOLPAGE)) pgmPoolConvertPageToR3(PPGMPOOL pPool, PPGMP
 int             pgmR3ExitShadowModeBeforePoolFlush(PVMCPU pVCpu);
 int             pgmR3ReEnterShadowModeAfterPoolFlush(PVM pVM, PVMCPU pVCpu);
 void            pgmR3RefreshShadowModeAfterA20Change(PVMCPU pVCpu);
+#endif  /* !VBOX_WITH_ONLY_PGM_NEM_MODE */
 
 int             pgmShwMakePageSupervisorAndWritable(PVMCPUCC pVCpu, RTGCPTR GCPtr, bool fBigPage, uint32_t fOpFlags);
 int             pgmShwSyncPaePDPtr(PVMCPUCC pVCpu, RTGCPTR GCPtr, X86PGPAEUINT uGstPdpe, PX86PDPAE *ppPD);

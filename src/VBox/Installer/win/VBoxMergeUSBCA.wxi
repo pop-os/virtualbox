@@ -2,7 +2,7 @@
     VirtualBox Windows Installation Script (WiX)
 -->
 <!--
-    Copyright (C) 2014-2024 Oracle and/or its affiliates.
+    Copyright (C) 2014-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -28,7 +28,7 @@
     <CustomAction Id="ca_VBoxUSBDevDrvInstParms" Property="ca_VBoxUSBDevDrvInst" Value="VBoxDrvInstInfFile=[#file_VBoxUSB.inf]##VBoxDrvInstModel=VBoxUSB*##VBoxDrvInstFlagForce=1##VBoxDrvInstFlagSilent=1" Execute="immediate" />
     <CustomAction Id="ca_VBoxUSBDevDrvInst" DllEntry="DriverInstall" Execute="deferred" Return="check" Impersonate="no" BinaryRef="VBoxInstallHelper" />
 
-    <CustomAction Id="ca_VBoxUSBDevDrvUninstParms" Property="ca_VBoxUSBDevDrvUninst" Value="VBoxDrvUninstModel=VBoxUSB*" Execute="immediate" />
+    <CustomAction Id="ca_VBoxUSBDevDrvUninstParms" Property="ca_VBoxUSBDevDrvUninst" Value="VBoxDrvUninstModel=VBoxUSB.*##VBoxDrvUninstPnpId=USB\VID_80EE&amp;PID_CAFE" Execute="immediate" />
     <CustomAction Id="ca_VBoxUSBDevDrvUninst" DllEntry="DriverUninstall" Execute="deferred" Return="check" Impersonate="no" BinaryRef="VBoxInstallHelper" />
 
     <CustomAction Id="ca_VBoxUSBMonDrvInstParms" Property="ca_VBoxUSBMonDrvInst" Value="VBoxDrvInstInfFile=[#file_VBoxUSBMon.inf]##VBoxDrvInstModel=VBoxUSBMon*##VBoxDrvInstFlagForce=1##VBoxDrvInstFlagSilent=1" Execute="immediate" />

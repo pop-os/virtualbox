@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -38,8 +38,11 @@
 #include "UINativeWizardPage.h"
 
 /* Forward declarations: */
+class QCheckBox;
 class QIRichTextLabel;
-class UINewVMHardwareContainer;
+class UIBaseMemoryEditor;
+class UIVirtualCPUEditor;
+class UIMediumSizeEditor;
 
 class UIWizardNewVMHardwarePage : public UINativeWizardPage
 {
@@ -47,13 +50,14 @@ class UIWizardNewVMHardwarePage : public UINativeWizardPage
 
 public:
 
-    UIWizardNewVMHardwarePage();
+    UIWizardNewVMHardwarePage(const QString strHelpKeyword = QString());
 
 private slots:
 
     void sltMemorySizeChanged(int iValue);
     void sltCPUCountChanged(int iCount);
     void sltEFIEnabledChanged(bool fEnabled);
+    void sltHandleSizeEditorChange(qulonglong uSize);
     virtual void sltRetranslateUI() RT_OVERRIDE RT_FINAL;
 
 private:
@@ -63,12 +67,19 @@ private:
     void createConnections();
     virtual void initializePage() RT_OVERRIDE RT_FINAL;
     virtual bool isComplete() const RT_OVERRIDE RT_FINAL;
-
+    void initializeVirtualHardDiskParameters();
+    void updateMinimumLayoutHint();
     /** @name Widgets
       * @{ */
         QIRichTextLabel    *m_pLabel;
-        UINewVMHardwareContainer *m_pHardwareWidgetContainer;
+        UIBaseMemoryEditor *m_pBaseMemoryEditor;
+        UIVirtualCPUEditor *m_pVirtualCPUEditor;
+        QCheckBox          *m_pEFICheckBox;
+        UIMediumSizeEditor *m_pMediumSizeEditor;
     /** @} */
+    bool m_fVDIFormatFound;
+    qulonglong m_uMediumSizeMin;
+    qulonglong m_uMediumSizeMax;
     /** This set is used to decide if we have to set wizard's parameters
       * some default values or not. When user modifies a value through a widget we
       * no longer touch user set value during page initilization. see initializePage. */

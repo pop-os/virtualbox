@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -76,9 +76,9 @@ void UIDefaultMachineFolderEditor::setMinimumLayoutIndent(int iIndent)
 void UIDefaultMachineFolderEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Default &Machine Folder:"));
+        m_pLabel->setText(tr("Default &Machine Folder"));
     if (m_pSelector)
-        m_pSelector->setToolTip(tr("Holds the path to the default virtual machine folder. This folder is used, "
+        m_pSelector->setToolTip(tr("Path to the default virtual machine folder. This folder is used, "
                                    "if not explicitly specified otherwise, when creating new virtual machines."));
 }
 

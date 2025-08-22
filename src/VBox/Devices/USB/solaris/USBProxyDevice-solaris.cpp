@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -590,7 +590,7 @@ static DECLCALLBACK(int) usbProxySolarisUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBUR
     PUSBPROXYDEVSOL pDevSol = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVSOL);
 
     LogFlowFunc((USBPROXY ": usbProxySolarisUrbQueue: pProxyDev=%s pUrb=%p pszDesc=%s EndPt=%#x enmDir=%d cbData=%d pvData=%p\n",
-             pProxyDev->pUsbIns->pszName, pUrb, pUrb->pszDesc, pUrb->EndPt, pUrb->enmDir, pUrb->cbData, pUrb->abData));
+             pProxyDev->pUsbIns->pszName, pUrb, pUrb->pszDesc, pUrb->EndPt, pUrb->enmDir, pUrb->cbData, pUrb->pbData));
 
     PUSBPROXYURBSOL pUrbSol = usbProxySolarisUrbAlloc(pDevSol);
     if (RT_UNLIKELY(!pUrbSol))
@@ -614,7 +614,7 @@ static DECLCALLBACK(int) usbProxySolarisUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBUR
     UrbReq.enmStatus    = pUrb->enmStatus;
     UrbReq.fShortOk     = !pUrb->fShortNotOk;
     UrbReq.cbData       = pUrb->cbData;
-    UrbReq.pvData       = &pUrb->abData[0];
+    UrbReq.pvData       = &pUrb->pbData[0];
 
     Log6((USBPROXY ": Sending: EndPt=%#x Dir=%d cbData=%u\n", pUrb->EndPt, pUrb->enmDir, pUrb->cbData));
 
@@ -865,7 +865,7 @@ static PVUSBURB usbProxySolarisUrbComplete(PUSBPROXYDEVSOL pDevSol)
 
                 Log6((USBPROXY ": Reaping: EndPt=%#x Dir=%d cbData=%u\n", pUrb->EndPt, pUrb->enmDir, pUrb->cbData));
                 if (pUrb->cbData < 1024)
-                    Log6(("%.*Rhxd\n", pUrb->cbData, pUrb->abData));
+                    Log6(("%.*Rhxd\n", pUrb->cbData, pUrb->pbData));
                 return pUrb;
             }
         }

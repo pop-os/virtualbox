@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -106,7 +106,7 @@ void UIUSBSettingsEditor::sltRetranslateUI()
     if (m_pCheckboxFeature)
     {
         m_pCheckboxFeature->setText(tr("Enable &USB Controller"));
-        m_pCheckboxFeature->setToolTip(tr("When checked, enables the virtual USB controller of this machine."));
+        m_pCheckboxFeature->setToolTip(tr("Enable virtual USB controller of this machine"));
     }
 }
 

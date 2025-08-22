@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -28,6 +28,7 @@
 /* Qt includes: */
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QDir>
 #include <QRadioButton>
 #include <QVBoxLayout>
 
@@ -38,18 +39,36 @@
 #include "UIMediaComboBox.h"
 #include "UIMedium.h"
 #include "UIMediumEnumerator.h"
+#include "UIMediumSelector.h"
 #include "UINameAndSystemEditor.h"
 #include "UINotificationCenter.h"
 #include "UIToolBox.h"
 #include "UIWizardNewVM.h"
 #include "UIWizardDiskEditors.h"
-#include "UIWizardNewVMDiskPage.h"
 #include "UIWizardNewVMEditors.h"
 #include "UIWizardNewVMExpertPage.h"
 #include "UIWizardNewVMNameOSTypePage.h"
 
 /* COM includes: */
 #include "CSystemProperties.h"
+
+QUuid getWithFileOpenDialog(const QString &strOSTypeID,
+                            const QString &strMachineFolder,
+                            QWidget *pCaller, UIActionPool *pActionPool)
+{
+    QUuid uMediumId;
+    int returnCode = UIMediumSelector::openMediumSelectorDialog(pCaller, UIMediumDeviceType_HardDisk,
+                                                         QUuid() /* current medium id */,
+                                                         uMediumId,
+                                                         strMachineFolder,
+                                                         QString() /* strMachineName */,
+                                                         strOSTypeID,
+                                                         false /* don't show/enable the create action: */,
+                                                         QUuid() /* Machinie Id */, pActionPool);
+    if (returnCode != static_cast<int>(UIMediumSelector::ReturnCode_Accepted))
+        return QUuid();
+    return uMediumId;
+}
 
 UIWizardNewVMExpertPage::UIWizardNewVMExpertPage(UIActionPool *pActionPool)
     : m_pToolBox(0)
@@ -58,7 +77,7 @@ UIWizardNewVMExpertPage::UIWizardNewVMExpertPage(UIActionPool *pActionPool)
     , m_pFormatComboBox(0)
     , m_pSizeAndLocationGroup(0)
     , m_pNameAndSystemEditor(0)
-    , m_pSkipUnattendedCheckBox(0)
+    , m_pUnattendedCheckBox(0)
     , m_pNameAndSystemLayout(0)
     , m_pHardwareWidgetContainer(0)
     , m_pAdditionalOptionsContainer(0)
@@ -80,7 +99,7 @@ UIWizardNewVMExpertPage::UIWizardNewVMExpertPage(UIActionPool *pActionPool)
         m_pToolBox = new UIToolBox;
         m_pToolBox->insertPage(ExpertToolboxItems_NameAndOSType, createNameOSTypeWidgets(), "");
         m_pToolBox->insertPage(ExpertToolboxItems_Unattended, createUnattendedWidgets(), "");
-        m_pHardwareWidgetContainer = new UINewVMHardwareContainer;
+        m_pHardwareWidgetContainer = new UINewVMHardwareContainer(this);
         m_pToolBox->insertPage(ExpertToolboxItems_Hardware, m_pHardwareWidgetContainer, "");
         m_pToolBox->insertPage(ExpertToolboxItems_Disk, createDiskWidgets(), "");
         m_pToolBox->setCurrentPage(ExpertToolboxItems_NameAndOSType);
@@ -128,6 +147,7 @@ void UIWizardNewVMExpertPage::sltNameChanged(const QString &strNewName)
 void UIWizardNewVMExpertPage::sltPathChanged(const QString &strNewPath)
 {
     Q_UNUSED(strNewPath);
+    emit completeChanged();
     UIWizardNewVMNameOSTypeCommon::composeMachineFilePath(m_pNameAndSystemEditor, wizardWindow<UIWizardNewVM>());
     if (!m_userModifiedParameters.contains("MediumPath"))
         updateVirtualMediumPathFromMachinePathName();
@@ -148,9 +168,9 @@ void UIWizardNewVMExpertPage::sltGetWithFileOpenDialog()
 {
     UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
     AssertReturnVoid(pWizard);
-    QUuid uMediumId = UIWizardNewVMDiskCommon::getWithFileOpenDialog(pWizard->guestOSTypeId(),
-                                                                     pWizard->machineFolder(),
-                                                                     this, m_pActionPool);
+    QUuid uMediumId = getWithFileOpenDialog(pWizard->guestOSTypeId(),
+                                            pWizard->machineFolder(),
+                                            this, m_pActionPool);
     if (!uMediumId.isNull())
     {
         m_pDiskSelector->setCurrentItem(uMediumId);
@@ -179,10 +199,14 @@ void UIWizardNewVMExpertPage::sltISOPathChanged(const QString &strISOPath)
 
     /* Populate the editions selector: */
     if (m_pNameAndSystemEditor)
+    {
         m_pNameAndSystemEditor->setEditionNameAndIndices(pWizard->detectedWindowsImageNames(),
                                                          pWizard->detectedWindowsImageIndices());
-    setSkipCheckBoxEnable();
-    disableEnableUnattendedRelatedWidgets(isUnattendedEnabled());
+    }
+    UIWizardNewVMNameOSTypeCommon::setUnattendedCheckBoxEnable(m_pUnattendedCheckBox,
+                                                               m_pNameAndSystemEditor->ISOImagePath(),
+                                                               isUnattendedInstallSupported());
+    disableEnableUnattendedRelatedWidgets();
 
     /* Redetect the OS type using the name if detection or the step above failed: */
     if (!fOsTypeFixed && m_pNameAndSystemEditor)
@@ -218,37 +242,36 @@ void UIWizardNewVMExpertPage::sltOSFamilyTypeChanged(const QString &strGuestOSFa
 
 void UIWizardNewVMExpertPage::sltRetranslateUI()
 {
-    if (m_pSkipUnattendedCheckBox)
+    if (m_pUnattendedCheckBox)
     {
-        m_pSkipUnattendedCheckBox->setText(UIWizardNewVM::tr("&Skip Unattended Installation"));
-        m_pSkipUnattendedCheckBox->setToolTip(UIWizardNewVM::tr("When checked, the unattended install is disabled and the selected ISO "
-                                                                "is mounted on the vm."));
+        m_pUnattendedCheckBox->setText(UIWizardNewVM::tr("&Proceed with Unattended Installation"));
+        m_pUnattendedCheckBox->setToolTip(UIWizardNewVM::tr("The ISO is attached to the VM, so you can install the OS automatically"));
     }
 
     if (m_pToolBox)
     {
-        m_pToolBox->setPageTitle(ExpertToolboxItems_NameAndOSType, QString(UIWizardNewVM::tr("Name and &Operating System")));
-        m_pToolBox->setPageTitle(ExpertToolboxItems_Unattended, UIWizardNewVM::tr("&Unattended Install"));
-        m_pToolBox->setPageTitle(ExpertToolboxItems_Disk, UIWizardNewVM::tr("Hard Dis&k"));
-        m_pToolBox->setPageTitle(ExpertToolboxItems_Hardware, UIWizardNewVM::tr("H&ardware"));
+        m_pToolBox->setPageTitle(ExpertToolboxItems_NameAndOSType, QString(UIWizardNewVM::tr("Virtual machine name and &operating system")));
+        m_pToolBox->setPageTitle(ExpertToolboxItems_Unattended, UIWizardNewVM::tr("Set up &unattended guest OS installation"));
+        m_pToolBox->setPageTitle(ExpertToolboxItems_Disk, UIWizardNewVM::tr("Specify virtual hard dis&k"));
+        m_pToolBox->setPageTitle(ExpertToolboxItems_Hardware, UIWizardNewVM::tr("Specify virtual h&ardware"));
     }
 
     if (m_pDiskEmpty)
-        m_pDiskEmpty->setText(UIWizardNewVM::tr("&Do Not Add a Virtual Hard Disk"));
+        m_pDiskEmpty->setText(UIWizardNewVM::tr("C&reate Virtual Machine Without a Virtual Hard Disk"));
     if (m_pDiskNew)
-        m_pDiskNew->setText(UIWizardNewVM::tr("&Create a Virtual Hard Disk Now"));
+        m_pDiskNew->setText(UIWizardNewVM::tr("&Create a New Virtual Hard Disk"));
     if (m_pDiskExisting)
         m_pDiskExisting->setText(UIWizardNewVM::tr("U&se an Existing Virtual Hard Disk File"));
     if (m_pDiskSelectionButton)
-        m_pDiskSelectionButton->setToolTip(UIWizardNewVM::tr("Chooses a Virtual Hard Fisk File..."));
+        m_pDiskSelectionButton->setToolTip(UIWizardNewVM::tr("Select a Virtual Hard Disk File..."));
     if (m_pDiskSelectionButton)
-        m_pDiskSelectionButton->setText(UIWizardNewVM::tr("Choose a Virtual Hard Fisk File"));
+        m_pDiskSelectionButton->setText(UIWizardNewVM::tr("Select a Virtual Hard Disk File"));
 
     if (m_pNameAndSystemLayout && m_pNameAndSystemEditor)
         m_pNameAndSystemLayout->setColumnMinimumWidth(0, m_pNameAndSystemEditor->firstColumnWidth());
 
     if (m_pDiskFormatVariantGroupBox)
-        m_pDiskFormatVariantGroupBox->setTitle(UIWizardNewVM::tr("Hard Disk File &Type and Variant"));
+        m_pDiskFormatVariantGroupBox->setTitle(UIWizardNewVM::tr("Hard Disk File &Type and Format"));
 }
 
 void UIWizardNewVMExpertPage::createConnections()
@@ -311,9 +334,9 @@ void UIWizardNewVMExpertPage::createConnections()
         connect(m_pDiskSourceButtonGroup, &QButtonGroup::buttonClicked,
                 this, &UIWizardNewVMExpertPage::sltSelectedDiskSourceChanged);
 
-    if (m_pSkipUnattendedCheckBox)
-        connect(m_pSkipUnattendedCheckBox, &QCheckBox::toggled,
-                this, &UIWizardNewVMExpertPage::sltSkipUnattendedCheckBoxChecked);
+    if (m_pUnattendedCheckBox)
+        connect(m_pUnattendedCheckBox, &QCheckBox::toggled,
+                this, &UIWizardNewVMExpertPage::sltUnattendedCheckBoxChecked);
 
     if (m_pSizeAndLocationGroup)
     {
@@ -454,8 +477,10 @@ void UIWizardNewVMExpertPage::initializePage()
     }
 
     setOSTypeDependedValues();
-    setSkipCheckBoxEnable();
-    disableEnableUnattendedRelatedWidgets(isUnattendedEnabled());
+    UIWizardNewVMNameOSTypeCommon::setUnattendedCheckBoxEnable(m_pUnattendedCheckBox,
+                                                               m_pNameAndSystemEditor->ISOImagePath(),
+                                                               isUnattendedInstallSupported());
+    disableEnableUnattendedRelatedWidgets();
     updateDiskWidgetsAfterMediumFormatChange();
     sltRetranslateUI();
 
@@ -468,21 +493,25 @@ void UIWizardNewVMExpertPage::markWidgets() const
 {
     if (m_pNameAndSystemEditor)
     {
-        m_pNameAndSystemEditor->markNameEditor(m_pNameAndSystemEditor->name().isEmpty(),
-                                               UIWizardNewVM::tr("Guest machine name cannot be empty"),
-                                               UIWizardNewVM::tr("Guest machine name is valid"));
-        m_pNameAndSystemEditor->markImageEditor(!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor),
+        if (m_pNameAndSystemEditor->name().isEmpty())
+            m_pNameAndSystemEditor->markNameEditor(m_pNameAndSystemEditor->name().isEmpty(),
+                                                   UIWizardNewVM::tr("Virtual machine name cannot be empty"),
+                                                   UIWizardNewVM::tr("Virtual machine name is valid"));
+        else
+            m_pNameAndSystemEditor->markNameEditor((QDir(m_pNameAndSystemEditor->fullPath()).exists()),
+                                                   UIWizardNewVM::tr("Virtual machine path is not unique"),
+                                                   UIWizardNewVM::tr("Virtual machine name is valid"));
+
+        m_pNameAndSystemEditor->markImageEditor(!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor->ISOImagePath()),
                                                 UIWizardNewVM::tr("Invalid file path or unreadable file"),
                                                 UIWizardNewVM::tr("File path is valid"));
-        m_pNameAndSystemEditor->markNameEditor((QDir(m_pNameAndSystemEditor->fullPath()).exists()),
-                                               UIWizardNewVM::tr("Guest machine path is not unique"),
-                                               UIWizardNewVM::tr("Guest machine name is valid"));
     }
     UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
+    AssertReturnVoid(pWizard);
     if (pWizard && pWizard->installGuestAdditions() && m_pGAInstallationISOContainer)
         m_pGAInstallationISOContainer->mark();
     if (isUnattendedEnabled())
-        m_pAdditionalOptionsContainer->mark();
+        m_pAdditionalOptionsContainer->mark(pWizard->isProductKeyRequired());
 }
 
 QWidget *UIWizardNewVMExpertPage::createUnattendedWidgets()
@@ -582,7 +611,7 @@ bool UIWizardNewVMExpertPage::isComplete() const
     if (isUnattendedEnabled())
     {
         /* Check the installation medium: */
-        if (!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor))
+        if (!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor->ISOImagePath()))
         {
             m_pToolBox->setPageTitleIcon(ExpertToolboxItems_NameAndOSType,
                                          UIIconPool::iconSet(":/status_error_16px.png"),
@@ -604,18 +633,28 @@ bool UIWizardNewVMExpertPage::isComplete() const
             {
                 m_pToolBox->setPageTitleIcon(ExpertToolboxItems_Unattended,
                                              UIIconPool::iconSet(":/status_error_16px.png"),
-                                             UIWizardNewVM::tr("Invalid username and/or password"));
+                                             UIWizardNewVM::tr("Invalid user name and/or password"));
                 fIsComplete = false;
             }
         }
         if (m_pAdditionalOptionsContainer)
         {
-            if (!m_pAdditionalOptionsContainer->isComplete())
+            if (!m_pAdditionalOptionsContainer->hostDomainNameComplete())
             {
                 m_pToolBox->setPageTitleIcon(ExpertToolboxItems_Unattended,
                                              UIIconPool::iconSet(":/status_error_16px.png"),
-                                             UIWizardNewVM::tr("Invalid hostname or domain name"));
+                                             UIWizardNewVM::tr("Invalid host name or domain name"));
                 fIsComplete = false;
+            }
+            if (pWizard->isProductKeyRequired())
+            {
+                if (!m_pAdditionalOptionsContainer->hasProductKeyAcceptableInput())
+                {
+                    m_pToolBox->setPageTitleIcon(ExpertToolboxItems_Unattended,
+                                                 UIIconPool::iconSet(":/status_error_16px.png"),
+                                                 UIWizardNewVM::tr("Invalid product key"));
+                    fIsComplete = false;
+                }
             }
         }
     }
@@ -626,21 +665,21 @@ bool UIWizardNewVMExpertPage::isComplete() const
         {
             m_pToolBox->setPageTitleIcon(ExpertToolboxItems_NameAndOSType,
                                          UIIconPool::iconSet(":/status_error_16px.png"),
-                                         UIWizardNewVM::tr("Virtual machine name is invalid"));
+                                         UIWizardNewVM::tr("Virtual machine name is invalid (possibly empty)"));
             fIsComplete = false;
         }
-        if (!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor))
+        else if (QDir(m_pNameAndSystemEditor->fullPath()).exists())
+        {
+            m_pToolBox->setPageTitleIcon(ExpertToolboxItems_NameAndOSType,
+                                         UIIconPool::iconSet(":/status_error_16px.png"),
+                                         UIWizardNewVM::tr("Virtual machine path is not unique"));
+            fIsComplete = false;
+        }
+        if (!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor->ISOImagePath()))
         {
             m_pToolBox->setPageTitleIcon(ExpertToolboxItems_NameAndOSType,
                                          UIIconPool::iconSet(":/status_error_16px.png"),
                                          UIWizardNewVM::tr("Invalid ISO file"));
-            fIsComplete = false;
-        }
-        if (QDir(m_pNameAndSystemEditor->fullPath()).exists())
-        {
-            m_pToolBox->setPageTitleIcon(ExpertToolboxItems_NameAndOSType,
-                                         UIIconPool::iconSet(":/status_error_16px.png"),
-                                         UIWizardNewVM::tr("Guest machine path is not unique"));
             fIsComplete = false;
         }
     }
@@ -714,25 +753,35 @@ bool UIWizardNewVMExpertPage::isProductKeyWidgetEnabled() const
     return true;
 }
 
-void UIWizardNewVMExpertPage::disableEnableUnattendedRelatedWidgets(bool fEnabled)
+void UIWizardNewVMExpertPage::disableEnableUnattendedRelatedWidgets()
 {
+    bool fUnattendedEnabled = isUnattendedEnabled();
     if (m_pUserNamePasswordGroupBox)
-        m_pUserNamePasswordGroupBox->setEnabled(fEnabled);
+        m_pUserNamePasswordGroupBox->setEnabled(fUnattendedEnabled);
     if (m_pAdditionalOptionsContainer)
-        m_pAdditionalOptionsContainer->setEnabled(fEnabled);
+        m_pAdditionalOptionsContainer->setEnabled(fUnattendedEnabled);
     if (m_pGAInstallationISOContainer)
-        m_pGAInstallationISOContainer->setEnabled(fEnabled);
+        m_pGAInstallationISOContainer->setEnabled(fUnattendedEnabled);
     if (m_pNameAndSystemEditor)
-        m_pNameAndSystemEditor->setEditionSelectorEnabled(fEnabled && !m_pNameAndSystemEditor->isEditionsSelectorEmpty());
+        m_pNameAndSystemEditor->setEditionSelectorEnabled(fUnattendedEnabled && !m_pNameAndSystemEditor->isEditionsSelectorEmpty());
     m_pAdditionalOptionsContainer->disableEnableProductKeyWidgets(isProductKeyWidgetEnabled());
+    /* Disable OS type related selectors if unattended install is enabled. */
+    m_pNameAndSystemEditor->setOSTypeStuffEnabled(!fUnattendedEnabled);
 }
 
-void UIWizardNewVMExpertPage::sltSkipUnattendedCheckBoxChecked(bool fSkip)
+void UIWizardNewVMExpertPage::sltUnattendedCheckBoxChecked(bool fEnable)
 {
     AssertReturnVoid(wizardWindow<UIWizardNewVM>());
-    m_userModifiedParameters << "SkipUnattendedInstall";
-    wizardWindow<UIWizardNewVM>()->setSkipUnattendedInstall(fSkip);
-    disableEnableUnattendedRelatedWidgets(isUnattendedEnabled());
+    m_userModifiedParameters << "UnattendedInstall";
+    wizardWindow<UIWizardNewVM>()->setSkipUnattendedInstall(!fEnable);
+    /* Override OS type selectors when unattended is enabled: */
+    if (fEnable)
+    {
+        UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
+        UIWizardNewVMNameOSTypeCommon::guessOSTypeDetectedOSTypeString(m_pNameAndSystemEditor,
+                                                                       pWizard->detectedOSTypeId());
+    }
+    disableEnableUnattendedRelatedWidgets();
     emit completeChanged();
 }
 
@@ -891,6 +940,7 @@ void UIWizardNewVMExpertPage::sltHostnameDomainNameChanged(const QString &strHos
 
 void UIWizardNewVMExpertPage::sltProductKeyChanged(const QString &strProductKey)
 {
+    emit completeChanged();
     AssertReturnVoid(wizardWindow<UIWizardNewVM>());
     m_userModifiedParameters << "ProductKey";
     wizardWindow<UIWizardNewVM>()->setProductKey(strProductKey);
@@ -983,28 +1033,13 @@ QWidget *UIWizardNewVMExpertPage::createNameOSTypeWidgets()
                                                        true /* fChooseType? */);
     if (m_pNameAndSystemEditor)
         m_pNameAndSystemLayout->addWidget(m_pNameAndSystemEditor, 0, 0, 1, 2);
-    m_pSkipUnattendedCheckBox = new QCheckBox;
-    if (m_pSkipUnattendedCheckBox)
-        m_pNameAndSystemLayout->addWidget(m_pSkipUnattendedCheckBox, 1, 1);
+    m_pUnattendedCheckBox = new QCheckBox;
+    if (m_pUnattendedCheckBox)
+    {
+        m_pNameAndSystemLayout->addWidget(m_pUnattendedCheckBox, 1, 1);
+        m_pUnattendedCheckBox->setChecked(false);
+    }
     return pContainerWidget;
-}
-
-void UIWizardNewVMExpertPage::setSkipCheckBoxEnable()
-{
-    AssertReturnVoid(m_pSkipUnattendedCheckBox && m_pNameAndSystemEditor);
-    const QString &strPath = m_pNameAndSystemEditor->ISOImagePath();
-    if (strPath.isEmpty())
-    {
-        m_pSkipUnattendedCheckBox->setEnabled(false);
-        return;
-    }
-    if (!isUnattendedInstallSupported())
-    {
-        m_pSkipUnattendedCheckBox->setEnabled(false);
-        return;
-    }
-
-    m_pSkipUnattendedCheckBox->setEnabled(UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor));
 }
 
 void UIWizardNewVMExpertPage::updateHostnameDomainNameFromMachineName()
@@ -1018,7 +1053,7 @@ void UIWizardNewVMExpertPage::updateHostnameDomainNameFromMachineName()
     m_pAdditionalOptionsContainer->setHostname(pWizard->machineBaseName());
     m_pAdditionalOptionsContainer->setDomainName("myguest.virtualbox.org");
     /* Initialize unattended hostname here since we cannot get the default value from CUnattended this early (unlike username etc): */
-    if (m_pAdditionalOptionsContainer->isHostnameComplete())
+    if (m_pAdditionalOptionsContainer->hostDomainNameComplete())
         pWizard->setHostnameDomainName(m_pAdditionalOptionsContainer->hostnameDomainName());
 
     m_pAdditionalOptionsContainer->blockSignals(false);

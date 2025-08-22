@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -53,12 +53,12 @@ DECLARE_TRANSLATION_CONTEXT(HostOnly);
 
 using namespace com;
 
+#if defined(VBOX_WITH_NETFLT) && !defined(RT_OS_SOLARIS)
 static const RTGETOPTDEF g_aHostOnlyCreateOptions[] =
 {
     { "--machinereadable",  'M', RTGETOPT_REQ_NOTHING },
 };
 
-#if defined(VBOX_WITH_NETFLT) && !defined(RT_OS_SOLARIS)
 static RTEXITCODE handleCreate(HandlerArg *a)
 {
     /*
@@ -408,10 +408,9 @@ static RTEXITCODE createUpdateHostOnlyNetworkCommon(ComPtr<IHostOnlyNetwork> hos
 
 static RTEXITCODE handleNetAdd(HandlerArg *a)
 {
-    HRESULT hrc = S_OK;
-
     HOSTONLYNETOPT options;
-    hrc = createUpdateHostOnlyNetworkParse(a, options);
+    RTEXITCODE const rcExitcode = createUpdateHostOnlyNetworkParse(a, options);
+    AssertReturn(rcExitcode == RTEXITCODE_SUCCESS, rcExitcode);
 
     ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
     ComPtr<IHostOnlyNetwork> hostOnlyNetwork;
@@ -425,6 +424,7 @@ static RTEXITCODE handleNetAdd(HandlerArg *a)
     if (options.bstrUpperIp.isEmpty())
         return errorArgument(HostOnly::tr("The --upper-ip parameter must be specified"));
 
+    HRESULT hrc;
     CHECK_ERROR2_RET(hrc, pVirtualBox,
                      CreateHostOnlyNetwork(options.bstrNetworkName.raw(), hostOnlyNetwork.asOutParam()),
                      RTEXITCODE_FAILURE);
@@ -433,14 +433,14 @@ static RTEXITCODE handleNetAdd(HandlerArg *a)
 
 static RTEXITCODE handleNetModify(HandlerArg *a)
 {
-    HRESULT hrc = S_OK;
-
     HOSTONLYNETOPT options;
-    hrc = createUpdateHostOnlyNetworkParse(a, options);
+    RTEXITCODE const rcExitcode = createUpdateHostOnlyNetworkParse(a, options);
+    AssertReturn(rcExitcode == RTEXITCODE_SUCCESS, rcExitcode);
 
     ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
     ComPtr<IHostOnlyNetwork> hostOnlyNetwork;
 
+    HRESULT hrc;
     if (options.bstrNetworkName.isNotEmpty())
     {
         CHECK_ERROR2_RET(hrc, pVirtualBox,

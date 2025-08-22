@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -147,6 +147,11 @@ static void tstApiPrf3(IVirtualBox *pVBox)
        Note! VBoxSVC is not creating and destroying Host().  */
     pHost = NULL;
     hrc = pVBox->COMGETTER(Host)(&pHost);
+    if (FAILED(hrc))
+    {
+        tstComExpr(hrc, "IVirtualBox::Host", __LINE__);
+        return;
+    }
 
     uint32_t const cCalls2  = 16384;
     cLeft    = cCalls2;

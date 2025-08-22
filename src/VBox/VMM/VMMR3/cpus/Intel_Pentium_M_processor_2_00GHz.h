@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -200,17 +200,20 @@ static CPUMMSRRANGE const g_aMsrRanges_Intel_Pentium_M_processor_2_00GHz[] =
 /**
  * Database entry for Intel(R) Pentium(R) M processor 2.00GHz.
  */
-static CPUMDBENTRY const g_Entry_Intel_Pentium_M_processor_2_00GHz =
+static CPUMDBENTRYX86 const g_Entry_Intel_Pentium_M_processor_2_00GHz =
 {
-    /*.pszName          = */ "Intel Pentium M processor 2.00GHz",
-    /*.pszFullName      = */ "Intel(R) Pentium(R) M processor 2.00GHz",
-    /*.enmVendor        = */ CPUMCPUVENDOR_INTEL,
+    {
+        /*.pszName      = */ "Intel Pentium M processor 2.00GHz",
+        /*.pszFullName  = */ "Intel(R) Pentium(R) M processor 2.00GHz",
+        /*.enmVendor    = */ CPUMCPUVENDOR_INTEL,
+        /*.enmMicroarch = */ kCpumMicroarch_Intel_P6_M_Dothan,
+        /*.fFlags       = */ 0,
+        /*.enmEntryType = */ CPUMDBENTRYTYPE_X86,
+    },
     /*.uFamily          = */ 6,
     /*.uModel           = */ 13,
     /*.uStepping        = */ 6,
-    /*.enmMicroarch     = */ kCpumMicroarch_Intel_P6_M_Dothan,
     /*.uScalableBusFreq = */ CPUM_SBUSFREQ_UNKNOWN,
-    /*.fFlags           = */ 0,
     /*.cMaxPhysAddrWidth= */ 32,
     /*.fMxCsrMask       = */ 0xffbf, ///< @todo check this
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_Intel_Pentium_M_processor_2_00GHz),

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -43,6 +43,9 @@
 # pragma warning(push)
 # if _MSC_VER >= 1900 /*RT_MSC_VER_VC140*/
 #  pragma warning(disable:4255) /* d3dkmthk.h(2061): warning C4255: 'PFND3DKMT_CHECKEXCLUSIVEOWNERSHIP': no function prototype given: converting '()' to '(void)' */
+# endif
+# if _MSC_VER >= 1930 /*RT_MSC_VER_VC143*/
+#  pragma warning(disable:5249) /* d3dkmthk.h(208): warning C5249: '_D3DKMDT_DISPLAYMODE_FLAGS::ModePruningReason' of type 'D3DKMDT_MODE_PRUNING_REASON' has named enumerators with values that cannot be represented in the given bit field width of '4'. */
 # endif
 #endif
 

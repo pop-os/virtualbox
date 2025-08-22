@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -779,9 +779,8 @@ const char *GuestToolboxStreamBlock::GetString(const char *pszKey) const
         if (itPairs != m_mapPairs.end())
             return itPairs->second.mValue.c_str();
     }
-    catch (const std::exception &ex)
+    catch (const std::exception &)
     {
-        RT_NOREF(ex);
     }
     return NULL;
 }
@@ -1577,9 +1576,8 @@ int GuestBase::unregisterWaitEvent(GuestWaitEvent *pWaitEvt)
             delete pWaitEvt;
             pWaitEvt = NULL;
         }
-        catch (const std::exception &ex)
+        catch (const std::exception &)
         {
-            RT_NOREF(ex);
             AssertFailedStmt(vrc = VERR_NOT_FOUND);
         }
 

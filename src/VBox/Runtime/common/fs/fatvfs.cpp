@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2017-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -3769,7 +3769,7 @@ static int rtFsFatChain_GrowDirectory(PRTFSFATDIRSHRD pThis, uint32_t cMinNewEnt
 
 
 /**
- * Inserts a directory with zero of more long name slots preceeding it.
+ * Inserts a directory with zero of more long name slots preceding it.
  *
  * @returns IPRT status code.
  * @param   pThis           The directory.

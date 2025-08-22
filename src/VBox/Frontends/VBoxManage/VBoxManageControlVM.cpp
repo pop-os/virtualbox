@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -692,15 +692,12 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 aShutdownFlags.push_back(GuestShutdownFlag_Force);
 
             CHECK_ERROR(pGuest, Shutdown(ComSafeArrayAsInParam(aShutdownFlags)));
-            if (FAILED(hrc))
+            if (hrc == VBOX_E_NOT_SUPPORTED)
             {
-                if (hrc == VBOX_E_NOT_SUPPORTED)
-                {
-                    if (fReboot)
-                        RTMsgError(ControlVM::tr("Current installed Guest Additions don't support rebooting the guest."));
-                    else
-                        RTMsgError(ControlVM::tr("Current installed Guest Additions don't support shutting down the guest."));
-                }
+                if (fReboot)
+                    RTMsgError(ControlVM::tr("Current installed Guest Additions don't support rebooting the guest."));
+                else
+                    RTMsgError(ControlVM::tr("Current installed Guest Additions don't support shutting down the guest."));
             }
         }
 #endif
@@ -1559,8 +1556,8 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                     }
 
                     aChangeOrigin = TRUE;
-                    aOriginX      = RTStrToUInt32(argv[2]);
-                    aOriginY      = RTStrToUInt32(argv[3]);
+                    aOriginX      = (LONG)RTStrToUInt32(argv[2]);/* Explicit conversion */
+                    aOriginY      = (LONG)RTStrToUInt32(argv[3]);/* Explicit conversion */
                     aWidth        = RTStrToUInt32(argv[4]);
                     aHeight       = RTStrToUInt32(argv[5]);
                     aBitsPerPixel = RTStrToUInt32(argv[6]);

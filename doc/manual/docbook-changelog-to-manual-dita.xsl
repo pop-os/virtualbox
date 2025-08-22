@@ -4,7 +4,7 @@
         XSLT stylesheet for converting the change log from DocBook to Dita.
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -143,6 +143,21 @@
 
   <xsl:template mode="topic" match="para/text()">
     <xsl:value-of select="."/>
+  </xsl:template>
+
+  <xsl:template mode="topic" match="emphasis">
+    <xsl:choose>
+      <xsl:when test="@role = 'bold' or @role = 'strong'">
+        <xsl:element name="b">
+          <xsl:apply-templates mode="topic" select="node()"/>
+        </xsl:element>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:element name="em">
+          <xsl:apply-templates mode="topic" select="node()"/>
+        </xsl:element>
+      </xsl:otherwise>
+    </xsl:choose>
   </xsl:template>
 
   <xsl:template mode="topic" match="itemizedlist">

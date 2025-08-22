@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="tr">
+<TS version="2.1" language="tr_TR">
 <context>
     <name>CloseButton</name>
     <message>
@@ -224,8 +224,8 @@
 <context>
     <name>QApplication</name>
     <message>
-        <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>Yürütülebilir &apos;%1&apos; Qt %2 gerektirir, Qt %3 bulundu.</translation>
+        <source>Application &quot;%1&quot; requires Qt %2, found Qt %3.</source>
+        <translation>&apos;%1&apos; uygulaması Qt %2 gerektirir, Qt %3 bulundu.</translation>
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
@@ -381,8 +381,8 @@ Press ESC to cancel</source>
         <translation>Komut satırı seçenekleriyle ilgili yardımı görüntüler.</translation>
     </message>
     <message>
-        <source>Displays help including Qt specific options.</source>
-        <translation>Qt&apos;ye özgü seçenekleri içeren yardımı görüntüler.</translation>
+        <source>Displays help, including generic Qt options.</source>
+        <translation>Genel Qt seçeneklerini de içeren yardımı görüntüler.</translation>
     </message>
     <message>
         <source>Unknown option &apos;%1&apos;.</source>
@@ -415,24 +415,6 @@ Press ESC to cancel</source>
     <message>
         <source>Arguments:</source>
         <translation>Değişkenler:</translation>
-    </message>
-</context>
-<context>
-    <name>QCoreApplication</name>
-    <message>
-        <source>%1: key is empty</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: anahtar boş</translation>
-    </message>
-    <message>
-        <source>%1: unable to make key</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: anahtar yapılamıyor</translation>
-    </message>
-    <message>
-        <source>%1: ftok failed</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: ftok başarısız oldu</translation>
     </message>
 </context>
 <context>
@@ -616,25 +598,6 @@ Press ESC to cancel</source>
     </message>
 </context>
 <context>
-    <name>QDateTimeParser</name>
-    <message>
-        <source>AM</source>
-        <translation>ÖÖ</translation>
-    </message>
-    <message>
-        <source>am</source>
-        <translation>öö</translation>
-    </message>
-    <message>
-        <source>PM</source>
-        <translation>ÖS</translation>
-    </message>
-    <message>
-        <source>pm</source>
-        <translation>ös</translation>
-    </message>
-</context>
-<context>
     <name>QDialog</name>
     <message>
         <source>What&apos;s This?</source>
@@ -649,58 +612,18 @@ Press ESC to cancel</source>
     </message>
 </context>
 <context>
-    <name>QDirModel</name>
-    <message>
-        <source>Name</source>
-        <translation>Ad</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <translation>Boyut</translation>
-    </message>
-    <message>
-        <source>Kind</source>
-        <comment>Match OS X Finder</comment>
-        <translation>Çeşit</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <comment>All other platforms</comment>
-        <translation>Tür</translation>
-    </message>
-    <message>
-        <source>Date Modified</source>
-        <translation>Değiştirilme Tarihi</translation>
-    </message>
-</context>
-<context>
     <name>QDnsLookup</name>
     <message>
         <source>Operation cancelled</source>
         <translation>İşlem iptal edildi</translation>
-    </message>
-</context>
-<context>
-    <name>QDnsLookupRunnable</name>
-    <message>
-        <source>IPv6 addresses for nameservers are currently not supported</source>
-        <translation>Ad sunucuları için IPv6 adresleri şu anda desteklenmemektedir</translation>
     </message>
     <message>
         <source>Invalid domain name</source>
         <translation>Geçersiz alan adı</translation>
     </message>
     <message>
-        <source>Not yet supported on Android</source>
-        <translation>Android&apos;de henüz desteklenmiyor</translation>
-    </message>
-    <message>
-        <source>Resolver functions not found</source>
-        <translation>Çözümleyici işlevleri bulunamadı</translation>
-    </message>
-    <message>
-        <source>Resolver initialization failed</source>
-        <translation>Çözümleyici başlatılamadı</translation>
+        <source>Request timed out</source>
+        <translation>İstek zaman aşımına uğradı</translation>
     </message>
     <message>
         <source>Server could not process query</source>
@@ -719,8 +642,24 @@ Press ESC to cancel</source>
         <translation>Sunucu yanıt vermeyi reddetti</translation>
     </message>
     <message>
+        <source>Invalid reply received (rcode %1)</source>
+        <translation>Geçersiz yanıt alındı (dönüş kodu %1)</translation>
+    </message>
+    <message>
         <source>Invalid reply received</source>
         <translation>Geçersiz yanıt alındı</translation>
+    </message>
+    <message>
+        <source>Invalid reply received (%1)</source>
+        <translation>Geçersiz yanıt alındı (%1)</translation>
+    </message>
+    <message>
+        <source>IPv6 nameservers are currently not supported on this OS</source>
+        <translation>IPv6 alan sunucuları, şu anda bu işletim sisteminde desteklenmiyor</translation>
+    </message>
+    <message>
+        <source>Reply was too large</source>
+        <translation>Yanıt pek büyüktü</translation>
     </message>
     <message>
         <source>Could not expand domain name</source>
@@ -759,24 +698,19 @@ Press ESC to cancel</source>
         <translation>Geçersiz metin kaydı</translation>
     </message>
     <message>
-        <source>Resolver library can&apos;t be loaded: No runtime library loading support</source>
-        <translation>Çözümleyici kitaplık yüklenemiyor: Çalışma zamanı kitaplığı yükleme desteği yok</translation>
+        <source>SSL/TLS support not present</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No hostname given</source>
-        <translation>Ana bilgisayar adı belirtilmedi</translation>
+        <source>Invalid TLS association record</source>
+        <translation type="unfinished"></translation>
     </message>
+</context>
+<context>
+    <name>QDnsLookupRunnable</name>
     <message>
-        <source>Invalid hostname</source>
-        <translation>Geçersiz ana bilgisayar adı</translation>
-    </message>
-    <message>
-        <source>Host %1 could not be found.</source>
-        <translation>%1 ana bilgisayarı bulunamadı.</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Bilinmeyen hata</translation>
+        <source>Not yet supported on this OS</source>
+        <translation>Bu işletim sisteminde henüz desteklenmiyor</translation>
     </message>
 </context>
 <context>
@@ -982,16 +916,20 @@ Press ESC to cancel</source>
 <context>
     <name>QDtlsClientVerifier</name>
     <message>
-        <source>A valid UDP socket, non-empty datagram, valid address/port were expected</source>
-        <translation>Geçerli bir UDP soketi, boş olmayan datagram, geçerli adres/bağlantı noktası bekleniyordu</translation>
-    </message>
-    <message>
         <source>BIO_ADDR_new failed, ignoring client hello</source>
         <translation>BIO_ADDR_new başarısız oldu, istemci merhaba yok sayılıyor</translation>
+    </message>
+    <message>
+        <source>A valid UDP socket, non-empty datagram, and valid address/port were expected</source>
+        <translation>Geçerli bir UDP yuvası, boş olmayan bir datagram ve geçerli adres/kapı bekleniyordu</translation>
     </message>
 </context>
 <context>
     <name>QErrorMessage</name>
+    <message>
+        <source>An error occurred</source>
+        <translation>Bir hata oluştu</translation>
+    </message>
     <message>
         <source>Debug Message:</source>
         <translation>Hata Ayıklama İletisi:</translation>
@@ -1064,12 +1002,12 @@ Press ESC to cancel</source>
         <translation>Çıktı için açılamıyor: %1</translation>
     </message>
     <message>
-        <source>Failure to write block</source>
-        <translation>Yazma engelleme başarısız</translation>
+        <source>Failure to write block: %1</source>
+        <translation>Blok yazılamadı: %1</translation>
     </message>
     <message>
-        <source>Cannot create %1 for output</source>
-        <translation>Çıktı için %1 oluşturulamıyor</translation>
+        <source>Cannot create %1 for output: %2</source>
+        <translation>Çıktı için %1 oluşturulamadı: %2</translation>
     </message>
 </context>
 <context>
@@ -1281,58 +1219,9 @@ Yine de silmek istiyor musunuz?</translation>
         <source>Remove</source>
         <translation>Kaldır</translation>
     </message>
-    <message>
-        <source>My Computer</source>
-        <translation>Bilgisayarım</translation>
-    </message>
-    <message>
-        <source>Drive</source>
-        <translation>Sürücü</translation>
-    </message>
-    <message>
-        <source>%1 File</source>
-        <extracomment>%1 is a file name suffix, for example txt</extracomment>
-        <translation>%1 Dosyası</translation>
-    </message>
-    <message>
-        <source>File</source>
-        <translation>Dosya</translation>
-    </message>
-    <message>
-        <source>File Folder</source>
-        <comment>Match Windows Explorer</comment>
-        <translation>Dosya Klasörü</translation>
-    </message>
-    <message>
-        <source>Folder</source>
-        <comment>All other platforms</comment>
-        <translation>Klasör</translation>
-    </message>
-    <message>
-        <source>Alias</source>
-        <comment>OS X Finder</comment>
-        <translation>Takma Ad</translation>
-    </message>
-    <message>
-        <source>Shortcut</source>
-        <comment>All other platforms</comment>
-        <translation>Kısayol</translation>
-    </message>
-    <message>
-        <source>Unknown</source>
-        <translation>Bilinmeyen</translation>
-    </message>
 </context>
 <context>
     <name>QFileSystemModel</name>
-    <message>
-        <source>&lt;b&gt;The name &quot;%1&quot; cannot be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuation marks.</source>
-        <translation>&lt;b&gt;&quot;%1&quot; adı kullanılamıyor.&lt;/b&gt;&lt;p&gt;Daha az karakter içeren veya noktalama işareti içermeyen başka bir ad kullanmayı deneyin.</translation>
-    </message>
-    <message>
-        <source>Invalid filename</source>
-        <translation>Geçersiz dosya adı</translation>
-    </message>
     <message>
         <source>Name</source>
         <translation>Ad</translation>
@@ -1599,95 +1488,6 @@ Yine de silmek istiyor musunuz?</translation>
     </message>
 </context>
 <context>
-    <name>QFtp</name>
-    <message>
-        <source>Not connected</source>
-        <translation>Bağlı değil</translation>
-    </message>
-    <message>
-        <source>Host %1 not found</source>
-        <translation>%1 ana bilgisayarı bulunamadı</translation>
-    </message>
-    <message>
-        <source>Connection refused to host %1</source>
-        <translation>%1 ana bilgisayarına bağlantı reddedildi</translation>
-    </message>
-    <message>
-        <source>Connection timed out to host %1</source>
-        <translation>%1 ana bilgisayarına bağlantı zaman aşımına uğradı</translation>
-    </message>
-    <message>
-        <source>Connected to host %1</source>
-        <translation>%1 ana bilgisayarına bağlandı</translation>
-    </message>
-    <message>
-        <source>Data Connection refused</source>
-        <translation>Veri Bağlantısı reddedildi</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Bilinmeyen hata</translation>
-    </message>
-    <message>
-        <source>Connecting to host failed:
-%1</source>
-        <translation>Ana bilgisayara bağlanamadı:
-%1</translation>
-    </message>
-    <message>
-        <source>Login failed:
-%1</source>
-        <translation>Giriş başarısız oldu:
-%1</translation>
-    </message>
-    <message>
-        <source>Listing directory failed:
-%1</source>
-        <translation>Dizin listeleme başarısız oldu:
-%1</translation>
-    </message>
-    <message>
-        <source>Changing directory failed:
-%1</source>
-        <translation>Dizin değiştirilemedi:
-%1</translation>
-    </message>
-    <message>
-        <source>Downloading file failed:
-%1</source>
-        <translation>Dosya indirilemedi:
-%1</translation>
-    </message>
-    <message>
-        <source>Uploading file failed:
-%1</source>
-        <translation>Dosya yüklenemedi:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing file failed:
-%1</source>
-        <translation>Dosya kaldırılamadı:
-%1</translation>
-    </message>
-    <message>
-        <source>Creating directory failed:
-%1</source>
-        <translation>Dizin oluşturulamadı:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing directory failed:
-%1</source>
-        <translation>Dizin kaldırılamadı:
-%1</translation>
-    </message>
-    <message>
-        <source>Connection closed</source>
-        <translation>Bağlantı kapandı</translation>
-    </message>
-</context>
-<context>
     <name>QGnomeTheme</name>
     <message>
         <source>&amp;OK</source>
@@ -1774,16 +1574,16 @@ Yine de silmek istiyor musunuz?</translation>
         <translation>Kullanılacak X11 Visual&apos;ın kimliği.</translation>
     </message>
     <message>
-        <source>Alias for --windowgeometry.</source>
-        <translation>--windowgeometry için takma ad.</translation>
+        <source>Alias for --qwindowgeometry.</source>
+        <translation>--qwindowgeometry için arma.</translation>
     </message>
     <message>
-        <source>Alias for --windowicon.</source>
-        <translation>--windowicon için takma ad.</translation>
+        <source>Alias for --qwindowicon.</source>
+        <translation>--qwindowicon için arma.</translation>
     </message>
     <message>
-        <source>Alias for --windowtitle.</source>
-        <translation>--windowtitle için takma ad.</translation>
+        <source>Alias for --qwindowtitle.</source>
+        <translation>--qwindowtitle için arma.</translation>
     </message>
 </context>
 <context>
@@ -1858,6 +1658,30 @@ Yine de silmek istiyor musunuz?</translation>
         <source>Insecure redirect</source>
         <translation>Güvensiz yönlendirme</translation>
     </message>
+    <message>
+        <source>Unsupported content encoding: %1</source>
+        <translation>Bilinmeyen içerik kodlaması: %1</translation>
+    </message>
+    <message>
+        <source>Failed to initialize the compression decoder.</source>
+        <translation>Sıkıştırma kod çözücüsü başlatılamadı.</translation>
+    </message>
+    <message>
+        <source>The decompressed output exceeds the limits specified by QNetworkRequest::decompressedSafetyCheckThreshold()</source>
+        <translation>Sıkıştırılması açılmış çıktı, QNetworkRequest::decompressedSafetyCheckThreshold() tarafından belirtilen sınırları aşıyor</translation>
+    </message>
+    <message>
+        <source>Decompression failed: %1</source>
+        <translation>Sıkıştırmayı açma başarısız oldu: %1</translation>
+    </message>
+    <message>
+        <source>Data downloaded is too large to store</source>
+        <translation>İndirilen veri depolanmak için pek büyük</translation>
+    </message>
+    <message>
+        <source>Failed to initialize decompression: %1</source>
+        <translation>Sıkıştırmayı açma başlatılamadı: %1</translation>
+    </message>
 </context>
 <context>
     <name>QHttpSocketEngine</name>
@@ -1915,6 +1739,14 @@ Yine de silmek istiyor musunuz?</translation>
     <message>
         <source>Unable to rollback transaction</source>
         <translation>İşlem geri alınamıyor</translation>
+    </message>
+    <message>
+        <source>Could not subscribe to event notifications for %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not unsubscribe from event notifications for %1.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1986,6 +1818,18 @@ Yine de silmek istiyor musunuz?</translation>
     <message>
         <source>Could not get statement info</source>
         <translation>İfade bilgisi alınamadı</translation>
+    </message>
+    <message>
+        <source>Array size mismatch. Field name: %3, expected size: %1. Supplied size: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Array dimensions mismatch. Field name: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Array size mismatch: size of %1 is %2, size of provided list is %3</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2150,74 +1994,80 @@ Yine de silmek istiyor musunuz?</translation>
 <context>
     <name>QLibrary</name>
     <message>
-        <source>&apos;%1&apos; is not an ELF object (%2)</source>
-        <translation>&apos;%1&apos; bir ELF nesnesi değil (%2)</translation>
+        <source>file is for the wrong endianness</source>
+        <translation>dosya, yanlış son hanelilik için</translation>
+    </message>
+    <message>
+        <source>file has an unknown ELF version</source>
+        <translation>dosyanın bilinmeyen bir ELF sürümü var</translation>
+    </message>
+    <message>
+        <source>file has an unexpected ABI</source>
+        <translation>dosyanın beklenmeyen bir ABI&apos;si var</translation>
+    </message>
+    <message>
+        <source>file is not a shared object</source>
+        <translation>dosya paylaşılan bir nesne değil</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a valid ELF object (%2)</source>
+        <translation>&apos;%1&apos;, geçerli bir ELF nesnesi değil (%2)</translation>
+    </message>
+    <message>
+        <source>program header table extends past the end of the file</source>
+        <translation>program üstbilgi tablosu dosyanın sonunu geçiyor</translation>
+    </message>
+    <message>
+        <source>a program header entry extends past the end of the file</source>
+        <translation>bir program üstbilgi girdisi dosyanın sonunu geçiyor</translation>
+    </message>
+    <message>
+        <source>a note segment start is not properly aligned (offset 0x%1, alignment %2)</source>
+        <translation>bir not bölütü başlangıcı düzgünce hizalanmamış (ofset 0x%1, hizalama %2)</translation>
+    </message>
+    <message>
+        <source>section table extends past the end of the file</source>
+        <translation>bölüm tablosu dosyanın sonunu geçiyor</translation>
+    </message>
+    <message>
+        <source>section header string table extends past the end of the file</source>
+        <translation>bölüm üstbilgisi dizisi tablosu dosyanın sonunu geçiyor</translation>
+    </message>
+    <message>
+        <source>a section name extends past the end of the file</source>
+        <translation>bir bölüm adı dosyanın sonunu geçiyor</translation>
     </message>
     <message>
         <source>file too small</source>
         <translation>dosya çok küçük</translation>
     </message>
     <message>
-        <source>&apos;%1&apos; is not an ELF object</source>
-        <translation>&apos;%1&apos; bir ELF nesnesi değil</translation>
+        <source>unexpected program header entry size (%1)</source>
+        <translation>beklenmedik program üstbilgi girdisi boyutu (%1)</translation>
     </message>
     <message>
-        <source>&apos;%1&apos; is an invalid ELF object (%2)</source>
-        <translation>&apos;%1&apos; geçersiz bir ELF nesnesidir (%2)</translation>
+        <source>unexpected section entry size (%1)</source>
+        <translation>beklenmedik bölüm girdisi boyutu (%1)</translation>
     </message>
     <message>
-        <source>odd cpu architecture</source>
-        <translation>tek işlemci mimarisi</translation>
+        <source>e_shstrndx greater than the number of sections e_shnum (%1 &gt;= %2)</source>
+        <translation>e_shstrndx, bölüm sayısından daha büyük e_shnum (%1 &gt;= %2)</translation>
     </message>
     <message>
-        <source>wrong cpu architecture</source>
-        <translation>yanlış işlemci mimarisi</translation>
-    </message>
-    <message>
-        <source>odd endianness</source>
-        <translation>tek endianness</translation>
-    </message>
-    <message>
-        <source>unexpected e_shsize</source>
-        <translation>beklenmeyen e_shsize</translation>
-    </message>
-    <message>
-        <source>unexpected e_shentsize</source>
-        <translation>beklenmeyen e_shentsize</translation>
-    </message>
-    <message numerus="yes">
-        <source>announced %n section(s), each %1 byte(s), exceed file size</source>
-        <translation>
-            <numerusform>%n bölüm ilan edildi, her %1 bayt dosya boyutunu aştı</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>shstrtab section header seems to be at %1</source>
-        <translation>shstrtab bölüm üstbilgisi %1 konumunda görünüyor</translation>
-    </message>
-    <message>
-        <source>string table seems to be at %1</source>
-        <translation>dize tablosu %1 konumunda görünüyor</translation>
-    </message>
-    <message>
-        <source>section name %1 of %2 behind end of file</source>
-        <translation>bölüm adı%1 / %2 dosya sonunda</translation>
-    </message>
-    <message>
-        <source>empty .rodata. not a library.</source>
-        <translation>boş .rodata. kütüphane değil.</translation>
-    </message>
-    <message>
-        <source>missing section data. This is not a library.</source>
-        <translation>bölüm verileri eksik. Bu bir kütüphane değil.</translation>
-    </message>
-    <message>
-        <source>Failed to extract plugin meta data from &apos;%1&apos;</source>
-        <translation>&apos;%1&apos; öğesinden eklenti meta verileri alınamadı</translation>
+        <source>Failed to extract plugin meta data from &apos;%1&apos;: %2</source>
+        <translation>&apos;%1&apos; konumundan eklenti üst verisi çıkarılamadı: %2</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
         <translation>Paylaşılan kitaplık bulunamadı.</translation>
+    </message>
+    <message>
+        <source>metadata too small</source>
+        <translation>üst veri pek küçük</translation>
+    </message>
+    <message>
+        <source>entrypoint to query the plugin meta data not found</source>
+        <translation>eklenti üst verisini sorgulamaya giriş noktası bulunamadı</translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
@@ -2270,6 +2120,78 @@ Yine de silmek istiyor musunuz?</translation>
     <message>
         <source>&apos;%1&apos; is not a Qt plugin</source>
         <translation>&apos;%1&apos; bir Qt eklentisi değil</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a valid Windows DLL (%2)</source>
+        <translation>&apos;%1&apos;, geçerli bir Windows DLL&apos;si değil (%2)</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is too small</source>
+        <translation>&apos;%1&apos; pek küçük</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a Qt plugin (%2)</source>
+        <translation>&apos;%1&apos; bir Qt eklentisi değil (%2)</translation>
+    </message>
+    <message>
+        <source>metadata not found</source>
+        <translation>üst veri bulunamadı</translation>
+    </message>
+    <message>
+        <source>invalid signature</source>
+        <translation>geçersiz imza</translation>
+    </message>
+    <message>
+        <source>file is for a different processor</source>
+        <translation>dosyanın başka bir işlemcisi var</translation>
+    </message>
+    <message>
+        <source>file has no sections</source>
+        <translation>dosyanın bölümleri yok</translation>
+    </message>
+    <message>
+        <source>wrong characteristics</source>
+        <translation>yanlış karakteristikler</translation>
+    </message>
+    <message>
+        <source>file is for a different word size</source>
+        <translation>dosya başka bir sözcük boyutu için</translation>
+    </message>
+    <message>
+        <source>file has no code</source>
+        <translation>dosyanın bir kodu yok</translation>
+    </message>
+    <message>
+        <source>a section name is empty or extends past the end of the file</source>
+        <translation>bir bölüm adı boş veya dosyanın sonunu geçiyor</translation>
+    </message>
+    <message>
+        <source>section contents extend past the end of the file</source>
+        <translation>bölüm içeriği dosyanın sonunu geçiyor</translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is too small</source>
+        <translation>.qtmetadata bölümü pek küçük</translation>
+    </message>
+    <message>
+        <source>.qtmetadata section has incorrect magic</source>
+        <translation>.qtmetadata bölümünde yanlış sihir var</translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is writable</source>
+        <translation>.qtmetadata bölümü yazılabilir</translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is executable</source>
+        <translation>.qtmetadata bölümü yürütülebilir</translation>
+    </message>
+    <message>
+        <source>unimplemented: PN_XNUM program headers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not resolve &apos;qt_plugin_instance&apos; function</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2383,6 +2305,10 @@ Yine de silmek istiyor musunuz?</translation>
     <message>
         <source>Socket is not connected</source>
         <translation type="unfinished">Soket bağlı değil</translation>
+    </message>
+    <message>
+        <source>Remote closed</source>
+        <translation>Uzak konum kapattı</translation>
     </message>
 </context>
 <context>
@@ -2556,13 +2482,13 @@ Yine de silmek istiyor musunuz?</translation>
         <translation>&lt;h3&gt;Qt Hakkında&lt;/h3&gt;&lt;p&gt;Bu program Qt %1 sürümünü kullanıyor.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) %1 The Qt Company Ltd and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd product developed as an open source project. See &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <extracomment>Leave this text untranslated or include a verbatim copy of it below and note that it is the authoritative version in case of doubt.</extracomment>
-        <translation>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) %1 The Qt Company Ltd and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd product developed as an open source project. See &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>About Qt</source>
         <translation>Qt Hakkında</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;https://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) The Qt Company Ltd. and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd. product developed as an open source project. See &lt;a href=&quot;https://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
+        <extracomment>Leave this text untranslated or include a verbatim copy of it below and note that it is the authoritative version in case of doubt.</extracomment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2737,49 +2663,14 @@ Yine de silmek istiyor musunuz?</translation>
     </message>
 </context>
 <context>
-    <name>QNetworkAccessFtpBackend</name>
-    <message>
-        <source>No suitable proxy found</source>
-        <translation>Uygun proxy bulunamadı</translation>
-    </message>
-    <message>
-        <source>Cannot open %1: is a directory</source>
-        <translation>%1 açılamıyor: bir dizin</translation>
-    </message>
-    <message>
-        <source>Logging in to %1 failed: authentication required</source>
-        <translation>%1 oturumu açılamadı: kimlik doğrulama gerekiyor</translation>
-    </message>
-    <message>
-        <source>Error while downloading %1: %2</source>
-        <translation>%1 indirilirken hata oluştu: %2</translation>
-    </message>
-    <message>
-        <source>Error while uploading %1: %2</source>
-        <translation>%1 yüklenirken hata oluştu: %2</translation>
-    </message>
-</context>
-<context>
     <name>QNetworkReply</name>
     <message>
         <source>Error transferring %1 - server replied: %2</source>
         <translation>%1 aktarılırken hata oluştu - sunucu yanıtladı: %2</translation>
     </message>
     <message>
-        <source>Network session error.</source>
-        <translation>Ağ oturumu hatası.</translation>
-    </message>
-    <message>
-        <source>Background request not allowed.</source>
-        <translation>Arka plan isteğine izin verilmiyor.</translation>
-    </message>
-    <message>
         <source>backend start error.</source>
         <translation>arka uç başlatma hatası.</translation>
-    </message>
-    <message>
-        <source>Temporary network failure.</source>
-        <translation>Geçici ağ hatası.</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
@@ -2802,36 +2693,6 @@ Yine de silmek istiyor musunuz?</translation>
     <message>
         <source>Operation canceled</source>
         <translation>İşlem iptal edildi</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkSession</name>
-    <message>
-        <source>Invalid configuration.</source>
-        <translation>Geçersiz yapılandıma.</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkSessionPrivateImpl</name>
-    <message>
-        <source>Unknown session error.</source>
-        <translation>Bilinmeyen oturum hatası.</translation>
-    </message>
-    <message>
-        <source>The session was aborted by the user or system.</source>
-        <translation>Oturum kullanıcı veya sistem tarafından iptal edildi.</translation>
-    </message>
-    <message>
-        <source>The requested operation is not supported by the system.</source>
-        <translation>İstenen işlem sistem tarafından desteklenmiyor.</translation>
-    </message>
-    <message>
-        <source>The specified configuration cannot be used.</source>
-        <translation>Belirtilen yapılandırma kullanılamaz.</translation>
-    </message>
-    <message>
-        <source>Roaming was aborted or is not possible.</source>
-        <translation>Dolaşım iptal edildi veya mümkün değil.</translation>
     </message>
 </context>
 <context>
@@ -2958,12 +2819,20 @@ Yine de silmek istiyor musunuz?</translation>
         <source>Unable to bind variable</source>
         <translation>Değişken bağlanamıyor</translation>
     </message>
+    <message>
+        <source>QODBCResult::reset: Unable to set &apos;SQL_ATTR_CURSOR_TYPE&apos; as statement attribute. Please check your ODBC driver configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
     <message>
         <source>Unable to connect</source>
         <translation>Bağlanılamıyor</translation>
+    </message>
+    <message>
+        <source>Unable to set client encoding to &apos;UNICODE&apos;</source>
+        <translation>İstemci kodlaması &apos;UNICODE&apos; olarak ayarlanamıyor</translation>
     </message>
     <message>
         <source>Could not begin transaction</source>
@@ -3856,10 +3725,6 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
         <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
         <translation>&apos;Kimden&apos; değeri &apos;Kime&apos; değerinden büyük olamaz.</translation>
     </message>
-    <message>
-        <source>OK</source>
-        <translation>Tamam</translation>
-    </message>
 </context>
 <context>
     <name>QPrintPreviewDialog</name>
@@ -4155,6 +4020,22 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
         <translation>Kaynak hatası (çatal başarısız): %1</translation>
     </message>
     <message>
+        <source>Child process modifier threw an exception: %1</source>
+        <translation type="unfinished">Alt süreç değiştiricisi bir istisna verdi: %1</translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1</source>
+        <translation type="unfinished">Alt süreç değiştiricisi hata bildirdi: %1</translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1: %2</source>
+        <translation type="unfinished">Alt süreç değiştiricisi hata bildirdi: %1: %2</translation>
+    </message>
+    <message>
+        <source>Child process set up failed: %1: %2</source>
+        <translation type="unfinished">Alt süreç ayarlaması başarısız oldu: %1: %2</translation>
+    </message>
+    <message>
         <source>Could not open output redirection for writing</source>
         <translation>Yazma için çıkış yeniden yönlendirmesi açılamadı</translation>
     </message>
@@ -4168,57 +4049,6 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
     <message>
         <source>Cancel</source>
         <translation>İptal</translation>
-    </message>
-</context>
-<context>
-    <name>QRegExp</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>hata oluşmadı</translation>
-    </message>
-    <message>
-        <source>disabled feature used</source>
-        <translation>devre dışı bırakılan özellik kullanıldı</translation>
-    </message>
-    <message>
-        <source>bad char class syntax</source>
-        <translation>bozuk karakter sınıfı sözdizimi</translation>
-    </message>
-    <message>
-        <source>bad lookahead syntax</source>
-        <translation>kötü ileri bakma sözdizimi</translation>
-    </message>
-    <message>
-        <source>lookbehinds not supported, see QTBUG-2371</source>
-        <translation>geriye bakmalar desteklenmiyor, bkz. QTBUG-2371</translation>
-    </message>
-    <message>
-        <source>bad repetition syntax</source>
-        <translation>hatalı tekrarlama sözdizimi</translation>
-    </message>
-    <message>
-        <source>invalid octal value</source>
-        <translation>geçersiz sekizlik değer</translation>
-    </message>
-    <message>
-        <source>missing left delim</source>
-        <translation>eksik sol sınır</translation>
-    </message>
-    <message>
-        <source>unexpected end</source>
-        <translation>beklenmeyen son</translation>
-    </message>
-    <message>
-        <source>met internal limit</source>
-        <translation>dahili sınıra ulaşıldı</translation>
-    </message>
-    <message>
-        <source>invalid interval</source>
-        <translation>geçersiz aralık</translation>
-    </message>
-    <message>
-        <source>invalid category</source>
-        <translation>geçersiz kategori</translation>
     </message>
 </context>
 <context>
@@ -4887,35 +4717,9 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
         <source>PCRE2_MATCH_INVALID_UTF is not supported for DFA matching</source>
         <translation>PCRE2_MATCH_INVALID_UTF, DFA eşleşmesi için desteklenmiyor</translation>
     </message>
-</context>
-<context>
-    <name>QSQLite2Driver</name>
     <message>
-        <source>Error opening database</source>
-        <translation>Veritabanı açılırken hata oluştu</translation>
-    </message>
-    <message>
-        <source>Unable to begin transaction</source>
-        <translation>İşlem başlatılamıyor</translation>
-    </message>
-    <message>
-        <source>Unable to commit transaction</source>
-        <translation>İşleme yapılamıyor</translation>
-    </message>
-    <message>
-        <source>Unable to rollback transaction</source>
-        <translation>İşlem geri alınamıyor</translation>
-    </message>
-</context>
-<context>
-    <name>QSQLite2Result</name>
-    <message>
-        <source>Unable to fetch results</source>
-        <translation>Sonuçlar getirilemiyor</translation>
-    </message>
-    <message>
-        <source>Unable to execute statement</source>
-        <translation>İfade yürütülemiyor</translation>
+        <source>INTERNAL ERROR: invalid substring offset</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5056,10 +4860,6 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
 <context>
     <name>QSharedMemory</name>
     <message>
-        <source>%1: unable to set key on lock</source>
-        <translation>%1: anahtar kilide ayarlanamıyor</translation>
-    </message>
-    <message>
         <source>%1: create size is less then 0</source>
         <translation>%1: oluşturma boyutu 0&apos;dan küçük</translation>
     </message>
@@ -5080,14 +4880,6 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
         <translation>%1: bozuk ad</translation>
     </message>
     <message>
-        <source>%1: UNIX key file doesn&apos;t exist</source>
-        <translation>%1: UNIX anahtar dosyası mevcut değil</translation>
-    </message>
-    <message>
-        <source>%1: ftok failed</source>
-        <translation>%1: ftok başarısız oldu</translation>
-    </message>
-    <message>
         <source>%1: unable to make key</source>
         <translation>%1: anahtar yapılamıyor</translation>
     </message>
@@ -5098,6 +4890,14 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
     <message>
         <source>%1: not attached</source>
         <translation>%1: ekli değil</translation>
+    </message>
+    <message>
+        <source>%1: unsupported key type</source>
+        <translation>%1: Desteklenmeyen anahtar türü</translation>
+    </message>
+    <message>
+        <source>%1: unable to set key on lock (%2)</source>
+        <translation>%1: Kilide anahtar koyulamıyor (%2)</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
@@ -5116,8 +4916,8 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
         <translation>%1: kaynak dışı</translation>
     </message>
     <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: bilinmeyen %2 hatası</translation>
+        <source>%1: unknown error: %2</source>
+        <translation>%1: Bilinmeyen hata: %2</translation>
     </message>
     <message>
         <source>%1: invalid size</source>
@@ -6125,6 +5925,10 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
         <translation>Dokunmatik Yüzeyi Kapat</translation>
     </message>
     <message>
+        <source>Control</source>
+        <translation>Kontrol</translation>
+    </message>
+    <message>
         <source>Ctrl</source>
         <translation>Ctrl</translation>
     </message>
@@ -6262,9 +6066,7 @@ Lütfen bu seçeneklerden birini kapatın.</translation>
     </message>
     <message>
         <source>frame</source>
-        <extracomment>Role of an accessible object: a window with frame and title
-----------
-Role of an accessible object</extracomment>
+        <extracomment>Role of an accessible object: a window with frame and title</extracomment>
         <translation>çerçeve</translation>
     </message>
     <message>
@@ -6634,10 +6436,6 @@ Role of an accessible object</extracomment>
         <translation>Geçersiz veya boş şifre listesi (%1)</translation>
     </message>
     <message>
-        <source>Cannot provide a certificate with no key, %1</source>
-        <translation>Anahtarsız sertifika verilemiyor, %1</translation>
-    </message>
-    <message>
         <source>Error loading local certificate, %1</source>
         <translation>Yerel sertifika yüklenirken hata oluştu, %1</translation>
     </message>
@@ -6866,6 +6664,10 @@ Role of an accessible object</extracomment>
         <translation>Verilerin şifresi çözülemiyor: %1</translation>
     </message>
     <message>
+        <source>TLS certificate unexpectedly changed during renegotiation!</source>
+        <translation>Yeniden pazarlık sırasında TLS sertifikası beklenmedik bir biçimde değişti!</translation>
+    </message>
+    <message>
         <source>Error while reading: %1</source>
         <translation>Okurken hata oluştu: %1</translation>
     </message>
@@ -7081,6 +6883,14 @@ Role of an accessible object</extracomment>
         <translation>İndir</translation>
     </message>
     <message>
+        <source>Public</source>
+        <translation>Ortak</translation>
+    </message>
+    <message>
+        <source>Templates</source>
+        <translation>Şablonlar</translation>
+    </message>
+    <message>
         <source>Application Data</source>
         <translation>Uygulama Verisi</translation>
     </message>
@@ -7088,32 +6898,26 @@ Role of an accessible object</extracomment>
         <source>Application Configuration</source>
         <translation>Uygulama Yapılandırması</translation>
     </message>
-</context>
-<context>
-    <name>QStateMachine</name>
     <message>
-        <source>Missing initial state in compound state &apos;%1&apos;</source>
-        <translation>&apos;%1&apos; bileşik durumunda başlangıç durumu eksik</translation>
+        <source>Temporary Items</source>
+        <extracomment>macOS: Temporary directory</extracomment>
+        <translation>Geçici Ögeler</translation>
     </message>
     <message>
-        <source>Missing default state in history state &apos;%1&apos;</source>
-        <translation>&apos;%1&apos; geçmiş durumunda eksik varsayılan durum</translation>
+        <source>State</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No common ancestor for targets and source of transition from state &apos;%1&apos;</source>
-        <translation>&apos;%1&apos; durumundan hedefler ve geçiş kaynağı için ortak bir ata yok</translation>
-    </message>
-    <message>
-        <source>Child mode of state machine &apos;%1&apos; is not &apos;ExclusiveStates&apos;.</source>
-        <translation>&apos;%1&apos; durum makinesinin alt modu &apos;ExclusiveStates&apos; değil.</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Bilinmeyen hata</translation>
+        <source>Shared State</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QSystemSemaphore</name>
+    <message>
+        <source>%1: unsupported key type</source>
+        <translation>%1: Desteklenmeyen anahtar türü</translation>
+    </message>
     <message>
         <source>%1: permission denied</source>
         <translation>%1: izin reddedildi</translation>
@@ -7131,19 +6935,28 @@ Role of an accessible object</extracomment>
         <translation>%1: kaynak dışı</translation>
     </message>
     <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: bilinmeyen hata %2</translation>
-    </message>
-</context>
-<context>
-    <name>QTDSDriver</name>
-    <message>
-        <source>Unable to open connection</source>
-        <translation>Bağlantı açılamıyor</translation>
+        <source>%1: key too long</source>
+        <translation>%1: Anahtar pek uzun</translation>
     </message>
     <message>
-        <source>Unable to use database</source>
-        <translation>Veritabanı kullanılamıyor</translation>
+        <source>%1: unknown error: %2</source>
+        <translation>%1: Bilinmeyen hata: %2</translation>
+    </message>
+    <message>
+        <source>%1: key is empty</source>
+        <translation>%1: Anahtar boş</translation>
+    </message>
+    <message>
+        <source>%1: System V semaphores are not available for sandboxed applications. Please build Qt with -feature-ipc_posix</source>
+        <translation>%1: System V semaforları kum havuzundaki uygulamalarda kullanılamaz. Lütfen, Qt&apos;yi -feature-ipc_posix ile yapın</translation>
+    </message>
+    <message>
+        <source>%1: unable to make key</source>
+        <translation>%1: Anahtar yapılamıyor</translation>
+    </message>
+    <message>
+        <source>%1: ftok failed</source>
+        <translation>%1: ftok başarısız oldu</translation>
     </message>
 </context>
 <context>
@@ -7399,101 +7212,6 @@ Gereken en düşük Direct2D sürümü %1. Bu sistemdeki Direct2D sürümü %2.<
     </message>
 </context>
 <context>
-    <name>QXml</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>hata oluşmadı</translation>
-    </message>
-    <message>
-        <source>error triggered by consumer</source>
-        <translation>tüketici tarafından tetiklenen hata</translation>
-    </message>
-    <message>
-        <source>unexpected end of file</source>
-        <translation>beklenmedik dosya sonu</translation>
-    </message>
-    <message>
-        <source>more than one document type definition</source>
-        <translation>birden fazla belge türü tanımı</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing element</source>
-        <translation>öğe ayrıştırılırken hata oluştu</translation>
-    </message>
-    <message>
-        <source>tag mismatch</source>
-        <translation>etiket uyuşmazlığı</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing content</source>
-        <translation>içerik ayrıştırılırken hata oluştu</translation>
-    </message>
-    <message>
-        <source>unexpected character</source>
-        <translation>beklenmeyen karakter</translation>
-    </message>
-    <message>
-        <source>invalid name for processing instruction</source>
-        <translation>işlem talimatı için geçersiz ad</translation>
-    </message>
-    <message>
-        <source>version expected while reading the XML declaration</source>
-        <translation>XML bildirimi okunurken sürüm bekleniyor</translation>
-    </message>
-    <message>
-        <source>wrong value for standalone declaration</source>
-        <translation>bağımsız bildirim için yanlış değer</translation>
-    </message>
-    <message>
-        <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>XML bildirimi okunurken beklenen kodlama bildirimi veya bağımsız bildirim</translation>
-    </message>
-    <message>
-        <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>XML bildirimini okurken bağımsız bildirim bekleniyor</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing document type definition</source>
-        <translation>belge türü tanımı ayrıştırılırken hata oluştu</translation>
-    </message>
-    <message>
-        <source>letter is expected</source>
-        <translation>mektup bekleniyor</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing comment</source>
-        <translation>yorum ayrıştırılırken hata oluştu</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing reference</source>
-        <translation>referans ayrıştırılırken hata oluştu</translation>
-    </message>
-    <message>
-        <source>internal general entity reference not allowed in DTD</source>
-        <translation>DTD&apos;de dahili genel varlık referansına izin verilmiyor</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>öznitelik değerinde harici ayrıştırılmış genel varlık referansına izin verilmiyor</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>DTD&apos;de harici ayrıştırılmış genel varlık referansına izin verilmiyor</translation>
-    </message>
-    <message>
-        <source>unparsed entity reference in wrong context</source>
-        <translation>yanlış bağlamda ayrıştırılmamış varlık referansı</translation>
-    </message>
-    <message>
-        <source>recursive entities</source>
-        <translation>özyinelemeli varlıklar</translation>
-    </message>
-    <message>
-        <source>error in the text declaration of an external entity</source>
-        <translation>harici bir varlığın metin bildiriminde hata</translation>
-    </message>
-</context>
-<context>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
@@ -7556,8 +7274,16 @@ Gereken en düşük Direct2D sürümü %1. Bu sistemdeki Direct2D sürümü %2.<
         <translation>Bağımsız yalnızca evet veya hayır kabul eder.</translation>
     </message>
     <message>
-        <source>Invalid attribute in XML declaration.</source>
-        <translation>XML bildiriminde geçersiz özellik.</translation>
+        <source>Invalid attribute in XML declaration: %1 = %2</source>
+        <translation>XML beyanında geçersiz öznitelik: %1 = %2</translation>
+    </message>
+    <message>
+        <source>Unexpected token type %1 in %2.</source>
+        <translation>%2 içinde beklenmedik jeton türü %1.</translation>
+    </message>
+    <message>
+        <source>Found second DTD token in %1.</source>
+        <translation>%1 içinde ikinci DTD jetonu bulundu.</translation>
     </message>
     <message>
         <source>Premature end of document.</source>
@@ -7566,6 +7292,10 @@ Gereken en düşük Direct2D sürümü %1. Bu sistemdeki Direct2D sürümü %2.<
     <message>
         <source>Invalid document.</source>
         <translation>Geçersiz belge.</translation>
+    </message>
+    <message>
+        <source>Length of XML attribute name exceeds implementation limits (4KiB characters).</source>
+        <translation>XML özniteliğinin uzunluğu uygulama sınırlarını aşıyor (4 KiB karakter).</translation>
     </message>
     <message>
         <source>&apos;%1&apos;</source>
@@ -7658,6 +7388,208 @@ Gereken en düşük Direct2D sürümü %1. Bu sistemdeki Direct2D sürümü %2.<
     <message>
         <source>Invalid character reference.</source>
         <translation>Geçersiz karakter referansı.</translation>
+    </message>
+</context>
+<context>
+    <name>QFactoryLoader</name>
+    <message>
+        <source>Invalid metadata version</source>
+        <translation>Geçersiz üst veri sürümü</translation>
+    </message>
+    <message>
+        <source>Metadata parsing error: %1</source>
+        <translation>Üst veri ayrıştırma hatası: %1</translation>
+    </message>
+    <message>
+        <source>Unexpected metadata contents</source>
+        <translation>Beklenmedik üst veri içeriği</translation>
+    </message>
+</context>
+<context>
+    <name>QAbstractFileIconProvider</name>
+    <message>
+        <source>Drive</source>
+        <translation>Sürücü</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>Dosya</translation>
+    </message>
+    <message>
+        <source>File Folder</source>
+        <comment>Match Windows Explorer</comment>
+        <translation>Dosya Klasörü</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <comment>All other platforms</comment>
+        <translation>Klasör</translation>
+    </message>
+    <message>
+        <source>Alias</source>
+        <comment>macOS Finder</comment>
+        <translation>Arma</translation>
+    </message>
+    <message>
+        <source>Shortcut</source>
+        <comment>All other platforms</comment>
+        <translation>Kısayol</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Bilinmeyen</translation>
+    </message>
+</context>
+<context>
+    <name>QCocoaMenuBar</name>
+    <message>
+        <source>Edit</source>
+        <translation>Düzen</translation>
+    </message>
+</context>
+<context>
+    <name>quiaccessibilityelement</name>
+    <message>
+        <source>checked</source>
+        <translation>işaretli</translation>
+    </message>
+    <message>
+        <source>unchecked</source>
+        <translation>işaretsiz</translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQL</name>
+    <message>
+        <source>No Mimer SQL error for code %1</source>
+        <translation>%1 kodu için Mimer SQL hatası yok</translation>
+    </message>
+    <message>
+        <source>Generic Mimer SQL error</source>
+        <translation>Genel Mimer SQL hatası</translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult</name>
+    <message>
+        <source>Could not get %1, column %2</source>
+        <extracomment>Data type, column</extracomment>
+        <translation>%1 alınamadı, sütun %2</translation>
+    </message>
+    <message>
+        <source>Could not set %1, parameter %2</source>
+        <extracomment>Data type, parameter</extracomment>
+        <translation>%1 ayarlanamadı, parametre %2</translation>
+    </message>
+    <message>
+        <source>Could not close cursor</source>
+        <translation>İmleç kapatılamadı</translation>
+    </message>
+    <message>
+        <source>Could not close statement</source>
+        <translation>İfade kapatılamadı</translation>
+    </message>
+    <message>
+        <source>Fetch did not succeed</source>
+        <translation>Getirme başarısız</translation>
+    </message>
+    <message>
+        <source>Fetch first did not succeed</source>
+        <translation>Getirme, ilk başta başarısız</translation>
+    </message>
+    <message>
+        <source>Could not fetch next row</source>
+        <translation>Sonraki satır getirilemedi</translation>
+    </message>
+    <message>
+        <source>Unknown data type %1</source>
+        <translation>Bilinmeyen veri türü %1</translation>
+    </message>
+    <message>
+        <source>Could not check null, column %1</source>
+        <translation>Boş veri denetlenemedi, sütun %1</translation>
+    </message>
+    <message>
+        <source>Could not prepare/execute statement</source>
+        <translation>İfade hazırlanamadı/yürütülemedi</translation>
+    </message>
+    <message>
+        <source>Wrong number of parameters</source>
+        <translation>Yanlış parametre sayısı</translation>
+    </message>
+    <message>
+        <source>Unknown datatype, parameter %1</source>
+        <translation>Bilinmeyen veri türü, parametre %1</translation>
+    </message>
+    <message>
+        <source>Could not execute statement/open cursor</source>
+        <translation>İfade yürütülemedi/imleç açılamadı</translation>
+    </message>
+    <message>
+        <source>Only input parameters can be used in batch operations</source>
+        <translation>Toplu işlemlerde yalnızca girdi parametreleri kullanılabilir</translation>
+    </message>
+    <message>
+        <source>Could not add batch %1</source>
+        <extracomment>%1 is the batch number</extracomment>
+        <translation>%1 toplu işi eklenemedi</translation>
+    </message>
+    <message>
+        <source>Could not execute batch</source>
+        <translation>Toplu iş yürütülemedi</translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult:</name>
+    <message>
+        <source>Fetch last did not succeed</source>
+        <translation>Sonuncuyu getirme başarısız</translation>
+    </message>
+    <message>
+        <source>Column %1 out of range</source>
+        <translation>Sütun %1 erim dışında</translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLDriver</name>
+    <message>
+        <source>Could not connect to database</source>
+        <translation>Veritabanına bağlanamadı</translation>
+    </message>
+    <message>
+        <source>Could not start transaction</source>
+        <translation>İşlem başlatılamadı</translation>
+    </message>
+    <message>
+        <source>Could not commit transaction</source>
+        <translation>İşlem gerçekleştirilemedi</translation>
+    </message>
+    <message>
+        <source>Could not roll back transaction</source>
+        <translation>İşlem geri alınamadı</translation>
+    </message>
+</context>
+<context>
+    <name>Assets::Downloader::AssetDownloader</name>
+    <message>
+        <source>Downloading JSON file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading zip file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unzipping...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading assets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copying assets...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 </TS>

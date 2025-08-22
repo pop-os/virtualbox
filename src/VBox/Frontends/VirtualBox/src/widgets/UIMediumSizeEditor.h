@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,6 +40,7 @@
 #include "UILibraryDefs.h"
 
 /* Forward declarations: */
+class QGridLayout;
 class QLabel;
 class QString;
 class QWidget;
@@ -115,12 +116,15 @@ public:
     static const qulonglong  s_uSectorSize;
 
     /** Constructs medium size editor passing @a pParent to the base-class. */
-    UIMediumSizeEditor(QWidget *pParent = 0, qulonglong uMinimumSize = _4M);
+    UIMediumSizeEditor(QWidget *pParent, bool fEnableEditorLabel, qulonglong uMinimumSize = _4M);
 
     /** Returns the medium size. */
     qulonglong mediumSize() const { return m_uSize; }
     /** Sets the initial medium size as the widget is created. */
     void setMediumSize(qulonglong uSize);
+
+    int minimumLabelHorizontalHint() const;
+    void setMinimumLayoutIndent(int iIndent);
 
 private slots:
 
@@ -135,7 +139,7 @@ private slots:
 private:
 
     /** Prepares all. */
-    void prepare();
+    void prepare(bool fEnableEditorLabel);
 
     /** Updates slider/editor tool-tips. */
     void updateSizeToolTips(qulonglong uSize);
@@ -161,6 +165,9 @@ private:
     QLabel             *m_pLabelMaxSize;
     /** Holds the size editor. */
     QILineEdit         *m_pEditor;
+    /** Holds the editor label. */
+    QLabel             *m_pEditorLabel;
+    QGridLayout        *m_pLayout;
 
     /* A regular expression used to remove any character from a QString which is neither a digit nor decimal separator. */
     QRegularExpression m_regExNonDigitOrSeparator;

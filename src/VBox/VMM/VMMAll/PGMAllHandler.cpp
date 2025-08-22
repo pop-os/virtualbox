@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -31,6 +31,9 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM
 #define VBOX_WITHOUT_PAGING_BIT_FIELDS /* 64-bit bitfields are just asking for trouble. See @bugref{9841} and others. */
+#ifdef IN_RING0
+# define VBOX_VMM_TARGET_X86
+#endif
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/iem.h>
@@ -560,11 +563,15 @@ static int pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(PVMCC pVM, PPGMPHYSHAN
         {
             PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, uState, pCurType->fNotInHm);
 
+#if defined(VBOX_WITH_NATIVE_NEM) || !defined(VBOX_WITH_ONLY_PGM_NEM_MODE)
             const RTGCPHYS GCPhysPage = pRam->GCPhys + (i << GUEST_PAGE_SHIFT);
+#endif
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
             int rc2 = pgmPoolTrackUpdateGCPhys(pVM, GCPhysPage, pPage,
                                                false /* allow updates of PTEs (instead of flushing) */, &fFlushTLBs);
             if (rc2 != VINF_SUCCESS && rc == VINF_SUCCESS)
                 rc = rc2;
+#endif
 
 #ifdef VBOX_WITH_NATIVE_NEM
             /* Tell NEM about the protection update. */
@@ -870,12 +877,14 @@ DECLINLINE(void) pgmHandlerPhysicalRecalcPageState(PVMCC pVM, RTGCPHYS GCPhys, b
         {
             /* This should normally not be necessary. */
             PGM_PAGE_SET_HNDL_PHYS_STATE_ONLY(pPage, uState);
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
             bool fFlushTLBs;
             rc = pgmPoolTrackUpdateGCPhys(pVM, GCPhys, pPage, false /*fFlushPTEs*/, &fFlushTLBs);
             if (RT_SUCCESS(rc) && fFlushTLBs)
                 PGM_INVL_ALL_VCPU_TLBS(pVM);
             else
                 AssertRC(rc);
+#endif
 
 #ifdef VBOX_WITH_NATIVE_NEM
             /* Tell NEM about the protection update. */
@@ -924,12 +933,13 @@ void pgmHandlerPhysicalResetAliasedPage(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPh
     /*
      * Flush any shadow page table references *first*.
      */
+#if defined(VBOX_VMM_TARGET_ARMV8)
+    AssertReleaseFailed();
+#endif
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     bool fFlushTLBs = false;
     int rc = pgmPoolTrackUpdateGCPhys(pVM, GCPhysPage, pPage, true /*fFlushPTEs*/, &fFlushTLBs);
     AssertLogRelRCReturnVoid(rc);
-#if defined(VBOX_VMM_TARGET_ARMV8)
-    AssertReleaseFailed();
-#else
     HMFlushTlbOnAllVCpus(pVM);
 #endif
 
@@ -955,14 +965,14 @@ void pgmHandlerPhysicalResetAliasedPage(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPh
     if (fDoAccounting)
     {
         PPGMPHYSHANDLER pHandler;
-        rc = pgmHandlerPhysicalLookup(pVM, GCPhysPage, &pHandler);
-        if (RT_SUCCESS(rc))
+        int rc2 = pgmHandlerPhysicalLookup(pVM, GCPhysPage, &pHandler);
+        if (RT_SUCCESS(rc2))
         {
             Assert(pHandler->cAliasedPages > 0);
             pHandler->cAliasedPages--;
         }
         else
-            AssertMsgFailed(("rc=%Rrc GCPhysPage=%RGp\n", rc, GCPhysPage));
+            AssertMsgFailed(("rc2=%Rrc GCPhysPage=%RGp\n", rc2, GCPhysPage));
     }
 
 #ifdef VBOX_WITH_NATIVE_NEM
@@ -972,7 +982,12 @@ void pgmHandlerPhysicalResetAliasedPage(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPh
     if (VM_IS_NEM_ENABLED(pVM))
     {
         uint8_t u2State = PGM_PAGE_GET_NEM_STATE(pPage);
-        NEMHCNotifyPhysPageChanged(pVM, GCPhysPage, HCPhysPrev, pVM->pgm.s.HCPhysZeroPg,
+        NEMHCNotifyPhysPageChanged(pVM, GCPhysPage, HCPhysPrev,
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
+                                   pVM->pgm.s.HCPhysZeroPg,
+# else
+                                   0,
+# endif
                                    PGM_RAMRANGE_CALC_PAGE_R3PTR(pRam, GCPhysPage),
                                    NEM_PAGE_PROT_NONE, PGMPAGETYPE_MMIO, &u2State);
         PGM_PAGE_SET_NEM_STATE(pPage, u2State);
@@ -1632,6 +1647,7 @@ VMMDECL(int)  PGMHandlerPhysicalPageTempOff(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS
 }
 
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
 /**
  * Resolves an MMIO2 page.
  *
@@ -1650,35 +1666,35 @@ static PPGMPAGE pgmPhysResolveMmio2PageLocked(PVMCC pVM, PPDMDEVINS pDevIns, PGM
     uint32_t const cMmio2Ranges = RT_MIN(pVM->pgm.s.cMmio2Ranges, RT_ELEMENTS(pVM->pgm.s.aMmio2Ranges));
     AssertReturn(hMmio2 <= cMmio2Ranges, NULL);
     AssertCompile(RT_ELEMENTS(pVM->pgm.s.apMmio2RamRanges)    == RT_ELEMENTS(pVM->pgm.s.aMmio2Ranges));
-#ifdef IN_RING0
+# ifdef IN_RING0
     AssertCompile(RT_ELEMENTS(pVM->pgmr0.s.apMmio2RamRanges)  == RT_ELEMENTS(pVM->pgm.s.aMmio2Ranges));
     AssertCompile(RT_ELEMENTS(pVM->pgmr0.s.acMmio2RangePages) == RT_ELEMENTS(pVM->pgm.s.aMmio2Ranges));
-#endif
+# endif
     uint32_t const idxFirst = hMmio2 - 1U;
 
     /* Must check the first one for PGMREGMMIO2RANGE_F_FIRST_CHUNK. */
     AssertReturn(pVM->pgm.s.aMmio2Ranges[idxFirst].fFlags & PGMREGMMIO2RANGE_F_FIRST_CHUNK, NULL);
-#ifdef IN_RING0
+# ifdef IN_RING0
     AssertReturn(pVM->pgmr0.s.ahMmio2MapObjs[idxFirst] != NIL_RTR0MEMOBJ, NULL); /* Only the first chunk has a backing object. */
-#endif
+# endif
 
     /* Loop thru the sub-ranges till we find the one covering offMmio2. */
     for (uint32_t idx = idxFirst; idx < cMmio2Ranges; idx++)
     {
-#ifdef IN_RING3
+# ifdef IN_RING3
         AssertReturn(pVM->pgm.s.aMmio2Ranges[idx].pDevInsR3 == pDevIns, NULL);
-#else
+# else
         AssertReturn(pVM->pgm.s.aMmio2Ranges[idx].pDevInsR3 == pDevIns->pDevInsForR3, NULL);
-#endif
+# endif
 
         /* Does it match the offset? */
         PPGMRAMRANGE const pRamRange = pVM->CTX_EXPR(pgm, pgmr0, pgm).s.apMmio2RamRanges[idx];
         AssertReturn(pRamRange, NULL);
-#ifdef IN_RING3
+# ifdef IN_RING3
         RTGCPHYS const     cbRange   = RT_MIN(pRamRange->cb, pVM->pgm.s.aMmio2Ranges[idx].cbReal);
-#else
+# else
         RTGCPHYS const     cbRange   = RT_MIN(pRamRange->cb, (RTGCPHYS)pVM->pgmr0.s.acMmio2RangePages[idx] << GUEST_PAGE_SHIFT);
-#endif
+# endif
         if (offMmio2Page < cbRange)
             return &pRamRange->aPages[offMmio2Page >> GUEST_PAGE_SHIFT];
 
@@ -1689,6 +1705,7 @@ static PPGMPAGE pgmPhysResolveMmio2PageLocked(PVMCC pVM, PPDMDEVINS pDevIns, PGM
     AssertFailed();
     return NULL;
 }
+#endif /* !VBOX_WITH_ONLY_PGM_NEM_MODE */
 
 
 /**
@@ -1738,9 +1755,13 @@ static PPGMPAGE pgmPhysResolveMmio2PageLocked(PVMCC pVM, PPDMDEVINS pDevIns, PGM
 VMMDECL(int)  PGMHandlerPhysicalPageAliasMmio2(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage,
                                                PPDMDEVINS pDevIns, PGMMMIO2HANDLE hMmio2, RTGCPHYS offMmio2PageRemap)
 {
-#ifdef VBOX_WITH_PGM_NEM_MODE
+#ifdef VBOX_WITH_ONLY_PGM_NEM_MODE
+    RT_NOREF(pVM, GCPhys, GCPhysPage, pDevIns, hMmio2, offMmio2PageRemap);
+    AssertFailedReturn(VERR_PGM_NOT_SUPPORTED_FOR_NEM_MODE);
+#else
+# ifdef VBOX_WITH_PGM_NEM_MODE
     AssertReturn(!VM_IS_NEM_ENABLED(pVM) || !pVM->pgm.s.fNemMode, VERR_PGM_NOT_SUPPORTED_FOR_NEM_MODE);
-#endif
+# endif
     int rc = PGM_LOCK(pVM);
     AssertRCReturn(rc, rc);
 
@@ -1838,7 +1859,7 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasMmio2(PVMCC pVM, RTGCPHYS GCPhys, RTGCP
              *        actually makes sense or not.  Screen updates are typically massive
              *        and important when this kind of aliasing is used, so it may pay of... */
 
-#ifdef VBOX_WITH_NATIVE_NEM
+# ifdef VBOX_WITH_NATIVE_NEM
             /* Tell NEM about the backing and protection change. */
             if (VM_IS_NEM_ENABLED(pVM))
             {
@@ -1849,7 +1870,7 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasMmio2(PVMCC pVM, RTGCPHYS GCPhys, RTGCP
                                            PGMPAGETYPE_MMIO2_ALIAS_MMIO, &u2State);
                 PGM_PAGE_SET_NEM_STATE(pPage, u2State);
             }
-#endif
+# endif
             LogFlow(("PGMHandlerPhysicalPageAliasMmio2: => %R[pgmpage]\n", pPage));
             PGM_UNLOCK(pVM);
             return VINF_SUCCESS;
@@ -1867,6 +1888,7 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasMmio2(PVMCC pVM, RTGCPHYS GCPhys, RTGCP
         return VERR_PGM_HANDLER_NOT_FOUND;
     }
     return rc;
+#endif /* !VBOX_WITH_ONLY_PGM_NEM_MODE */
 }
 
 
@@ -1903,10 +1925,14 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasMmio2(PVMCC pVM, RTGCPHYS GCPhys, RTGCP
  */
 VMMDECL(int)  PGMHandlerPhysicalPageAliasHC(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage, RTHCPHYS HCPhysPageRemap)
 {
+#ifdef VBOX_WITH_ONLY_PGM_NEM_MODE
+    RT_NOREF(pVM, GCPhys, GCPhysPage, HCPhysPageRemap);
+    AssertFailedReturn(VERR_PGM_NOT_SUPPORTED_FOR_NEM_MODE);
+#else
 ///    Assert(!IOMIsLockOwner(pVM)); /* We mustn't own any other locks when calling this */
-#ifdef VBOX_WITH_PGM_NEM_MODE
+# ifdef VBOX_WITH_PGM_NEM_MODE
     AssertReturn(!VM_IS_NEM_ENABLED(pVM) || !pVM->pgm.s.fNemMode, VERR_PGM_NOT_SUPPORTED_FOR_NEM_MODE);
-#endif
+# endif
     int rc = PGM_LOCK(pVM);
     AssertRCReturn(rc, rc);
 
@@ -1931,12 +1957,12 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasHC(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS
              * Get and validate the pages.
              */
             PPGMPAGE     pPage = NULL;
-#ifdef VBOX_WITH_NATIVE_NEM
+# ifdef VBOX_WITH_NATIVE_NEM
             PPGMRAMRANGE pRam  = NULL;
             rc = pgmPhysGetPageAndRangeEx(pVM, GCPhysPage, &pPage, &pRam);
-#else
+# else
             rc = pgmPhysGetPageEx(pVM, GCPhysPage, &pPage);
-#endif
+# endif
             AssertReturnStmt(RT_SUCCESS_NP(rc), PGM_UNLOCK(pVM), rc);
             if (PGM_PAGE_GET_TYPE(pPage) != PGMPAGETYPE_MMIO)
             {
@@ -1971,7 +1997,7 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasHC(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS
              */
             pgmPhysInvalidatePageMapTLBEntry(pVM, GCPhysPage);
 
-#ifdef VBOX_WITH_NATIVE_NEM
+# ifdef VBOX_WITH_NATIVE_NEM
             /* Tell NEM about the backing and protection change. */
             if (VM_IS_NEM_ENABLED(pVM))
             {
@@ -1982,7 +2008,7 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasHC(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS
                                            PGMPAGETYPE_SPECIAL_ALIAS_MMIO, &u2State);
                 PGM_PAGE_SET_NEM_STATE(pPage, u2State);
             }
-#endif
+# endif
             LogFlow(("PGMHandlerPhysicalPageAliasHC: => %R[pgmpage]\n", pPage));
             PGM_UNLOCK(pVM);
             return VINF_SUCCESS;
@@ -1999,6 +2025,7 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasHC(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS
         return VERR_PGM_HANDLER_NOT_FOUND;
     }
     return rc;
+#endif /* !VBOX_WITH_ONLY_PGM_NEM_MODE */
 }
 
 

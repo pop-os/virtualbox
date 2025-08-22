@@ -1,10 +1,11 @@
+
 /* $Id: PDMDevHlp.cpp $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Device Helpers.
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -3971,6 +3972,17 @@ static DECLCALLBACK(VMCPUID) pdmR3DevHlp_GetCurrentCpuId(PPDMDEVINS pDevIns)
 }
 
 
+/** @interface_method_impl{PDMDEVHLPR3,pfnPokeAllEmts} */
+static DECLCALLBACK(void) pdmR3DevHlp_PokeAllEmts(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+    LogFlow(("pdmR3DevHlp_PokeAllEmts: caller='%s'/%d\n", pDevIns->pReg->szName, pDevIns->iInstance));
+    VMCC_FOR_EACH_VMCPU_STMT(pVM, RTThreadPoke(pVCpu->hThread));
+}
+
+
 /** @interface_method_impl{PDMDEVHLPR3,pfnPCIBusRegister} */
 static DECLCALLBACK(int) pdmR3DevHlp_PCIBusRegister(PPDMDEVINS pDevIns, PPDMPCIBUSREGR3 pPciBusReg,
                                                     PCPDMPCIHLPR3 *ppPciHlp, uint32_t *piBus)
@@ -4173,8 +4185,8 @@ static DECLCALLBACK(int) pdmR3DevHlp_PICRegister(PPDMDEVINS pDevIns, PPDMPICREG 
 }
 
 
-/** @interface_method_impl{PDMDEVHLPR3,pfnApicRegister} */
-static DECLCALLBACK(int) pdmR3DevHlp_ApicRegister(PPDMDEVINS pDevIns)
+/** @interface_method_impl{PDMDEVHLPR3,pfnIcRegister} */
+static DECLCALLBACK(int) pdmR3DevHlp_IcRegister(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
 
@@ -4192,7 +4204,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_ApicRegister(PPDMDEVINS pDevIns)
      * Only one APIC device. On SMP we have single logical device covering all LAPICs,
      * as they need to communicate and share state easily.
      */
-    AssertMsgReturnStmt(pVM->pdm.s.Apic.pDevInsR3 == NULL,
+    AssertMsgReturnStmt(pVM->pdm.s.Ic.pDevInsR3 == NULL,
                         ("%s/%u: Only one APIC device is supported!\n", pDevIns->pReg->szName, pDevIns->iInstance),
                         RTCritSectRwLeaveExcl(&pVM->pdm.s.CoreListCritSectRw),
                         VERR_ALREADY_EXISTS);
@@ -4200,15 +4212,15 @@ static DECLCALLBACK(int) pdmR3DevHlp_ApicRegister(PPDMDEVINS pDevIns)
     /*
      * Set the ring-3 and raw-mode bits, leave the ring-0 to ring-0 setup.
      */
-    pVM->pdm.s.Apic.pDevInsR3 = pDevIns;
+    pVM->pdm.s.Ic.pDevInsR3 = pDevIns;
 #ifdef VBOX_WITH_RAW_MODE_KEEP
-    pVM->pdm.s.Apic.pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
-    Assert(pVM->pdm.s.Apic.pDevInsRC || !VM_IS_RAW_MODE_ENABLED(pVM));
+    pVM->pdm.s.Ic.pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
+    Assert(pVM->pdm.s.Ic.pDevInsRC || !VM_IS_RAW_MODE_ENABLED(pVM));
 #endif
 
     RTCritSectRwLeaveExcl(&pVM->pdm.s.CoreListCritSectRw);
 
-    LogFlow(("pdmR3DevHlp_ApicRegister: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, VINF_SUCCESS));
+    LogFlow(("pdmR3DevHlp_IcRegister: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, VINF_SUCCESS));
     return VINF_SUCCESS;
 }
 
@@ -4244,7 +4256,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_IoApicRegister(PPDMDEVINS pDevIns, PPDMIOAP
      * The I/O APIC requires the APIC to be present (hacks++).
      * If the I/O APIC does GC stuff so must the APIC.
      */
-    AssertMsgReturnStmt(pVM->pdm.s.Apic.pDevInsR3 != NULL,
+    AssertMsgReturnStmt(pVM->pdm.s.Ic.pDevInsR3 != NULL,
                         ("Configuration error / Init order error! No APIC!\n"),
                         RTCritSectRwLeaveExcl(&pVM->pdm.s.CoreListCritSectRw),
                         VERR_WRONG_ORDER);
@@ -4710,7 +4722,11 @@ static DECLCALLBACK(bool) pdmR3DevHlp_A20IsEnabled(PPDMDEVINS pDevIns)
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
 
+#if defined(VBOX_VMM_TARGET_X86)
     bool fRc = PGMPhysIsA20Enabled(VMMGetCpu(pDevIns->Internal.s.pVMR3));
+#else
+    bool fRc = false; RT_NOREF(pDevIns);
+#endif
 
     LogFlow(("pdmR3DevHlp_A20IsEnabled: caller='%s'/%d: returns %d\n", pDevIns->pReg->szName, pDevIns->iInstance, fRc));
     return fRc;
@@ -5175,6 +5191,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_DBGFRegPrintfV,
     pdmR3DevHlp_STAMRegister,
     pdmR3DevHlp_STAMRegisterV,
+    pdmR3DevHlp_STAMDeregisterByPrefix,
     pdmR3DevHlp_PCIRegister,
     pdmR3DevHlp_PCIRegisterMsi,
     pdmR3DevHlp_PCIIORegionRegister,
@@ -5261,7 +5278,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_PCIBusRegister,
     pdmR3DevHlp_IommuRegister,
     pdmR3DevHlp_PICRegister,
-    pdmR3DevHlp_ApicRegister,
+    pdmR3DevHlp_IcRegister,
     pdmR3DevHlp_IoApicRegister,
     pdmR3DevHlp_HpetRegister,
     pdmR3DevHlp_PciRawRegister,
@@ -5288,7 +5305,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_CpuGetGuestMicroarch,
     pdmR3DevHlp_CpuGetGuestAddrWidths,
     pdmR3DevHlp_CpuGetGuestScalableBusFrequency,
-    pdmR3DevHlp_STAMDeregisterByPrefix,
+    0,
     0,
     0,
     0,
@@ -5302,6 +5319,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_GetVM,
     pdmR3DevHlp_GetVMCPU,
     pdmR3DevHlp_GetCurrentCpuId,
+    pdmR3DevHlp_PokeAllEmts,
     pdmR3DevHlp_RegisterVMMDevHeap,
     pdmR3DevHlp_FirmwareRegister,
     pdmR3DevHlp_VMReset,
@@ -5574,6 +5592,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTracing =
     pdmR3DevHlp_DBGFRegPrintfV,
     pdmR3DevHlp_STAMRegister,
     pdmR3DevHlp_STAMRegisterV,
+    pdmR3DevHlp_STAMDeregisterByPrefix,
     pdmR3DevHlp_PCIRegister,
     pdmR3DevHlp_PCIRegisterMsi,
     pdmR3DevHlp_PCIIORegionRegister,
@@ -5660,7 +5679,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTracing =
     pdmR3DevHlp_PCIBusRegister,
     pdmR3DevHlp_IommuRegister,
     pdmR3DevHlp_PICRegister,
-    pdmR3DevHlp_ApicRegister,
+    pdmR3DevHlp_IcRegister,
     pdmR3DevHlp_IoApicRegister,
     pdmR3DevHlp_HpetRegister,
     pdmR3DevHlp_PciRawRegister,
@@ -5687,7 +5706,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTracing =
     pdmR3DevHlp_CpuGetGuestMicroarch,
     pdmR3DevHlp_CpuGetGuestAddrWidths,
     pdmR3DevHlp_CpuGetGuestScalableBusFrequency,
-    pdmR3DevHlp_STAMDeregisterByPrefix,
+    0,
     0,
     0,
     0,
@@ -5701,6 +5720,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTracing =
     pdmR3DevHlp_GetVM,
     pdmR3DevHlp_GetVMCPU,
     pdmR3DevHlp_GetCurrentCpuId,
+    pdmR3DevHlp_PokeAllEmts,
     pdmR3DevHlp_RegisterVMMDevHeap,
     pdmR3DevHlp_FirmwareRegister,
     pdmR3DevHlp_VMReset,
@@ -5772,6 +5792,14 @@ static DECLCALLBACK(VMCPUID) pdmR3DevHlp_Untrusted_GetCurrentCpuId(PPDMDEVINS pD
     PDMDEV_ASSERT_DEVINS(pDevIns);
     AssertReleaseMsgFailed(("Untrusted device called trusted helper! '%s'/%d\n", pDevIns->pReg->szName, pDevIns->iInstance));
     return NIL_VMCPUID;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR3,pfnPokeAllEmts} */
+static DECLCALLBACK(void) pdmR3DevHlp_Untrusted_PokeAllEmts(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    AssertReleaseMsgFailed(("Untrusted device called trusted helper! '%s'/%d\n", pDevIns->pReg->szName, pDevIns->iInstance));
 }
 
 
@@ -6293,6 +6321,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_DBGFRegPrintfV,
     pdmR3DevHlp_STAMRegister,
     pdmR3DevHlp_STAMRegisterV,
+    pdmR3DevHlp_STAMDeregisterByPrefix,
     pdmR3DevHlp_PCIRegister,
     pdmR3DevHlp_PCIRegisterMsi,
     pdmR3DevHlp_PCIIORegionRegister,
@@ -6379,7 +6408,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_PCIBusRegister,
     pdmR3DevHlp_IommuRegister,
     pdmR3DevHlp_PICRegister,
-    pdmR3DevHlp_ApicRegister,
+    pdmR3DevHlp_IcRegister,
     pdmR3DevHlp_IoApicRegister,
     pdmR3DevHlp_HpetRegister,
     pdmR3DevHlp_PciRawRegister,
@@ -6406,7 +6435,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_CpuGetGuestMicroarch,
     pdmR3DevHlp_CpuGetGuestAddrWidths,
     pdmR3DevHlp_CpuGetGuestScalableBusFrequency,
-    pdmR3DevHlp_STAMDeregisterByPrefix,
+    0,
     0,
     0,
     0,
@@ -6420,6 +6449,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_Untrusted_GetVM,
     pdmR3DevHlp_Untrusted_GetVMCPU,
     pdmR3DevHlp_Untrusted_GetCurrentCpuId,
+    pdmR3DevHlp_Untrusted_PokeAllEmts,
     pdmR3DevHlp_Untrusted_RegisterVMMDevHeap,
     pdmR3DevHlp_Untrusted_FirmwareRegister,
     pdmR3DevHlp_Untrusted_VMReset,

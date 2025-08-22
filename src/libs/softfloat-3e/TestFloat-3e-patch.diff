@@ -8,7 +8,7 @@ diff -Nru TestFloat-3e-virgin/Makefile.kmk TestFloat-3e/Makefile.kmk
 +#
 +
 +#
-+# Copyright (C) 2022 Oracle and/or its affiliates.
++# Copyright (C) 2022-2025 Oracle and/or its affiliates.
 +#
 +# This file is part of VirtualBox base platform packages, as
 +# available from https://www.virtualbox.org.

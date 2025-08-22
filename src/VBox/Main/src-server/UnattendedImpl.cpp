@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -256,7 +256,10 @@ const Utf8Str &WIMImage::formatName(Utf8Str &r_strName) const
 
 Unattended::Unattended()
     : mhThreadReconfigureVM(NIL_RTNATIVETHREAD), mfRtcUseUtc(false), mfGuestOs64Bit(false)
-    , mpInstaller(NULL), mpTimeZoneInfo(NULL), mfIsDefaultAuxiliaryBasePath(true), mfDoneDetectIsoOS(false)
+    , menmFirmwareType(FirmwareType_BIOS), mpInstaller(NULL)
+    , mfInstallGuestAdditions(false), mfInstallTestExecService(false), mfInstallUserPayload(false)
+    , mpTimeZoneInfo(NULL), mfIsDefaultAuxiliaryBasePath(true), midxImage(0), mfDoneDetectIsoOS(false)
+    , mfProductKeyRequired(false), mEnmOsType(VBOXOSTYPE_Unknown)
     , mfAvoidUpdatesOverNetwork(false), mfDoneSupportedGuestOSList(false)
 { }
 
@@ -359,6 +362,7 @@ HRESULT Unattended::detectIsoOS()
     mDetectedOSLanguages.clear();
     mStrDetectedOSHints.setNull();
     mDetectedImages.clear();
+    mfProductKeyRequired = false;
 
     /*
      * Open the ISO.
@@ -493,7 +497,8 @@ HRESULT Unattended::detectIsoOS()
             return E_OUTOFMEMORY;
         }
     }
-
+    if (mStrDetectedOSTypeId.startsWithI("windows11"))
+        mfProductKeyRequired = true;
     /* Check if detected OS type is supported (covers platform architecture). */
     bool fSupported = false;
     for (size_t i = 0; i < mSupportedGuestOSTypes.size() && !fSupported; ++i)
@@ -567,7 +572,7 @@ static void parseLangaguesElement(const xml::ElementNode *pElmLanguages, WIMImag
     if (cChildren == 0)
         cChildren = pElmLanguages->getChildElements(children, "language");
     if (cChildren == 0)
-        cChildren = pElmLanguages->getChildElements(children, "Language");
+        /*cChildren = */pElmLanguages->getChildElements(children, "Language");
     for (ElementNodesList::iterator iterator = children.begin(); iterator != children.end(); ++iterator)
     {
         const ElementNode * const pElmLanguage = *(iterator);
@@ -782,7 +787,7 @@ static void parseWimXMLData(const xml::ElementNode *pElmRoot, RTCList<WIMImage> 
     if (cChildren == 0)
         cChildren = pElmRoot->getChildElements(children, "image");
     if (cChildren == 0)
-        cChildren = pElmRoot->getChildElements(children, "Image");
+        /*cChildren = */pElmRoot->getChildElements(children, "Image");
 
     for (ElementNodesList::iterator iterator = children.begin(); iterator != children.end(); ++iterator)
     {
@@ -2221,6 +2226,8 @@ HRESULT Unattended::i_innerDetectIsoOSOs2(RTVFS hVfsIso, DETECTBUFFER *pBuf)
      */
     size_t const cchOs2Image = strlen(pBuf->sz);
     vrc = RTPathAppend(pBuf->sz, sizeof(pBuf->sz), "DISK_0/OS2LDR");
+    AssertRC(vrc);
+
     RTFSOBJINFO ObjInfo = {0};
     vrc = RTVfsQueryPathInfo(hVfsIso, pBuf->sz, &ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK);
     if (vrc == VERR_FILE_NOT_FOUND)
@@ -2532,7 +2539,8 @@ HRESULT Unattended::i_innerDetectIsoOSFreeBsd(RTVFS hVfsIso, DETECTBUFFER *pBuf)
                 mEnmOsType = VBOXOSTYPE_FreeBSD;
             }
 
-            hrc = S_OK;
+            if (hrc == S_FALSE) /* Don't pretend success if an error happened. */
+                hrc = S_OK;
         }
 
         RTVfsFileRelease(hVfsFile);
@@ -2627,7 +2635,9 @@ HRESULT Unattended::prepare()
         return setErrorBoth(E_FAIL, VERR_WRONG_ORDER, tr("The prepare method has been called (must call done to restart)"));
     if ((Machine *)ptrMachine != (Machine *)mMachine)
         return setErrorBoth(E_FAIL, VERR_WRONG_ORDER, tr("The 'machine' while we were using it - please don't do that"));
-
+    /* Check if required product key is set. */
+    if (mfProductKeyRequired && mStrProductKey.isEmpty())
+        return setErrorBoth(E_FAIL, VERR_MISSING, tr("Product key is required for this kind of OS"));
     /*
      * Check if the specified ISOs and files exist.
      */
@@ -3126,6 +3136,8 @@ HRESULT Unattended::i_reconfigureFloppy(com::SafeIfaceArray<IStorageController> 
                         ptrMedium.setNull();
                         rAutoLock.release();
                         hrc = rPtrSessionMachine->UnmountMedium(bstrControllerName.raw(), iPort, iDevice, TRUE /*fForce*/);
+                        if (FAILED(hrc))
+                            return hrc;
                         rAutoLock.acquire();
                     }
 
@@ -3246,6 +3258,8 @@ HRESULT Unattended::i_reconfigureIsos(com::SafeIfaceArray<IStorageController> &r
 
                     rAutoLock.release();
                     hrc = rPtrSessionMachine->UnmountMedium(bstrControllerName.raw(), iPort, iDevice, TRUE /*fForce*/);
+                    if (FAILED(hrc))
+                        return hrc;
                     rAutoLock.acquire();
                 }
             }
@@ -3587,6 +3601,13 @@ HRESULT Unattended::setInstallGuestAdditions(BOOL installGuestAdditions)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mpInstaller == NULL, setErrorBoth(E_FAIL, VERR_WRONG_ORDER, tr("Cannot change after prepare() has been called")));
     mfInstallGuestAdditions = installGuestAdditions != FALSE;
+    return S_OK;
+}
+
+HRESULT Unattended::getProductKeyRequired(BOOL *productKeyRequired)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    *productKeyRequired = mfProductKeyRequired;
     return S_OK;
 }
 

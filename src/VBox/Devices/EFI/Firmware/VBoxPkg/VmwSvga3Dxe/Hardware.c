@@ -2,7 +2,7 @@
   This driver is a sample implementation of the Graphics Output Protocol for
   the VMware SVGA 3 video controller.
 
-  Copyright (c) 2023 - 2024, Oracle and/or its affiliates.<BR>
+  Copyright (c) 2023 - 2025, Oracle and/or its affiliates.<BR>
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
@@ -33,7 +33,7 @@ VmwSvga3ReadReg (
   Status = VmwSvga3->PciIo->Mem.Read (
                                       VmwSvga3->PciIo,
                                       EfiPciIoWidthUint32,
-                                      VMWSVGA3_MMIO_BAR,
+                                      VmwSvga3->MmioBarIndex,
                                       Offset,
                                       1,
                                       &Data
@@ -67,7 +67,7 @@ VmwSvga3WriteReg (
   Status = VmwSvga3->PciIo->Mem.Write (
                                        VmwSvga3->PciIo,
                                        EfiPciIoWidthUint32,
-                                       VMWSVGA3_MMIO_BAR,
+                                       VmwSvga3->MmioBarIndex,
                                        Offset,
                                        1,
                                        &Data
@@ -123,7 +123,14 @@ VmwSvga3DeviceInit(
 
   This->PhysicalAddressCmdBuf   = This->PhysicalAddressCmdBufHdr + sizeof(*This->CmdBufHdr);
   This->CmdBuf                  = This->CmdBufHdr + 1;
-  This->FrameBufferVramBarIndex = VMWSVGA3_VRAM_BAR;
+  if (This->VendorId == PCI_VENDOR_ID_VMWARE) {
+    This->FrameBufferVramBarIndex = VMWSVGA3_VRAM_BAR;
+    This->MmioBarIndex = VMWSVGA3_MMIO_BAR;
+  }
+  else {
+    This->FrameBufferVramBarIndex = VBOXSVGA3_VRAM_BAR;
+    This->MmioBarIndex = VBOXSVGA3_MMIO_BAR;
+  }
 
   VmwSvga3WriteReg(This, VMWSVGA3_REG_IRQMASK,     0); /* No interrupts enabled. */
   VmwSvga3WriteReg(This, VMWSVGA3_REG_IRQ_STATUS,  0);

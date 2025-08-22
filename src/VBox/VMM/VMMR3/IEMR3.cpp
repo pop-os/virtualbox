@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -36,11 +36,7 @@
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/ssm.h>
-#if defined(VBOX_VMM_TARGET_ARMV8)
-# include "IEMInternal-armv8.h"
-#else
-# include "IEMInternal.h"
-#endif
+#include "IEMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/vmapi.h>
 #include <VBox/err.h>
@@ -59,6 +55,9 @@
 # include "IEMN8veRecompiler.h"
 # include "IEMThreadedFunctions.h"
 # include "IEMInline.h"
+# ifdef VBOX_VMM_TARGET_X86
+#  include "VMMAll/target-x86/IEMInline-x86.h"
+# endif
 #endif
 
 
@@ -101,6 +100,10 @@ static const char *iemGetTargetCpuName(uint32_t enmTargetCpu)
 #endif
 
 
+#if defined(RT_ARCH_ARM64) && defined(_MSC_VER)
+# pragma warning(disable:4883) /* profile build: IEMR3.cpp(114) : warning C4883: 'IEMR3Init': function size suppresses optimizations*/
+#endif
+
 /**
  * Initializes the interpreted execution manager.
  *
@@ -110,7 +113,7 @@ static const char *iemGetTargetCpuName(uint32_t enmTargetCpu)
  * @returns VBox status code.
  * @param   pVM                The cross context VM structure.
  */
-VMMR3DECL(int)      IEMR3Init(PVM pVM)
+VMMR3_INT_DECL(int) IEMR3Init(PVM pVM)
 {
     /*
      * Read configuration.
@@ -120,7 +123,7 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
     int rc;
 #endif
 
-#if !defined(VBOX_VMM_TARGET_ARMV8) && !defined(VBOX_WITHOUT_CPUID_HOST_CALL)
+#if defined(VBOX_VMM_TARGET_X86) && !defined(VBOX_WITHOUT_CPUID_HOST_CALL)
     /** @cfgm{/IEM/CpuIdHostCall, boolean, false}
      * Controls whether the custom VBox specific CPUID host call interface is
      * enabled or not. */
@@ -232,15 +235,20 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
         AssertCompile(sizeof(pVCpu->iem.s) <= sizeof(pVCpu->iem.padding)); /* (tstVMStruct can't do it's job w/o instruction stats) */
 
         pVCpu->iem.s.CodeTlb.uTlbRevision       = pVCpu->iem.s.DataTlb.uTlbRevision       = uInitialTlbRevision;
-#ifndef VBOX_VMM_TARGET_ARMV8
+#ifdef VBOX_VMM_TARGET_X86
         pVCpu->iem.s.CodeTlb.uTlbRevisionGlobal = pVCpu->iem.s.DataTlb.uTlbRevisionGlobal = uInitialTlbRevision;
-#endif
         pVCpu->iem.s.CodeTlb.uTlbPhysRev        = pVCpu->iem.s.DataTlb.uTlbPhysRev        = uInitialTlbPhysRev;
-#ifndef VBOX_VMM_TARGET_ARMV8
         pVCpu->iem.s.CodeTlb.NonGlobalLargePageRange.uFirstTag = UINT64_MAX;
         pVCpu->iem.s.CodeTlb.GlobalLargePageRange.uFirstTag    = UINT64_MAX;
         pVCpu->iem.s.DataTlb.NonGlobalLargePageRange.uFirstTag = UINT64_MAX;
         pVCpu->iem.s.DataTlb.GlobalLargePageRange.uFirstTag    = UINT64_MAX;
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+        pVCpu->iem.s.CodeTlb.uTlbPhysRevAndStuff0 = pVCpu->iem.s.DataTlb.uTlbPhysRevAndStuff0 = uInitialTlbPhysRev | IEMTLBE_F_NG;
+        pVCpu->iem.s.CodeTlb.uTlbPhysRevAndStuff1 = pVCpu->iem.s.DataTlb.uTlbPhysRevAndStuff1 = uInitialTlbPhysRev | IEMTLBE_F_NG;
+        pVCpu->iem.s.CodeTlb.LargePageRange.uFirstTag = UINT64_MAX;
+        pVCpu->iem.s.DataTlb.LargePageRange.uFirstTag = UINT64_MAX;
+#else
+# error "port me"
 #endif
 
 #ifndef VBOX_VMM_TARGET_ARMV8
@@ -254,13 +262,12 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
         if (idCpu == 0)
         {
             pVCpu->iem.s.enmCpuVendor                     = CPUMGetGuestCpuVendor(pVM);
-            pVCpu->iem.s.enmHostCpuVendor                 = CPUMGetHostCpuVendor(pVM);
 #if !defined(VBOX_VMM_TARGET_ARMV8)
             pVCpu->iem.s.aidxTargetCpuEflFlavour[0]       =    pVCpu->iem.s.enmCpuVendor == CPUMCPUVENDOR_INTEL
                                                             || pVCpu->iem.s.enmCpuVendor == CPUMCPUVENDOR_VIA /*??*/
                                                           ? IEMTARGETCPU_EFL_BEHAVIOR_INTEL : IEMTARGETCPU_EFL_BEHAVIOR_AMD;
 # if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
-            if (pVCpu->iem.s.enmCpuVendor == pVCpu->iem.s.enmHostCpuVendor)
+            if (pVCpu->iem.s.enmCpuVendor == CPUMGetHostCpuVendor(pVM))
                 pVCpu->iem.s.aidxTargetCpuEflFlavour[1]   = IEMTARGETCPU_EFL_BEHAVIOR_NATIVE;
             else
 # endif
@@ -296,7 +303,6 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
         else
         {
             pVCpu->iem.s.enmCpuVendor                     = pVM->apCpusR3[0]->iem.s.enmCpuVendor;
-            pVCpu->iem.s.enmHostCpuVendor                 = pVM->apCpusR3[0]->iem.s.enmHostCpuVendor;
             pVCpu->iem.s.aidxTargetCpuEflFlavour[0]       = pVM->apCpusR3[0]->iem.s.aidxTargetCpuEflFlavour[0];
             pVCpu->iem.s.aidxTargetCpuEflFlavour[1]       = pVM->apCpusR3[0]->iem.s.aidxTargetCpuEflFlavour[1];
 #if IEM_CFG_TARGET_CPU == IEMTARGETCPU_DYNAMIC
@@ -371,8 +377,6 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
                         "Informational statuses returned",              "/IEM/CPU%u/cRetInfStatuses", idCpu);
         STAMR3RegisterF(pVM, &pVCpu->iem.s.cRetErrStatuses,             STAMTYPE_U32_RESET, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
                         "Error statuses returned",                      "/IEM/CPU%u/cRetErrStatuses", idCpu);
-        STAMR3RegisterF(pVM, &pVCpu->iem.s.cbWritten,                   STAMTYPE_U32,       STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,
-                        "Approx bytes written",                         "/IEM/CPU%u/cbWritten", idCpu);
         STAMR3RegisterF(pVM, &pVCpu->iem.s.cPendingCommit,              STAMTYPE_U32,       STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,
                         "Times RC/R0 had to postpone instruction committing to ring-3", "/IEM/CPU%u/cPendingCommit", idCpu);
         STAMR3RegisterF(pVM, &pVCpu->iem.s.cMisalignedAtomics,          STAMTYPE_U32_RESET, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,
@@ -1099,7 +1103,7 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
 }
 
 
-VMMR3DECL(int)      IEMR3Term(PVM pVM)
+VMMR3_INT_DECL(int) IEMR3Term(PVM pVM)
 {
     NOREF(pVM);
 #ifdef IEM_WITH_TLB_TRACE
@@ -1118,7 +1122,7 @@ VMMR3DECL(int)      IEMR3Term(PVM pVM)
 }
 
 
-VMMR3DECL(void)     IEMR3Relocate(PVM pVM)
+VMMR3_INT_DECL(void) IEMR3Relocate(PVM pVM)
 {
     RT_NOREF(pVM);
 }
@@ -1130,7 +1134,7 @@ VMMR3DECL(void)     IEMR3Relocate(PVM pVM)
  * @returns Pointer to read only string if @a uExit is known, otherwise NULL.
  * @param   uExit               The IEM exit to name.
  */
-VMMR3DECL(const char *) IEMR3GetExitName(uint32_t uExit)
+VMMR3_INT_DECL(const char *) IEMR3GetExitName(uint32_t uExit)
 {
     static const char * const s_apszNames[] =
     {
@@ -1240,7 +1244,9 @@ static void iemR3InfoTlbPrintSlot(PVMCPU pVCpu, PCDBGFINFOHLP pHlp, IEMTLB const
     char           szTmp[128];
     if (fFlags & IEMR3INFOTLB_F_CHECK)
     {
+#ifdef VBOX_VMM_TARGET_X86
         uint32_t const fInvSlotG = (uint32_t)!(uSlot & 1) << X86_PTE_BIT_G;
+#endif
         PGMPTWALKFAST  WalkFast;
         int rc = PGMGstQueryPageFast(pVCpu, GCPtr, 0 /*fFlags - don't check or modify anything */, &WalkFast);
         pszValid = szTmp;
@@ -1248,6 +1254,7 @@ static void iemR3InfoTlbPrintSlot(PVMCPU pVCpu, PCDBGFINFOHLP pHlp, IEMTLB const
             switch (rc)
             {
                 case VERR_PAGE_TABLE_NOT_PRESENT:
+#ifdef VBOX_VMM_TARGET_X86
                     switch ((WalkFast.fFailed & PGM_WALKFAIL_LEVEL_MASK) >> PGM_WALKFAIL_LEVEL_SHIFT)
                     {
                         case 1:  pszValid = " stale(page-not-present)"; break;
@@ -1258,10 +1265,14 @@ static void iemR3InfoTlbPrintSlot(PVMCPU pVCpu, PCDBGFINFOHLP pHlp, IEMTLB const
                         default: pszValid = " stale(VERR_PAGE_TABLE_NOT_PRESENT)"; break;
                     }
                     break;
+#else
+                    RT_FALL_THRU(); /** @todo  */
+#endif
                 default: RTStrPrintf(szTmp, sizeof(szTmp), " stale(rc=%d)", rc); break;
             }
         else if (WalkFast.GCPhys != pTlbe->GCPhys)
             RTStrPrintf(szTmp, sizeof(szTmp), " stale(GCPhys=%RGp)", WalkFast.GCPhys);
+#ifdef VBOX_VMM_TARGET_X86
         else if (   (~WalkFast.fEffective       & (X86_PTE_RW | X86_PTE_US | X86_PTE_G | X86_PTE_A | X86_PTE_D))
                  == (  (pTlbe->fFlagsAndPhysRev & (  IEMTLBE_F_PT_NO_WRITE | IEMTLBE_F_PT_NO_USER
                                                    | IEMTLBE_F_PT_NO_DIRTY | IEMTLBE_F_PT_NO_ACCESSED))
@@ -1299,11 +1310,18 @@ static void iemR3InfoTlbPrintSlot(PVMCPU pVCpu, PCDBGFINFOHLP pHlp, IEMTLB const
                         : WalkFast.fEffective & X86_PTE_D  ? " dirty-now"    : " dirty-no-more",
                         (~WalkFast.fEffective & X86_PTE_A)  == (pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PT_NO_ACCESSED) ? ""
                         : WalkFast.fEffective & X86_PTE_A  ? " accessed-now" : " accessed-no-more");
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+        else
+            RTStrPrintf(szTmp, sizeof(szTmp), " stale(todo)");
+#else
+# error "port me"
+#endif
     }
 #else
     RT_NOREF(pVCpu);
 #endif
 
+#ifdef VBOX_VMM_TARGET_X86
     pHlp->pfnPrintf(pHlp, IEMTLB_SLOT_FMT ": %s %#018RX64 -> %RGp / %p / %#05x %s%s%s%s%s%s%s/%s%s%s%s/%s %s%s\n",
                     uSlot,
                     (pTlbe->uTag & IEMTLB_REVISION_MASK) == uTlbRevision ? "valid  "
@@ -1331,6 +1349,69 @@ static void iemR3InfoTlbPrintSlot(PVMCPU pVCpu, PCDBGFINFOHLP pHlp, IEMTLB const
                     (pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PHYS_REV) == pTlb->uTlbPhysRev ? "phys-valid"
                     : (pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PHYS_REV) == 0 ? "phys-empty" : "phys-expired",
                     pszValid);
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+    static const char * const s_apszRegimes[16] =
+    {
+        "NsEL10",
+        "NsEL10S2",
+        "SecEL10",
+        "SecEL10S2",
+        "RealmEL10S2",
+        "NsEL20",
+        "SecEL20",
+        "RealmEL20",
+        "NsEL2",
+        "SecEL2",
+        "RealmEL2",
+        "RootEL3",
+    };
+
+    uint64_t const uTlbPhysRevAndStuff = (pTlbe->uTag & RT_BIT_64(IEMTLB_TAG_ADDR_WIDTH - 1)) == 0
+                                       ? pTlb->uTlbPhysRevAndStuff0 : pTlb->uTlbPhysRevAndStuff1;
+    pHlp->pfnPrintf(pHlp, IEMTLB_SLOT_FMT
+                    ": %s %#018RX64 -> %RGp / %p / %#05x U%c%c%c%cP%c%c%c%c%c%c%c/%c%c/%c%c%c%c/%c as:%x vm:%x/%s %s%s\n",
+                    uSlot,
+                    (pTlbe->uTag & IEMTLB_REVISION_MASK) == uTlbRevision ? "valid  "
+                    : (pTlbe->uTag & IEMTLB_REVISION_MASK) == 0          ? "empty  "
+                                                                         : "expired",
+                    GCPtr, /* -> */
+                    pTlbe->GCPhys, /* / */ pTlbe->pbMappingR3,
+                    /* / */
+                    (uint32_t)(pTlbe->fFlagsAndPhysRev & ~(IEMTLBE_F_PHYS_REV | IEMTLBE_F_S1_ASID | IEMTLBE_F_S2_VMID)),
+                    /* */
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_P_NO_READ    ? '-' : 'r',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_P_NO_WRITE   ? '-' : 'w',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_P_NO_EXEC    ? '-' : 'x',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_P_NO_GCS     ? '-' : 's',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_U_NO_READ    ? '-' : 'r',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_U_NO_WRITE   ? '-' : 'w',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_U_NO_EXEC    ? '-' : 'x',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_U_NO_GCS     ? '-' : 's',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_NO_DIRTY     ? '-' : 'D',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_AMEC         ? 'A' : '-',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_EFF_DEVICE       ? 'd' : '-',
+                    /* / */
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_NG               ? '-' : 'G',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_GP               ? 'P' : '-',
+                    /* / */
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PG_NO_READ       ? '-'  : 'r',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PG_NO_WRITE      ? '-'  : 'w',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PG_UNASSIGNED    ? 'u'  : '-',
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PG_CODE_PAGE     ? 'c'  : '-',
+                    /* / */
+                    pTlbe->fFlagsAndPhysRev & IEMTLBE_F_NO_MAPPINGR3     ? 'N'  : 'M',
+                    /*  as: */
+                    (pTlbe->fFlagsAndPhysRev & IEMTLBE_F_S1_ASID) >> IEMTLBE_F_S1_ASID_SHIFT,
+                    /*  vm: */
+                    (pTlbe->fFlagsAndPhysRev & IEMTLBE_F_S2_VMID) >> IEMTLBE_F_S2_VMID_SHIFT,
+                    s_apszRegimes[(pTlbe->fFlagsAndPhysRev & IEMTLBE_F_REGIME_MASK) >> IEMTLBE_F_REGIME_SHIFT],
+                    /*  */
+                    (pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PHYS_REV) == (uTlbPhysRevAndStuff & IEMTLBE_F_PHYS_REV) ? "phys-valid"
+                    : (pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PHYS_REV) == 0 ? "phys-empty" : "phys-expired",
+                    pszValid);
+#else
+# error "port me"
+#endif
 }
 
 
@@ -1367,26 +1448,26 @@ static void iemR3InfoTlbPrintAddress(PVMCPU pVCpu, PCDBGFINFOHLP pHlp, IEMTLB co
 {
     iemR3InfoTlbPrintHeader(pVCpu, pHlp, pTlb, pfHeader);
 
-    uint64_t const    uTag  = IEMTLB_CALC_TAG_NO_REV(uAddress);
-#ifdef IEMTLB_TAG_TO_EVEN_INDEX
-    uint32_t const    uSlot = IEMTLB_TAG_TO_EVEN_INDEX(uTag);
-#else
+    uint64_t const    uTag  = IEMTLB_CALC_TAG_NO_REV(pVCpu, uAddress);
     uint32_t const    uSlot = IEMTLB_TAG_TO_INDEX(uTag);
-#endif
-    IEMTLBENTRY const TlbeL = pTlb->aEntries[uSlot];
-#ifndef VBOX_VMM_TARGET_ARMV8
-    IEMTLBENTRY const TlbeG = pTlb->aEntries[uSlot + 1];
+    AssertCompile(IEMTLB_ENTRY_COUNT_FACTOR == 1 || IEMTLB_ENTRY_COUNT_FACTOR == 2);
+    IEMTLBENTRY const Tlbe0 = pTlb->aEntries[uSlot];
+#if IEMTLB_ENTRY_COUNT_FACTOR >= 2
+    IEMTLBENTRY const Tlbe1 = pTlb->aEntries[uSlot + 1];
 #endif
     pHlp->pfnPrintf(pHlp, "Address %#RX64 -> slot %#x - %s\n", uAddress, uSlot,
-                    TlbeL.uTag == (uTag | pTlb->uTlbRevision)  ? "match"
-                    : (TlbeL.uTag & ~IEMTLB_REVISION_MASK) == uTag ? "expired" : "mismatch");
-    iemR3InfoTlbPrintSlot(pVCpu, pHlp, pTlb, &TlbeL, uSlot, fFlags);
+                    Tlbe0.uTag == (uTag | pTlb->uTlbRevision)  ? "match"
+                    : (Tlbe0.uTag & ~IEMTLB_REVISION_MASK) == uTag ? "expired" : "mismatch");
+    iemR3InfoTlbPrintSlot(pVCpu, pHlp, pTlb, &Tlbe0, uSlot, fFlags);
 
-#ifndef VBOX_VMM_TARGET_ARMV8
+#if IEMTLB_ENTRY_COUNT_FACTOR >= 2
     pHlp->pfnPrintf(pHlp, "Address %#RX64 -> slot %#x - %s\n", uAddress, uSlot + 1,
-                    TlbeG.uTag == (uTag | pTlb->uTlbRevisionGlobal)  ? "match"
-                    : (TlbeG.uTag & ~IEMTLB_REVISION_MASK) == uTag ? "expired" : "mismatch");
-    iemR3InfoTlbPrintSlot(pVCpu, pHlp, pTlb, &TlbeG, uSlot + 1, fFlags);
+                    Tlbe1.uTag == (uTag | pTlb->uTlbRevisionGlobal)  ? "match"
+                    : (Tlbe1.uTag & ~IEMTLB_REVISION_MASK) == uTag ? "expired" : "mismatch");
+    iemR3InfoTlbPrintSlot(pVCpu, pHlp, pTlb, &Tlbe1, uSlot + 1, fFlags);
+# if IEMTLB_ENTRY_COUNT_FACTOR > 2
+#  error IEMTLB_ENTRY_COUNT_FACTOR
+# endif
 #endif
 }
 
@@ -1530,7 +1611,7 @@ static void iemR3InfoTlbCommon(PVM pVM, PCDBGFINFOHLP pHlp, int cArgs, char **pa
                                 "    Only show valid TLB entries (TAG, not phys)\n"
                                 "\n"
                                 "Non-options are interpreted according to the last -a, -r or -s option,\n"
-                                "defaulting to addresses if not preceeded by any of those options.\n"
+                                "defaulting to addresses if not preceded by any of those options.\n"
                                 , fITlb ? 'i' : 'd');
                 return;
 
@@ -1712,7 +1793,7 @@ static DECLCALLBACK(void) iemR3InfoTlbTrace(PVM pVM, PCDBGFINFOHLP pHlp, int cAr
             {
                 case kIemTlbTraceType_InvlPg:
                     pHlp->pfnPrintf(pHlp, "%u: %016RX64 invlpg %RGv slot=" IEMTLB_SLOT_FMT "%s\n", idx, pCur->rip,
-                                    pCur->u64Param, (uint32_t)IEMTLB_ADDR_TO_EVEN_INDEX(pCur->u64Param), pszSymbol);
+                                    pCur->u64Param, (uint32_t)IEMTLB_ADDR_TO_INDEX(pVCpu, pCur->u64Param), pszSymbol);
                     break;
                 case kIemTlbTraceType_EvictSlot:
                     pHlp->pfnPrintf(pHlp, "%u: %016RX64 evict %s slot=" IEMTLB_SLOT_FMT " %RGv (%#RX64) gcphys=%RGp%s\n",
@@ -1744,12 +1825,14 @@ static DECLCALLBACK(void) iemR3InfoTlbTrace(PVM pVM, PCDBGFINFOHLP pHlp, int cAr
                         return;
                     break;
                 case kIemTlbTraceType_Load:
+# if IEMTLB_ENTRY_COUNT_FACTOR > 1
                 case kIemTlbTraceType_LoadGlobal:
+# endif
                     pHlp->pfnPrintf(pHlp, "%u: %016RX64 %cload %s %RGv slot=" IEMTLB_SLOT_FMT " gcphys=%RGp fTlb=%#RX32%s\n",
                                     idx, pCur->rip,
                                     pCur->enmType == kIemTlbTraceType_LoadGlobal ? 'g' : 'l', s_apszTlbType[pCur->bParam & 1],
                                     pCur->u64Param,
-                                      (uint32_t)IEMTLB_ADDR_TO_EVEN_INDEX(pCur->u64Param)
+                                      (uint32_t)IEMTLB_ADDR_TO_INDEX(pVCpu, pCur->u64Param)
                                     | (pCur->enmType == kIemTlbTraceType_LoadGlobal),
                                     (RTGCPTR)pCur->u64Param2, pCur->u32Param, pszSymbol);
                     break;
@@ -1995,14 +2078,14 @@ static DECLCALLBACK(void) iemR3InfoTb(PVM pVM, PCDBGFINFOHLP pHlp, int cArgs, ch
         if (pVM->cCpus == 1)
             fFlags |= IEM_F_X86_DISREGARD_LOCK;
         if (CPUMIsInInterruptShadow(&pVCpu->cpum.GstCtx))
-            fFlags |= IEMTB_F_INHIBIT_SHADOW;
+            fFlags |= IEMTB_F_X86_INHIBIT_SHADOW;
         if (CPUMAreInterruptsInhibitedByNmiEx(&pVCpu->cpum.GstCtx))
-            fFlags |= IEMTB_F_INHIBIT_NMI;
-        if ((IEM_F_MODE_CPUMODE_MASK & fFlags) != IEMMODE_64BIT)
+            fFlags |= IEMTB_F_X86_INHIBIT_NMI;
+        if ((IEM_F_MODE_X86_CPUMODE_MASK & fFlags) != IEMMODE_64BIT)
         {
             int64_t const offFromLim = (int64_t)pVCpu->cpum.GstCtx.cs.u32Limit - (int64_t)pVCpu->cpum.GstCtx.eip;
             if (offFromLim < X86_PAGE_SIZE + 16 - (int32_t)(pVCpu->cpum.GstCtx.cs.u64Base & GUEST_PAGE_OFFSET_MASK))
-                fFlags |= IEMTB_F_CS_LIM_CHECKS;
+                fFlags |= IEMTB_F_X86_CS_LIM_CHECKS;
         }
     }
 

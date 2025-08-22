@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -291,7 +291,7 @@ typedef enum CODECTYPE
 #define CODEC_F00_12_NUM_STEPS(f00_12)                     CODEC_F00_0D_NUM_STEPS(f00_12)
 #define CODEC_F00_12_OFFSET(f00_12)                        CODEC_F00_0D_OFFSET(f00_12)
 
-/* Connection list lenght (7.3.4.11). */
+/* Connection list length (7.3.4.11). */
 #define CODEC_MAKE_F00_0E(long_form, length)    \
     (  (((long_form) & 0x1) << 7)               \
      | ((length) & 0x7F))

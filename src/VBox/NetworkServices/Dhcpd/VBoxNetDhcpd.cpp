@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -146,8 +146,8 @@ private:
     err_t netifLinkOutput(pbuf *pPBuf);
 
     static void dhcp4RecvCB(void *arg, struct udp_pcb *pcb, struct pbuf *p,
-                            ip_addr_t *addr, u16_t port) RT_NOTHROW_PROTO;
-    void dhcp4Recv(struct udp_pcb *pcb, struct pbuf *p, ip_addr_t *addr, u16_t port);
+                            const ip_addr_t *addr, u16_t port) RT_NOTHROW_PROTO;
+    void dhcp4Recv(struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port);
 };
 
 
@@ -327,7 +327,7 @@ err_t VBoxNetDhcpd::netifLinkOutput(pbuf *pPBuf)
 
 /* static */ void VBoxNetDhcpd::dhcp4RecvCB(void *arg, struct udp_pcb *pcb,
                                             struct pbuf *p,
-                                            ip_addr_t *addr, u16_t port) RT_NOTHROW_DEF
+                                            const ip_addr_t *addr, u16_t port) RT_NOTHROW_DEF
 {
     AssertPtrReturnVoid(arg);
 
@@ -391,13 +391,15 @@ void VBoxNetDhcpd::lwipInit()
 {
     err_t error;
 
-    ip_addr_t addr, mask;
+    ip4_addr_t addr, mask;
     ip4_addr_set_u32(&addr, m_Config->getIPv4Address().u);
     ip4_addr_set_u32(&mask, m_Config->getIPv4Netmask().u);
 
+    ip4_addr_t gw;
+    ip4_addr_set_u32(&gw, IPADDR_ANY);
     netif *pNetif = netif_add(&m_LwipNetif,
                               &addr, &mask,
-                              IP_ADDR_ANY,               /* gateway */
+                              &gw,                       /* gateway */
                               this,                      /* state */
                               VBoxNetDhcpd::netifInitCB, /* netif_init_fn */
                               tcpip_input);              /* netif_input_fn */
@@ -444,7 +446,7 @@ err_t VBoxNetDhcpd::netifInit(netif *pNetif)
 
 
 void VBoxNetDhcpd::dhcp4Recv(struct udp_pcb *pcb, struct pbuf *p,
-                             ip_addr_t *addr, u16_t port)
+                             const ip_addr_t *addr, u16_t port)
 {
     RT_NOREF(pcb, addr, port);
 
@@ -468,7 +470,7 @@ void VBoxNetDhcpd::dhcp4Recv(struct udp_pcb *pcb, struct pbuf *p,
 
         std::unique_ptr<DhcpServerMessage> autoFreeMsgOut(msgOut);
 
-        ip_addr_t dst = { msgOut->dst().u };
+        ip_addr_t dst = IPADDR4_INIT(msgOut->dst().u);
         if (ip_addr_cmp(&dst, &ip_addr_any))
             ip_addr_copy(dst, ip_addr_broadcast);
 

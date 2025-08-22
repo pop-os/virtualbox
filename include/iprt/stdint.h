@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -69,6 +69,40 @@
 # include <stdint.h>
 # ifdef _MSC_VER
 #  pragma warning(pop)
+# endif
+
+# if defined(RT_OS_SOLARIS) && defined(VBOX_WITH_PARFAIT)
+    /* HACK ALERT: Workaround for missing __UINT32_C and friends (clang vs gcc?). */
+#  ifndef __UINT8_C
+#   define __UINT8_C(c)     c
+#  endif
+#  ifndef __UINT16_C
+#   define __UINT16_C(c)    c
+#  endif
+#  ifndef __UINT32_C
+#   define __UINT32_C(c)    RT_CONCAT(c,U)
+#  endif
+#  ifndef __UINT64_C
+#   define __UINT64_C(c)    RT_CONCAT(c,UL)
+#  endif
+#  ifndef __UINTMAX_C
+#   define __UINTMAX_C(c)   RT_CONCAT(c,UL)
+#  endif
+#  ifndef __INT8_C
+#   define __INT8_C(c)      c
+#  endif
+#  ifndef __INT16_C
+#   define __INT16_C(c)     c
+#  endif
+#  ifndef __INT32_C
+#   define __INT32_C(c)     c
+#  endif
+#  ifndef __INT64_C
+#   define __INT64_C(c)     RT_CONCAT(c,L)
+#  endif
+#  ifndef __INTMAX_C
+#   define __INTMAX_C(c)    RT_CONCAT(c,L)
+#  endif
 # endif
 
 # if defined(RT_OS_DARWIN) && defined(KERNEL) && defined(RT_ARCH_AMD64)
@@ -303,12 +337,10 @@ typedef uint64_t            uintptr_t;
  || !defined(INT16_C) \
  || !defined(INT32_C) \
  || !defined(INT64_C) \
- || !defined(INTMAX_C) \
  || !defined(UINT8_C) \
  || !defined(UINT16_C) \
  || !defined(UINT32_C) \
- || !defined(UINT64_C) \
- || !defined(UINTMAX_C)
+ || !defined(UINT64_C)
 # define INT8_C(Value)      (Value)
 # define INT16_C(Value)     (Value)
 # define UINT8_C(Value)     (Value)
@@ -324,6 +356,9 @@ typedef uint64_t            uintptr_t;
 #  define INT64_C(Value)    (Value ## LL)
 #  define UINT64_C(Value)   (Value ## ULL)
 # endif
+#endif
+#if !defined(INTMAX_C) \
+ || !defined(UINTMAX_C)
 # define INTMAX_C(Value)    INT64_C(Value)
 # define UINTMAX_C(Value)   UINT64_C(Value)
 #endif
@@ -358,7 +393,10 @@ typedef uint64_t            uintptr_t;
 # define UINT16_MAX         UINT16_C(0xffff)
 # define UINT32_MAX         UINT32_C(0xffffffff)
 # define UINT64_MAX         UINT64_C(0xffffffffffffffff)
-
+#endif
+#if !defined(INTMAX_MIN) \
+ || !defined(INTMAX_MAX) \
+ || !defined(UINTMAX_MAX)
 # define INTMAX_MIN         INT64_MIN
 # define INTMAX_MAX         INT64_MAX
 # define UINTMAX_MAX        UINT64_MAX

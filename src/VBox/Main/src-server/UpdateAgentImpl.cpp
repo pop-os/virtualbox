@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -33,7 +33,7 @@
 #include <iprt/path.h>
 #include <iprt/http.h>
 #include <iprt/system.h>
-#include <iprt/message.h>
+#include <iprt/mp.h>
 #include <iprt/pipe.h>
 #include <iprt/env.h>
 #include <iprt/process.h>
@@ -41,6 +41,9 @@
 #include <iprt/err.h>
 #include <iprt/stream.h>
 #include <iprt/time.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <VBox/com/defs.h>
 #include <VBox/err.h>
 #include <VBox/version.h>
@@ -107,42 +110,132 @@ void UpdateAgentTask::handler(void)
 *   Update agent base class implementation                                                                                       *
 *********************************************************************************************************************************/
 
+/** Maximum user agent string length.
+ * The value here is dictated by the load balancing service and was
+ * determined by trying increasingly long strings with 'curl -A "str"' on
+ * the command line.  The actual value was 501 characters, but to be on the safe
+ * side we set it 5 bytes below that again, keeping the total line length under
+ * 512 bytes. */
+#define UA_MAX_LENGTH           496
+
+/** Characters we always purge from component values. */
+#define UA_DEFAULT_BAD_CHARS    "|[]<>\n\r"
+
+/** A i_appendPlatformInfo() helper that replaces bad characters with spaces. */
+static char *sanitizeUserAgentString(char *psz, const char *pszBadChars = UA_DEFAULT_BAD_CHARS)
+{
+    char * const pszRet = psz;
+    RTStrPurgeEncoding(psz);
+    while ((psz = strpbrk(psz, pszBadChars)) != NULL)
+        *psz++ = ' ';
+    return pszRet;
+}
+
 /**
  * Returns platform information as a string.
  *
- * @returns Platform information as string.
+ * @param a_rStr    The user agent string to append the platform info to.
  */
-/* static */
-Utf8Str UpdateAgentBase::i_getPlatformInfo(void)
+void UpdateAgentBase::i_appendPlatformInfo(Utf8Str &a_rStr)
 {
-    /* Prepare platform report: */
-    Utf8Str strPlatform;
-
-# if defined (RT_OS_WINDOWS)
-    strPlatform = "win";
-# elif defined (RT_OS_LINUX)
-    strPlatform = "linux";
-# elif defined (RT_OS_DARWIN)
-    strPlatform = "macosx";
-# elif defined (RT_OS_OS2)
-    strPlatform = "os2";
-# elif defined (RT_OS_FREEBSD)
-    strPlatform = "freebsd";
-# elif defined (RT_OS_SOLARIS)
-    strPlatform = "solaris";
-# else
-    strPlatform = "unknown";
-# endif
-
-    /* The format is <system>.<bitness>: */
-    strPlatform.appendPrintf(".%lu", ARCH_BITS);
-
-    /* Add more system information: */
     int vrc;
-# ifdef RT_OS_LINUX
-    // WORKAROUND:
-    // On Linux we try to generate information using script first of all..
+    char szTmp[256];
 
+    /*
+     * The format is <system>.<arch> (used to be <system>.<bitness>):
+     */
+#if   defined(RT_OS_WINDOWS)
+    a_rStr.append("win");
+#elif defined(RT_OS_LINUX)
+    a_rStr.append("linux");
+#elif defined(RT_OS_DARWIN)
+    a_rStr.append("macosx");
+#elif defined(RT_OS_OS2)
+    a_rStr.append("os2");
+#elif defined(RT_OS_FREEBSD)
+    a_rStr.append("freebsd");
+#elif defined(RT_OS_SOLARIS)
+    a_rStr.append("solaris");
+#else
+    a_rStr.append("unknown");
+#endif
+    a_rStr.append('.');
+#if  defined(RT_ARCH_AMD64)
+    a_rStr.append("amd64");
+#elif defined(RT_ARCH_ARM64)
+    a_rStr.append("arm64");
+#elif defined(RT_ARCH_X86)
+    a_rStr.append("x86");
+#else
+# error "Unexpected RT_ARCH_XXX"
+#endif
+
+    /*
+     * Get some very basic HW info.
+     * Do this before the linux stuff, as it may dump too much info on us.
+     */
+    uint64_t cbRam = 0;
+    RTSystemQueryTotalRam(&cbRam);
+    a_rStr.appendPrintf(" [HW: ram=%RU64M;cpus=%u:", cbRam / _1M, RTMpGetOnlineCount());
+
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    /* Get the CPU vendor (shorten it if possible) and basic model info. */
+    uint32_t uEax, uEbx, uEcx, uEdx;
+    ASMCpuIdExSlow(0, 0, 0, 0, &uEax, &uEbx, &uEcx, &uEdx);
+    const char *pszVendor;
+    if (RTX86IsAmdCpu(uEbx, uEcx, uEdx))                pszVendor = "AMD";
+    else if (RTX86IsIntelCpu(uEbx, uEcx, uEdx))         pszVendor = "Intel";
+    else if (RTX86IsViaCentaurCpu(uEbx, uEcx, uEdx))    pszVendor = "Via";
+    else if (RTX86IsShanghaiCpu(uEbx, uEcx, uEdx))      pszVendor = "Shanghai";
+    else if (RTX86IsHygonCpu(uEbx, uEcx, uEdx))         pszVendor = "Hygon";
+    else
+    {
+        ((uint32_t *)szTmp)[0] = uEbx;
+        ((uint32_t *)szTmp)[1] = uEdx;
+        ((uint32_t *)szTmp)[2] = uEcx;
+        ((uint32_t *)szTmp)[3] = 0;
+        pszVendor = RTStrStrip(sanitizeUserAgentString(szTmp, UA_DEFAULT_BAD_CHARS ":;"));
+    }
+    ASMCpuIdExSlow(1, 0, 0, 0, &uEax, &uEbx, &uEcx, &uEdx);
+    a_rStr.appendPrintf("%s:%#x", pszVendor, uEax);
+
+#else
+    vrc = RTMpGetDescription(NIL_RTCPUID, szTmp, RT_MIN(sizeof(szTmp), 64));
+    if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+        sanitizeUserAgentString(szTmp, UA_DEFAULT_BAD_CHARS ":;");
+    else
+        szTmp[0] = '\0';
+    a_rStr.append(RTStrStrip(szTmp));
+#endif
+
+    /* NEM & HM support for the host architecture: */
+    BOOL fIsNativeApiSupported = FALSE;
+    BOOL fIsHwVirtSupported = FALSE;
+#if defined(RT_ARCH_ARM64) || defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    ComPtr<IHost> ptrHost;
+    HRESULT hrc = m_VirtualBox->COMGETTER(Host)(ptrHost.asOutParam());
+    if (SUCCEEDED(hrc))
+    {
+# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+        ptrHost->IsExecutionEngineSupported(CPUArchitecture_x86, VMExecutionEngine_NativeApi, &fIsNativeApiSupported);
+        ptrHost->IsExecutionEngineSupported(CPUArchitecture_x86, VMExecutionEngine_HwVirt, &fIsHwVirtSupported);
+# else
+        ptrHost->IsExecutionEngineSupported(CPUArchitecture_ARMv8_64, VMExecutionEngine_NativeApi, &fIsNativeApiSupported);
+# endif
+    }
+#else
+# error "port me"
+#endif
+    a_rStr.append(fIsNativeApiSupported ? ";NEM" : ";no-NEM");
+    a_rStr.append(fIsHwVirtSupported    ? ":HM"  : ":no-HM");
+
+#ifdef RT_OS_LINUX
+    /*
+     * WORKAROUND: On Linux we try to generate information using script first.
+     *
+     * It will get more information than what IPRT currently provide, with distro
+     * details and such.
+     */
     /* Get script path: */
     char szAppPrivPath[RTPATH_MAX];
     vrc = RTPathAppPrivateNoArch(szAppPrivPath, sizeof(szAppPrivPath));
@@ -152,127 +245,124 @@ Utf8Str UpdateAgentBase::i_getPlatformInfo(void)
     AssertRC(vrc);
     if (RT_SUCCESS(vrc))
     {
+        /** @todo r=bird: The IPRT interface is bogus here, the pipe should be
+         *        created with both ends marked non-inherit, as there could be other
+         *        callers of RTProcCreate racing this code and the pipe would be
+         *        inherited by that child if the beat us to it.  This will the cause
+         *        the RTPipeReadBlocking call to not return when our child process
+         *        terminates, as the pipe is still not closed by the racing child
+         *        processes. */
         RTPIPE hPipeR;
         RTHANDLE hStdOutPipe;
         hStdOutPipe.enmType = RTHANDLETYPE_PIPE;
         vrc = RTPipeCreate(&hPipeR, &hStdOutPipe.u.hPipe, RTPIPE_C_INHERIT_WRITE);
         AssertLogRelRC(vrc);
-
-        char const *szAppPrivArgs[2];
-        szAppPrivArgs[0] = szAppPrivPath;
-        szAppPrivArgs[1] = NULL;
-        RTPROCESS hProc = NIL_RTPROCESS;
-
-        /* Run script: */
-        vrc = RTProcCreateEx(szAppPrivPath, szAppPrivArgs, RTENV_DEFAULT, 0 /*fFlags*/, NULL /*phStdin*/, &hStdOutPipe,
-                             NULL /*phStderr*/, NULL /*pszAsUser*/, NULL /*pszPassword*/, NULL /*pvExtraData*/, &hProc);
-
-        (void) RTPipeClose(hStdOutPipe.u.hPipe);
-        hStdOutPipe.u.hPipe = NIL_RTPIPE;
-
         if (RT_SUCCESS(vrc))
         {
-            RTPROCSTATUS  ProcStatus;
-            size_t        cbStdOutBuf  = 0;
-            size_t        offStdOutBuf = 0;
-            char          *pszStdOutBuf = NULL;
-            do
+            char const *apszAppPrivArgs[2];
+            apszAppPrivArgs[0] = szAppPrivPath;
+            apszAppPrivArgs[1] = NULL;
+            RTPROCESS hProc = NIL_RTPROCESS;
+
+            /* Run script: */
+            vrc = RTProcCreateEx(szAppPrivPath, apszAppPrivArgs, RTENV_DEFAULT, 0 /*fFlags*/, NULL /*phStdin*/, &hStdOutPipe,
+                                 NULL /*phStderr*/, NULL /*pszAsUser*/, NULL /*pszPassword*/, NULL /*pvExtraData*/, &hProc);
+
+            RTPipeClose(hStdOutPipe.u.hPipe);
+            hStdOutPipe.u.hPipe = NIL_RTPIPE;
+
+            if (RT_SUCCESS(vrc))
             {
-                if (hPipeR != NIL_RTPIPE)
+                RTPROCSTATUS  ProcStatus   = { -1, RTPROCEXITREASON_ABEND };
+                size_t        offStdOutBuf = 0;
+                char          szStdOutBuf[UA_MAX_LENGTH];
+                szStdOutBuf[0] = '\0';
+                do
                 {
-                    char    achBuf[1024];
-                    size_t  cbRead;
-                    vrc = RTPipeReadBlocking(hPipeR, achBuf, sizeof(achBuf), &cbRead);
-                    if (RT_SUCCESS(vrc))
+                    if (hPipeR != NIL_RTPIPE)
                     {
-                        /* grow the buffer? */
-                        size_t cbBufReq = offStdOutBuf + cbRead + 1;
-                        if (   cbBufReq > cbStdOutBuf
-                            && cbBufReq < _256K)
+                        char    achBuf[1024];
+                        size_t  cbRead;
+                        vrc = RTPipeReadBlocking(hPipeR, achBuf, sizeof(achBuf), &cbRead);
+                        if (RT_SUCCESS(vrc))
                         {
-                            size_t cbNew = RT_ALIGN_Z(cbBufReq, 16); // 1024
-                            void  *pvNew = RTMemRealloc(pszStdOutBuf, cbNew);
-                            if (pvNew)
+                            /* append if we've got room. */
+                            if (offStdOutBuf + 1 < sizeof(szStdOutBuf))
                             {
-                                pszStdOutBuf = (char *)pvNew;
-                                cbStdOutBuf  = cbNew;
+                                size_t const cbToCopy = RT_MIN(cbRead, sizeof(szStdOutBuf) - offStdOutBuf - 1);
+                                memcpy(&szStdOutBuf[offStdOutBuf], achBuf, cbToCopy);
+                                offStdOutBuf += cbToCopy;
+                                szStdOutBuf[offStdOutBuf] = '\0';
                             }
                         }
-
-                        /* append if we've got room. */
-                        if (cbBufReq <= cbStdOutBuf)
+                        else
                         {
-                            (void) memcpy(&pszStdOutBuf[offStdOutBuf], achBuf, cbRead);
-                            offStdOutBuf = offStdOutBuf + cbRead;
-                            pszStdOutBuf[offStdOutBuf] = '\0';
+                            AssertLogRelMsg(vrc == VERR_BROKEN_PIPE, ("%Rrc\n", vrc));
+                            if (vrc == VERR_BROKEN_PIPE)
+                                vrc = VINF_SUCCESS;
+                            RTPipeClose(hPipeR);
+                            hPipeR = NIL_RTPIPE;
                         }
                     }
-                    else
+
+                    /*
+                     * Service the process.  Block if we have no pipe.
+                     */
+                    if (hProc != NIL_RTPROCESS)
                     {
-                        AssertLogRelMsg(vrc == VERR_BROKEN_PIPE, ("%Rrc\n", vrc));
-                        RTPipeClose(hPipeR);
-                        hPipeR = NIL_RTPIPE;
+                        vrc = RTProcWait(hProc,
+                                         hPipeR == NIL_RTPIPE ? RTPROCWAIT_FLAGS_BLOCK : RTPROCWAIT_FLAGS_NOBLOCK,
+                                         &ProcStatus);
+                        if (RT_SUCCESS(vrc))
+                            hProc = NIL_RTPROCESS;
+                        else
+                            AssertLogRelMsgStmt(vrc == VERR_PROCESS_RUNNING, ("%Rrc\n", vrc), hProc = NIL_RTPROCESS);
+                    }
+                } while (   hPipeR != NIL_RTPIPE
+                         || hProc != NIL_RTPROCESS);
+
+                if (   RT_SUCCESS(vrc)
+                    && ProcStatus.enmReason == RTPROCEXITREASON_NORMAL
+                    && ProcStatus.iStatus == 0
+                    && offStdOutBuf > 0)
+                {
+                    const char * const pszSanitized = RTStrStrip(sanitizeUserAgentString(szStdOutBuf, "<>[]"));
+                    if (   strlen(pszSanitized) > sizeof("Distribution: ")
+                        && strchr(pszSanitized, '\n') == NULL
+                        && strchr(pszSanitized, '\r') == NULL)
+                    {
+                        a_rStr.appendPrintf(" | %s", pszSanitized);
+                        a_rStr.truncate(UA_MAX_LENGTH - 2); /* -2 because caller adds '>' */
+                        a_rStr.append(']');
+                        return;
                     }
                 }
-
-                /*
-                 * Service the process.  Block if we have no pipe.
-                 */
-                if (hProc != NIL_RTPROCESS)
-                {
-                    vrc = RTProcWait(hProc,
-                                     hPipeR == NIL_RTPIPE ? RTPROCWAIT_FLAGS_BLOCK : RTPROCWAIT_FLAGS_NOBLOCK,
-                                     &ProcStatus);
-                    if (RT_SUCCESS(vrc))
-                        hProc = NIL_RTPROCESS;
-                    else
-                        AssertLogRelMsgStmt(vrc == VERR_PROCESS_RUNNING, ("%Rrc\n", vrc), hProc = NIL_RTPROCESS);
-                }
-            } while (   hPipeR != NIL_RTPIPE
-                     || hProc != NIL_RTPROCESS);
-
-            if (   ProcStatus.enmReason == RTPROCEXITREASON_NORMAL
-                && ProcStatus.iStatus == 0) {
-                pszStdOutBuf[offStdOutBuf-1] = '\0';  // remove trailing newline
-                Utf8Str pszStdOutBufUTF8(pszStdOutBuf);
-                strPlatform.appendPrintf(" [%s]", pszStdOutBufUTF8.strip().c_str());
-                // For testing, here is some sample output:
-                //strPlatform.appendPrintf(" [Distribution: Redhat | Version: 7.6.1810 | Kernel: Linux version 3.10.0-952.27.2.el7.x86_64 (gcc version 4.8.5 20150623 (Red Hat 4.8.5-36) (GCC) ) #1 SMP Mon Jul 29 17:46:05 UTC 2019]");
             }
         }
-        else
-            vrc = VERR_TRY_AGAIN; /* (take the fallback path) */
     }
+#endif /* RT_OS_LINUX */
 
-    if (RT_FAILURE(vrc))
-# endif /* RT_OS_LINUX */
-    {
-        /* Use RTSystemQueryOSInfo: */
-        char szTmp[256];
+    /*
+     * Use RTSystemQueryOSInfo:
+     */
+    vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szTmp, sizeof(szTmp));
+    if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
+        a_rStr.appendPrintf(" | Product: %s", sanitizeUserAgentString(szTmp));
 
-        vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szTmp, sizeof(szTmp));
-        if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
-            strPlatform.appendPrintf(" [Product: %s", szTmp);
+    vrc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szTmp, sizeof(szTmp));
+    if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
+        a_rStr.appendPrintf(" | Release: %s", sanitizeUserAgentString(szTmp));
 
-        vrc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szTmp, sizeof(szTmp));
-        if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
-            strPlatform.appendPrintf(" %sRelease: %s", strlen(szTmp) == 0 ? "[" : "| ", szTmp);
+    vrc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szTmp, sizeof(szTmp));
+    if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
+        a_rStr.appendPrintf(" | Version: %s", sanitizeUserAgentString(szTmp));
 
-        vrc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szTmp, sizeof(szTmp));
-        if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
-            strPlatform.appendPrintf(" %sVersion: %s", strlen(szTmp) == 0 ? "[" : "| ", szTmp);
+    vrc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szTmp, sizeof(szTmp));
+    if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
+        a_rStr.appendPrintf(" | SP: %s", sanitizeUserAgentString(szTmp));
 
-        vrc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szTmp, sizeof(szTmp));
-        if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
-            strPlatform.appendPrintf(" %sSP: %s]", strlen(szTmp) == 0 ? "[" : "| ", szTmp);
-
-        if (!strPlatform.endsWith("]"))
-            strPlatform.append("]");
-    }
-
-    LogRel2(("UpdateAgent: Platform is '%s'\n", strPlatform.c_str()));
-
-    return strPlatform;
+    a_rStr.truncate(UA_MAX_LENGTH - 2); /* -2 because the caller adds '>'. (The load balancer imposes severe length limits.) */
+    a_rStr.append(']');
 }
 
 /**
@@ -1022,13 +1112,24 @@ DECLCALLBACK(HRESULT) HostUpdateAgent::i_checkForUpdateTask(UpdateAgentTask *pTa
 
     /*
      * Compose the User-Agent header for the GET request.
+     *
+     * Some examples of what we produce below:
+     *      VirtualBox 7.2.0_RC1 <win.amd64 [HW: ram=262013M;cpus=128:AMD:0x830f10;NEM:HM | Product: Windows 11 | Release: 10.0.26100]>
+     *      VirtualBox 7.2.0_RC1 <linux.amd64 [HW: ram=262013M;cpus=64:AMD:0x830f10;no-NEM:HM | Distribution: Ubuntu | Version: 24.04 | Kernel: Linux version 4.4.0-26100-Microsoft (gcc version 5.4.0 (GCC) ) #1882-Microsoft Fri Jan 01 08:00:00 PST 2016]>
+     *
+     * Older code produced agent strings like these:
+     *      VirtualBox 7.2.0_RC1 <win.amd64 [Product: Windows 11 | Release: 10.0.26100]>
+     *      VirtualBox 7.2.0_RC1 <linux.amd64 [Distribution: Ubuntu | Version: 24.04 | Kernel: Linux version 4.4.0-26100-Microsoft (gcc version 5.4.0 (GCC) ) #1882-Microsoft Fri Jan 01 08:00:00 PST 2016]>
      */
     Bstr version;
     hrc = m_VirtualBox->COMGETTER(Version)(version.asOutParam()); // e.g. 6.1.0_RC1
     AssertComRCReturn(hrc, hrc);
 
-    Utf8StrFmt const strUserAgent("VirtualBox %ls <%s>", version.raw(), UpdateAgent::i_getPlatformInfo().c_str());
-    LogRel2(("Update agent (%s): Using user agent '%s'\n",  mData.m_strName.c_str(), strUserAgent.c_str()));
+    Utf8StrFmt strUserAgent("VirtualBox %ls <", version.raw());
+    i_appendPlatformInfo(strUserAgent);
+    strUserAgent.append('>');
+    Assert(strUserAgent.length() <= UA_MAX_LENGTH); /* Note! The load balancer imposes severe length limits. */
+    LogRel2(("Update agent (%s): Using user agent '%s'\n", mData.m_strName.c_str(), strUserAgent.c_str())); // dont commit
 
     /*
      * Create the HTTP client instance and pass it to a inner worker method to

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -79,7 +79,7 @@ void UITpmEditor::setMinimumLayoutIndent(int iIndent)
 void UITpmEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("&TPM:"));
+        m_pLabel->setText(tr("&TPM Version"));
     if (m_pCombo)
     {
         for (int i = 0; i < m_pCombo->count(); ++i)
@@ -87,7 +87,7 @@ void UITpmEditor::sltRetranslateUI()
             const KTpmType enmType = m_pCombo->itemData(i).value<KTpmType>();
             m_pCombo->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pCombo->setToolTip(tr("Selects the TPM type to be emulated in this virtual machine."));
+        m_pCombo->setToolTip(tr("Emulate this Trusted Platform Module on this VM"));
     }
 }
 

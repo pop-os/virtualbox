@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -38,6 +38,9 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#ifdef VBOX_WITH_PARFAIT
+# include <iprt/types.h> /* HACK ALERT! Contains workaround for int_fast16_t & uint_fast16_t clash. */
+#endif
 #include <sys/conf.h>
 #include <sys/modctl.h>
 #include <sys/mutex.h>

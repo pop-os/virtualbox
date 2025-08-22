@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -100,6 +100,7 @@ ifndef VBOX_ONLY_DOCS
  	VBoxManageMisc.cpp \
  	VBoxManageModifyVM.cpp \
  	VBoxManageModifyNvram.cpp \
+ 	VBoxManageObjectTracker.cpp \
  	VBoxManageSnapshot.cpp \
  	VBoxManageStorageController.cpp \
  	$(if $(VBOX_WITH_UPDATE_AGENT),VBoxManageUpdateCheck.cpp) \
@@ -145,6 +146,7 @@ ifndef VBOX_ONLY_DOCS
 	$(call MSG_L1,lupdate all languages (nls/*.ts))
 	$(QUIET)$(TOOL_QT6_LUPDATE) \
 		$^ \
+		-locations none \
 		-ts \
 		$(filter-out nls/VBoxManageNls_en.ts, $(VBoxManageNls_QT_TRANSLATIONS)) \
 		$(VBOX_PATH_VBOXMANAGE_SRC)/nls/VBoxManageNls_xx_YY.ts
@@ -167,6 +169,7 @@ ifndef VBOX_ONLY_DOCS
 	$(call MSG_L1,lupdate $@)
 	$(QUIET)$(TOOL_QT6_LUPDATE) \
 		$^ \
+		-locations none \
 		-ts \
 		"$@"
 	$(QUIET)$(SED) -n -i \

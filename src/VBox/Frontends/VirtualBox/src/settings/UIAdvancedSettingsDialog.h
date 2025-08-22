@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -93,8 +93,6 @@ protected slots:
 
     /** Hides the modal dialog and sets the result code to Accepted. */
     virtual void accept();
-    /** Hides the modal dialog and sets the result code to Rejected. */
-    virtual void reject();
 
     /** Handles category change to @a cId. */
     virtual void sltCategoryChanged(int cId);
@@ -143,6 +141,11 @@ protected:
     UISettingsSerializer *serializeProcess() const { return m_pSerializeProcess; }
     /** Returns whether the serialization is in progress. */
     bool isSerializationInProgress() const { return m_fSerializationIsInProgress; }
+
+    /** Holds whether there were no serialization errors. */
+    bool isSerializationClean() const { return m_fSerializationClean; }
+    /** Resets whether there were no serialization errors. */
+    void resetSerializationClean() { m_fSerializationClean = true; }
 
     /** Returns dialog optional flags. */
     QMap<QString, QVariant> optionalFlags() const { return m_flags; }
@@ -232,6 +235,11 @@ private:
         /** Cleanups all. */
         void cleanup();
     /** @} */
+
+    /** Handles request to close dialog as QWidget, not QWindow.
+      * No need for QWindow destruction functionality.
+      * Parent will handle destruction itself. */
+    void tellListenerToCloseUs();
 
     /** Adjusts look&feel for disabled widget.
       * @param  pWidget   Brings the widget to adjust look&feel for. */

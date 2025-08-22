@@ -22,7 +22,7 @@
 #
 
 #
-# Copyright (C) 2024 Oracle and/or its affiliates.
+# Copyright (C) 2024-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -74,13 +74,22 @@
         s/["][)][[:space:]]*$//
         x
         H
-        x
-        s/\(_OFF_.*\)[\n]\(.*\)$/#define \2\1 \\/
-        p
     }
     /DW_AT_data_member_location/ {
-        s/^[[:space:]]*DW_AT_data_member_location[[:space:]]*/                /
-        p
+        s/^[[:space:]]*DW_AT_data_member_location[[:space:]]*//
+        s/[[:space:]]//g
+        x
+        H
+        x
+        s/\([(]0x[0-9a-zA-F]*[)]\)[\n]\(_OFF_.*\)[\n]\(.*\)$/#define \3\2 \1/p
+    }
+    # cleanup hold space.
+    /^[[:space:]]*$/ {
+        x
+        s/\([(]0x[0-9a-zA-F]*[)]\)[\n]\(_OFF_.*\)[\n]\(.*\)$/\3/
+        s/\(_OFF_.*\)[\n]\(.*\)$/\2/
+        x
+        d
     }
 }
 

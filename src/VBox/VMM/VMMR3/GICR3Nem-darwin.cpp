@@ -1,10 +1,10 @@
 /* $Id: GICR3Nem-darwin.cpp $ */
 /** @file
- * GIC - Generic Interrupt Controller Architecture (GICv3) - Hypervisor.framework in kernel interface.
+ * GIC - Generic Interrupt Controller Architecture (GIC) - Hypervisor.framework in kernel interface.
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -29,11 +29,11 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_DEV_APIC
+#define LOG_GROUP LOG_GROUP_DEV_GIC
 #include <VBox/log.h>
 #include "GICInternal.h"
-#include "NEMInternal.h" /* Need access to the VM file descriptor. */
-#include <VBox/vmm/gic.h>
+#include "NEMInternal.h" /* Need access to the VM file descriptor and for GIC API currently implemented in NEM. */
+#include <VBox/vmm/pdmgic.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/mm.h>
@@ -41,12 +41,10 @@
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/vm.h>
 
+#include <Hypervisor/Hypervisor.h>
+
+
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
-
-
-/*********************************************************************************************************************************
-*   Defined Constants And Macros                                                                                                 *
-*********************************************************************************************************************************/
 
 
 /*********************************************************************************************************************************
@@ -54,32 +52,104 @@
 *********************************************************************************************************************************/
 
 /**
- * GICKvm PDM instance data (per-VM).
+ * GIC Hypervisor.Framework PDM instance data (per-VM).
  */
-typedef struct GICKVMDEV
+typedef struct GICHVFDEV
 {
     /** Pointer to the PDM device instance. */
     PPDMDEVINSR3        pDevIns;
-} GICKVMDEV;
+} GICHVFDEV;
 /** Pointer to a GIC KVM device. */
-typedef GICKVMDEV *PGICKVMDEV;
+typedef GICHVFDEV *PGICHVFDEV;
 /** Pointer to a const GIC KVM device. */
-typedef GICKVMDEV const *PCGICKVMDEV;
+typedef GICHVFDEV const *PCGICHVFDEV;
+
+typedef hv_return_t FN_HV_GIC_SET_SPI(uint32_t intid, bool level);
 
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
 
+extern FN_HV_GIC_SET_SPI *g_pfnHvGicSetSpi; /* Since 15.0, exported for GICR3Nem-darwin.cpp */
+
+#ifndef IN_SLICKEDIT
+# define hv_gic_set_spi                             g_pfnHvGicSetSpi
+#endif
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+
+/**
+ * Converts a HV return code to a VBox status code.
+ *
+ * @returns VBox status code.
+ * @param   hrc                 The HV return code to convert.
+ */
+DECLINLINE(int) nemR3DarwinHvSts2Rc(hv_return_t hrc)
+{
+    if (hrc == HV_SUCCESS)
+        return VINF_SUCCESS;
+
+    switch (hrc)
+    {
+        case HV_ERROR:        return VERR_INVALID_STATE;
+        case HV_BUSY:         return VERR_RESOURCE_BUSY;
+        case HV_BAD_ARGUMENT: return VERR_INVALID_PARAMETER;
+        case HV_NO_RESOURCES: return VERR_OUT_OF_RESOURCES;
+        case HV_NO_DEVICE:    return VERR_NOT_FOUND;
+        case HV_UNSUPPORTED:  return VERR_NOT_SUPPORTED;
+    }
+
+    return VERR_IPE_UNEXPECTED_STATUS;
+}
+
+
+/**
+ * Sets the given SPI inside the in-kernel HvF GIC.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM instance.
+ * @param   uIntId      The SPI ID to update.
+ * @param   fAsserted   Flag whether the interrupt is asserted (true) or not (false).
+ */
+static DECLCALLBACK(int) gicR3HvfSetSpi(PVMCC pVM, uint32_t uIntId, bool fAsserted)
+{
+    RT_NOREF(pVM);
+    Assert(hv_gic_set_spi);
+
+    hv_return_t hrc = hv_gic_set_spi(uIntId + GIC_INTID_RANGE_SPI_START, fAsserted);
+    return nemR3DarwinHvSts2Rc(hrc);
+}
+
+
+/**
+ * Sets the given PPI inside the in-kernel HvF GIC.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The vCPU for which the PPI state is to be updated.
+ * @param   uIntId      The PPI ID to update.
+ * @param   fAsserted   Flag whether the interrupt is asserted (true) or not (false).
+ */
+static DECLCALLBACK(int) gicR3HvfSetPpi(PVMCPUCC pVCpu, uint32_t uIntId, bool fAsserted)
+{
+    RT_NOREF(pVCpu, uIntId, fAsserted);
+
+    /* Should never be called as the PPIs are handled entirely in Hypervisor.framework/AppleHV. */
+    AssertFailed();
+    return VERR_NEM_IPE_9;
+}
 
 
 /**
  * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-DECLCALLBACK(int) gicR3NemConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
+DECLCALLBACK(int) gicR3HvfConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
-    PGICKVMDEV      pThis    = PDMDEVINS_2_DATA(pDevIns, PGICKVMDEV);
+    PGICHVFDEV      pThis    = PDMDEVINS_2_DATA(pDevIns, PGICHVFDEV);
     PVM             pVM      = PDMDevHlpGetVM(pDevIns);
     PGIC            pGic     = VM_TO_GIC(pVM);
     Assert(iInstance == 0); NOREF(iInstance);
@@ -90,7 +160,6 @@ DECLCALLBACK(int) gicR3NemConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE
      * Init the data.
      */
     pGic->pDevInsR3 = pDevIns;
-    pGic->fNemGic   = true;
     pThis->pDevIns  = pDevIns;
 
     /*
@@ -102,7 +171,10 @@ DECLCALLBACK(int) gicR3NemConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE
     /*
      * Register the GIC with PDM.
      */
-    rc = PDMDevHlpApicRegister(pDevIns);
+    rc = PDMDevHlpIcRegister(pDevIns);
+    AssertLogRelRCReturn(rc, rc);
+
+    rc = PDMGicRegisterBackend(pVM, PDMGICBACKENDTYPE_HVF, &g_GicHvfBackend);
     AssertLogRelRCReturn(rc, rc);
 
     return VINF_SUCCESS;
@@ -130,7 +202,7 @@ const PDMDEVREG g_DeviceGICNem =
 #if defined(IN_RING3)
     /* .szRCMod = */                "VMMRC.rc",
     /* .szR0Mod = */                "VMMR0.r0",
-    /* .pfnConstruct = */           gicR3NemConstruct,
+    /* .pfnConstruct = */           gicR3HvfConstruct,
     /* .pfnDestruct = */            NULL,
     /* .pfnRelocate = */            NULL,
     /* .pfnMemSetup = */            NULL,
@@ -156,6 +228,19 @@ const PDMDEVREG g_DeviceGICNem =
 # error "Not in IN_RING3!"
 #endif
     /* .u32VersionEnd = */          PDM_DEVREG_VERSION
+};
+
+
+/**
+ * The Hypervisor.Framework GIC backend.
+ */
+const PDMGICBACKEND g_GicHvfBackend =
+{
+    /* .pfnReadSysReg = */  NULL,
+    /* .pfnWriteSysReg = */ NULL,
+    /* .pfnSetSpi = */      gicR3HvfSetSpi,
+    /* .pfnSetPpi = */      gicR3HvfSetPpi,
+    /* .pfnSendMsi = */     NULL,
 };
 
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */

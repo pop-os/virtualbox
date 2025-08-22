@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -52,7 +52,7 @@ static void VBoxDispMpLoggerLogN(const char *pchString, size_t cchString)
         return;
 
     D3DKMT_HANDLE hAdapter;
-    NTSTATUS Status = vboxDispKmtOpenAdapter(&hAdapter);
+    NTSTATUS Status = VBoxWddmKmtOpenAdapter(&hAdapter);
     Assert(Status == STATUS_SUCCESS);
     if (Status == 0)
     {
@@ -83,7 +83,7 @@ static void VBoxDispMpLoggerLogN(const char *pchString, size_t cchString)
             free(pCmd);
         }
 
-        Status = vboxDispKmtCloseAdapter(hAdapter);
+        Status = VBoxWddmKmtCloseAdapter(hAdapter);
         Assert(Status == STATUS_SUCCESS);
     }
 }

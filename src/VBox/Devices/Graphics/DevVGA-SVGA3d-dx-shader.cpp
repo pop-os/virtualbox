@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2578,6 +2578,12 @@ static int dxbcCreateIOSGNBlob(DXShaderInfo const *pInfo, DXBCHeader *pHdr, uint
         dst->enmComponentType = srcEntry->componentType;
         dst->idxRegister      = srcEntry->registerIndex;
         dst->u.mask           = srcEntry->mask;
+        /* Set 'Used' mask equal to 'Mask'. Dxvk needs this. */
+        if (u32BlobType == DXBC_BLOB_TYPE_ISGN)
+            dst->u.m.mask2 = dst->u.m.mask;            /* 'mask2' components are always read. */
+        else if (u32BlobType == DXBC_BLOB_TYPE_OSGN)
+            dst->u.m.mask2 = (~dst->u.m.mask) & 0x0F;  /* 'mask2' components are never modified. */
+        /* 'mask2' is not in use for DXBC_BLOB_TYPE_PCSG apparently */
 
         Log6(("  [%u]: %s[%u] sv %u type %u reg %u mask %X\n",
               iSignatureEntry, srcSemantic->pcszSemanticName, dst->idxSemantic,

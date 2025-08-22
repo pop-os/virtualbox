@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -37,7 +37,6 @@
 
     GEN_CHECK_SIZE(CPUM);    // has .mac
     GEN_CHECK_OFF(CPUM, fHostUseFlags);
-    GEN_CHECK_OFF(CPUM, CR4);
 #ifndef VBOX_FOR_DTRACE_LIB
     GEN_CHECK_OFF(CPUM, u8PortableCpuIdLevel);
     GEN_CHECK_OFF(CPUM, fPendingRestore);
@@ -57,7 +56,6 @@
     GEN_CHECK_OFF(CPUMCPU, GuestMsrs);
     GEN_CHECK_OFF(CPUMCPU, fUseFlags);
     GEN_CHECK_OFF(CPUMCPU, fChanged);
-    GEN_CHECK_OFF(CPUMCPU, u32RetCode);
     GEN_CHECK_OFF(CPUMCPU, fCpuIdApicFeatureVisible);
 
     GEN_CHECK_SIZE(CPUMHOSTCTX);

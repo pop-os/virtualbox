@@ -7,13 +7,11 @@
     
     <ul><li><p>Use the virtual machine monitoring tools in <ph conkeyref="vbox-conkeyref-phrases/vbox-mgr"/>.</p>
         <ul><li><p>To show detailed performance data for a cloud VM:</p>
-        <p>Click the cloud VM name in the machine list and select <b>Activity</b> in the machine
-              tools menu.</p>
+        <p>Click the cloud VM name in the <uicontrol>Machines</uicontrol> list and click <uicontrol>Resource Use</uicontrol>.</p>
             <p>Several time series charts are displayed, showing resource usage and performance
               data. To save the data to file, click <b>Export</b>.</p></li>
         <li><p>To show a performance summary for all cloud VMs:</p>
-        <p>Click <b>Activity Overview</b>. The Activity Overview tool is displayed, showing a
-              summary of performance metrics for all running cloud VMs and for the host system.</p></li>
+        <p>Click <b>Resources</b> to see a summary of performance metrics for all running cloud VMs and for the host system.</p></li>
        </ul>
       <p>See also <xref href="vm-info.dita"/>.</p>
     </li>
@@ -22,7 +20,7 @@
         <ul><li><p><cmdname>VBoxManage cloud instance metriclist</cmdname> shows the available metrics for an
               instance.</p></li>
         <li><p><cmdname>VBoxManage cloud instance metricdata</cmdname> shows metrics data for an instance.</p></li></ul>
-        <p>See also <xref href="vboxmanage-cloud.dita"/>.</p>
+        <p>See also <xref href="../cli_topics/vboxmanage-cloud.dita"/>.</p>
       </li></ul>
     <note><p>To monitor a cloud VM, the Compute Instance Monitoring plugin must be enabled and running on the
       <ph conkeyref="vbox-conkeyref-phrases/oci"/> instance. See the <ph conkeyref="vbox-conkeyref-phrases/oci"/> 

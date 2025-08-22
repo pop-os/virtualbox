@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -49,7 +49,6 @@
 #include "EMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/gim.h>
-#include <VBox/vmm/cpumdis.h>
 #include <VBox/dis.h>
 #include <VBox/err.h>
 #include <VBox/vmm/dbgf.h>
@@ -58,6 +57,10 @@
 #include <iprt/asm.h>
 
 #include "EMInline.h"
+
+#ifndef VBOX_WITH_HWVIRT
+# error "VBOX_WITH_HWVIRT misconfig!"
+#endif
 
 
 /*********************************************************************************************************************************

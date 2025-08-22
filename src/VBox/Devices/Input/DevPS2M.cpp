@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -249,6 +249,7 @@ static void ps2mSetRate(PPS2M pThis, uint8_t rate)
     LogFlowFunc(("Sampling rate %u, throttle delay %u ms\n", pThis->u8SampleRate, pThis->uThrottleDelay));
 }
 
+#ifdef IN_RING3
 static void ps2mSetDefaults(PPS2M pThis)
 {
     LogFlowFunc(("Set mouse defaults\n"));
@@ -264,6 +265,7 @@ static void ps2mSetDefaults(PPS2M pThis)
     PS2Q_CLEAR(&pThis->evtQ);
     pThis->iAccumX = pThis->iAccumY = pThis->iAccumZ = pThis->iAccumW = pThis->fAccumB = 0;
 }
+#endif /* IN_RING3 */
 
 /* Handle the sampling rate 'knock' sequence which selects protocol. */
 static void ps2mRateProtocolKnock(PPS2M pThis, uint8_t rate)
@@ -503,6 +505,8 @@ int PS2MByteToAux(PPDMDEVINS pDevIns, PPS2M pThis, uint8_t cmd)
     }
 
 #ifndef IN_RING3
+    RT_NOREF(pDevIns);  /* pDevIns only used IN_RING3 */
+
     /* Reset, Enable, and Set Default commands must be run in R3. */
     if (cmd == ACMD_RESET || cmd == ACMD_ENABLE || cmd == ACMD_SET_DEFAULT)
         return VINF_IOM_R3_IOPORT_WRITE;
@@ -510,6 +514,32 @@ int PS2MByteToAux(PPDMDEVINS pDevIns, PPS2M pThis, uint8_t cmd)
 
     switch (cmd)
     {
+#ifdef IN_RING3
+        case ACMD_ENABLE:
+            pThis->u8State |= AUX_STATE_ENABLED;
+            ps2mR3SetDriverState(&PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3)->Aux, true);
+            PS2Q_CLEAR(&pThis->evtQ);
+            PS2Q_INSERT(&pThis->cmdQ, ARSP_ACK);
+            pThis->u8CurrCmd = 0;
+            break;
+        case ACMD_RESET:
+            ps2mSetDefaults(pThis);
+            /// @todo reset more?
+            pThis->u8CurrCmd = cmd;
+            pThis->enmMode   = AUX_MODE_RESET;
+            PS2Q_INSERT(&pThis->cmdQ, ARSP_ACK);
+            if (pThis->fDelayReset)
+                /* Slightly delay reset completion; it might take hundreds of ms. */
+                PDMDevHlpTimerSetMillies(pDevIns, pThis->hDelayTimer, 1);
+            else
+                ps2mR3Reset(pThis, &PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3)->Aux);
+            break;
+        case ACMD_SET_DEFAULT:
+            ps2mSetDefaults(pThis);
+            PS2Q_INSERT(&pThis->cmdQ, ARSP_ACK);
+            pThis->u8CurrCmd = 0;
+            break;
+#endif
         case ACMD_SET_SCALE_11:
             pThis->u8State &= ~AUX_STATE_SCALING;
             PS2Q_INSERT(&pThis->cmdQ, ARSP_ACK);
@@ -563,45 +593,13 @@ int PS2MByteToAux(PPDMDEVINS pDevIns, PPS2M pThis, uint8_t cmd)
             PS2Q_INSERT(&pThis->cmdQ, u8Val);
             pThis->u8CurrCmd = 0;
             break;
-        case ACMD_ENABLE:
-            pThis->u8State |= AUX_STATE_ENABLED;
-#ifdef IN_RING3
-            ps2mR3SetDriverState(&PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3)->Aux, true);
-#else
-            AssertLogRelMsgFailed(("Invalid ACMD_ENABLE outside R3!\n"));
-#endif
-            PS2Q_CLEAR(&pThis->evtQ);
-            PS2Q_INSERT(&pThis->cmdQ, ARSP_ACK);
-            pThis->u8CurrCmd = 0;
-            break;
         case ACMD_DISABLE:
             pThis->u8State &= ~AUX_STATE_ENABLED;
             PS2Q_INSERT(&pThis->cmdQ, ARSP_ACK);
             pThis->u8CurrCmd = 0;
             break;
-        case ACMD_SET_DEFAULT:
-            ps2mSetDefaults(pThis);
-            PS2Q_INSERT(&pThis->cmdQ, ARSP_ACK);
-            pThis->u8CurrCmd = 0;
-            break;
         case ACMD_RESEND:
             pThis->u8CurrCmd = 0;
-            break;
-        case ACMD_RESET:
-            ps2mSetDefaults(pThis);
-            /// @todo reset more?
-            pThis->u8CurrCmd = cmd;
-            pThis->enmMode   = AUX_MODE_RESET;
-            PS2Q_INSERT(&pThis->cmdQ, ARSP_ACK);
-            if (pThis->fDelayReset)
-                /* Slightly delay reset completion; it might take hundreds of ms. */
-                PDMDevHlpTimerSetMillies(pDevIns, pThis->hDelayTimer, 1);
-            else
-#ifdef IN_RING3
-                ps2mR3Reset(pThis, &PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3)->Aux);
-#else
-                AssertLogRelMsgFailed(("Invalid ACMD_RESET outside R3!\n"));
-#endif
             break;
         /* The following commands need a parameter. */
         case ACMD_SET_RES:

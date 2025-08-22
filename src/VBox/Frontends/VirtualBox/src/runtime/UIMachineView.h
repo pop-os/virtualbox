@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -382,8 +382,8 @@ protected:
     /** Scales passed size backward. */
     QSize scaledBackward(QSize size) const;
 
-    /** Updates mouse pointer @a pixmap, @a uXHot and @a uYHot according to scaling attributes. */
-    void updateMousePointerPixmapScaling(QPixmap &pixmap, uint &uXHot, uint &uYHot);
+    /** Updates mouse pointer @a pixmap, @a iXHot and @a iYHot according to scaling attributes. */
+    void updateMousePointerPixmapScaling(QPixmap &pixmap, int &iXHot, int &iYHot);
 
     /* Protected members: */
     UIMachineWindow *m_pMachineWindow;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -81,6 +81,7 @@ struct Appliance::Data
 {
     enum digest_T {SHA1, SHA256};
 
+    /** @todo r=andy Make up your mind if naming attributes with a m_ prefix or not. */
     Data()
       : state(Appliance::ApplianceIdle)
       , fDigestTypes(0)
@@ -102,12 +103,15 @@ struct Appliance::Data
       , fContentInfoOkay(false)
       , fContentInfoSameCert(false)
       , fContentInfoValidSignature(false)
+      , fContentInfoDoneVerification(false)
+      , fContentInfoVerifiedOkay(false)
       , fExportISOImages(false)
       , pReader(NULL)
       , ulWeightForXmlOperation(0)
       , ulWeightForManifestOperation(0)
       , ulTotalDisksMB(0)
       , cDisks(0)
+      , m_pSecretKeyStore(NULL)
       , m_cPwProvided(0)
     {
         RT_ZERO(SignerCert);
@@ -286,9 +290,11 @@ struct Appliance::Data
 struct Appliance::XMLStack
 {
     std::map<Utf8Str, const VirtualSystemDescriptionEntry*> mapDisks;
-    std::list<Utf8Str> mapDiskSequence;
-    std::list<Utf8Str> mapDiskSequenceForOneVM;//temporary keeps all disks attached to one exported VM
+    std::list<Utf8Str> mapFilesSequence; // list of all files (e.g. NVRAM files) and disks to include in exported VM(s)
+    std::list<Utf8Str> mapDiskSequenceForOneVM;//temporarily keeps all disks attached to one exported VM
     std::map<Utf8Str, bool> mapNetworks;
+    std::map<Utf8Str, std::pair<Utf8Str, Utf8Str> > mapNvramFiles; // details of all NVRAM files in the exported VM(s)
+    std::map<Utf8Str, std::pair<Utf8Str, Utf8Str> > mapNvramFileForOneVM; // temporary details of NVRAM file in an exported VM
 };
 
 class Appliance::TaskOVF : public ThreadTask
@@ -467,6 +473,8 @@ struct Appliance::ImportStack
 #endif
     Utf8Str                         strAudioAdapter;    // if not empty, then the guest has audio enabled, and this is the decimal
                                                         // representation of the audio adapter (should always be "0" for AC97 presently)
+    Utf8Str                         strNvramPath;       // if not empty, then the guest is using EFI and this is the path
+                                                        // to the VM's NVRAM file
 
     // session (not initially created)
     ComPtr<ISession>                pSession;           // session opened in Appliance::importFS() for machine manipulation
@@ -498,6 +506,9 @@ struct Appliance::ImportStack
           fForceHWVirt(false),
           fForceIOAPIC(false),
           ulMemorySizeMB(0),
+#ifdef VBOX_WITH_USB
+          fUSBEnabled(false),
+#endif
           fSessionOpen(false),
           hVfsFssOva(aVfsFssOva),
           hVfsIosOvaLookAhead(NIL_RTVFSIOSTREAM),
@@ -532,7 +543,7 @@ struct Appliance::ImportStack
     }
 
     HRESULT restoreOriginalUUIDOfAttachedDevice(settings::MachineConfigFile *config);
-    HRESULT saveOriginalUUIDOfAttachedDevice(settings::AttachedDevice &device, const Utf8Str &newlyUuid);
+    void saveOriginalUUIDOfAttachedDevice(settings::AttachedDevice &device, const Utf8Str &newlyUuid);
     RTVFSIOSTREAM claimOvaLookAHead(void);
 };
 

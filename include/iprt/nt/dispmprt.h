@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -46,6 +46,9 @@
 # pragma warning(disable:4668) /* warning C4668: 'DBG' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif' */
 # ifndef __cplusplus
 #  pragma warning(disable:4255) /* video.h(1776) : warning C4255: 'VideoPortGetCurrentIrql' : no function prototype given: converting '()' to '(void)' */
+# endif
+# if _MSC_VER >= 1930 /*RT_MSC_VER_VC143*/
+#  pragma warning(disable:5249) /* d3dkmdt.h(551): warning C5249: '_D3DKMDT_VIDEO_SIGNAL_INFO::<unnamed-tag>::ScanLineOrdering' of type 'D3DDDI_VIDEO_SIGNAL_SCANLINE_ORDERING' has named enumerators with values that cannot be represented in the given bit field width of '3'. */
 # endif
 #endif
 

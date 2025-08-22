@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -67,7 +67,7 @@ RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, cons
     /*
      * Align the request.
      */
-    size_t cbAligned = cb;
+    size_t cbAligned;
     if (cbAlignment)
         cbAligned = RT_ALIGN_Z(cb, cbAlignment);
     else

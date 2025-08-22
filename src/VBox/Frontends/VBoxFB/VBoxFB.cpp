@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -152,21 +152,12 @@ int main(int argc, char *argv[])
     {
 #if 0
         nsCOMPtr<nsIServiceManager> serviceManager;
-        rc = NS_InitXPCOM2(getter_AddRefs(serviceManager), nsnull, nsnull);
+        rc = NS_InitXPCOM2Ex(getter_AddRefs(serviceManager), nsnull, nsnull, NS_INIT_XPCOM_F_AUTO_REGISTER_COMPONENTS_WITH_STATUS);
         if (NS_FAILED(rc))
         {
             printf("Error: XPCOM could not be initialized! rc=0x%x\n", rc);
             exit(-1);
         }
-
-        // register our component
-        nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(serviceManager);
-        if (!registrar)
-        {
-            printf("Error: could not query nsIComponentRegistrar interface!\n");
-            exit(-1);
-        }
-        registrar->AutoRegister(nsnull);
 
         /*
          * Make sure the main event queue is created. This event queue is

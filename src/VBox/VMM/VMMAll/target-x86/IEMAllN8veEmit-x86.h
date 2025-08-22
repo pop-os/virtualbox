@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -228,9 +228,9 @@ DECL_INLINE_THROW(uint32_t) iemNativeEmitLoadGprWithGstRegExT(PIEMNATIVEINSTR pC
 
     /* 32-bit registers:   */
     else if RT_CONSTEXPR_IF(a_enmGstReg == kIemNativeGstReg_EFlags)
-        return iemNativeEmitLoadGprFromVCpuU64Ex(pCodeBuf, off, idxHstReg, RT_UOFFSETOF(VMCPU, cpum.GstCtx.eflags));
+        return iemNativeEmitLoadGprFromVCpuU32Ex(pCodeBuf, off, idxHstReg, RT_UOFFSETOF(VMCPU, cpum.GstCtx.eflags));
     else if RT_CONSTEXPR_IF(a_enmGstReg == kIemNativeGstReg_MxCsr)
-        return iemNativeEmitLoadGprFromVCpuU64Ex(pCodeBuf, off, idxHstReg, RT_UOFFSETOF(VMCPU, cpum.GstCtx.XState.x87.MXCSR));
+        return iemNativeEmitLoadGprFromVCpuU32Ex(pCodeBuf, off, idxHstReg, RT_UOFFSETOF(VMCPU, cpum.GstCtx.XState.x87.MXCSR));
 
     /* 16-bit registers */
     else if RT_CONSTEXPR_IF(a_enmGstReg == kIemNativeGstReg_FpuFcw)
@@ -833,7 +833,7 @@ iemNativeEmitEFlagsForArithmetic(PIEMRECOMPILERSTATE pReNative, uint32_t off, ui
         uint8_t const         idxTmpReg2 = cOpBits >= 32 ? UINT8_MAX : iemNativeRegAllocTmp(pReNative, &off);
         PIEMNATIVEINSTR const pCodeBuf   = iemNativeInstrBufEnsure(pReNative, off, 20);
 
-        /* Invert CF (stored inved on ARM) and load the flags into the temporary register. */
+        /* Invert CF (stored inverted on ARM) and load the flags into the temporary register. */
         if (fInvertCarry)
             pCodeBuf[off++] = ARMV8_A64_INSTR_CFINV;
         pCodeBuf[off++] = Armv8A64MkInstrMrs(idxTmpReg, ARMV8_AARCH64_SYSREG_NZCV); /* Bits: 31=N; 30=Z; 29=C; 28=V; */
@@ -885,7 +885,7 @@ iemNativeEmitEFlagsForArithmetic(PIEMRECOMPILERSTATE pReNative, uint32_t off, ui
                 pCodeBuf[off++] = Armv8A64MkInstrEor(idxTmpReg2,   idxRegDstIn, idxRegResult, false); /* (a_uDst) ^ (a_uResult) */
                 pCodeBuf[off++] = Armv8A64MkInstrAnd(idxTmpReg,    idxTmpReg,   idxTmpReg2,   false /*f64Bit*/);
             }
-            else if (uImmSrc & RT_BIT_32(cOpBits - 1))
+            else if (uImmSrc & RT_BIT_64(cOpBits - 1))
             {
                 if (fInvertCarry) /* HACK ALERT: fInvertCarry == sbb */
                     pCodeBuf[off++] = Armv8A64MkInstrBic(idxTmpReg, idxRegResult, idxRegDstIn, false);

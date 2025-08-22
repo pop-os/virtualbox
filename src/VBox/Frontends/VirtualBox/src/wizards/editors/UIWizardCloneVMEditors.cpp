@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -335,7 +335,7 @@ void UICloneVMAdditionalOptionsEditor::prepare()
 void UICloneVMAdditionalOptionsEditor::sltRetranslateUI()
 {
     m_pMACComboBoxLabel->setText(UIWizardCloneVM::tr("MAC Address P&olicy:"));
-    m_pMACComboBox->setToolTip(UIWizardCloneVM::tr("Determines MAC address policy for clonning:"));
+    m_pMACComboBox->setToolTip(UIWizardCloneVM::tr("Determines MAC address policy for cloning."));
     for (int i = 0; i < m_pMACComboBox->count(); ++i)
     {
         const MACAddressClonePolicy enmPolicy = m_pMACComboBox->itemData(i).value<MACAddressClonePolicy>();
@@ -368,7 +368,7 @@ void UICloneVMAdditionalOptionsEditor::sltRetranslateUI()
     }
 
     if (m_pAdditionalOptionsLabel)
-        m_pAdditionalOptionsLabel->setText(UIWizardCloneVM::tr("Additional Options:"));
+        m_pAdditionalOptionsLabel->setText(UIWizardCloneVM::tr("OS Installation Options:"));
     if (m_pKeepDiskNamesCheckBox)
     {
         m_pKeepDiskNamesCheckBox->setToolTip(UIWizardCloneVM::tr("When checked, disk names will be preserved during cloning."));

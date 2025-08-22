@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -401,6 +401,7 @@ protected:
 
 UISelectorTreeViewItem::UISelectorTreeViewItem(QITreeView *pParent)
     : QITreeViewItem(pParent)
+    , m_iID(0)
     , m_fHidden(false)
 {
 }
@@ -573,9 +574,8 @@ QModelIndex UISelectorModel::index(int iRow, int iColumn, const QModelIndex &par
     if (!hasIndex(iRow, iColumn, parentIndex))
         return QModelIndex();
 
-    UISelectorTreeViewItem *pItem = !parentIndex.isValid()
-                                  ? m_pRootItem
-                                  : indexToItem(parentIndex)->childItem(iRow);
+    UISelectorTreeViewItem *pParentItem = indexToItem(parentIndex);
+    UISelectorTreeViewItem *pItem = pParentItem ? pParentItem->childItem(iRow) : m_pRootItem;
 
     return pItem ? createIndex(iRow, iColumn, pItem) : QModelIndex();
 }
@@ -745,7 +745,7 @@ QModelIndex UISelectorModel::findItem(int iID)
         return QModelIndex();
 
     const int iItemPosition = m_pRootItem->posOfChild(pItem);
-    return pItem ? createIndex(iItemPosition, 0, pItem) : QModelIndex();
+    return createIndex(iItemPosition, 0, pItem);
 }
 
 QModelIndex UISelectorModel::findItem(const QString &strLink)
@@ -755,7 +755,7 @@ QModelIndex UISelectorModel::findItem(const QString &strLink)
         return QModelIndex();
 
     const int iItemPosition = m_pRootItem->posOfChild(pItem);
-    return pItem ? createIndex(iItemPosition, 0, pItem) : QModelIndex();
+    return createIndex(iItemPosition, 0, pItem);
 }
 
 Qt::ItemFlags UISelectorModel::flags(const QModelIndex &specifiedIndex) const
@@ -826,6 +826,19 @@ void UISelectorTreeView::prepare()
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setSizePolicy(QSizePolicy::Minimum, QSizePolicy::MinimumExpanding);
+
+#ifdef VBOX_WS_WIN
+    // WORKAROUND:
+    // The call to
+    // viewport()->setAutoFillBackground(false);
+    // above is ineffective on new modern Windows theme.
+    // We'll have to make current color transparent.
+    QPalette pal = palette();
+    QColor col = pal.color(QPalette::Base);
+    col.setAlpha(0);
+    pal.setColor(QPalette::Base, col);
+    setPalette(pal);
+#endif
 
     /* Prepare selector delegate: */
     UISelectorDelegate *pDelegate = new UISelectorDelegate(this);

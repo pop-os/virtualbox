@@ -10,7 +10,7 @@ see the code and inlined comments.
 
 __copyright__ = \
 """
-Copyright (C) 2006-2024 Oracle and/or its affiliates.
+Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -55,25 +55,26 @@ def create_keywords_section(folder):
     for html_file_name in html_files:
         # dita-ot creates htmlhelp output for en-us language in iso-8859-1 encoding, not utf-8
         full_html_path = os.path.join(folder, html_file_name)
-        file_content = open(full_html_path, encoding='iso-8859-1').read()
+        _, ext = os.path.splitext(full_html_path)
 
-        class html_parser(HTMLParser):
-            def __init__(self):
-                HTMLParser.__init__(self)
-                self.a_tag = []
-            def handle_starttag(self, tag, attrs):
-                if tag != 'div' and tag != 'a':
-                    return
-                if tag == 'a':
-                    for a in attrs:
-                        if a[0] == 'name':
-                            self.a_tag.append(a[1])
-
-        parser = html_parser()
-        parser.feed(file_content)
-        for k in parser.a_tag:
-            line = '<keyword name="' + k + '" id="' + k + '" ref="' + html_file_name + '#' + k + '"/>'
-            keywords_section_lines.append(line)
+        if ext.lower() in ('.html', '.htm'):
+            file_content = open(full_html_path, encoding="iso-8859-1", errors="replace").read()
+            class html_parser(HTMLParser):
+                def __init__(self):
+                    HTMLParser.__init__(self)
+                    self.a_tag = []
+                def handle_starttag(self, tag, attrs):
+                    if tag != 'div' and tag != 'a':
+                        return
+                    if tag == 'a':
+                        for a in attrs:
+                            if a[0] == 'name':
+                                self.a_tag.append(a[1])
+            parser = html_parser()
+            parser.feed(file_content)
+            for k in parser.a_tag:
+                line = '<keyword name="' + k + '" id="' + k + '" ref="' + html_file_name + '#' + k + '"/>'
+                keywords_section_lines.append(line)
     keywords_section_lines.append('</keywords>')
     return keywords_section_lines
 
@@ -88,15 +89,15 @@ def create_image_list(folder):
         sys.exit(1);
     return ['<file>topics/images/%s</file>' % sFile for sFile in os.listdir(sFullImageFolderPath)];
 
-def create_html_list(folder, list_file):
+def create_html_css_list(folder, list_file):
     """
     open files list and read the list of html files from there
     """
     global html_files
-    html_file_lines = []
+    file_lines = []
     if not list_file in os.listdir(folder):
         logging.error('Could not find the file "%s" in "%s"', list_file, folder)
-        return html_file_lines
+        return file_lines
     full_path = os.path.join(folder, list_file)
     with open(full_path, encoding='utf-8') as file:
         lines = file.readlines()
@@ -110,15 +111,30 @@ def create_html_list(folder, list_file):
         if marker_found == 0:
             continue
         if '.html' in line:
-            html_file_lines.append('<file>' + line.strip('\n') + '</file>')
+            file_lines.append('<file>' + line.strip('\n') + '</file>')
             html_files.append(line.strip('\n'))
-    return html_file_lines
-
+    # We need to include css files in the qhp file as well.
+    # Extract href to css files from html files and add them to the files section
+    css_href_pattern = re.compile(r'href="([^"]+\.css)"', re.IGNORECASE)
+    css_file_set = set()
+    for html_file in html_files:
+        html_path = os.path.join(folder, html_file)
+        with open(html_path, encoding="utf-8", errors="replace") as file:
+            content = file.read()
+        matches = css_href_pattern.findall(content)
+        for href in matches:
+            css_path = os.path.normpath(os.path.join(os.path.dirname(html_path), href))
+            # be paranoid
+            if os.path.exists(css_path):
+                css_file_set.add(os.path.relpath(css_path, folder))
+    for css_file in css_file_set:
+        file_lines.append('<file>' + css_file + '</file>')
+    return file_lines
 
 def create_files_section(folder, list_file):
     files_section_lines = ['<files>']
     files_section_lines += create_image_list(folder)
-    files_section_lines += create_html_list(folder, list_file)
+    files_section_lines += create_html_css_list(folder, list_file)
     files_section_lines.append('</files>')
     return files_section_lines
 
@@ -253,12 +269,10 @@ def main(argv):
             return usage(0)
         if opt == "-d":
             helphtmlfolder = arg
-            print(helphtmlfolder)
         elif opt == "-f":
             list_file = arg
         elif opt == "-t":
             toc_file = arg
-            print(toc_file)
         elif opt == "-o":
             output_filename = arg
     # check supplied helphtml folder argument

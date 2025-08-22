@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -191,6 +191,19 @@ RTDECL(uintptr_t) RTSystemGetPageOffsetMask(void);
  * @param   cb                  The size in bytes to align.
  */
 RTDECL(size_t) RTSystemPageAlignSize(size_t cb);
+
+
+/**
+ * Get the architecture the OS is actually running on.
+ *
+ * This bypasses WoW64, Rosetta(2), and similar application compatibility
+ * emulators.
+ *
+ * @returns RT_ARCH_VAL_XXX
+ *
+ * @sa      RTArchValToString
+ */
+RTDECL(uint32_t) RTSystemGetNativeArch(void);
 
 
 /**

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2012-2024 Oracle and/or its affiliates.
+# Copyright (C) 2012-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -398,6 +398,7 @@ endif
  ipxezbin_TEMPLATE = VBoxBldProg
  ipxezbin_CFLAGS   = -Wno-format -Wno-unused-function -Wno-pointer-arith
  ipxezbin_SOURCES  = src/util/zbin.c
+ ipxezbin_DEFS     = _POSIX_C_SOURCE=200809L # For ssize_t and fileno() in stdio.h (mostly if GNU extensions disabled with -std=c23).
  ifdef VBOX_WITH_LIBLZMA
   ipxezbin_INCS     = $(SDK_VBoxLibLzma_INCS) # Can't use the proper SDK here as link order matters and liblzma depends on our runtime.
   ipxezbin_LIBS    = \

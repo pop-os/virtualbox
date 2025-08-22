@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -981,12 +981,12 @@ static int usbProxyUsbIpRecvPdu(PUSBPROXYDEVUSBIP pProxyDevUsbIp, PUSBPROXYURBUS
                                     if (pProxyDevUsbIp->pUrbUsbIp->enmType == VUSBXFERTYPE_MSG)
                                     {
                                         /* Preserve the setup request. */
-                                        pbData = &pProxyDevUsbIp->pUrbUsbIp->pVUsbUrb->abData[sizeof(VUSBSETUP)];
+                                        pbData = &pProxyDevUsbIp->pUrbUsbIp->pVUsbUrb->pbData[sizeof(VUSBSETUP)];
                                         cbRet = pProxyDevUsbIp->BufRet.RetSubmit.u32ActualLength + sizeof(VUSBSETUP);
                                     }
                                     else
                                     {
-                                        pbData = &pProxyDevUsbIp->pUrbUsbIp->pVUsbUrb->abData[0];
+                                        pbData = &pProxyDevUsbIp->pUrbUsbIp->pVUsbUrb->pbData[0];
                                         cbRet = pProxyDevUsbIp->BufRet.RetSubmit.u32ActualLength;
                                     }
 
@@ -1167,12 +1167,12 @@ static int usbProxyUsbIpUrbQueueWorker(PUSBPROXYDEVUSBIP pProxyDevUsbIp, PUSBPRO
     switch (pUrb->enmType)
     {
         case VUSBXFERTYPE_MSG:
-            memcpy(&ReqSubmit.Setup, &pUrb->abData, sizeof(ReqSubmit.Setup));
+            memcpy(&ReqSubmit.Setup, &pUrb->pbData, sizeof(ReqSubmit.Setup));
             ReqSubmit.u32TransferBufferLength -= sizeof(VUSBSETUP);
             if (pUrb->enmDir == VUSBDIRECTION_OUT)
             {
                 aSegReq[cSegsUsed].cbSeg = pUrb->cbData - sizeof(VUSBSETUP);
-                aSegReq[cSegsUsed].pvSeg = pUrb->abData + sizeof(VUSBSETUP);
+                aSegReq[cSegsUsed].pvSeg = pUrb->pbData + sizeof(VUSBSETUP);
                 if (aSegReq[cSegsUsed].cbSeg)
                     cSegsUsed++;
             }
@@ -1185,7 +1185,7 @@ static int usbProxyUsbIpUrbQueueWorker(PUSBPROXYDEVUSBIP pProxyDevUsbIp, PUSBPRO
             if (pUrb->enmDir == VUSBDIRECTION_OUT)
             {
                 aSegReq[cSegsUsed].cbSeg = pUrb->cbData;
-                aSegReq[cSegsUsed].pvSeg = pUrb->abData;
+                aSegReq[cSegsUsed].pvSeg = pUrb->pbData;
                 cSegsUsed++;
             }
 
@@ -1212,7 +1212,7 @@ static int usbProxyUsbIpUrbQueueWorker(PUSBPROXYDEVUSBIP pProxyDevUsbIp, PUSBPRO
             if (pUrb->enmDir == VUSBDIRECTION_OUT)
             {
                 aSegReq[cSegsUsed].cbSeg = pUrb->cbData;
-                aSegReq[cSegsUsed].pvSeg = pUrb->abData;
+                aSegReq[cSegsUsed].pvSeg = pUrb->pbData;
                 cSegsUsed++;
             }
             break;

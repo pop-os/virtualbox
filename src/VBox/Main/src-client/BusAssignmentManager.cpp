@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -43,7 +43,15 @@
 
 #include <map>
 #include <vector>
+
+#if RT_CLANG_PREREQ(3, 4) /* complains about deprecated get_temporary_buffer() during instantiation of stable_sort(). */
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 #include <algorithm>
+#if RT_CLANG_PREREQ(3, 4)
+# pragma clang diagnostic pop
+#endif
 
 
 /*********************************************************************************************************************************
@@ -496,7 +504,11 @@ struct BusAssignmentManager::State
     PCVMMR3VTABLE    mpVMM;
 
     State()
-        : cRefCnt(1), mChipsetType(ChipsetType_Null), mpszBridgeName("unknownbridge"), mpVMM(NULL)
+        : cRefCnt(1)
+        , mChipsetType(ChipsetType_Null)
+        , mpszBridgeName("unknownbridge")
+        , mIommuType(IommuType_None)
+        , mpVMM(NULL)
     {}
     ~State()
     {}

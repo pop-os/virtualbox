@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -195,6 +195,53 @@ typedef SUPHWVIRTMSRS *PSUPHWVIRTMSRS;
 /** Pointer to a hardware-virtualization MSRs struct. */
 typedef const SUPHWVIRTMSRS *PCSUPHWVIRTMSRS;
 
+/**
+ * ARM system register value.
+ *
+ * @note Used by CPUM on non-ARM hosts.
+ */
+typedef struct SUPARMSYSREGVAL
+{
+    /** The register value. */
+    uint64_t            uValue;
+    /** The register number (ARMV8_AARCH64_SYSREG_ID_CREATE). */
+    uint32_t            idReg;
+    /** SUP_ARM_SYS_REG_VAL_F_XXX. */
+    uint32_t            fFlags;
+} SUPARMSYSREGVAL;
+/** Pointer to an ARM system register value. */
+typedef SUPARMSYSREGVAL *PSUPARMSYSREGVAL;
+/** Pointer to a const ARM system register value. */
+typedef SUPARMSYSREGVAL const *PCSUPARMSYSREGVAL;
+
+/** @name  SUP_ARM_SYS_REG_VAL_F_XXX
+ * @note This is mostly for internal CPUM use.
+ * @{ */
+#define SUP_ARM_SYS_REG_VAL_F_FROM_CPU           UINT32_C(0x00000000) /**< Directly from the CPU. */
+#define SUP_ARM_SYS_REG_VAL_F_FROM_DB            UINT32_C(0x00000001) /**< From a CPU database entry. */
+#define SUP_ARM_SYS_REG_VAL_F_FROM_EXEC_ENGINE   UINT32_C(0x00000002) /**< From the execution engine (NEM, guest). */
+#define SUP_ARM_SYS_REG_VAL_F_FROM_SAVED_STATE   UINT32_C(0x00000003) /**< From saved state. */
+#define SUP_ARM_SYS_REG_VAL_F_FROM_REGISTRY      UINT32_C(0x00000004) /**< From windows registry*/
+#define SUP_ARM_SYS_REG_VAL_F_FROM_SYSFS         UINT32_C(0x00000005) /**< From linux sysfs. */
+#define SUP_ARM_SYS_REG_VAL_F_FROM_USERLAND      UINT32_C(0x00000006) /**< From linux userland MRS emulation, i.e. sanitized. */
+#define SUP_ARM_SYS_REG_VAL_F_FROM_CPUM          UINT32_C(0x00000007) /**< Created by CPUM. */
+#define SUP_ARM_SYS_REG_VAL_F_FROM_MASK          UINT32_C(0x00000007) /**< Register source mask. */
+#define SUP_ARM_SYS_REG_VAL_F_LOAD_ZERO          UINT32_C(0x40000000) /**< Zeroed by state loading (CPUM internal). */
+#define SUP_ARM_SYS_REG_VAL_F_NOSET              UINT32_C(0x80000000) /**< Do not set (CPUM internal). */
+/** @} */
+
+#if defined(RT_ARCH_ARM64) || defined(DOXYGEN_RUNNING)
+/** @name SUP_ARM_SYS_REG_F_XXX - Flags for SUPR3ArmQuerySysRegs.
+ *  @{ */
+/** Include registers with value zero (default is to skip them). */
+# define SUP_ARM_SYS_REG_F_INC_ZERO_REG_VAL RT_BIT_32(0)
+/** Extended register set (special build).
+ * @note currently don't do anything. */
+# define SUP_ARM_SYS_REG_F_EXTENDED         RT_BIT_32(1)
+/** Valid flags for SUPR3ArmQuerySysRegs. */
+# define SUP_ARM_SYS_REG_F_VALID_MASK       UINT32_C(0x00000003)
+/** @} */
+#endif /* defined(RT_ARCH_ARM64) || defined(DOXYGEN_RUNNING) */
 
 /**
  * Usermode probe context information.
@@ -469,6 +516,8 @@ typedef enum SUPGIPUSETSCDELTA
 #define SUPGIPGETCPU_APIC_ID_EXT_0B                  RT_BIT_32(4)
 /** Can use CPUID[0x8000001e].EAX and translate the result via aiCpuFromApicId. */
 #define SUPGIPGETCPU_APIC_ID_EXT_8000001E            RT_BIT_32(5)
+/** ARM64: Can use TPIDRRO_EL0 to get the CPU ID */
+#define SUPGIPGETCPU_TPIDRRO_EL0                     RT_BIT_32(8)
 /** @} */
 
 /** @def SUPGIP_MAX_CPU_GROUPS
@@ -779,7 +828,7 @@ DECLINLINE(PSUPGIPCPU) SUPGetGipCpuBySetIndex(PSUPGLOBALINFOPAGE pGip, uint32_t 
 }
 
 
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(RT_ARCH_ARM64) ||defined(RT_ARCH_ARM32)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
 
 /** @internal */
 SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip);
@@ -792,17 +841,13 @@ SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip);
  */
 DECLINLINE(uint64_t) SUPReadTsc(void)
 {
-# if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)  /** @todo portme: ring-0 arm. */
-    return ASMReadTSC();
-# else
     PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
     if (!pGip || pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
         return ASMReadTSC();
     return SUPReadTscWithDelta(pGip);
-# endif
 }
 
-#endif /* X86 || AMD64 || ARM */
+#endif /* X86 || AMD64 || ARM64 || ARM32 */
 
 /** @internal */
 SUPDECL(int64_t) SUPGetTscDeltaSlow(PSUPGLOBALINFOPAGE pGip);
@@ -1937,6 +1982,8 @@ SUPR3DECL(int) SUPR3TracerDeregisterModule(struct VTGOBJHDR *pVtgHdr);
 SUPDECL(void)  SUPTracerFireProbe(struct VTGPROBELOC *pVtgProbeLoc, uintptr_t uArg0, uintptr_t uArg1, uintptr_t uArg2,
                                   uintptr_t uArg3, uintptr_t uArg4);
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(DOXYGEN_RUNNING)
+
 /**
  * Attempts to read the value of an MSR.
  *
@@ -1947,6 +1994,7 @@ SUPDECL(void)  SUPTracerFireProbe(struct VTGPROBELOC *pVtgProbeLoc, uintptr_t uA
  * @param   puValue             Where to return the value.
  * @param   pfGp                Where to store the \#GP indicator for the read
  *                              operation.
+ * @note    Only available on AMD64 & x86.
  */
 SUPR3DECL(int) SUPR3MsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue, bool *pfGp);
 
@@ -1960,6 +2008,7 @@ SUPR3DECL(int) SUPR3MsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValu
  * @param   uValue              The value to write.
  * @param   pfGp                Where to store the \#GP indicator for the write
  *                              operation.
+ * @note    Only available on AMD64 & x86.
  */
 SUPR3DECL(int) SUPR3MsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue, bool *pfGp);
 
@@ -1973,6 +2022,7 @@ SUPR3DECL(int) SUPR3MsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue
  * @param   fAndMask            The bits to keep in the current MSR value.
  * @param   fOrMask             The bits to set before writing.
  * @param   pResult             The result buffer.
+ * @note    Only available on AMD64 & x86.
  */
 SUPR3DECL(int) SUPR3MsrProberModify(uint32_t uMsr, RTCPUID idCpu, uint64_t fAndMask, uint64_t fOrMask,
                                     PSUPMSRPROBERMODIFYRESULT pResult);
@@ -1990,9 +2040,34 @@ SUPR3DECL(int) SUPR3MsrProberModify(uint32_t uMsr, RTCPUID idCpu, uint64_t fAndM
  *                              skipped, otherwise behave like
  *                              SUPR3MsrProberModify.
  * @param   pResult             The result buffer.
+ * @note    Only available on AMD64 & x86.
  */
 SUPR3DECL(int) SUPR3MsrProberModifyEx(uint32_t uMsr, RTCPUID idCpu, uint64_t fAndMask, uint64_t fOrMask, bool fFaster,
                                       PSUPMSRPROBERMODIFYRESULT pResult);
+
+#endif /* defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(DOXYGEN_RUNNING) */
+
+#if defined(RT_ARCH_ARM64) || defined(DOXYGEN_RUNNING)
+/**
+ * Gets a collection of ARM system registers useful for identify
+ * CPU capatbilites.
+ *
+ * @returns VBox status code.
+ * @param   idCpu               The CPU to query the registers on, NIL_RTCPUID
+ *                              if any will do.
+ * @param   fFlags              Query flags, SUP_ARM_SYS_REG_F_XXX.
+ * @param   cMaxRegs            Maximum number of registers @a paSysRegValues
+ *                              may hold.
+ * @param   pcRegsReturned      Number of registers returned.
+ * @param   pcRegsAvailable     Number of registers available, optional.
+ *                              If higher than @a *pcRegsReturned, try again
+ *                              with an array of this size to get them all.
+ * @param   paSysRegValues      Array where to store the register values and
+ *                              associated info.
+ */
+SUPR3DECL(int) SUPR3ArmQuerySysRegs(RTCPUID idCpu, uint32_t fFlags, uint32_t cMaxRegs,
+                                    uint32_t *pcRegsReturned, uint32_t *pcRegsAvailable, PSUPARMSYSREGVAL paSysRegValues);
+#endif /* defined(RT_ARCH_ARM64) || defined(DOXYGEN_RUNNING) */
 
 /**
  * Resume built-in keyboard on MacBook Air and Pro hosts.

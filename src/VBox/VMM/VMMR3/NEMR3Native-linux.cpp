@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -34,7 +34,7 @@
 #include <VBox/vmm/nem.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/trpm.h>
 #include "NEMInternal.h"
@@ -150,25 +150,21 @@ static int nemR3LnxUpdateCpuIdsLeaves(PVM pVM, PVMCPU pVCpu)
 }
 
 
-int nemR3NativeInitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+DECLHIDDEN(int) nemR3NativeInitCompletedRing3(PVM pVM)
 {
     /*
      * Make RTThreadPoke work again (disabled for avoiding unnecessary
      * critical section issues in ring-0).
      */
-    if (enmWhat == VMINITCOMPLETED_RING3)
-        VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ALL_AT_ONCE, nemR3LnxFixThreadPoke, NULL);
+    VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ALL_AT_ONCE, nemR3LnxFixThreadPoke, NULL);
 
     /*
      * Configure CPUIDs after ring-3 init has been done.
      */
-    if (enmWhat == VMINITCOMPLETED_RING3)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-        {
-            int rc = nemR3LnxUpdateCpuIdsLeaves(pVM, pVM->apCpusR3[idCpu]);
-            AssertRCReturn(rc, rc);
-        }
+        int rc = nemR3LnxUpdateCpuIdsLeaves(pVM, pVM->apCpusR3[idCpu]);
+        AssertRCReturn(rc, rc);
     }
 
     /*
@@ -180,65 +176,62 @@ int nemR3NativeInitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
      * will use KVM_MSR_FILTER_DEFAULT_DENY.  So, all MSRs w/o a 1 in the
      * bitmaps should be deferred to ring-3.
      */
-    if (enmWhat == VMINITCOMPLETED_RING3)
-    {
-        struct kvm_msr_filter MsrFilters = {0}; /* Structure with a couple of implicit paddings on 64-bit systems. */
-        MsrFilters.flags = KVM_MSR_FILTER_DEFAULT_DENY;
+    struct kvm_msr_filter MsrFilters = {0}; /* Structure with a couple of implicit paddings on 64-bit systems. */
+    MsrFilters.flags = KVM_MSR_FILTER_DEFAULT_DENY;
 
-        unsigned iRange = 0;
+    unsigned iRange = 0;
 #define MSR_RANGE_BEGIN(a_uBase, a_uEnd, a_fFlags) \
-        AssertCompile(0x3000 <= KVM_MSR_FILTER_MAX_BITMAP_SIZE * 8); \
-        uint64_t RT_CONCAT(bm, a_uBase)[0x3000 / 64] = {0}; \
-        do { \
-            uint64_t * const pbm = RT_CONCAT(bm, a_uBase); \
-            uint32_t   const uBase = UINT32_C(a_uBase); \
-            uint32_t   const cMsrs = UINT32_C(a_uEnd) - UINT32_C(a_uBase); \
-            MsrFilters.ranges[iRange].base   = UINT32_C(a_uBase); \
-            MsrFilters.ranges[iRange].nmsrs  = cMsrs; \
-            MsrFilters.ranges[iRange].flags  = (a_fFlags); \
-            MsrFilters.ranges[iRange].bitmap = (uint8_t *)&RT_CONCAT(bm, a_uBase)[0]
+    AssertCompile(0x3000 <= KVM_MSR_FILTER_MAX_BITMAP_SIZE * 8); \
+    uint64_t RT_CONCAT(bm, a_uBase)[0x3000 / 64] = {0}; \
+    do { \
+        uint64_t * const pbm = RT_CONCAT(bm, a_uBase); \
+        uint32_t   const uBase = UINT32_C(a_uBase); \
+        uint32_t   const cMsrs = UINT32_C(a_uEnd) - UINT32_C(a_uBase); \
+        MsrFilters.ranges[iRange].base   = UINT32_C(a_uBase); \
+        MsrFilters.ranges[iRange].nmsrs  = cMsrs; \
+        MsrFilters.ranges[iRange].flags  = (a_fFlags); \
+        MsrFilters.ranges[iRange].bitmap = (uint8_t *)&RT_CONCAT(bm, a_uBase)[0]
 #define MSR_RANGE_ADD(a_Msr) \
-        do { Assert((uint32_t)(a_Msr) - uBase < cMsrs); ASMBitSet(pbm, (uint32_t)(a_Msr) - uBase); } while (0)
+    do { Assert((uint32_t)(a_Msr) - uBase < cMsrs); ASMBitSet(pbm, (uint32_t)(a_Msr) - uBase); } while (0)
 #define MSR_RANGE_END(a_cMinMsrs) \
-            /* optimize the range size before closing: */ \
-            uint32_t cBitmap = cMsrs / 64; \
-            while (cBitmap > ((a_cMinMsrs) + 63 / 64) && pbm[cBitmap - 1] == 0) \
-                cBitmap -= 1; \
-            MsrFilters.ranges[iRange].nmsrs = cBitmap * 64; \
-            iRange++; \
-        } while (0)
+        /* optimize the range size before closing: */ \
+        uint32_t cBitmap = cMsrs / 64; \
+        while (cBitmap > ((a_cMinMsrs) + 63 / 64) && pbm[cBitmap - 1] == 0) \
+            cBitmap -= 1; \
+        MsrFilters.ranges[iRange].nmsrs = cBitmap * 64; \
+        iRange++; \
+    } while (0)
 
-        /* 1st Intel range: 0000_0000 to 0000_3000. */
-        MSR_RANGE_BEGIN(0x00000000, 0x00003000, KVM_MSR_FILTER_READ | KVM_MSR_FILTER_WRITE);
-        MSR_RANGE_ADD(MSR_IA32_TSC);
-        MSR_RANGE_ADD(MSR_IA32_SYSENTER_CS);
-        MSR_RANGE_ADD(MSR_IA32_SYSENTER_ESP);
-        MSR_RANGE_ADD(MSR_IA32_SYSENTER_EIP);
-        MSR_RANGE_ADD(MSR_IA32_CR_PAT);
-        /** @todo more? */
-        MSR_RANGE_END(64);
+    /* 1st Intel range: 0000_0000 to 0000_3000. */
+    MSR_RANGE_BEGIN(0x00000000, 0x00003000, KVM_MSR_FILTER_READ | KVM_MSR_FILTER_WRITE);
+    MSR_RANGE_ADD(MSR_IA32_TSC);
+    MSR_RANGE_ADD(MSR_IA32_SYSENTER_CS);
+    MSR_RANGE_ADD(MSR_IA32_SYSENTER_ESP);
+    MSR_RANGE_ADD(MSR_IA32_SYSENTER_EIP);
+    MSR_RANGE_ADD(MSR_IA32_CR_PAT);
+    /** @todo more? */
+    MSR_RANGE_END(64);
 
-        /* 1st AMD range: c000_0000 to c000_3000 */
-        MSR_RANGE_BEGIN(0xc0000000, 0xc0003000, KVM_MSR_FILTER_READ | KVM_MSR_FILTER_WRITE);
-        MSR_RANGE_ADD(MSR_K6_EFER);
-        MSR_RANGE_ADD(MSR_K6_STAR);
-        MSR_RANGE_ADD(MSR_K8_GS_BASE);
-        MSR_RANGE_ADD(MSR_K8_KERNEL_GS_BASE);
-        MSR_RANGE_ADD(MSR_K8_LSTAR);
-        MSR_RANGE_ADD(MSR_K8_CSTAR);
-        MSR_RANGE_ADD(MSR_K8_SF_MASK);
-        MSR_RANGE_ADD(MSR_K8_TSC_AUX);
-        /** @todo add more? */
-        MSR_RANGE_END(64);
+    /* 1st AMD range: c000_0000 to c000_3000 */
+    MSR_RANGE_BEGIN(0xc0000000, 0xc0003000, KVM_MSR_FILTER_READ | KVM_MSR_FILTER_WRITE);
+    MSR_RANGE_ADD(MSR_K6_EFER);
+    MSR_RANGE_ADD(MSR_K6_STAR);
+    MSR_RANGE_ADD(MSR_K8_GS_BASE);
+    MSR_RANGE_ADD(MSR_K8_KERNEL_GS_BASE);
+    MSR_RANGE_ADD(MSR_K8_LSTAR);
+    MSR_RANGE_ADD(MSR_K8_CSTAR);
+    MSR_RANGE_ADD(MSR_K8_SF_MASK);
+    MSR_RANGE_ADD(MSR_K8_TSC_AUX);
+    /** @todo add more? */
+    MSR_RANGE_END(64);
 
-        /** @todo Specify other ranges too? Like hyper-V and KVM to make sure we get
-         *        the MSR requests instead of KVM. */
+    /** @todo Specify other ranges too? Like hyper-V and KVM to make sure we get
+     *        the MSR requests instead of KVM. */
 
-        int rcLnx = ioctl(pVM->nem.s.fdVm, KVM_X86_SET_MSR_FILTER, &MsrFilters);
-        if (rcLnx == -1)
-            return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
-                              "Failed to enable KVM_X86_SET_MSR_FILTER failed: %u", errno);
-    }
+    int rcLnx = ioctl(pVM->nem.s.fdVm, KVM_X86_SET_MSR_FILTER, &MsrFilters);
+    if (rcLnx == -1)
+        return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
+                          "Failed to enable KVM_X86_SET_MSR_FILTER failed: %u", errno);
 
     return VINF_SUCCESS;
 }
@@ -703,7 +696,7 @@ static int nemHCLnxExportState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, struct kvm_
      * The APIC base register updating is a little suboptimal... But at least
      * VBox always has the right base register value, so it's one directional.
      */
-    uint64_t const uApicBase = APICGetBaseMsrNoCheck(pVCpu);
+    uint64_t const uApicBase = PDMApicGetBaseMsrNoCheck(pVCpu);
     if (   (fExtrn & (  CPUMCTX_EXTRN_SREG_MASK | CPUMCTX_EXTRN_TABLE_MASK | CPUMCTX_EXTRN_CR_MASK
                       | CPUMCTX_EXTRN_EFER      | CPUMCTX_EXTRN_APIC_TPR))
         || uApicBase != pVCpu->nem.s.uKvmApicBase)
@@ -1025,14 +1018,14 @@ VMMR3_INT_DECL(bool) NEMR3CanExecuteGuest(PVM pVM, PVMCPU pVCpu)
 }
 
 
-bool nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
+DECLHIDDEN(bool) nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 {
     NOREF(pVM); NOREF(pVCpu); NOREF(fEnable);
     return false;
 }
 
 
-void nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
+DECLHIDDEN(void) nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
 {
     int rc = RTThreadPoke(pVCpu->hThread);
     LogFlow(("nemR3NativeNotifyFF: #%u -> %Rrc\n", pVCpu->idCpu, rc));
@@ -1081,7 +1074,7 @@ static VBOXSTRICTRC nemHCLnxHandleInterruptFF(PVM pVM, PVMCPU pVCpu, struct kvm_
      */
     if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
     {
-        APICUpdatePendingInterrupts(pVCpu);
+        PDMApicUpdatePendingInterrupts(pVCpu);
         if (!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
                                       | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI))
             return VINF_SUCCESS;
@@ -1156,7 +1149,7 @@ static VBOXSTRICTRC nemHCLnxHandleInterruptFF(PVM pVM, PVMCPU pVCpu, struct kvm_
                  * work correctly.
                  */
                 if (pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_APIC_TPR)
-                    APICSetTpr(pVCpu, (uint8_t)pRun->cr8 << 4);
+                    PDMApicSetTpr(pVCpu, (uint8_t)pRun->cr8 << 4);
 
                 uint8_t bInterrupt;
                 int rc = PDMGetInterrupt(pVCpu, &bInterrupt);
@@ -1627,8 +1620,10 @@ static VBOXSTRICTRC nemHCLnxHandleExit(PVMCC pVM, PVMCPUCC pVCpu, struct kvm_run
 }
 
 
-VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
+VMMR3_INT_DECL(VBOXSTRICTRC) NEMR3RunGC(PVM pVM, PVMCPU pVCpu)
 {
+    Assert(VM_IS_NEM_ENABLED(pVM));
+
     /*
      * Try switch to NEM runloop state.
      */

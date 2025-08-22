@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -650,8 +650,7 @@ static int vbglR3DnDHGRecvURIData(PVBGLR3GUESTDNDCMDCTX pCtx, PVBOXDNDSNDDATAHDR
         rc = VINF_SUCCESS;
 
     /* Delete temp buffer again. */
-    if (pvChunk)
-        RTMemFree(pvChunk);
+    RTMemFree(pvChunk);
 
     /* Cleanup on failure or if the user has canceled the operation or
      * something else went wrong. */
@@ -817,7 +816,7 @@ static int vbglR3DnDHGRecvDataLoop(PVBGLR3GUESTDNDCMDCTX pCtx, PVBOXDNDSNDDATAHD
     if (pDataHdr->cbMeta)
     {
         uint64_t cbDataTmp = 0;
-        void    *pvDataTmp = RTMemAlloc(pDataHdr->cbMeta);
+        void    *pvDataTmp = RTMemAllocZ(pDataHdr->cbMeta);
         if (!pvDataTmp)
             rc = VERR_NO_MEMORY;
 
@@ -883,7 +882,7 @@ static int vbglR3DnDHGRecvDataMain(PVBGLR3GUESTDNDCMDCTX   pCtx,
     VBOXDNDDATAHDR dataHdr;
     RT_ZERO(dataHdr);
     dataHdr.cbMetaFmt = pCtx->cbMaxChunkSize;
-    dataHdr.pvMetaFmt = RTMemAlloc(dataHdr.cbMetaFmt);
+    dataHdr.pvMetaFmt = RTMemAllocZ(dataHdr.cbMetaFmt);
     if (!dataHdr.pvMetaFmt)
         return VERR_NO_MEMORY;
 

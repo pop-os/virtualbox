@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -70,6 +70,7 @@ protected:
 
     /** Handles any Qt @a pEvent. */
     virtual bool event(QEvent *pEvent) RT_OVERRIDE;
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE;
 
 private slots:
 
@@ -95,7 +96,7 @@ private:
     /** Holds whether line-edit is markable. */
     bool     m_fMarkable;
     /** Holds whether line-edit is marked for error. */
-    bool     m_fMarkForError;
+    bool     m_fMarkedForError;
     /** Holds the icon label instance. */
     QLabel  *m_pLabelIcon;
     /** Holds last error message. */

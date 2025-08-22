@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,6 +40,8 @@
 #include <iprt/string.h>
 #include <iprt/ctype.h>
 
+
+#ifdef VBOX_WITH_DEBUGGER
 
 /**
  * Common worker for the  '.alliem' and '.iemrecompiled' commands.
@@ -104,6 +106,8 @@ static DBGCCMD const g_aCmds[] =
     },
 };
 
+#endif /* VBOX_WITH_DEBUGGER */
+
 
 /**
  * Translates EMEXITTYPE into a name.
@@ -164,7 +168,7 @@ static const char *emR3HistoryGetExitName(uint32_t uFlagsAndType, char *pszFallb
             pszExitName = EMR3GetExitTypeName((EMEXITTYPE)(uFlagsAndType & EMEXIT_F_TYPE_MASK));
             break;
 
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#if defined(VBOX_VMM_TARGET_X86) && defined(VBOX_WITH_HWVIRT)
         case EMEXIT_F_KIND_VMX:
             pszExitName = HMGetVmxExitName(uFlagsAndType & EMEXIT_F_TYPE_MASK);
             break;
@@ -182,11 +186,8 @@ static const char *emR3HistoryGetExitName(uint32_t uFlagsAndType, char *pszFallb
             pszExitName = IEMR3GetExitName(uFlagsAndType & EMEXIT_F_TYPE_MASK);
             break;
 
+#ifdef VBOX_VMM_TARGET_X86
         case EMEXIT_F_KIND_XCPT:
-#if defined(VBOX_VMM_TARGET_ARMV8)
-            pszExitName = NULL;
-            AssertReleaseFailed();
-#else
             switch (uFlagsAndType & EMEXIT_F_TYPE_MASK)
             {
                 case X86_XCPT_DE:               return "Xcpt #DE";
@@ -227,8 +228,8 @@ static const char *emR3HistoryGetExitName(uint32_t uFlagsAndType, char *pszFallb
                     pszExitName = NULL;
                     break;
             }
-#endif
             break;
+#endif
 
         default:
             AssertFailed();

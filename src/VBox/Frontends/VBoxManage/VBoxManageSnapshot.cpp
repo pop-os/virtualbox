@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -560,7 +560,7 @@ RTEXITCODE handleSnapshot(HandlerArg *a)
                 CHECK_ERROR_BREAK(sessionMachine, RestoreSnapshot(pSnapshot, pProgress.asOutParam()));
             }
 
-            hrc = showProgress(pProgress);
+            showProgress(pProgress);
             CHECK_PROGRESS_ERROR(pProgress, (Snapshot::tr("Snapshot operation failed")));
         }
         else if (!strcmp(a->argv[1], "edit"))

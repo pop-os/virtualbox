@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -39,6 +39,8 @@
 #include <iprt/string.h>
 #include <iprt/utf16.h>
 
+#include <VBox/GuestHost/VBoxWinDrvInst.h>
+#include <VBoxWinDrvCommon.h>
 #include "VBoxCommon.h"
 
 
@@ -327,32 +329,123 @@ int VBoxMsiQueryPropInt32(MSIHANDLE hMsi, const char *pszName, DWORD *pdwValue)
    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
    AssertPtrReturn(pdwValue, VERR_INVALID_POINTER);
 
-    PRTUTF16 pwszName;
-    int rc = RTStrToUtf16(pszName, &pwszName);
+    char *pszTemp;
+    int rc = VBoxMsiQueryPropUtf8(hMsi, pszName, &pszTemp);
     if (RT_SUCCESS(rc))
     {
-        char *pszTemp;
-        rc = VBoxMsiQueryPropUtf8(hMsi, pszName, &pszTemp);
-        if (RT_SUCCESS(rc))
-        {
-            *pdwValue = RTStrToInt32(pszTemp);
-            RTStrFree(pszTemp);
-        }
+        *pdwValue = RTStrToInt32(pszTemp);
+        RTStrFree(pszTemp);
     }
 
     return rc;
 }
 
+/**
+ * Sets a MSI property.
+ *
+ * @returns UINT
+ * @param   hMsi                MSI handle to use.
+ * @param   pwszName            Name of property to set.
+ * @param   pwszValue           Value to set.
+ */
 UINT VBoxMsiSetProp(MSIHANDLE hMsi, const WCHAR *pwszName, const WCHAR *pwszValue)
 {
     return MsiSetPropertyW(hMsi, pwszName, pwszValue);
 }
-#endif
+#endif /* TESTCASE */
 
+/**
+ * Sets a MSI property (in UTF-8).
+ *
+ * Convenience function for VBoxMsiSetProp().
+ *
+ * @returns VBox status code.
+ * @param   hMsi                MSI handle to use.
+ * @param   pszName             Name of property to set.
+ * @param   pszValue            Value to set.
+ */
+int VBoxMsiSetPropUtf8(MSIHANDLE hMsi, const char *pszName, const char *pszValue)
+{
+    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszValue, VERR_INVALID_POINTER);
+
+    PRTUTF16 pwszName;
+    int rc = RTStrToUtf16(pszName, &pwszName);
+    if (RT_SUCCESS(rc))
+    {
+        PRTUTF16 pwszValue;
+        rc = RTStrToUtf16(pszValue, &pwszValue);
+        if (RT_SUCCESS(rc))
+        {
+            UINT const uRc = VBoxMsiSetProp(hMsi, pwszName, pwszValue);
+            if (uRc != ERROR_SUCCESS)
+                rc = RTErrConvertFromWin32(uRc);
+            RTUtf16Free(pwszValue);
+        }
+
+        RTUtf16Free(pwszName);
+    }
+
+    return rc;
+}
+
+/**
+ * Sets a MSI property (DWORD).
+ *
+ * Convenience function for VBoxMsiSetProp().
+ *
+ * @returns UINT
+ * @param   hMsi                MSI handle to use.
+ * @param   pwszName            Name of property to set.
+ * @param   dwVal               Value to set.
+ */
 UINT VBoxMsiSetPropDWORD(MSIHANDLE hMsi, const WCHAR *pwszName, DWORD dwVal)
 {
     wchar_t wszTemp[32];
     RTUtf16Printf(wszTemp, RT_ELEMENTS(wszTemp), "%u", dwVal);
     return VBoxMsiSetProp(hMsi, pwszName, wszTemp);
+}
+
+/**
+ * Queries a DWORD value from a Windows registry key, Unicode (wide char) version.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_FILE_NOT_FOUND if the value has not been found.
+ * @retval  VERR_WRONG_TYPE if the type (DWORD) of the value does not match.
+ * @retval  VERR_MISMATCH if the type sizes do not match.
+ * @param   hMsi                MSI handle to use.
+ * @param   hKey                Registry handle of key to query.
+ * @param   pwszName            Name of the value to query.
+ * @param   pdwValue            Where to return the actual value on success.
+ */
+int VBoxMsiRegQueryDWORDW(MSIHANDLE hMsi, HKEY hKey, LPCWSTR pwszName, DWORD *pdwValue)
+{
+    RT_NOREF(hMsi);
+
+    return VBoxWinDrvRegQueryDWORDW(hKey, pwszName, pdwValue);
+}
+
+/**
+ * Queries a DWORD value from a Windows registry key.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_FILE_NOT_FOUND if the value has not been found.
+ * @retval  VERR_WRONG_TYPE if the type (DWORD) of the value does not match.
+ * @retval  VERR_MISMATCH if the type sizes do not match.
+ * @param   hKey                Registry handle of key to query.
+ * @param   pszName             Name of the value to query.
+ * @param   pdwValue            Where to return the actual value on success.
+ */
+int VBoxMsiRegQueryDWORD(MSIHANDLE hMsi, HKEY hKey, const char *pszName, DWORD *pdwValue)
+{
+    PRTUTF16 pwszName;
+    int rc = RTStrToUtf16Ex(pszName, RTSTR_MAX, &pwszName, 0, NULL);
+    if (RT_SUCCESS(rc))
+    {
+        rc = VBoxMsiRegQueryDWORDW(hMsi, hKey, pwszName, pdwValue);
+        RTUtf16Free(pwszName);
+    }
+
+    return rc;
 }
 

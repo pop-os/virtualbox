@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -74,7 +74,15 @@ daemon() {
 }
 
 killproc() {
-    killall $1
+    # On older (guest) OSes killall isn't available, so try using pkill instead.
+    if test -x "$(which killall 2>/dev/null)"; then
+        killall "$1"
+    elif test -x "$(which pkill 2>/dev/null)"; then
+        pkill "$1"
+    else
+        echo "Unable to determine kill binary; please report this bug!"
+        exit 1
+    fi
     rm -f $PIDFILE
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -523,7 +523,7 @@ void UIMachineLogic::sltMachineStateChanged()
         case KMachineState_Restoring:
         case KMachineState_TeleportingIn:
         {
-            if (uiCommon().X11ServerAvailable())
+            if (NativeWindowSubsystem::displayServerType() == VBGHDISPLAYSERVERTYPE_X11)
             {
                 /* The keyboard handler may wish to do some release logging on startup.
                  * Tell it that the logger is now active. */
@@ -580,7 +580,7 @@ void UIMachineLogic::sltAdditionsStateChanged()
 
 void UIMachineLogic::sltMouseCapabilityChanged()
 {
-    /* Variable falgs: */
+    /* Variable flags: */
     bool fIsMouseSupportsAbsolute = uimachine()->isMouseSupportsAbsolute();
     bool fIsMouseSupportsRelative = uimachine()->isMouseSupportsRelative();
     bool fIsMouseSupportsTouchScreen = uimachine()->isMouseSupportsTouchScreen();
@@ -1371,7 +1371,7 @@ void UIMachineLogic::updateDock()
     else
     {
         m_DockIconPreviewMonitor = 0;
-        /* Remove the seperator as well: */
+        /* Remove the separator as well: */
         if (m_pDockSettingsMenuSeparator)
         {
             pDockSettingsMenu->removeAction(m_pDockSettingsMenuSeparator);
@@ -1724,7 +1724,7 @@ void UIMachineLogic::sltShutdown()
         return;
     }
 
-    LogRel(("GUI: User requested to shutdown VM.\n"));
+    LogRel(("GUI: User requested to shut down VM.\n"));
     uimachine()->shutdown();
 }
 

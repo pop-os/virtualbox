@@ -2,7 +2,7 @@
     VirtualBox Windows Installation Script (WiX)
 -->
 <!--
-    Copyright (C) 2015-2024 Oracle and/or its affiliates.
+    Copyright (C) 2015-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -35,10 +35,6 @@
   <!-- Whether or not start menu entries should be created. -->
   <Property Id="VBOX_INSTALLSTARTMENUENTRIES" Value="1" Secure="yes" />
   <SetProperty Id="VBOX_INSTALLSTARTMENUENTRIES" After="AppSearch" Sequence="both" Value="{}" Condition="VBOX_INSTALLSTARTMENUENTRIES=&quot;0&quot;" />
-
-  <!-- Whether or not a desktop shortcut for the Quick Launch Bar should be created -->
-  <Property Id="VBOX_INSTALLQUICKLAUNCHSHORTCUT" Value="1" Secure="yes" />
-  <SetProperty Id="VBOX_INSTALLQUICKLAUNCHSHORTCUT" After="AppSearch" Sequence="both" Value="{}" Condition="VBOX_INSTALLQUICKLAUNCHSHORTCUT=&quot;0&quot;" />
 
   <!-- Whether or not VirtualBox should be started automatically right after successful installation -->
   <Property Id="VBOX_START" Value="1" Secure="yes" />

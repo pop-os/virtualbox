@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage startvm
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-startvm" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
+    <pubdate>$Date: 2025-08-11 19:18:47 +0200 (Mon, 11 Aug 2025) $</pubdate>
     <title>VBoxManage startvm</title>
   </refentryinfo>
 
@@ -130,9 +130,6 @@
                   Запускает ВМ с отделяемым интерфейсом пользователя,
                   что означает что ВМ запущена в фоновом режиме с
                   интерфейсом пользователя в отдельном процессе.
-                </para><para>
-                  Это экспериментальная функция, у которой отсутствует
-                  некоторый функционал, например ускорение 3D.
                 </para></listitem>
             </varlistentry>
           </variablelist></listitem>
@@ -166,7 +163,7 @@
     <title>Смотрите также</title>
     <para>
 <!--<xref linkend="vboxmanage-vboxheadless" />-->
-      <xref linkend="vboxheadless" />,
+      <!-- <xref linkend="vboxheadless" />, -->
       <xref linkend="vboxmanage-setproperty" />,
       <xref linkend="vboxmanage-modifyvm" />.
     </para>

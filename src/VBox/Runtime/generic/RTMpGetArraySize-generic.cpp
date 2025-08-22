@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -59,7 +59,7 @@ RTDECL(uint32_t) RTMpGetArraySize(void)
     if (RT_UNLIKELY(cCpus == 0))
     {
         RTCPUSET    CpuSet;
-        uint32_t    cCpus1 = RTCpuLastIndex(RTMpGetSet(&CpuSet)) + 1;
+        uint32_t    cCpus1 = RTCpuSetLastIndex(RTMpGetSet(&CpuSet)) + 1;
         uint32_t    cCpus2 = RTMpGetCount();
         cCpus              = RT_MAX(cCpus1, cCpus2);
         ASMAtomicCmpXchgU32(&s_cMaxCpus, cCpus, 0);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -395,7 +395,7 @@ static int rtZipTarReaderParseNextHeader(PRTZIPTARREADER pThis, PCRTZIPTARHDR pH
         /*
          * A GNU long name or long link is a dummy record followed by one or
          * more 512 byte string blocks holding the long name/link.  The name
-         * lenght is encoded in the size field, null terminator included.  If
+         * length is encoded in the size field, null terminator included.  If
          * it is a symlink or hard link the long name may be followed by a
          * long link sequence.
          */

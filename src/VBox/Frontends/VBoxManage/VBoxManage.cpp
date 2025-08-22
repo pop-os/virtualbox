@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -46,6 +46,7 @@
 
 #include <VBox/version.h>
 
+#include <iprt/arch.h>
 #include <iprt/asm.h>
 #include <iprt/buildconfig.h>
 #include <iprt/ctype.h>
@@ -56,6 +57,7 @@
 #include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
+#include <iprt/system.h>
 
 #include <signal.h>
 
@@ -269,6 +271,7 @@ static const VBMGCMD g_aCommands[] =
     { "updatecheck",        HELP_CMD_UPDATECHECK,       handleUpdateCheck,          0 },
 #endif
     { "modifynvram",        HELP_CMD_MODIFYNVRAM,       handleModifyNvram,          0 },
+    { "objtracker",         HELP_CMD_OBJTRACKER,        handleTrackedObjects,       0 },
 };
 
 /**
@@ -353,7 +356,7 @@ HRESULT showProgress(ComPtr<IProgress> progress, uint32_t fFlags)
     if (fFlags & SHOW_PROGRESS_DESC)
     {
         com::Bstr bstrDescription;
-        hrc = progress->COMGETTER(Description(bstrDescription.asOutParam()));
+        hrc = progress->COMGETTER(Description)(bstrDescription.asOutParam());
         if (FAILED(hrc))
         {
             RTStrmPrintf(g_pStdErr, VBoxManage::tr("Failed to get progress description: %Rhrc\n"), hrc);
@@ -384,17 +387,17 @@ HRESULT showProgress(ComPtr<IProgress> progress, uint32_t fFlags)
         fCancelable = FALSE;
     if (fCancelable)
     {
-        signal(SIGINT,   showProgressSignalHandler);
-        signal(SIGTERM,  showProgressSignalHandler);
+        (void)signal(SIGINT,   showProgressSignalHandler);
+        (void)signal(SIGTERM,  showProgressSignalHandler);
 #ifdef SIGBREAK
-        signal(SIGBREAK, showProgressSignalHandler);
+        (void)signal(SIGBREAK, showProgressSignalHandler);
 #endif
     }
 
-    hrc = progress->COMGETTER(Completed(&fCompleted));
+    hrc = progress->COMGETTER(Completed)(&fCompleted);
     while (SUCCEEDED(hrc))
     {
-        progress->COMGETTER(Percent(&ulCurrentPercent));
+        progress->COMGETTER(Percent)(&ulCurrentPercent);
 
         if (   fDetailed
             || fOps)
@@ -404,13 +407,13 @@ HRESULT showProgress(ComPtr<IProgress> progress, uint32_t fFlags)
             if (FAILED(hrc))
                 break;
             ULONG ulCurrentOperationPercent = 0;
-            hrc = progress->COMGETTER(OperationPercent(&ulCurrentOperationPercent));
+            hrc = progress->COMGETTER(OperationPercent)(&ulCurrentOperationPercent);
             if (FAILED(hrc))
                 break;
 
             if (ulLastOperation != ulOperation)
             {
-                hrc = progress->COMGETTER(OperationDescription(bstrOperationDescription.asOutParam()));
+                hrc = progress->COMGETTER(OperationDescription)(bstrOperationDescription.asOutParam());
                 if (FAILED(hrc))
                     break;
                 ulLastPercent = (ULONG)-1;        // force print
@@ -468,21 +471,21 @@ HRESULT showProgress(ComPtr<IProgress> progress, uint32_t fFlags)
         progress->WaitForCompletion(100);
 
         NativeEventQueue::getMainEventQueue()->processEventQueue(0);
-        hrc = progress->COMGETTER(Completed(&fCompleted));
+        hrc = progress->COMGETTER(Completed)(&fCompleted);
     }
 
     /* undo signal handling */
     if (fCancelable)
     {
-        signal(SIGINT,   SIG_DFL);
-        signal(SIGTERM,  SIG_DFL);
+        (void)signal(SIGINT,   SIG_DFL);
+        (void)signal(SIGTERM,  SIG_DFL);
 # ifdef SIGBREAK
-        signal(SIGBREAK, SIG_DFL);
+        (void)signal(SIGBREAK, SIG_DFL);
 # endif
     }
 
     /* complete the line. */
-    LONG iRc = E_FAIL;
+    LONG iRc = (LONG)E_FAIL;
     hrc = progress->COMGETTER(ResultCode)(&iRc);
     if (SUCCEEDED(hrc))
     {
@@ -506,7 +509,7 @@ HRESULT showProgress(ComPtr<IProgress> progress, uint32_t fFlags)
             else if (fFlags != SHOW_PROGRESS_NONE)
                 RTStrmPrintf(g_pStdErr, "%Rhrc\n", iRc);
         }
-        hrc = iRc;
+        hrc = (HRESULT)iRc;
     }
     else
     {
@@ -785,6 +788,18 @@ int main(int argc, char *argv[])
     RTEXITCODE rcExit;
     if (!(pCmd->fFlags & VBMG_CMD_F_NO_COM))
     {
+        /*
+         * Before we try to initialize COM, make sure we're not running inside
+         * an emulator (these days, running amd64 code in an emulator on arm64).
+         */
+        uint32_t const uNativeArch = RTSystemGetNativeArch();
+        if (uNativeArch != RT_ARCH_VAL && uNativeArch != 0)
+        {
+            RTMsgError("Binary (%s) doesn't match the host CPU (%s)!",
+                       RTArchValToString(RT_ARCH_VAL), RTArchValToString(uNativeArch));
+            return RTEXITCODE_FAILURE;
+        }
+
         /*
          * Initialize COM.
          */

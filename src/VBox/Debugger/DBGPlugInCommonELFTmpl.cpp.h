@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -131,8 +131,6 @@ int DBGDiggerCommonParseElfMod(PUVM pUVM, PCVMMR3VTABLE pVMM, const char *pszMod
         return VERR_BAD_EXE_FORMAT;
     if (    pEhdr->e_phentsize != sizeof(Elf_Phdr)
         &&  pEhdr->e_phentsize) //??
-        return VERR_BAD_EXE_FORMAT;
-    if (pEhdr->e_shentsize != sizeof(Elf_Shdr))
         return VERR_BAD_EXE_FORMAT;
     if (pEhdr->e_shentsize != sizeof(Elf_Shdr))
         return VERR_BAD_EXE_FORMAT;

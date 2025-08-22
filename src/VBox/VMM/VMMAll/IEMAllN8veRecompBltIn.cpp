@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -33,6 +33,9 @@
 #define IEM_WITH_OPAQUE_DECODER_STATE
 #define VMCPU_INCL_CPUM_GST_CTX
 #define VMM_INCLUDED_SRC_include_IEMMc_h /* block IEMMc.h inclusion. */
+#ifdef IN_RING0
+# define VBOX_VMM_TARGET_X86
+#endif
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/dbgf.h>
@@ -279,43 +282,32 @@ DECL_FORCE_INLINE_THROW(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCo
            No need to mask anything here.  Unfortunately, it's a 32-bit
            variable, so we can't OR it directly on x86.
 
-           Note! We take a tiny liberty here and ASSUME that the VM and associated
-                 VMCPU mappings are less than 2 GiB away from one another, so we
-                 can access VM::fGlobalForcedActions via a 32-bit signed displacement.
-
-                 This is _only_ a potential issue with VMs using the _support_ _driver_
-                 for manging the structure, as it maps the individual bits separately
-                 and the mapping order differs between host platforms.  Linux may
-                 map the VM structure higher than the VMCPU ones, whereas windows may
-                 do put the VM structure in the lowest address.  On all hosts there
-                 is a chance that virtual memory fragmentation could cause the bits to
-                 end up at a greater distance from one another, but it is rather
-                 doubtful and we just ASSUME it won't happen for now...
-
-                 When the VM structure is allocated in userland, there is one
-                 allocation for it and all the associated VMCPU components, thus no
-                 problems. */
+           We try avoid loading the pVM address here by seeing if we can access
+           VM::fGlobalForcedActions via 32-bit pVCpu displacement.  For
+           driverless configs, this should go without problems (negative
+           offset), but when using the driver the layout is randomized and we
+           need to be flexible. */
         AssertCompile(VM_FF_ALL_MASK == UINT32_MAX);
-        intptr_t const offGlobalForcedActions = (intptr_t)&pReNative->pVCpu->CTX_SUFF(pVM)->fGlobalForcedActions
-                                              - (intptr_t)pReNative->pVCpu;
-        if (RT_LIKELY((int32_t)offGlobalForcedActions == offGlobalForcedActions))
-        { /* likely */ }
-        else
-        {
-            LogRelMax(16, ("!!WARNING!! offGlobalForcedActions=%#zx pVM=%p pVCpu=%p - CheckTimersAndIrqsCommon\n",
-                           offGlobalForcedActions, pReNative->pVCpu->CTX_SUFF(pVM), pReNative->pVCpu));
-# ifdef IEM_WITH_THROW_CATCH
-            AssertFailedStmt(IEMNATIVE_DO_LONGJMP(NULL, VERR_IEM_IPE_9));
-# else
-            AssertReleaseFailed();
-# endif
-        }
+        uintptr_t const uAddrGlobalForcedActions = (uintptr_t)&pReNative->pVCpu->CTX_SUFF(pVM)->fGlobalForcedActions;
+        intptr_t const  offGlobalForcedActions   = (intptr_t)uAddrGlobalForcedActions - (intptr_t)pReNative->pVCpu;
 
 # ifdef RT_ARCH_AMD64
-        if (idxTmpReg2 >= 8)
-            pCodeBuf[off++] = X86_OP_REX_R;
-        pCodeBuf[off++] = 0x8b; /* mov */
-        off = iemNativeEmitGprByVCpuSignedDisp(pCodeBuf, off, idxTmpReg2, (int32_t)offGlobalForcedActions);
+        if (RT_LIKELY((int32_t)offGlobalForcedActions == offGlobalForcedActions))
+        {
+            if (idxTmpReg2 >= 8)
+                pCodeBuf[off++] = X86_OP_REX_R;
+            pCodeBuf[off++] = 0x8b; /* mov */
+            off = iemNativeEmitGprByVCpuSignedDisp(pCodeBuf, off, idxTmpReg2, (int32_t)offGlobalForcedActions);
+        }
+        else
+        {
+            off = iemNativeEmitLoadGprImmEx(pCodeBuf, off, idxTmpReg2, uAddrGlobalForcedActions);
+
+            if (idxTmpReg2 >= 8)
+                pCodeBuf[off++] = X86_OP_REX_R | X86_OP_REX_B;
+            pCodeBuf[off++] = 0x8b; /* mov */
+            iemNativeEmitGprByGprDisp(pCodeBuf, off, idxTmpReg2, idxTmpReg2, 0);
+        }
 
         /* or reg1, reg2 */
         off = iemNativeEmitOrGprByGprEx(pCodeBuf, off, idxTmpReg1, idxTmpReg2);
@@ -326,9 +318,21 @@ DECL_FORCE_INLINE_THROW(uint32_t) iemNativeRecompFunc_BltIn_CheckTimersAndIrqsCo
                                         kIemNativeInstrCond_e);
 
 # elif defined(RT_ARCH_ARM64)
-        Assert(offGlobalForcedActions < 0);
-        off = iemNativeEmitGprBySignedVCpuLdStEx(pCodeBuf, off, idxTmpReg2, (int32_t)offGlobalForcedActions,
-                                                 kArmv8A64InstrLdStType_Ld_Word, sizeof(uint32_t));
+        if (RT_LIKELY((int32_t)offGlobalForcedActions == offGlobalForcedActions))
+        {
+            if (offGlobalForcedActions < 0)
+                off = iemNativeEmitGprBySignedVCpuLdStEx(pCodeBuf, off, idxTmpReg2, (int32_t)offGlobalForcedActions,
+                                                         kArmv8A64InstrLdStType_Ld_Word, sizeof(uint32_t));
+            else
+                off = iemNativeEmitGprByVCpuLdStEx(pCodeBuf, off, idxTmpReg2, (uint32_t)offGlobalForcedActions,
+                                                   kArmv8A64InstrLdStType_Ld_Word, sizeof(uint32_t));
+        }
+        else
+        {
+            off = iemNativeEmitLoadGprImmEx(pCodeBuf, off, idxTmpReg2, uAddrGlobalForcedActions);
+            pCodeBuf[off++] = Armv8A64MkInstrStLdRUOff(kArmv8A64InstrLdStType_Ld_Word, idxTmpReg2, idxTmpReg2, 0);
+        }
+
         off = iemNativeEmitOrGprByGprEx(pCodeBuf, off, idxTmpReg1, idxTmpReg2);
 
         /* cbz nothing_pending */
@@ -648,7 +652,7 @@ iemNativeEmitBltInConsiderLimChecking(PIEMRECOMPILERSTATE pReNative, uint32_t of
      *  int64_t const offFromLim = (int64_t)pVCpu->cpum.GstCtx.cs.u32Limit - (int64_t)pVCpu->cpum.GstCtx.eip;
      *  if (offFromLim >= X86_PAGE_SIZE + 16 - (int32_t)(pVCpu->cpum.GstCtx.cs.u64Base & GUEST_PAGE_OFFSET_MASK))
      *      return fRet;
-     *  return fRet | IEMTB_F_CS_LIM_CHECKS;
+     *  return fRet | IEMTB_F_X86_CS_LIM_CHECKS;
      *
      *
      * We need EIP, CS.LIM and CS.BASE here.

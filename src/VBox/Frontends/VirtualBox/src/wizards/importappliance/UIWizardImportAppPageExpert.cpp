@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -467,7 +467,7 @@ void UIWizardImportAppPageExpert::sltRetranslateUI()
     /* Translate additional option check-box: */
     if (m_pCheckboxImportHDsAsVDI)
     {
-        m_pCheckboxImportHDsAsVDI->setText(UIWizardImportApp::tr("&Import hard drives as VDI"));
+        m_pCheckboxImportHDsAsVDI->setText(UIWizardImportApp::tr("&Import Hard Drives as VDI"));
         m_pCheckboxImportHDsAsVDI->setToolTip(UIWizardImportApp::tr("When checked, all the hard drives that belong to this "
                                                                     "appliance will be imported in VDI format."));
     }

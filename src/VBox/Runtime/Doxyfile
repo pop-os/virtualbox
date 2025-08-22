@@ -310,6 +310,13 @@ ALIASES += sdmv3{4}="\sdm{325384,sdm-vol-3abcd,\1,\2,SDMv3,\3,\4}"
 ALIASES += sdmv4{3}="\sdm{335592,sdm-vol-4,\1,\2,SDMv4,\3}"
 ALIASES += sdmv4{4}="\sdm{335592,sdm-vol-4,\1,\2,SDMv4,\3,\4}"
 
+# Architecture specific (for VMM target mostly) docs.
+ALIASES +=          x86="\par X86:   ^^"
+ALIASES +=        amd64="\par AMD64: ^^"
+ALIASES +=          arm="\par ARM:   ^^"
+ALIASES +=        arm64="\par ARM64: ^^"
+ALIASES +=        arm32="\par ARM32: ^^"
+
 
 # Set the OPTIMIZE_OUTPUT_FOR_C tag to YES if your project consists of C sources
 # only. Doxygen will then generate output that is more tailored for C. For
@@ -2322,6 +2329,7 @@ PREDEFINED             = \
     R3_ARCH_BITS=HC_ARCH_BITS \
     R0_ARCH_BITS=HC_ARCH_BITS \
     RTDECL(type)=type \
+    RT_DECL_ASM(type)=type \
     RT_EXPORT_SYMBOL(name)= \
     \
     RT_SRC_POS=1 \

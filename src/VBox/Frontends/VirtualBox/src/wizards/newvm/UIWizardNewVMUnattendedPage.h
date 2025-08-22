@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -56,7 +56,7 @@ class UIWizardNewVMUnattendedPage : public UINativeWizardPage
 
 public:
 
-    UIWizardNewVMUnattendedPage();
+    UIWizardNewVMUnattendedPage(const QString strHelpKeyword = QString());
 
 private slots:
 

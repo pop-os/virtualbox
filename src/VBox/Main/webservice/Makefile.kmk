@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2007-2024 Oracle and/or its affiliates.
+# Copyright (C) 2007-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -221,10 +221,13 @@ endif
 TEMPLATE_VBoxWebR3Exe = Webservices without -fvisibility=hidden
 TEMPLATE_VBoxWebR3Exe_EXTENDS = VBoxR3Exe
 TEMPLATE_VBoxWebR3Exe_DEFS.win += WIN32_LEAN_AND_MEAN $(TEMPLATE_VBoxR3Exe_DEFS.win) # Makes the redefinition warnings go away.
-TEMPLATE_VBoxWebR3Exe_CXXFLAGS = $(filter-out $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden), \
-		$(TEMPLATE_VBoxR3Exe_CXXFLAGS))
 ifn1of ($(KBUILD_TARGET), win)
+ TEMPLATE_VBoxWebR3Exe_CXXFLAGS = $(filter-out $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden), \
+ 		$(TEMPLATE_VBoxR3Exe_CXXFLAGS))
  TEMPLATE_VBoxWebR3Exe_CXXFLAGS += $(VBOX_GCC_Wno-misleading-indentation)
+else if1of ($(KBUILD_TARGET_ARCH), arm64) # RTCsu blows up on arm64 with fatal error C1053: function too big (soapC-4.cpp).
+ TEMPLATE_VBoxWebR3Exe_PCHFLAGS.debug = $(filter-out -RTC%,$(TEMPLATE_VBoxR3Exe_PCHFLAGS.debug))
+ TEMPLATE_VBoxWebR3Exe_CXXFLAGS.debug = $(filter-out -RTC%,$(TEMPLATE_VBoxR3Exe_CXXFLAGS.debug))
 endif
 if "$(VBOX_VCC_TOOL_STEM)" >= "VCC140"
  # -wd4774: string(532): warning C4774: 'sprintf_s' : format string expected in argument 3 is not a string literal
@@ -233,7 +236,10 @@ if "$(VBOX_VCC_TOOL_STEM)" >= "VCC140"
  # soapc-1.cpp(182) : warning C4883: 'soap_getelement': function size suppresses optimizations
  TEMPLATE_VBoxWebR3Exe_CXXFLAGS.win = $(TEMPLATE_VBoxR3Exe_CXXFLAGS.win) -wd4774 -wd4458 -wd4883 -wd5039
 endif
-
+if "$(VBOX_VCC_TOOL_STEM)" >= "VCC143"
+ # -wd5267: soapStub.h(8118): warning C5267: definition of implicit assignment operator for 'vbox__IPCIDeviceAttachment' is deprecated because it has a user-provided destructor
+ TEMPLATE_VBoxWebR3Exe_CXXFLAGS.win += -wd5267
+endif
 
 ifdef VBOX_GSOAP_INSTALLED
  ifndef VBOX_ONLY_SDK

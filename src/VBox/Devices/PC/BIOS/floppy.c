@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -83,6 +83,35 @@ void set_diskette_current_cyl(uint8_t drive, uint8_t cyl)
     if (drive > 1)
         BX_PANIC("set_diskette_current_cyl: drive > 1\n");
     write_byte(0x0040, 0x0094+drive, cyl);
+}
+
+uint8_t translate_error(void)
+{
+    uint8_t     st;
+    uint8_t     err = 0;
+
+    /* Read ST0 and isolate interrupt code */
+    st = read_byte(0x0040, 0x0042 + 0) & 0xc0;
+    if (st & 0xc0) {
+        /* Operation didn't terminate normally */
+        if (st == 0x40) {
+            /* Abnormal termination, read ST1 */
+            /* We don't test bits 3 and 6 as they are not defined. */
+            st = read_byte(0x0040, 0x0042 + 1);
+            if (st & 0x84)
+                err = 0x04; // Past EOT or nor no data, sector not found
+            else if (st & 0x20)
+                err = 0x10; // Data error, bad CRC
+            else if (st & 0x10)
+                err = 0x08; // DMA overrun
+            else if (st & 0x02)
+                err = 0x03; // Write protect
+            else if (st & 0x01)
+                err = 0x02; // Address mark not found
+        } else
+            err = 0x20; // Some other problem, controller failure
+    }
+    return err;
 }
 
 #if 1 //BX_SUPPORT_FLOPPY
@@ -487,6 +516,12 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
 
     SET_IF();   /* INT 13h always returns with interrupts enabled. */
 
+    /* Clear last operation status in BDA for all functions except STATUS.
+     * Error handling calls set_diskette_ret_status() with non-zero argument.
+     */
+    if (GET_AH() != 0x01)
+        set_diskette_ret_status(0);
+
     switch ( GET_AH() ) {
     case 0x00: // diskette controller reset
         BX_DEBUG_INT13_FL("floppy f00\n");
@@ -514,7 +549,6 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
         write_byte(0x0040, 0x003e, 0);
 
         SET_AH(0);
-        set_diskette_ret_status(0);
         CLEAR_CF(); // successful
         set_diskette_current_cyl(drive, 0); // current cylinder
         return;
@@ -694,13 +728,12 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             for (i = 0; i < 7; ++i)
                 write_byte(0x0040, 0x0042 + i, inb(0x3f5));
 
-            if ((read_byte(0x0040, 0x0042 + 0) & 0xc0) != 0) {
-                BX_DEBUG_INT13_FL("failed (FDC failure)\n");
-                floppy_reset_controller(drive);
-                SET_AH(0x20);
-                set_diskette_ret_status(0x20);
-                SET_AL(0); // no sectors read
-                SET_CF(); // error occurred
+            // Check result and translate error
+            SET_AH(translate_error());
+            if (GET_AH()) {
+                set_diskette_ret_status(GET_AH());
+                SET_AL(0);
+                SET_CF();
                 return;
             }
 
@@ -708,7 +741,6 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             // ??? should track be new val from return_status[3] ?
             set_diskette_current_cyl(drive, track);
             // AL = number of sectors read (same value as passed)
-            SET_AH(0x00); // success
             CLEAR_CF();   // success
             return;
         } else if (GET_AH() == 0x03) {
@@ -828,16 +860,11 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             for (i = 0; i < 7; ++i)
                 write_byte(0x0040, 0x0042 + i, inb(0x3f5));
 
-            if ((read_byte(0x0040, 0x0042 + 0) & 0xc0) != 0) {
-                if ((read_byte(0x0040, 0x0042 + 1) & 0x02) != 0) {
-                    // diskette not writable.
-                    // AH=status code=0x03 (tried to write on write-protected disk)
-                    // AL=number of sectors written=0
-                    AX = 0x0300;
-                } else {
-                    // Some other problem occurred.
-                    AX = 0x0100;
-                }
+            // Check result and translate error
+            SET_AH(translate_error());
+            if (GET_AH()) {
+                set_diskette_ret_status(GET_AH());
+                SET_AL(0);
                 SET_CF();
                 return;
             }
@@ -845,7 +872,6 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             // ??? should track be new val from return_status[3] ?
             set_diskette_current_cyl(drive, track);
             // AL = number of sectors read (same value as passed)
-            SET_AH(0x00); // success
             CLEAR_CF();   // success
             return;
         } else {  // if (ah == 0x04)
@@ -1005,7 +1031,6 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
         }
 
         SET_AH(0);
-        set_diskette_ret_status(0);
         set_diskette_current_cyl(drive, 0);
         CLEAR_CF(); // successful
         return;
@@ -1203,7 +1228,6 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
 
         // return success!
         SET_AH(0);
-        set_diskette_ret_status(0);
         CLEAR_CF();
         return;
 
@@ -1321,7 +1345,6 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
 
         // return success!
         SET_AH(0);
-        set_diskette_ret_status(0);
         CLEAR_CF();
         return;
 

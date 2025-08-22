@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -412,13 +412,16 @@ static DECLCALLBACK(int) supLoadModuleCompileSegmentsCB(RTLDRMOD hLdrMod, PCRTLD
      * However, if the new segment and old segment share a page, this becomes
      * a little more complicated...
      */
+    uint32_t  const cbPage      = SUP_PAGE_SIZE;
+    uint32_t  const cPageShift  = SUP_PAGE_SHIFT;
+    uintptr_t const offPageMask = SUP_PAGE_OFFSET_MASK;
     if (pArgs->uStartRva < pArgs->uEndRva)
     {
-        if (((pArgs->uEndRva - 1) >> PAGE_SHIFT) != (uRvaSeg >> PAGE_SHIFT))
+        if (((pArgs->uEndRva - 1) >> cPageShift) != (uRvaSeg >> cPageShift))
         {
             /* No common page, so make the new segment start on a page boundrary. */
-            cbMapped += uRvaSeg & PAGE_OFFSET_MASK;
-            uRvaSeg &= ~(uint32_t)PAGE_OFFSET_MASK;
+            cbMapped += uRvaSeg & offPageMask;
+            uRvaSeg &= ~(uint32_t)offPageMask;
             Assert(pArgs->uEndRva <= uRvaSeg);
             Log2(("supLoadModuleCompileSegmentsCB: -> new, no common\n"));
         }
@@ -426,7 +429,7 @@ static DECLCALLBACK(int) supLoadModuleCompileSegmentsCB(RTLDRMOD hLdrMod, PCRTLD
         {
             /* The current segment includes the memory protections of the
                previous, so include the common page in it: */
-            uint32_t const cbCommon = PAGE_SIZE - (uRvaSeg & PAGE_OFFSET_MASK);
+            uint32_t const cbCommon = cbPage - (uRvaSeg & offPageMask);
             if (cbCommon >= cbMapped)
             {
                 pArgs->uEndRva = uRvaSeg + cbMapped;
@@ -443,8 +446,8 @@ static DECLCALLBACK(int) supLoadModuleCompileSegmentsCB(RTLDRMOD hLdrMod, PCRTLD
         {
             /* The new segment includes the memory protections of the
                previous, so include the common page in it: */
-            cbMapped += uRvaSeg & PAGE_OFFSET_MASK;
-            uRvaSeg &= ~(uint32_t)PAGE_OFFSET_MASK;
+            cbMapped += uRvaSeg & offPageMask;
+            uRvaSeg &= ~(uint32_t)offPageMask;
             if (uRvaSeg == pArgs->uStartRva)
             {
                 pArgs->fProt   = fProt;
@@ -452,13 +455,13 @@ static DECLCALLBACK(int) supLoadModuleCompileSegmentsCB(RTLDRMOD hLdrMod, PCRTLD
                 Log2(("supLoadModuleCompileSegmentsCB: -> upgrade current protection, end %#x\n", pArgs->uEndRva));
                 return VINF_SUCCESS; /* Current segment was smaller than a page. */
             }
-            Log2(("supLoadModuleCompileSegmentsCB: -> new, %#x common into new\n", (uint32_t)(pSeg->RVA & PAGE_OFFSET_MASK)));
+            Log2(("supLoadModuleCompileSegmentsCB: -> new, %#x common into new\n", (uint32_t)(pSeg->RVA & offPageMask)));
         }
         else
         {
             /* Create a new segment for the common page with the combined protection. */
             Log2(("supLoadModuleCompileSegmentsCB: -> it's complicated...\n"));
-            pArgs->uEndRva &= ~(uint32_t)PAGE_OFFSET_MASK;
+            pArgs->uEndRva &= ~(uint32_t)offPageMask;
             if (pArgs->uEndRva > pArgs->uStartRva)
             {
                 Log2(("supLoadModuleCompileSegmentsCB: SUP Seg #%u: %#x LB %#x prot %#x\n",
@@ -476,16 +479,15 @@ static DECLCALLBACK(int) supLoadModuleCompileSegmentsCB(RTLDRMOD hLdrMod, PCRTLD
             }
             pArgs->fProt |= fProt;
 
-            uint32_t const cbCommon = PAGE_SIZE - (uRvaSeg & PAGE_OFFSET_MASK);
+            uint32_t const cbCommon = cbPage - (uRvaSeg & offPageMask);
             if (cbCommon >= cbMapped)
             {
-                fProt |= pArgs->fProt;
                 pArgs->uEndRva = uRvaSeg + cbMapped;
                 return VINF_SUCCESS; /* New segment was smaller than a page. */
             }
             cbMapped -= cbCommon;
             uRvaSeg  += cbCommon;
-            Assert(uRvaSeg - pArgs->uStartRva == PAGE_SIZE);
+            Assert(uRvaSeg - pArgs->uStartRva == cbPage);
         }
 
         /* The current segment should end where the new one starts, no gaps. */
@@ -507,7 +509,7 @@ static DECLCALLBACK(int) supLoadModuleCompileSegmentsCB(RTLDRMOD hLdrMod, PCRTLD
     /* else: current segment is empty */
 
     /* Start the new segment. */
-    Assert(!(uRvaSeg & PAGE_OFFSET_MASK));
+    Assert(!(uRvaSeg & offPageMask));
     pArgs->fProt     = fProt;
     pArgs->uStartRva = uRvaSeg;
     pArgs->uEndRva   = uRvaSeg + cbMapped;
@@ -775,15 +777,32 @@ static int supLoadModule(const char *pszFilename, const char *pszModule, const c
             OpenReq.u.Out.pvImageBase = 0xef423420;
         }
         *ppvImageBase = (void *)OpenReq.u.Out.pvImageBase;
-        if (rc != VERR_MODULE_NOT_FOUND)
+        if (RT_SUCCESS(rc))
         {
-            if (fIsVMMR0)
-                g_pvVMMR0 = OpenReq.u.Out.pvImageBase;
-            LogRel(("SUP: Opened %s (%s) at %#RKv%s.\n", pszModule, pszFilename, OpenReq.u.Out.pvImageBase,
-                    OpenReq.u.Out.fNativeLoader ? " loaded by the native ring-0 loader" : ""));
+            /*
+             * Check that is is fully loaded before returning, as some other process
+             * could be in the process of loading the r0 module now.  This may easily
+             * happen when launching a NAT network VM or internal networking w/ DHCP.
+             *
+             * If the module hasn't been completely loaded, treat it as missing and
+             * try load it properly ourselves.  supLoadModuleInner() should be able
+             * to handle competing processes (look for VERR_ALREADY_LOADED).
+             */
+            if (!OpenReq.u.Out.fNeedsLoading)
+            {
+                if (fIsVMMR0)
+                    g_pvVMMR0 = OpenReq.u.Out.pvImageBase;
+                LogRel(("SUP: Opened %s (%s) at %#RKv%s.\n", pszModule, pszFilename, OpenReq.u.Out.pvImageBase,
+                        OpenReq.u.Out.fNativeLoader ? " loaded by the native ring-0 loader" : ""));
 #ifdef RT_OS_WINDOWS
-            LogRel(("SUP: windbg> .reload /f %s=%#RKv\n", pszFilename, OpenReq.u.Out.pvImageBase));
+                LogRel(("SUP: windbg> .reload /f %s=%#RKv\n", pszFilename, OpenReq.u.Out.pvImageBase));
 #endif
+                return rc;
+            }
+        }
+        else if (rc != VERR_MODULE_NOT_FOUND)
+        {
+            LogRel(("SUP: Failed to open %s (%s): %Rrc\n", pszModule, pszFilename, rc));
             return rc;
         }
     }

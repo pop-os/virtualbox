@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -196,7 +196,7 @@ void OVFReader::LoopThruSections(const xml::ElementNode *pReferencesElem,
                      )
                 )
         {
-            HandleVirtualSystemContent(pElem);
+            HandleVirtualSystemContent(pReferencesElem, pElem);
         }
         else if (    !strcmp(pcszElemName, "VirtualSystemCollection")
                   || (    !strcmp(pcszElemName, "Content")
@@ -261,7 +261,6 @@ void OVFReader::HandleDiskSection(const xml::ElementNode *pReferencesElem,
                      && (pFileElem = pReferencesElem->findChildElementFromId(pcszFileRef)) != NULL
                    )
                 {
-
                     // copy remaining values from file node then
                     const char *pcszBadInFile = NULL;
                     const char *pcszHref;
@@ -271,6 +270,10 @@ void OVFReader::HandleDiskSection(const xml::ElementNode *pReferencesElem,
                         d.iSize = -1;       // optional
 
                     d.strHref = pcszHref;
+
+                    // The 'References' element may contain NVRAM file entries so skip those.
+                    if (d.strHref.endsWith(".nvram"))
+                        continue;
 
                     // if (!(pFileElem->getAttributeValue("size", d.iChunkSize))) TODO
                     d.iChunkSize = -1;       // optional
@@ -340,9 +343,11 @@ void OVFReader::HandleNetworkSection(const xml::ElementNode * /* pSectionElem */
  * Private helper method that handles a "VirtualSystem" element in the OVF XML.
  * Gets called indirectly from IAppliance::read().
  *
- * @param pelmVirtualSystem
+ * @param pReferencesElem     The 'References' element from OVF, for looking up file elements.
+ * @param pelmVirtualSystem   The 'VirtualSystem' element in the OVF XML.
  */
-void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSystem)
+void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pReferencesElem,
+                                           const xml::ElementNode *pelmVirtualSystem)
 {
     /* Create a new virtual system and work directly on the list copy. */
     m_llVirtualSystems.push_back(VirtualSystem());
@@ -726,6 +731,42 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         vsys.strSoundCardType = i.strResourceSubType;
                         break;
 
+                    case ResourceType_NVRAM: // 0x8000
+                    {
+                        /*  <Item ovf:required="false">
+                                <rasd:Caption>NVRAM</rasd:Caption>
+                                <rasd:Description>NVRAM pathname</rasd:Description>
+                                <rasd:ElementName>NVRAM</rasd:ElementName>
+                                <rasd:HostResource>ovf:/file/file1</rasd:HostResource>
+                                <rasd:InstanceID>3</rasd:InstanceID>
+                                <rasd:ResourceType>32768</rasd:ResourceType>
+                              </Item> */
+                        RTCString strNvramPath;
+                        if (i.strHostResource.startsWith("ovf://file/"))
+                            strNvramPath = i.strHostResource.substr(11);
+                        else if (i.strHostResource.startsWith("ovf:/file/"))
+                            strNvramPath = i.strHostResource.substr(10);
+                        else if (i.strHostResource.startsWith("/file/"))
+                            strNvramPath = i.strHostResource.substr(6);
+
+                        if (strNvramPath.isNotEmpty())
+                        {
+                            const xml::ElementNode *pFileElem;
+                            if (    pReferencesElem
+                                && (pFileElem = pReferencesElem->findChildElementFromId(strNvramPath.c_str())) != NULL)
+                            {
+                                const char *pcszHref;
+                                if (pFileElem->getAttributeValueN("href", pcszHref, RT_XML_ATTR_SMALL))
+                                    vsys.strNvramPath = RTCStringFmt("%s", pcszHref);
+                                else
+                                    throw OVFLogicError(N_("Error reading \"%s\" when processing NVRAM resource type: missing or invalid attribute 'ovf:href' in 'File' element, line %d"),
+                                                        m_strPath.c_str(),
+                                                        pFileElem->getLineNumber());
+                            }
+                        }
+                        break;
+                    }
+
                     default:
                     {
                         /* If this unknown resource type isn't required, we simply skip it. */
@@ -1059,12 +1100,6 @@ void StorageItem::_checkConsistencyAndCompliance() RT_THROW(OVFLogicError)
 void EthernetPortItem::fillItem(const xml::ElementNode *item)
 {
     VirtualHardwareItem::fillItem(item);
-
-    xml::NodesLoop loopItemChildren(*item);// all child elements
-    const xml::ElementNode *pelmItemChild;
-    while ((pelmItemChild = loopItemChildren.forAllNodes()))
-    {
-    }
 }
 
 void EthernetPortItem::_checkConsistencyAndCompliance() RT_THROW(OVFLogicError)

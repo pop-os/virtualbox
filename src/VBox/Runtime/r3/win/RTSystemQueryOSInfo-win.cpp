@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -46,9 +46,10 @@
 #include <iprt/system.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 #include <iprt/string.h>
 #include <iprt/utf16.h>
+#include <iprt/win/reg.h>
 
 
 /*********************************************************************************************************************************
@@ -241,6 +242,7 @@ static int rtSystemWinQueryOSVersion(RTSYSOSINFO enmInfo, char *pszInfo, size_t 
                 case kRTWinOSType_2019:         strcpy(szTmp, "Windows 2019"); break;
                 case kRTWinOSType_2022:         strcpy(szTmp, "Windows 2022"); break;
                 case kRTWinOSType_11:           strcpy(szTmp, "Windows 11"); break;
+                case kRTWinOSType_2025:         strcpy(szTmp, "Windows 2025"); break;
 
                 case kRTWinOSType_NT_UNKNOWN:
                     RTStrPrintf(szTmp, sizeof(szTmp), "Unknown NT v%u.%u",
@@ -249,6 +251,7 @@ static int rtSystemWinQueryOSVersion(RTSYSOSINFO enmInfo, char *pszInfo, size_t 
 
                 default:
                     AssertFailed();
+                    RT_FALL_THROUGH();
                 case kRTWinOSType_UNKNOWN:
                     RTStrPrintf(szTmp, sizeof(szTmp), "Unknown %d v%u.%u",
                                 g_WinOsInfoEx.dwPlatformId, g_WinOsInfoEx.dwMajorVersion, g_WinOsInfoEx.dwMinorVersion);
@@ -262,8 +265,19 @@ static int rtSystemWinQueryOSVersion(RTSYSOSINFO enmInfo, char *pszInfo, size_t 
          */
         case RTSYSOSINFO_RELEASE:
         {
-            RTStrPrintf(szTmp, sizeof(szTmp), "%u.%u.%u",
-                        g_WinOsInfoEx.dwMajorVersion, g_WinOsInfoEx.dwMinorVersion, g_WinOsInfoEx.dwBuildNumber);
+            uint32_t uUpdateBuildRev = 0;
+            int vrc = RTWinRegQueryValueU32(kRTWinRegRoot_LocalMachine,
+                                            L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", L"UBR", &uUpdateBuildRev);
+            if (RT_SUCCESS(vrc))
+                RTStrPrintf(szTmp, sizeof(szTmp), "%u.%u.%u.%u",
+                            g_WinOsInfoEx.dwMajorVersion, g_WinOsInfoEx.dwMinorVersion, g_WinOsInfoEx.dwBuildNumber,
+                            uUpdateBuildRev);
+            else
+            {
+                Assert(vrc == VERR_FILE_NOT_FOUND || vrc == VERR_PATH_NOT_FOUND || vrc == VERR_NOT_FOUND);
+                RTStrPrintf(szTmp, sizeof(szTmp), "%u.%u.%u",
+                            g_WinOsInfoEx.dwMajorVersion, g_WinOsInfoEx.dwMinorVersion, g_WinOsInfoEx.dwBuildNumber);
+            }
             break;
         }
 

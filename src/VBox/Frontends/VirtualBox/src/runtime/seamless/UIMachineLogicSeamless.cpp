@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -259,12 +259,6 @@ void UIMachineLogicSeamless::prepareMachineWindows()
     /* Do not create machine-window(s) if they created already: */
     if (isMachineWindowsCreated())
         return;
-
-#ifdef VBOX_WS_MAC
-    /* We have to make sure that we are getting the front most process.
-     * This is necessary for Qt versions > 4.3.3: */
-    darwinSetFrontMostProcess();
-#endif /* VBOX_WS_MAC */
 
     /* Update the multi-screen layout: */
     m_pScreenLayout->update();

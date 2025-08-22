@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -137,12 +137,7 @@ extern const PDMDRVREG g_DrvVDE;
 #endif
 extern const PDMDRVREG g_DrvIntNet;
 extern const PDMDRVREG g_DrvDedicatedNic;
-#ifndef VBOX_WITH_LIBSLIRP
 extern const PDMDRVREG g_DrvNAT;
-#endif
-#ifdef VBOX_WITH_LIBSLIRP
-extern const PDMDRVREG g_DrvNATlibslirp;
-#endif
 #ifdef VBOX_WITH_NETSHAPER
 extern const PDMDRVREG g_DrvNetShaper;
 #endif /* VBOX_WITH_NETSHAPER */
@@ -204,6 +199,7 @@ extern const PDMUSBREG g_UsbMsd;
 extern const PDMUSBREG g_UsbHid;
 extern const PDMUSBREG g_UsbHidKbd;
 extern const PDMUSBREG g_UsbHidMou;
+extern const PDMUSBREG g_UsbNet;
 #endif
 #ifdef VBOX_WITH_USB_VIDEO_IMPL
 extern const PDMUSBREG g_DevWebcam;
@@ -216,9 +212,7 @@ extern const PDMDRVREG g_DrvSCSI;
 extern const PDMDRVREG g_DrvIfTrace;
 #ifdef VBOX_WITH_TPM
 extern const PDMDRVREG g_DrvTpmEmu;
-# ifdef RT_OS_LINUX
 extern const PDMDRVREG g_DrvTpmHost;
-# endif
 # ifdef VBOX_WITH_LIBTPMS
 extern const PDMDRVREG g_DrvTpmEmuTpms;
 # endif

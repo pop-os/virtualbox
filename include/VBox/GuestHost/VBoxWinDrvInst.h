@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -41,15 +41,20 @@
 #endif
 
 #include <iprt/types.h>
+#include <iprt/win/windows.h>
 
 RT_C_DECLS_BEGIN
+
+/** @defgroup grp_vboxwindrvinst    Windows driver / service (un)installation and management functions.
+ * @{
+ */
 
 /** Windows driver installer handle. */
 typedef R3PTRTYPE(struct VBOXWINDRVINSTINTERNAL *) VBOXWINDRVINST;
 /** Pointer to a Windows driver installer handle. */
 typedef VBOXWINDRVINST                            *PVBOXWINDRVINST;
 /** Nil Windows driver installer handle. */
-#define NIL_VBOXWINDRVINST                      ((VBOXWINDRVINST)0)
+#define NIL_VBOXWINDRVINST                         ((VBOXWINDRVINST)0)
 
 /**
  * Enumeration for the Windows driver installation logging type.
@@ -132,6 +137,51 @@ typedef enum VBOXWINDRVSVCFN
 /** Validation mask. */
 #define VBOXWINDRVSVCFN_F_VALID_MASK        0x1
 
+/** Struct for keeping Windows service information. */
+typedef struct VBOXWINDRVSVCINFO
+{
+    /** Holds the  file version (maj.min.build) of the (resolved) binary. */
+    char                     szVer[128];
+    LPSERVICE_STATUS_PROCESS pStatus;
+    LPQUERY_SERVICE_CONFIGW  pConfig;
+} VBOXWINDRVSVCINFO;
+/** Pointer to a struct for keeping Windows service information. */
+typedef VBOXWINDRVSVCINFO *PVBOXWINDRVSVCINFO;
+
+/**
+ * Pattern handling callback.
+ *
+ * @return  The resolved pattern if any, or NULL if not being handled.
+ * @param   pszPattern          Pattern which got matched.
+ * @param   pvUser              User-supplied pointer. Might be NULL if not being used.
+ */
+typedef DECLCALLBACKTYPE(char *, FNVBOXWINDRVSTRPATTERN,(const char *pszPattern, void *pvUser));
+/** Pointer to pattern handling callback. */
+typedef FNVBOXWINDRVSTRPATTERN *PFVBOXWINDRVSTRPATTERN;
+
+/**
+ * Struct for keeping a Windows Driver installation pattern match entry.
+ */
+typedef struct
+{
+    /** Pattern to match.
+     *  No wildcards supported (yet). */
+    const char            *psz;
+    /** Pattern replacement function to invoke.
+     *  If NULL, the matched pattern will be removed from the output. */
+    PFVBOXWINDRVSTRPATTERN pfn;
+    /** User-supplied pointer. Optional and can be NULL. */
+    void                  *pvUser;
+    /** Where to store the pattern replacement on success.
+     *  Only used internally and must not be used. */
+    char                  *rep;
+} VBOXWINDRVSTRPATTERN;
+/** Pointer to a struct for keeping a Windows Driver installation pattern match entry. */
+typedef VBOXWINDRVSTRPATTERN *PVBOXWINDRVSTRPATTERN;
+
+/** @defgroup grp_windrvinst_svc     Installation / uninstallation functions
+ * @{
+ */
 int VBoxWinDrvInstCreate(PVBOXWINDRVINST hDrvInst);
 int VBoxWinDrvInstCreateEx(PVBOXWINDRVINST phDrvInst, unsigned uVerbosity, PFNVBOXWINDRIVERLOGMSG pfnLog, void *pvUser);
 int VBoxWinDrvInstDestroy(VBOXWINDRVINST hDrvInst);
@@ -145,13 +195,43 @@ int VBoxWinDrvInstInstall(VBOXWINDRVINST hDrvInst, const char *pszInfFile, uint3
 int VBoxWinDrvInstInstallExecuteInf(VBOXWINDRVINST hDrvInst, const char *pszInfFile, const char *pszSection, uint32_t fFlags);
 int VBoxWinDrvInstUninstall(VBOXWINDRVINST hDrvInst, const char *pszInfFile, const char *pszModel, const char *pszPnPId, uint32_t fFlags);
 int VBoxWinDrvInstUninstallExecuteInf(VBOXWINDRVINST hDrvInst, const char *pszInfFile, const char *pszSection, uint32_t fFlags);
-int VBoxWinDrvInstControlService(VBOXWINDRVINST hDrvInst, const char *pszService, VBOXWINDRVSVCFN enmFn);
-int VBoxWinDrvInstControlServiceEx(VBOXWINDRVINST hDrvInst, const char *pszService, VBOXWINDRVSVCFN enmFn, uint32_t fFlags, RTMSINTERVAL msTimeout);
+/** @} */
+
+/** @name Native NT functions.
+ * @{
+ */
+int VBoxWinDrvInstQueryNtLinkTarget(PCRTUTF16 pwszLinkNt, PRTUTF16 *ppwszLinkTarget);
+/** @} */
+
+/** @name Service functions
+ * @{
+ */
+int VBoxWinDrvInstServiceControl(VBOXWINDRVINST hDrvInst, const char *pszService, VBOXWINDRVSVCFN enmFn);
+int VBoxWinDrvInstServiceControlEx(VBOXWINDRVINST hDrvInst, const char *pszService, VBOXWINDRVSVCFN enmFn, uint32_t fFlags, RTMSINTERVAL msTimeout);
+int VBoxWinDrvInstServiceQuery(const char *pszService, PVBOXWINDRVSVCINFO pSvcInfo);
+void VBoxWinDrvInstServiceInfoDestroy(PVBOXWINDRVSVCINFO pSvcInfo);
+/** @} */
+
+/** @name String functions
+ * @{
+ */
+int VBoxWinDrvPatternReplace(const char *pszInput, const PVBOXWINDRVSTRPATTERN paPatterns, size_t cPatterns, char **ppszOutput);
+/** @} */
+
+/** @name File functions
+ * @{
+ */
+int VBoxWinDrvInstFileQueryVersionEx(const char *pszPath, uint32_t *puMajor, uint32_t *puMinor, uint32_t *puBuildNumber, uint32_t *puRevisionNumber);
+int VBoxWinDrvInstFileQueryVersion(const char *pszPath, char *pszVersion, size_t cbVersion);
+int VBoxWinDrvInstFileQueryVersionUtf16(PCRTUTF16 pwszPath, char *pszVersion, size_t cbVersion);
+/** @} */
 
 /** @name Log functions
  * @{
  */
 int VBoxWinDrvInstLogSetupAPI(VBOXWINDRVINST hDrvInst, unsigned cLastSections);
+/** @} */
+
 /** @} */
 
 RT_C_DECLS_END

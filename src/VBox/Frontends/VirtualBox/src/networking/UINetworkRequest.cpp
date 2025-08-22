@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -82,7 +82,7 @@ void UINetworkRequest::sltHandleNetworkReplyFinish()
         /* Notify network-request listeners: */
         emit sigCanceled();
     }
-    /* If some other error occured: */
+    /* If some other error occurred: */
     else
     {
         /* Check if we are able to handle error: */

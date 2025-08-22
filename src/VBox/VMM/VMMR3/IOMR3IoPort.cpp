@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -222,6 +222,7 @@ static int iomR3IoPortGrowStatisticsTable(PVM pVM, uint32_t cNewEntries)
     AssertReturn(cNewEntries <= _64K, VERR_IOM_TOO_MANY_IOPORT_REGISTRATIONS);
 
     int rc;
+# if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
     if (!SUPR3IsDriverless())
     {
         rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_GROW_IO_PORT_STATS, cNewEntries, NULL);
@@ -229,6 +230,7 @@ static int iomR3IoPortGrowStatisticsTable(PVM pVM, uint32_t cNewEntries)
         AssertReturn(cNewEntries <= pVM->iom.s.cIoPortStatsAllocation, VERR_IOM_IOPORT_IPE_2);
     }
     else
+# endif
     {
         /*
          * Validate input and state.
@@ -240,7 +242,7 @@ static int iomR3IoPortGrowStatisticsTable(PVM pVM, uint32_t cNewEntries)
         /*
          * Calc size and allocate a new table.
          */
-        uint32_t const cbNew = RT_ALIGN_32(cNewEntries * sizeof(IOMIOPORTSTATSENTRY), HOST_PAGE_SIZE);
+        uint32_t const cbNew = RT_ALIGN_32(cNewEntries * sizeof(IOMIOPORTSTATSENTRY), HOST_PAGE_SIZE_DYNAMIC);
         cNewEntries = cbNew / sizeof(IOMIOPORTSTATSENTRY);
 
         PIOMIOPORTSTATSENTRY const paIoPortStats = (PIOMIOPORTSTATSENTRY)RTMemPageAllocZ(cbNew);
@@ -256,7 +258,7 @@ static int iomR3IoPortGrowStatisticsTable(PVM pVM, uint32_t cNewEntries)
             pVM->iom.s.paIoPortStats             = paIoPortStats;
             pVM->iom.s.cIoPortStatsAllocation    = cNewEntries;
 
-            RTMemPageFree(pOldIoPortStats, RT_ALIGN_32(cOldEntries * sizeof(IOMIOPORTSTATSENTRY), HOST_PAGE_SIZE));
+            RTMemPageFree(pOldIoPortStats, RT_ALIGN_32(cOldEntries * sizeof(IOMIOPORTSTATSENTRY), HOST_PAGE_SIZE_DYNAMIC));
 
             rc = VINF_SUCCESS;
         }
@@ -282,6 +284,7 @@ static int iomR3IoPortGrowTable(PVM pVM, uint32_t cNewEntries)
     AssertReturn(cNewEntries <= _4K, VERR_IOM_TOO_MANY_IOPORT_REGISTRATIONS);
 
     int rc;
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
     if (!SUPR3IsDriverless())
     {
         rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_GROW_IO_PORTS, cNewEntries, NULL);
@@ -289,6 +292,7 @@ static int iomR3IoPortGrowTable(PVM pVM, uint32_t cNewEntries)
         AssertReturn(cNewEntries <= pVM->iom.s.cIoPortAlloc, VERR_IOM_IOPORT_IPE_2);
     }
     else
+#endif
     {
         /*
          * Validate input and state.
@@ -300,8 +304,8 @@ static int iomR3IoPortGrowTable(PVM pVM, uint32_t cNewEntries)
          * Allocate the new tables.  We use a single allocation for the three tables (ring-0,
          * ring-3, lookup) and does a partial mapping of the result to ring-3.
          */
-        uint32_t const cbRing3  = RT_ALIGN_32(cNewEntries * sizeof(IOMIOPORTENTRYR3),     HOST_PAGE_SIZE);
-        uint32_t const cbShared = RT_ALIGN_32(cNewEntries * sizeof(IOMIOPORTLOOKUPENTRY), HOST_PAGE_SIZE);
+        uint32_t const cbRing3  = RT_ALIGN_32(cNewEntries * sizeof(IOMIOPORTENTRYR3),     HOST_PAGE_SIZE_DYNAMIC);
+        uint32_t const cbShared = RT_ALIGN_32(cNewEntries * sizeof(IOMIOPORTLOOKUPENTRY), HOST_PAGE_SIZE_DYNAMIC);
         uint32_t const cbNew    = cbRing3 + cbShared;
 
         /* Use the rounded up space as best we can. */
@@ -338,8 +342,8 @@ static int iomR3IoPortGrowTable(PVM pVM, uint32_t cNewEntries)
             pVM->iom.s.cIoPortAlloc     = cNewEntries;
 
             RTMemPageFree(pvFree,
-                            RT_ALIGN_32(cOldEntries * sizeof(IOMIOPORTENTRYR3),     HOST_PAGE_SIZE)
-                          + RT_ALIGN_32(cOldEntries * sizeof(IOMIOPORTLOOKUPENTRY), HOST_PAGE_SIZE));
+                            RT_ALIGN_32(cOldEntries * sizeof(IOMIOPORTENTRYR3),     HOST_PAGE_SIZE_DYNAMIC)
+                          + RT_ALIGN_32(cOldEntries * sizeof(IOMIOPORTLOOKUPENTRY), HOST_PAGE_SIZE_DYNAMIC));
 
             rc = VINF_SUCCESS;
         }

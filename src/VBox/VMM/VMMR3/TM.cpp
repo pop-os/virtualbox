@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -224,7 +224,21 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     /*
      * Init the structure.
      */
+#if defined(VBOX_VMM_TARGET_ARMV8) && defined(RT_OS_WINDOWS)
+    /*
+     * Workaround for Hyper-V on Windows/ARM:
+     *     On Windows/ARM EMTs of APs are waiting in Hyper-V because
+     *     there is no way currently to get notified of PSCI calls to turn them
+     *     on.
+     *     However because they are suspended they can't handle timers, so
+     *     this needs to be done by the boot processor.
+     *     We hope that Microsoft lifts this restriction in the future, allowing us
+     *     to use our already existing wait infrastructure for EMTs.
+     */
+    pVM->tm.s.idTimerCpu = 0;
+#else
     pVM->tm.s.idTimerCpu = pVM->cCpus - 1; /* The last CPU. */
+#endif
 
     int rc = PDMR3CritSectInit(pVM, &pVM->tm.s.VirtualSyncLock, RT_SRC_POS, "TM VirtualSync Lock");
     AssertLogRelRCReturn(rc, rc);
@@ -656,9 +670,6 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
      * Finally, setup and report.
      */
     pVM->tm.s.enmOriginalTSCMode = pVM->tm.s.enmTSCMode;
-#if !defined(VBOX_VMM_TARGET_ARMV8)
-    CPUMR3SetCR4Feature(pVM, X86_CR4_TSD, ~X86_CR4_TSD);
-#endif
     LogRel(("TM:     cTSCTicksPerSecond=%'RU64 (%#RX64) enmTSCMode=%d (%s) TSCMultiplier=%u\n"
             "TM: cTSCTicksPerSecondHost=%'RU64 (%#RX64)\n"
             "TM: TSCTiedToExecution=%RTbool TSCNotTiedToHalt=%RTbool\n",
@@ -819,6 +830,11 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = pVM->apCpusR3[i];
+
+#ifdef VBOX_VMM_TARGET_ARMV8
+        pVCpu->cNsVTimerActivate   = UINT64_MAX;
+#endif
+
         STAMR3RegisterF(pVM, &pVCpu->tm.s.offTSCRawSrc,          STAMTYPE_U64, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS, "TSC offset relative the raw source",           "/TM/TSC/offCPU%u", i);
 #ifndef VBOX_WITHOUT_NS_ACCOUNTING
 # if defined(VBOX_WITH_STATISTICS) || defined(VBOX_WITH_NS_ACCOUNTING_STATS)
@@ -1312,7 +1328,7 @@ VMM_INT_DECL(void) TMR3Reset(PVM pVM)
         pVCpu->tm.s.offTSCRawSrc   = offTscRawSrc;
         pVCpu->tm.s.u64TSC         = 0;
         pVCpu->tm.s.u64TSCLastSeen = 0;
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
         pVCpu->cNsVTimerActivate   = UINT64_MAX;
 #endif
     }
@@ -1612,6 +1628,7 @@ static int tmR3TimerQueueGrow(PVM pVM, PTMTIMERQUEUE pQueue, uint32_t cNewTimers
      * Do the growing.
      */
     int rc;
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
     if (!SUPR3IsDriverless())
     {
         rc = VMMR3CallR0Emt(pVM, VMMGetCpu(pVM), VMMR0_DO_TM_GROW_TIMER_QUEUE,
@@ -1620,6 +1637,7 @@ static int tmR3TimerQueueGrow(PVM pVM, PTMTIMERQUEUE pQueue, uint32_t cNewTimers
         AssertReturn(pQueue->cTimersAlloc >= cNewTimers, VERR_TM_IPE_3);
     }
     else
+#endif
     {
         AssertReturn(cNewTimers <= _32K && cOldEntries <= _32K, VERR_TM_TOO_MANY_TIMERS);
         ASMCompilerBarrier();
@@ -1628,7 +1646,7 @@ static int tmR3TimerQueueGrow(PVM pVM, PTMTIMERQUEUE pQueue, uint32_t cNewTimers
          * Round up the request to the nearest page and do the allocation.
          */
         size_t cbNew = sizeof(TMTIMER) * cNewTimers;
-        cbNew = RT_ALIGN_Z(cbNew, HOST_PAGE_SIZE);
+        cbNew = RT_ALIGN_Z(cbNew, HOST_PAGE_SIZE_DYNAMIC);
         cNewTimers = (uint32_t)(cbNew / sizeof(TMTIMER));
 
         PTMTIMER paTimers = (PTMTIMER)RTMemPageAllocZ(cbNew);
@@ -1645,7 +1663,7 @@ static int tmR3TimerQueueGrow(PVM pVM, PTMTIMERQUEUE pQueue, uint32_t cNewTimers
             pQueue->cTimersAlloc  = cNewTimers;
             pQueue->cTimersFree  += cNewTimers - (cOldEntries ? cOldEntries : 1);
 
-            RTMemPageFree(paOldTimers, RT_ALIGN_Z(sizeof(TMTIMER) * cOldEntries, HOST_PAGE_SIZE));
+            RTMemPageFree(paOldTimers, RT_ALIGN_Z(sizeof(TMTIMER) * cOldEntries, HOST_PAGE_SIZE_DYNAMIC));
             rc = VINF_SUCCESS;
         }
         else

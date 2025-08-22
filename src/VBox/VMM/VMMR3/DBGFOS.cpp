@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -156,9 +156,10 @@ void dbgfR3OSTermPart2(PUVM pUVM)
         if (pOS->pReg->pfnDestruct)
             pOS->pReg->pfnDestruct(pUVM, VMMR3GetVTable(), pOS->abData);
 
-        PDBGFOSEMTWRAPPER pFree = pOS->pWrapperHead;
-        while ((pFree = pOS->pWrapperHead) != NULL)
+        while (pOS->pWrapperHead != NULL)
         {
+            PDBGFOSEMTWRAPPER pFree = pOS->pWrapperHead;
+
             pOS->pWrapperHead = pFree->pNext;
             pFree->pNext = NULL;
             MMR3HeapFree(pFree);
@@ -305,7 +306,7 @@ static DECLCALLBACK(int) dbgfR3OSDeregister(PUVM pUVM, PDBGFOSREG pReg)
     if (pOS->pReg->pfnDestruct)
         pOS->pReg->pfnDestruct(pUVM, VMMR3GetVTable(), pOS->abData);
 
-    PDBGFOSEMTWRAPPER pFree = pOS->pWrapperHead;
+    PDBGFOSEMTWRAPPER pFree;
     while ((pFree = pOS->pWrapperHead) != NULL)
     {
         pOS->pWrapperHead = pFree->pNext;

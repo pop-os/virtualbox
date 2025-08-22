@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -33,6 +33,9 @@
 
 /* Qt includes: */
 #include <QStringList>
+#ifdef VBOX_WS_WIN
+# include <QMetaType>
+#endif
 
 /* GUI includes: */
 #include "UILibraryDefs.h"
@@ -80,6 +83,16 @@ enum MacOSXRelease
     MacOSXRelease_New,
 };
 #endif /* VBOX_WS_MAC */
+
+
+#ifdef VBOX_WS_WIN
+enum WindowsRelease
+{
+    WindowsRelease_Unknown,
+    WindowsRelease_11,
+};
+Q_DECLARE_METATYPE(WindowsRelease);
+#endif /* VBOX_WS_WIN */
 
 
 /** UI types. */

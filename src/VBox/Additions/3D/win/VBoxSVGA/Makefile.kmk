@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2016-2024 Oracle and/or its affiliates.
+# Copyright (C) 2016-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -55,12 +55,12 @@ VBoxSVGA_SOURCES  = \
 	VBoxSVGA.rc \
 	VBoxSVGA.def
 VBoxSVGA_LIBS     = \
-	$(VBOX_PATH_ADDITIONS_LIB)/VBoxWddmUmHlp$(VBOX_SUFF_LIB) \
 	$(VBOX_PATH_ADDITIONS_LIB)/VBoxMesaGalliumAuxLib$(VBOX_SUFF_LIB) \
 	$(VBOX_PATH_ADDITIONS_LIB)/VBoxMesaUtilLib$(VBOX_SUFF_LIB) \
 	$(VBOX_PATH_ADDITIONS_LIB)/VBoxMesaLib$(VBOX_SUFF_LIB) \
 	$(VBOX_PATH_ADDITIONS_LIB)/VBoxMesaSVGAWinsysLib$(VBOX_SUFF_LIB) \
-	$(VBOX_PATH_ADDITIONS_LIB)/VBoxMesaSVGALib$(VBOX_SUFF_LIB)
+	$(VBOX_PATH_ADDITIONS_LIB)/VBoxMesaSVGALib$(VBOX_SUFF_LIB) \
+	$(VBOX_PATH_ADDITIONS_LIB)/VBoxWddmUmHlp$(VBOX_SUFF_LIB)
 
 if defined(VBOX_SIGNING_MODE) && defined(VBOX_SIGN_ADDITIONS)
  VBoxSVGA_INSTTYPE       = none

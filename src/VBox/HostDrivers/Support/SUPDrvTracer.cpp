@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -57,7 +57,9 @@
 
 #if defined(RT_OS_LINUX)
 # if RTLNX_VER_MIN(4,15,10)
-#  include <asm/nospec-branch.h>
+#  if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+#   include <asm/nospec-branch.h>
+#  endif
 # endif /* < 4.15.10 */
 # if RTLNX_VER_MIN(5,17,0)
 #  include <asm/linkage.h>
@@ -1527,6 +1529,12 @@ __asm__("\
             " \n\
             jmp     *%eax \n\
 ");
+# elif defined(RT_ARCH_ARM64)
+__asm__("\
+            adrp   x16, g_pfnSupdrvProbeFireKernel                      \n\
+            ldr    x16, [x16, #:lo12:g_pfnSupdrvProbeFireKernel]        \n\
+            br     x16                                                  \n\
+");
 # else
 #  error "Which arch is this?"
 # endif
@@ -1537,18 +1545,23 @@ __asm__("\
         .global supdrvTracerProbeFireStub                               \n\
 supdrvTracerProbeFireStub:                                              \n\
         "
-# if defined(RT_OS_LINUX)
-#  if RTLNX_VER_MIN(5,17,0)
+# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+#  if defined(RT_OS_LINUX)
+#   if RTLNX_VER_MIN(5,17,0)
         ASM_RET "\n\
         "
-#  else /* < 5.17.0 */
+#   else /* < 5.17.0 */
         "ret \n\
         "
-#  endif /* < 5.17.0 */
-# else /* !RT_OS_LINUX */
+#   endif /* < 5.17.0 */
+#  else /* !RT_OS_LINUX */
         "ret \n\
         "
-# endif /* !RT_OS_LINUX */
+#  endif /* !RT_OS_LINUX */
+# else
+        "ret \n\
+        "
+# endif
         ".size supdrvTracerProbeFireStub, . - supdrvTracerProbeFireStub  \n\
                                                                         \n\
         .previous                                                       \n\

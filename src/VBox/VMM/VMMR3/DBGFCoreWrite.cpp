@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -68,7 +68,7 @@
 
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/pgm.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/dbgfcorefmt.h>
 #include <VBox/vmm/mm.h>
@@ -328,7 +328,10 @@ static uint32_t dbgfR3GetRamRangeCount(PVM pVM)
  */
 static void dbgfR3GetCoreCpu(PVMCPU pVCpu, PDBGFCORECPU pDbgfCpu)
 {
-#define DBGFCOPYSEL(a_dbgfsel, a_cpumselreg) \
+    PCCPUMCTX const pCtx = CPUMQueryGuestCtxPtr(pVCpu);
+
+#ifdef VBOX_VMM_TARGET_X86
+# define DBGFCOPYSEL(a_dbgfsel, a_cpumselreg) \
     do { \
         (a_dbgfsel).uBase  = (a_cpumselreg).u64Base; \
         (a_dbgfsel).uLimit = (a_cpumselreg).u32Limit; \
@@ -336,12 +339,6 @@ static void dbgfR3GetCoreCpu(PVMCPU pVCpu, PDBGFCORECPU pDbgfCpu)
         (a_dbgfsel).uSel   = (a_cpumselreg).Sel; \
     } while (0)
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
-    AssertReleaseFailed();
-    RT_NOREF(pVCpu, pDbgfCpu);
-#else
-    PVM       pVM  = pVCpu->CTX_SUFF(pVM);
-    PCCPUMCTX pCtx = CPUMQueryGuestCtxPtr(pVCpu);
     pDbgfCpu->rax             = pCtx->rax;
     pDbgfCpu->rbx             = pCtx->rbx;
     pDbgfCpu->rcx             = pCtx->rcx;
@@ -389,17 +386,26 @@ static void dbgfR3GetCoreCpu(PVMCPU pVCpu, PDBGFCORECPU pDbgfCpu)
     pDbgfCpu->msrCSTAR        = pCtx->msrCSTAR;
     pDbgfCpu->msrSFMASK       = pCtx->msrSFMASK;
     pDbgfCpu->msrKernelGSBase = pCtx->msrKERNELGSBASE;
-    pDbgfCpu->msrApicBase     = APICGetBaseMsrNoCheck(pVCpu);
+    pDbgfCpu->msrApicBase     = PDMApicGetBaseMsrNoCheck(pVCpu);
     pDbgfCpu->msrTscAux       = CPUMGetGuestTscAux(pVCpu);
     pDbgfCpu->aXcr[0]         = pCtx->aXcr[0];
     pDbgfCpu->aXcr[1]         = pCtx->aXcr[1];
     AssertCompile(sizeof(pDbgfCpu->ext) == sizeof(pCtx->XState));
+
+    PVM const pVM  = pVCpu->CTX_SUFF(pVM);
     pDbgfCpu->cbExt = pVM->cpum.ro.GuestFeatures.cbMaxExtendedState;
     if (RT_LIKELY(pDbgfCpu->cbExt))
         memcpy(&pDbgfCpu->ext, &pCtx->XState, pDbgfCpu->cbExt);
-#endif
 
-#undef DBGFCOPYSEL
+# undef DBGFCOPYSEL
+
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+    RT_NOREF(pCtx, pDbgfCpu);
+    AssertReleaseFailed();
+
+#else
+# error "port me"
+#endif
 }
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -471,7 +471,7 @@ void UIMediumDetailsWidget::prepareTabOptions()
 #endif
 
                 /* Create size editor: */
-                m_pEditorSize = new UIMediumSizeEditor(0 /* parent */);
+                m_pEditorSize = new UIMediumSizeEditor(0 /* parent */, false /* no label*/);
                 AssertPtrReturnVoid(m_pEditorSize);
                 {
                     /* Configure editor: */

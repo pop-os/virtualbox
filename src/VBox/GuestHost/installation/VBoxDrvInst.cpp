@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -44,7 +44,8 @@
 #include <iprt/system.h>
 #include <iprt/test.h>
 #include <iprt/utf16.h>
-#include <iprt/win/windows.h>
+
+#include <iprt/nt/nt-and-windows.h>
 
 #include <package-generated.h>
 #include "product-generated.h"
@@ -66,6 +67,7 @@ static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdLogMain(PRTGETOPTSTATE pGetState);
 static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdInstallMain(PRTGETOPTSTATE pGetState);
 static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdUninstallMain(PRTGETOPTSTATE pGetState);
 static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdServiceMain(PRTGETOPTSTATE pGetState);
+static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdStatusMain(PRTGETOPTSTATE pGetState);
 
 static DECLCALLBACK(const char *) vboxDrvInstCmdLogHelp(PCRTGETOPTDEF pOpt);
 static DECLCALLBACK(const char *) vboxDrvInstCmdListHelp(PCRTGETOPTDEF pOpt);
@@ -81,6 +83,7 @@ static RTEXITCODE vboxDrvInstShowUsage(PRTSTREAM pStrm, VBOXDRVINSTCMD const *pO
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
 /** Verbosity level. */
+static bool      g_fDryrun = false;
 static unsigned  g_uVerbosity = 0;
 static PRTLOGGER g_pLoggerRelease = NULL;
 static char      g_szLogFile[RTPATH_MAX];
@@ -95,7 +98,9 @@ static uint64_t  g_uHistoryFileSize = 100 * _1M;    /* Max 100MB per file. */
 typedef enum VBOXDRVINSTEXITCODE
 {
     /** A reboot is needed in order to complete the (un)installation. */
-    VBOXDRVINSTEXITCODE_REBOOT_NEEDED = RTEXITCODE_END
+    VBOXDRVINSTEXITCODE_REBOOT_NEEDED = RTEXITCODE_END,
+    /** Succeeded, but one or more warning has occurred. */
+    VBOXDRVINSTEXITCODE_WARNING       = RTEXITCODE_END + 1,
 } VBOXDRVINSTEXITCODE;
 
 /**
@@ -219,7 +224,8 @@ enum
     VBOXDRVINST_UNINSTALL_OPT_PNPID,
     VBOXDRVINST_UNINSTALL_OPT_FORCE,
     VBOXDRVINST_UNINSTALL_OPT_NOT_SILENT,
-    VBOXDRVINST_UNINSTALL_OPT_IGNORE_REBOOT
+    VBOXDRVINST_UNINSTALL_OPT_IGNORE_REBOOT,
+    VBOXDRVINST_UNINSTALL_OPT_DEBUG_OS_VER
 };
 
 /**
@@ -238,7 +244,8 @@ static const RTGETOPTDEF g_aCmdUninstallOptions[] =
     { "--pnp-id",        VBOXDRVINST_UNINSTALL_OPT_PNPID,         RTGETOPT_REQ_STRING  },
     { "--force",         VBOXDRVINST_UNINSTALL_OPT_FORCE,         RTGETOPT_REQ_NOTHING },
     { "--not-silent",    VBOXDRVINST_UNINSTALL_OPT_NOT_SILENT,    RTGETOPT_REQ_NOTHING },
-    { "--ignore-reboot", VBOXDRVINST_UNINSTALL_OPT_IGNORE_REBOOT, RTGETOPT_REQ_NOTHING }
+    { "--ignore-reboot", VBOXDRVINST_UNINSTALL_OPT_IGNORE_REBOOT, RTGETOPT_REQ_NOTHING },
+    { "--debug-os-ver",  VBOXDRVINST_UNINSTALL_OPT_DEBUG_OS_VER,  RTGETOPT_REQ_UINT32_PAIR }
 };
 
 /**
@@ -296,6 +303,19 @@ const VBOXDRVINSTCMD g_CmdService =
 };
 
 /**
+ * Command definition for the 'status' command.
+ */
+const VBOXDRVINSTCMD g_CmdStatus =
+{
+    "status",
+    vboxDrvInstCmdStatusMain,
+    "Shows the VirtualBox status.",
+    0,
+    NULL,
+    NULL
+};
+
+/**
  * Commands.
  */
 static const VBOXDRVINSTCMD * const g_apCommands[] =
@@ -304,7 +324,8 @@ static const VBOXDRVINSTCMD * const g_apCommands[] =
     &g_CmdLog,
     &g_CmdInstall,
     &g_CmdUninstall,
-    &g_CmdService
+    &g_CmdService,
+    &g_CmdStatus
 };
 
 /**
@@ -313,6 +334,7 @@ static const VBOXDRVINSTCMD * const g_apCommands[] =
 static const RTGETOPTDEF g_aCmdCommonOptions[] =
 {
     { "--logfile",     'l', RTGETOPT_REQ_STRING },
+    { "--dryrun",      'd', RTGETOPT_REQ_NOTHING },
     { "--help",        'h', RTGETOPT_REQ_NOTHING },
     { "--verbose",     'v', RTGETOPT_REQ_NOTHING },
     { "--version",     'V', RTGETOPT_REQ_NOTHING }
@@ -385,6 +407,10 @@ static DECLCALLBACK(void) vboxDrvInstLogCallback(VBOXWINDRIVERLOGTYPE enmType, c
      */
     switch (enmType)
     {
+        case VBOXWINDRIVERLOGTYPE_WARN:
+            vboxDrvInstLog("Warning: %s\n", pszMsg);
+            break;
+
         case VBOXWINDRIVERLOGTYPE_ERROR:
             vboxDrvInstLogError("%s\n", pszMsg);
             break;
@@ -479,8 +505,7 @@ static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdListMain(PRTGETOPTSTATE pGetState)
     VBoxWinDrvStoreDestroy(pStore);
     pStore = NULL;
 
-    vboxDrvInstLog("\nUse DOS-style wildcards to adjust results.\n");
-    vboxDrvInstLog("Use \"--help\" to print syntax help.\n");
+    vboxDrvInstLog("\nHint: Use DOS-style wildcards to adjust results.\n");
 
     return RTEXITCODE_SUCCESS;
 }
@@ -652,6 +677,9 @@ static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdInstallMain(PRTGETOPTSTATE pGetSta
     if (RT_FAILURE(rc))
         return RTEXITCODE_FAILURE;
 
+    if (!pszInfFile)
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "No INF file specified!\n");
+
     RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
 
     VBOXWINDRVINST hWinDrvInst;
@@ -660,6 +688,9 @@ static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdInstallMain(PRTGETOPTSTATE pGetSta
     {
         if (uOsVer)
             VBoxWinDrvInstSetOsVersion(hWinDrvInst, uOsVer);
+
+        if (g_fDryrun)
+            fInstall |= VBOX_WIN_DRIVERINSTALL_F_DRYRUN;
 
         rc = VBoxWinDrvInstInstallEx(hWinDrvInst, pszInfFile, pszModel, pszPnpId, fInstall);
         if (RT_SUCCESS(rc))
@@ -695,6 +726,7 @@ static DECLCALLBACK(const char *) vboxDrvInstCmdUninstallHelp(PCRTGETOPTDEF pOpt
         case VBOXDRVINST_UNINSTALL_OPT_FORCE:         return "Forces uninstallation";
         case VBOXDRVINST_UNINSTALL_OPT_NOT_SILENT:    return "Runs uninstallation in non-silent mode";
         case VBOXDRVINST_UNINSTALL_OPT_IGNORE_REBOOT: return "Ignores reboot requirements";
+        case VBOXDRVINST_UNINSTALL_OPT_DEBUG_OS_VER:  return "Overwrites the detected OS version";
         default:
             break;
     }
@@ -721,7 +753,7 @@ static int vboxDrvInstCmdUninstallVBoxHost(VBOXWINDRVINST hDrvInst, uint32_t fIn
         return rc;
 
 #define CONTROL_SERVICE(a_Svc, a_Fn) \
-    rc = VBoxWinDrvInstControlServiceEx(hDrvInst, a_Svc, a_Fn, VBOXWINDRVSVCFN_F_WAIT, RT_MS_30SEC); \
+    rc = VBoxWinDrvInstServiceControlEx(hDrvInst, a_Svc, a_Fn, VBOXWINDRVSVCFN_F_WAIT, RT_MS_30SEC); \
     if (RT_FAILURE(rc)) \
     { \
         if (   rc != VERR_NOT_FOUND /* Service is optional, thus not fatal if not found. */ \
@@ -788,6 +820,7 @@ static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdUninstallMain(PRTGETOPTSTATE pGetS
     char *pszModel = NULL;
     char *pszPnpId = NULL;
     char *pszInfSection = NULL;
+    uint64_t uOsVer = 0;
 
     /* By default we want a silent uninstallation (but not forcing it). */
     uint32_t fInstall = VBOX_WIN_DRIVERINSTALL_F_SILENT;
@@ -849,6 +882,11 @@ static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdUninstallMain(PRTGETOPTSTATE pGetS
                 fIgnoreReboot = true;
                 break;
 
+            case VBOXDRVINST_UNINSTALL_OPT_DEBUG_OS_VER:
+                uOsVer = RTSYSTEM_MAKE_NT_VERSION(ValueUnion.PairU32.uFirst, ValueUnion.PairU32.uSecond,
+                                                  0 /* Build Version */);
+                break;
+
             default:
                 return RTGetOptPrintError(ch, &ValueUnion);
         }
@@ -865,6 +903,12 @@ static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdUninstallMain(PRTGETOPTSTATE pGetS
     rc = VBoxWinDrvInstCreateEx(&hWinDrvInst, g_uVerbosity, &vboxDrvInstLogCallback, NULL /* pvUser */);
     if (RT_SUCCESS(rc))
     {
+        if (uOsVer)
+            VBoxWinDrvInstSetOsVersion(hWinDrvInst, uOsVer);
+
+        if (g_fDryrun)
+            fInstall |= VBOX_WIN_DRIVERINSTALL_F_DRYRUN;
+
         if (fVBoxHost)
             rc = vboxDrvInstCmdUninstallVBoxHost(hWinDrvInst, fInstall);
         else
@@ -990,11 +1034,171 @@ static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdServiceMain(PRTGETOPTSTATE pGetSta
     int rc = VBoxWinDrvInstCreateEx(&hWinDrvInst, g_uVerbosity, &vboxDrvInstLogCallback, NULL /* pvUser */);
     if (RT_SUCCESS(rc))
     {
-        rc = VBoxWinDrvInstControlServiceEx(hWinDrvInst, pszService, enmFn, fFlags, msTimeout);
+        rc = VBoxWinDrvInstServiceControlEx(hWinDrvInst, pszService, enmFn, fFlags, msTimeout);
         VBoxWinDrvInstDestroy(hWinDrvInst);
     }
 
     return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}
+
+/**
+ * Returns a service status as a string.
+ *
+ * @returns VBox status code.
+ * @param   dwStatus            Service status to translate.
+ */
+static const char* vboxDrvInstServiceStatusToStr(DWORD dwStatus)
+{
+    switch (dwStatus)
+    {
+        case SERVICE_STOPPED:          return "STOPPED";
+        case SERVICE_START_PENDING:    return "START PENDING";
+        case SERVICE_STOP_PENDING:     return "STOP PENDING";
+        case SERVICE_RUNNING:          return "RUNNING";
+        case SERVICE_CONTINUE_PENDING: return "CONTINUE PENDING";
+        case SERVICE_PAUSE_PENDING:    return "PAUSE PENDING";
+        case SERVICE_PAUSED:           return "PAUSED";
+        default:                       break;
+
+    }
+    AssertFailedReturn("Unknown");
+}
+
+/**
+ * Lists (prints) a service (also can be a driver).
+ *
+ * @param pszName               Service (or driver) name to list.
+ * @param pSvcInfo              Service (or driver) details.
+ */
+static void vboxDrvInstServiceList(const char *pszName, const PVBOXWINDRVSVCINFO pSvcInfo)
+{
+    RTPrintf("%-11s %-16s [%s]\n", pszName, pSvcInfo->szVer, vboxDrvInstServiceStatusToStr(pSvcInfo->pStatus->dwCurrentState));
+    RTPrintf("  Name: %ls\n", pSvcInfo->pConfig->lpDisplayName);
+    RTPrintf("  Path: %ls\n", pSvcInfo->pConfig->lpBinaryPathName);
+}
+
+static DECLCALLBACK(RTEXITCODE) vboxDrvInstCmdStatusMain(PRTGETOPTSTATE pGetState)
+{
+    RT_NOREF(pGetState);
+
+    typedef struct SERVICEDEF
+    {
+        const char *pszName;
+    } SERVICEDEF;
+    static SERVICEDEF s_apszServices[] =
+    {
+        /* Host services */
+        { "VBoxAutostartSvc" },
+        { "VBoxNetAdp" },
+        { "VBoxNetFlt" },
+        { "VBoxNetLwf" },
+        { "VBoxSDS" },
+        { "VBoxSUP" },
+        { "VBoxUSB" },
+        { "VBoxUSBMon" },
+        /* Guest services */
+        { "VBoxGuest" },
+        { "VBoxService" },
+        { "VBoxSF" },
+        { "VBoxVideo" },
+        { "VBoxWdmm" }
+    };
+
+#define LOG_WARN_OR_ERROR(a_szLogF, ...) \
+    char szDetail[128]; \
+    RTStrPrintf(szDetail, sizeof(szDetail), a_szLogF, __VA_ARGS__); \
+    rc = RTStrAAppend(&pszWarnAndErrorDetails, szDetail); \
+    AssertRCBreak(rc); \
+
+#define LOG_WARNING(a_szLogF, ...) \
+{ \
+    LOG_WARN_OR_ERROR("Warning: " ##a_szLogF, __VA_ARGS__); \
+    cWarnings++; \
+}
+
+#define LOG_ERROR(a_szLogF, ...) \
+{ \
+    LOG_WARN_OR_ERROR("Error  : " ##a_szLogF, __VA_ARGS__); \
+    cErrors++; \
+}
+    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
+
+    VBOXWINDRVINST hWinDrvInst;
+    int rc = VBoxWinDrvInstCreateEx(&hWinDrvInst, g_uVerbosity, &vboxDrvInstLogCallback, NULL /* pvUser */);
+    if (RT_SUCCESS(rc))
+    {
+        RTPrintf("\n");
+
+        size_t cErrors   = 0;
+        size_t cWarnings = 0;
+
+        char  *pszWarnAndErrorDetails = NULL;
+
+        char   szVer[128]; /* Contains the first file version found for all services (for comparison). */
+        szVer[0] = '\0';
+
+        size_t cSvcListed = 0;
+        for (size_t i = 0; i < RT_ELEMENTS(s_apszServices); i++)
+        {
+            VBOXWINDRVSVCINFO SvcInfo;
+            RT_ZERO(SvcInfo);
+
+            rc = VBoxWinDrvInstServiceQuery(s_apszServices[i].pszName, &SvcInfo);
+            if (   RT_SUCCESS(rc)
+                /* Service / driver binary not found. We still can return the status, however. */
+                || rc == VERR_FILE_NOT_FOUND)
+            {
+                if (szVer[0] == '\0')
+                    RTStrPrintf(szVer, sizeof(szVer), "%s", SvcInfo.szVer);
+
+                cSvcListed++;
+                vboxDrvInstServiceList(s_apszServices[i].pszName, &SvcInfo);
+
+                if (   RTStrICmp(SvcInfo.szVer, "-") != 0 /* Version information found? */
+                    && RTStrVersionCompare(SvcInfo.szVer, szVer) != 0)
+                    LOG_WARNING("Service '%s' version ('%s') is different (from '%s')\n",
+                                 s_apszServices[i].pszName, SvcInfo.szVer, szVer);
+
+                VBoxWinDrvInstServiceInfoDestroy(&SvcInfo);
+            }
+            else if (   g_uVerbosity >= 3
+                     || rc != VERR_NOT_FOUND)
+            {
+                LOG_ERROR("Failed to query service '%s': %Rrc\n", s_apszServices[i].pszName, rc);
+                rc = VINF_SUCCESS; /* Not relevant to overall exit code. */
+            }
+        }
+
+        if (   cWarnings
+            || cErrors)
+        {
+            RTPrintf("\n%s\n", pszWarnAndErrorDetails);
+
+            RTStrFree(pszWarnAndErrorDetails);
+            pszWarnAndErrorDetails = NULL;
+        }
+
+        if (cSvcListed)
+        {
+            RTPrintf("%2zu service(s) found.\n", cSvcListed);
+            if (cWarnings)
+                RTPrintf("%2zu warning(s) found.\n", cWarnings);
+        }
+        else
+            RTPrintf("No service(s) found -- either VirtualBox isn't installed (properly) or having insufficient access rights.\n");
+
+        if (cErrors)
+            RTPrintf("%2zu errors(s) found.\n", cErrors);
+        RTPrintf("\n");
+
+        VBoxWinDrvInstDestroy(hWinDrvInst);
+    }
+
+    if (   RT_FAILURE(rc)
+        && rcExit != RTEXITCODE_SUCCESS)
+        rcExit = RTEXITCODE_FAILURE;
+
+    return rcExit;
 }
 
 /**
@@ -1016,15 +1220,19 @@ static RTEXITCODE vboxDrvInstShowCommands(PRTSTREAM pStrm)
  *
  * @returns RTEXITCODE
  * @param   pStrm               Stream to use.
+ * @param   pOnlyCmd            If not NULL, only show help for that (sub) command.
  */
 static RTEXITCODE vboxDrvInstShowUsage(PRTSTREAM pStrm, PCVBOXDRVINSTCMD pOnlyCmd)
 {
     const char *pszProcName = RTProcShortName();
 
+    /* Always show general usage + global options. */
     RTStrmPrintf(pStrm, "usage: %s [global options] <command> [command-options]\n", pszProcName);
     RTStrmPrintf(pStrm,
                  "\n"
                  "Global Options:\n"
+                 "  -d, --dryrun\n"
+                 "    Enables dryrun mode\n"
                  "  -h, -?, --help\n"
                  "    Displays help\n"
                  "  -l | --logfile <file>\n"
@@ -1073,16 +1281,18 @@ static RTEXITCODE vboxDrvInstShowUsage(PRTSTREAM pStrm, PCVBOXDRVINSTCMD pOnlyCm
     RTStrmPrintf(pStrm, "\t%s uninstall host\n", pszProcName);
     RTStrmPrintf(pStrm, "\t%s uninstall --inf -file C:\\Path\\To\\VBoxUSB.inf --pnp-id \"USB\\VID_80EE&PID_CAFE\"\n", pszProcName);
     RTStrmPrintf(pStrm, "\t%s uninstall --model \"VBoxUSB.AMD64\"\n", pszProcName);
-    RTStrmPrintf(pStrm, "\t%s uninstall --model \"VBoxUSB*\"\n", pszProcName);
+    RTStrmPrintf(pStrm, "\t%s --dryrun uninstall --model \"VBoxUSB*\"\n", pszProcName);
     RTStrmPrintf(pStrm, "\t%s service   VBoxSDS stop\n", pszProcName);
     RTStrmPrintf(pStrm, "\t%s service   VBoxSDS start --no-wait\n", pszProcName);
     RTStrmPrintf(pStrm, "\t%s service   VBoxSDS restart --wait 180\n", pszProcName);
+    RTStrmPrintf(pStrm, "\t%s status\n", pszProcName);
     RTStrmPrintf(pStrm, "\t%s list      \"VBox*\"\n", pszProcName);
     RTStrmPrintf(pStrm, "\t%s log --last 2\n\n", pszProcName);
     RTStrmPrintf(pStrm, "Exit codes:\n");
     RTStrmPrintf(pStrm, "\t1 - The requested command failed.\n");
     RTStrmPrintf(pStrm, "\t2 - Syntax error.\n");
-    RTStrmPrintf(pStrm, "\t5 - A reboot is needed in order to complete the (un)installation.\n\n");
+    RTStrmPrintf(pStrm, "\t5 - A reboot is needed in order to complete the (un)installation.\n");
+    RTStrmPrintf(pStrm, "\t6 - Succeeded, but with warnings.\n\n");
 
     return RTEXITCODE_SUCCESS;
 }
@@ -1279,6 +1489,10 @@ int main(int argc, char **argv)
     {
         switch (ch)
         {
+            case 'd':
+                g_fDryrun = true;
+                break;
+
             case 'h':
                 return vboxDrvInstShowUsage(g_pStdOut, NULL);
 
@@ -1352,11 +1566,14 @@ int main(int argc, char **argv)
         }
     }
 
-    /* List all Windows driver store entries if no command is given. */
+    /* Print the VirtualBox driver / service statuses if no command is given. */
     rc = vboxDrvInstInit();
     if (RT_FAILURE(rc))
         return RTEXITCODE_FAILURE;
-    RTEXITCODE rcExit = vboxDrvInstCmdListMain(&GetState);
+    RTEXITCODE rcExit = vboxDrvInstCmdStatusMain(&GetState);
+
+    RTStrmPrintf(g_pStdOut, "Note: Specify '--help' for more information / examples.\n");
+
     vboxDrvInstDestroy();
     return rcExit;
 }

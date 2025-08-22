@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -115,27 +115,27 @@ void UIProxyFeaturesEditor::sltRetranslateUI()
     if (m_pRadioButtonProxyAuto)
     {
         m_pRadioButtonProxyAuto->setText(tr("&Auto-detect Host Proxy Settings"));
-        m_pRadioButtonProxyAuto->setToolTip(tr("When chosen, VirtualBox will try to auto-detect host proxy settings for tasks "
-                                               "like downloading Guest Additions from the network or checking for updates."));
+        m_pRadioButtonProxyAuto->setToolTip(tr("VirtualBox will try to auto-detect host proxy settings for tasks "
+                                               "like downloading Guest Additions from the network or checking for updates"));
     }
     if (m_pRadioButtonProxyDisabled)
     {
         m_pRadioButtonProxyDisabled->setText(tr("&Direct Connection to the Internet"));
-        m_pRadioButtonProxyDisabled->setToolTip(tr("When chosen, VirtualBox will use direct Internet connection for tasks like "
-                                                   "downloading Guest Additions from the network or checking for updates."));
+        m_pRadioButtonProxyDisabled->setToolTip(tr("VirtualBox will use direct Internet connection for tasks like "
+                                                   "downloading Guest Additions from the network or checking for updates"));
     }
     if (m_pRadioButtonProxyEnabled)
     {
         m_pRadioButtonProxyEnabled->setText(tr("&Manual Proxy Configuration"));
-        m_pRadioButtonProxyEnabled->setToolTip(tr("When chosen, VirtualBox will use the proxy settings supplied for tasks like "
-                                                  "downloading Guest Additions from the network or checking for updates."));
+        m_pRadioButtonProxyEnabled->setToolTip(tr("VirtualBox will use the proxy settings supplied for tasks like "
+                                                  "downloading Guest Additions from the network or checking for updates"));
     }
 
     /* Translate proxy host editor: */
     if (m_pLabelHost)
-        m_pLabelHost->setText(tr("&URL:"));
+        m_pLabelHost->setText(tr("&URL"));
     if (m_pEditorHost)
-        m_pEditorHost->setToolTip(tr("Holds the proxy URL. "
+        m_pEditorHost->setToolTip(tr("Proxy URL. "
                                      "The format is: "
                                      "<table cellspacing=0 style='white-space:pre'>"
                                      "<tr><td>[{type}://][{userid}[:{password}]@]{server}[:{port}]</td></tr>"

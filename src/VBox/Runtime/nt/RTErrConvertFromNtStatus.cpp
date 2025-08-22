@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -103,6 +103,7 @@ RTDECL(int)  RTErrConvertFromNtStatus(long lNativeCode)
                                             return VERR_NET_IO_ERROR;
         case STATUS_INVALID_IMAGE_HASH:     return VERR_LDR_IMAGE_HASH;
         case STATUS_LOGON_FAILURE:          return VERR_AUTHENTICATION_FAILURE;
+        case STATUS_INTERNAL_ERROR:         return VERR_INTERNAL_ERROR;
 #ifdef VBOX
         case STATUS_TRUST_FAILURE:          return VERR_SUPLIB_NT_PROCESS_UNTRUSTED_5;
 #endif

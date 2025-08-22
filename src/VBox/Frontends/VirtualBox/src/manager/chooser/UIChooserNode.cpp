@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -28,17 +28,15 @@
 /* GUI includes: */
 #include "UIChooserNode.h"
 #include "UIChooserNodeGroup.h"
-#include "UIChooserNodeGlobal.h"
 #include "UIChooserNodeMachine.h"
 
 /* Other VBox includes: */
 #include "iprt/cpp/utils.h"
 
 
-UIChooserNode::UIChooserNode(UIChooserNode *pParent /* = 0 */, bool fFavorite /* = false */)
+UIChooserNode::UIChooserNode(UIChooserNode *pParent /* = 0 */)
     : QObject(pParent)
     , m_pParent(pParent)
-    , m_fFavorite(fFavorite)
     , m_pModel(0)
     , m_fDisabled(false)
 {
@@ -53,11 +51,6 @@ UIChooserNode::~UIChooserNode()
 UIChooserNodeGroup *UIChooserNode::toGroupNode()
 {
     return static_cast<UIChooserNodeGroup*>(this);
-}
-
-UIChooserNodeGlobal *UIChooserNode::toGlobalNode()
-{
-    return static_cast<UIChooserNodeGlobal*>(this);
 }
 
 UIChooserNodeMachine *UIChooserNode::toMachineNode()

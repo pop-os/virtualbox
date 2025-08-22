@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2015-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2015-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,6 +42,30 @@
 #include <iprt/types.h>
 #if !defined(RT_ARCH_ARM64) && !defined(RT_ARCH_ARM32)
 # error "Not on ARM64 or ARM32"
+#endif
+
+#if defined(_MSC_VER) && RT_INLINE_ASM_USES_INTRIN
+/* Emit the intrinsics at all optimization levels. */
+# include <iprt/sanitized/intrin.h>
+# pragma intrinsic(_ReadStatusReg)
+# pragma intrinsic(_WriteStatusReg)
+# pragma intrinsic(_disable)
+# pragma intrinsic(_enable)
+# pragma intrinsic(__hvc)
+
+/*
+ * MSVC insists on having these defined using ARM64_SYSREG or it will
+ * fail to compile with "error C2284: "_ReadStatusReg": invalid argument for internal function, parameter 1"
+ * if we use our own definitions from iprt/armv8.h
+ *
+ * The reason for this, is that ARM64_SYSREG masks off the top bit (bit 15)
+ * whereas our macro doesn't.  So the reason is probably the implicitness
+ * of the top bit in the MRS/MSR encoding.
+ */
+# define ARM64_SYSREG_DAIF          ARM64_SYSREG(3, 3,  4, 2, 1)
+# define ARM64_SYSREG_CNTFRQ_EL0    ARM64_SYSREG(3, 3, 14, 0, 0)
+# define ARM64_SYSREG_CNTCVT_EL0    ARM64_SYSREG(3, 3, 14, 0, 2)
+# define ARM64_SYSREG_TPIDRRO_EL0   ARM64_SYSREG(3, 3, 13, 0, 3)
 #endif
 
 /** @defgroup grp_rt_asm_arm  ARM Specific ASM Routines
@@ -84,6 +108,8 @@ DECLINLINE(uint64_t) ASMReadTSC(void)
 #  endif
     return u64;
 
+#elif RT_INLINE_ASM_USES_INTRIN
+    return (uint64_t)_ReadStatusReg(ARM64_SYSREG_CNTCVT_EL0);
 # else
 #  error "Unsupported compiler"
 # endif
@@ -117,6 +143,8 @@ DECLINLINE(uint64_t) ASMReadCntFrqEl0(void)
 #  endif
     return u64;
 
+#elif RT_INLINE_ASM_USES_INTRIN
+    return (uint64_t)_ReadStatusReg(ARM64_SYSREG_CNTFRQ_EL0);
 # else
 #  error "Unsupported compiler"
 # endif
@@ -144,6 +172,8 @@ DECLINLINE(void) ASMIntEnable(void)
                          "msr cpsr_c, %0\n\t"
                          : "=r" (uFlags));
 #  endif
+# elif RT_INLINE_ASM_USES_INTRIN
+    _enable();
 # else
 #  error "Unsupported compiler"
 # endif
@@ -162,7 +192,7 @@ DECLINLINE(void) ASMIntDisable(void)
 # if RT_INLINE_ASM_GNU_STYLE
 #  ifdef RT_ARCH_ARM64
     __asm__ __volatile__("Lstart_ASMIntDisable_%=:\n\t"
-                         "msr daifset, #0xf\n\t");
+                         "msr daifset, #0xf\n\t" :); /* The ':' is to make clang 16 happy. */
 #  else
     RTCCUINTREG uFlags;
     __asm__ __volatile__("Lstart_ASMIntDisable_%=:\n\t"
@@ -171,6 +201,8 @@ DECLINLINE(void) ASMIntDisable(void)
                          "msr cpsr_c, %0\n\t"
                          : "=r" (uFlags));
 #  endif
+# elif RT_INLINE_ASM_USES_INTRIN
+    _disable();
 # else
 #  error "Unsupported compiler"
 # endif
@@ -202,11 +234,15 @@ DECLINLINE(RTCCUINTREG) ASMIntDisableFlags(void)
                          : "=r" (uFlags)
                          , "=r" (uNewFlags));
 #  endif
+# elif RT_INLINE_ASM_USES_INTRIN
+    uFlags = _ReadStatusReg(ARM64_SYSREG_DAIF);
+    _disable();
 # else
 #  error "Unsupported compiler"
 # endif
     return uFlags;
 }
+#endif
 
 
 /**
@@ -228,6 +264,8 @@ DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
 #  else
 #   error "Implementation required for arm32"
 #  endif
+# elif RT_INLINE_ASM_USES_INTRIN
+    uFlags = _ReadStatusReg(ARM64_SYSREG_DAIF);
 # else
 #  error "Unsupported compiler"
 # endif
@@ -253,6 +291,8 @@ DECLINLINE(void) ASMSetFlags(RTCCUINTREG uFlags)
 #  else
 #   error "Implementation required for arm32"
 #  endif
+# elif RT_INLINE_ASM_USES_INTRIN
+    _WriteStatusReg(ARM64_SYSREG_DAIF, uFlags);
 # else
 #  error "Unsupported compiler"
 # endif
@@ -264,18 +304,43 @@ DECLINLINE(void) ASMSetFlags(RTCCUINTREG uFlags)
  * Are interrupts enabled?
  *
  * @returns true / false.
+ * @arm     This is ambigious, as there are two interrupt related masks on arm,
+ *          one for IRQ and one for FIQ.  This function currently considers
+ *          interrupts enabled if either IRQ or FIQ are unmasked (windows seems
+ *          to leave FIQ masked).
  */
 DECLINLINE(bool) ASMIntAreEnabled(void)
 {
-    return ASMGetFlags() & 0xc0 /* IRQ and FIQ bits */ ? true : false;
+    /** @todo should we perhaps just check the IRQ bit? */
+    return (ASMGetFlags() & 0xc0 /* IRQ and FIQ bits */) != 0xc0;
 }
 
+
+#if 0 /* Later */
+/**
+ * Issue HVC call with a single argument.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(void) ASMHvc(uint16_t u16Imm, uint32_t u32Arg0);
+#else
+DECLINLINE(void) ASMHvc(uint16_t u16Imm, uint32_t u32Arg0)
+{
+# if RT_INLINE_ASM_GNU_STYLE
+#  error "Later"
+# elif RT_INLINE_ASM_USES_INTRIN
+    __hvc(u16Imm, u32Val);
+# else
+#  error "Unsupported compiler"
+# endif
+}
 #endif
+#endif
+
 
 /**
  * Halts the CPU until interrupted.
  */
-#if RT_INLINE_ASM_EXTERNAL
+#if RT_INLINE_ASM_EXTERNAL || defined(_MSC_VER)
 DECLASM(void) ASMHalt(void);
 #else
 DECLINLINE(void) ASMHalt(void)
@@ -370,6 +435,35 @@ DECLINLINE(void) ASMInvalidateInternalCaches(void)
 }
 #endif
 
+#endif
+
+
+/**
+ * Get the TPIDRRO_EL0 register.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(RTCCUINTREG) ASMGetThreadIdRoEL0(void);
+#else
+DECLINLINE(RTCCUINTREG) ASMGetThreadIdRoEL0(void)
+{
+# if RT_INLINE_ASM_GNU_STYLE
+    RTCCUINTREG uRet;
+#  ifdef RT_ARCH_ARM64
+    __asm__ __volatile__("Lstart_ASMGetThreadIdEl0_%=:\n\t"
+                         "mrs %[uRet], TPIDRRO_EL0\n\t"
+                         : [uRet] "=r" (uRet));
+#  else
+    __asm__ __volatile__("Lstart_ASMGetThreadIdEl0_%=:\n\t"
+                         "mrc p15, 0, %[uRet], c13, c0, 3\n\t" /* TPIDRURO */
+                         : [uRet] "=r" (uRet));
+#  endif
+    return uRet;
+# elif RT_INLINE_ASM_USES_INTRIN
+    return _ReadStatusReg(ARM64_SYSREG_TPIDRRO_EL0);
+# else
+#  error "Unsupported compiler"
+# endif
+}
 #endif
 
 

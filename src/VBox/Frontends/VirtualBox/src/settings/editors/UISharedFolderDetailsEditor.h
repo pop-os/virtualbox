@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -94,10 +94,17 @@ public:
     /** Returns whether folder is permanent. */
     bool isPermanent() const;
 
+    /** Defines whether folder is @a fGlobal. */
+    void setGlobal(bool fGlobal);
+    /** Returns whether folder is global. */
+    bool isGlobal() const;
+
 private slots:
 
     /** Handles translation event. */
     void sltRetranslateUI();
+    /** Handles global/machine folder button visibility. */
+    void sltGlobalToggled();
     /** Holds signal about folder path selected. */
     void sltSelectPath();
     /** Checks editor validness. */
@@ -142,6 +149,8 @@ private:
         QCheckBox          *m_pCheckBoxAutoMount;
         /** Holds the permanent check-box instance. */
         QCheckBox          *m_pCheckBoxPermanent;
+        /** Holds the global check-box instance. */
+        QCheckBox          *m_pCheckBoxGlobal;
         /** Holds the button-box instance. */
         QIDialogButtonBox  *m_pButtonBox;
     /** @} */

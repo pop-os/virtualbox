@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,7 +42,7 @@
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/gcm.h>
 #include <VBox/vmm/gim.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include "HMInternal.h"
 #include <VBox/vmm/vmcc.h>
 #include <VBox/err.h>
@@ -2114,11 +2114,11 @@ static int hmR0SvmExportGuestApicTpr(PVMCPUCC pVCpu, PSVMVMCB pVmcb)
     {
         PVMCC pVM = pVCpu->CTX_SUFF(pVM);
         if (   PDMHasApic(pVM)
-            && APICIsEnabled(pVCpu))
+            && PDMApicIsEnabled(pVCpu))
         {
             bool    fPendingIntr;
             uint8_t u8Tpr;
-            int rc = APICGetTpr(pVCpu, &u8Tpr, &fPendingIntr, NULL /* pu8PendingIrq */);
+            int rc = PDMApicGetTpr(pVCpu, &u8Tpr, &fPendingIntr, NULL /* pu8PendingIrq */);
             AssertRCReturn(rc, rc);
 
             /* Assume that we need to trap all TPR accesses and thus need not check on
@@ -2188,7 +2188,7 @@ static void hmR0SvmExportGuestXcptIntercepts(PVMCPUCC pVCpu, PSVMVMCB pVmcb)
             hmR0SvmClearXcptIntercept(pVCpu, pVmcb, X86_XCPT_UD);
 
         /* Trap #BP for INT3 debug breakpoints set by the VM debugger. */
-        if (pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledInt3Breakpoints)
+        if (pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledSwBreakpoints)
             hmR0SvmSetXcptIntercept(pVmcb, X86_XCPT_BP);
         else
             hmR0SvmClearXcptIntercept(pVCpu, pVmcb, X86_XCPT_BP);
@@ -3410,8 +3410,7 @@ static void hmR0SvmTrpmTrapToPendingEvent(PVMCPUCC pVCpu)
     RTGCUINTPTR GCPtrFaultAddress;
     uint8_t     cbInstr;
 
-    int rc = TRPMQueryTrapAll(pVCpu, &uVector, &enmTrpmEvent, &uErrCode, &GCPtrFaultAddress, &cbInstr, NULL /* pfIcebp */);
-    AssertRC(rc);
+    uVector = TRPMGetTrapAll(pVCpu, &enmTrpmEvent, &uErrCode, &GCPtrFaultAddress, &cbInstr, NULL /* pfIcebp */);
 
     SVMEVENT Event;
     Event.u          = 0;
@@ -3452,7 +3451,7 @@ static void hmR0SvmTrpmTrapToPendingEvent(PVMCPUCC pVCpu)
     else
         AssertMsgFailed(("Invalid TRPM event type %d\n", enmTrpmEvent));
 
-    rc = TRPMResetTrap(pVCpu);
+    int const rc = TRPMResetTrap(pVCpu);
     AssertRC(rc);
 
     Log4(("TRPM->HM event: u=%#RX64 u8Vector=%#x uErrorCodeValid=%RTbool uErrorCode=%#RX32\n", Event.u, Event.n.u8Vector,
@@ -3956,7 +3955,7 @@ static VBOXSTRICTRC hmR0SvmCheckForceFlags(PVMCPUCC pVCpu)
 
     /* Update pending interrupts into the APIC's IRR. */
     if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
-        APICUpdatePendingInterrupts(pVCpu);
+        PDMApicUpdatePendingInterrupts(pVCpu);
 
     PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     if (   VM_FF_IS_ANY_SET(pVM, !pVCpu->hm.s.fSingleInstruction
@@ -4407,14 +4406,14 @@ static void hmR0SvmPostRunGuest(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient, VBO
         if (   pVM->hm.s.fTprPatchingActive
             && (pVmcb->guest.u64LSTAR & 0xff) != pSvmTransient->u8GuestTpr)
         {
-            int rc = APICSetTpr(pVCpu, pVmcb->guest.u64LSTAR & 0xff);
+            int rc = PDMApicSetTpr(pVCpu, pVmcb->guest.u64LSTAR & 0xff);
             AssertRC(rc);
             ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_GUEST_APIC_TPR);
         }
         /* Sync TPR when we aren't intercepting CR8 writes. */
         else if (pSvmTransient->u8GuestTpr != pVmcbCtrl->IntCtrl.n.u8VTPR)
         {
-            int rc = APICSetTpr(pVCpu, pVmcbCtrl->IntCtrl.n.u8VTPR << 4);
+            int rc = PDMApicSetTpr(pVCpu, pVmcbCtrl->IntCtrl.n.u8VTPR << 4);
             AssertRC(rc);
             ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_GUEST_APIC_TPR);
         }
@@ -4764,7 +4763,7 @@ VMMR0DECL(VBOXSTRICTRC) SVMR0RunGuestCode(PVMCPUCC pVCpu)
             if (   !pVCpu->hm.s.fUseDebugLoop
                 && (!VBOXVMM_ANY_PROBES_ENABLED() || !hmR0SvmAnyExpensiveProbesEnabled())
                 && !DBGFIsStepping(pVCpu)
-                && !pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledInt3Breakpoints)
+                && !pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledSwBreakpoints)
                 rc = hmR0SvmRunGuestCodeNormal(pVCpu, &cLoops);
             else
                 rc = hmR0SvmRunGuestCodeDebug(pVCpu, &cLoops);
@@ -5681,7 +5680,7 @@ static void hmR0SvmPreRunGuestDebugStateUpdate(PVMCPUCC pVCpu, PSVMTRANSIENT pSv
     /*
      * INT3 breakpoints - triggered by #BP exceptions.
      */
-    if (pVM->dbgf.ro.cEnabledInt3Breakpoints > 0)
+    if (pVM->dbgf.ro.cEnabledSwBreakpoints > 0)
         pDbgState->bmXcptExtra |= RT_BIT_32(X86_XCPT_BP);
 
     /*
@@ -7425,7 +7424,7 @@ static VBOXSTRICTRC hmR0SvmExitWriteMsr(PVMCPUCC pVCpu, PSVMVMCB pVmcb, PSVMTRAN
         /* Our patch code uses LSTAR for TPR caching for 32-bit guests. */
         if ((pCtx->eax & 0xff) != pSvmTransient->u8GuestTpr)
         {
-            int rc = APICSetTpr(pVCpu, pCtx->eax & 0xff);
+            int rc = PDMApicSetTpr(pVCpu, pCtx->eax & 0xff);
             AssertRCReturn(rc, rc);
             ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_GUEST_APIC_TPR);
         }
@@ -7923,7 +7922,7 @@ HMSVM_EXIT_DECL hmR0SvmExitNestedPF(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         && !CPUMGetGuestCPL(pVCpu)
         && pVM->hm.s.cPatches < RT_ELEMENTS(pVM->hm.s.aPatches))
     {
-        RTGCPHYS GCPhysApicBase = APICGetBaseMsrNoCheck(pVCpu);
+        RTGCPHYS GCPhysApicBase = PDMApicGetBaseMsrNoCheck(pVCpu);
         GCPhysApicBase &= ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
 
         if (GCPhysFaultAddr == GCPhysApicBase + XAPIC_OFF_TPR)
@@ -8277,7 +8276,7 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptPF(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         && pVM->hm.s.cPatches < RT_ELEMENTS(pVM->hm.s.aPatches))
     {
         RTGCPHYS GCPhysApicBase;
-        GCPhysApicBase  = APICGetBaseMsrNoCheck(pVCpu);
+        GCPhysApicBase  = PDMApicGetBaseMsrNoCheck(pVCpu);
         GCPhysApicBase &= ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
 
         /* Check if the page at the fault-address is the APIC base. */
@@ -9116,10 +9115,10 @@ HMSVM_EXIT_DECL hmR0SvmExitVmrun(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     }
     else
     {
-        /* We use IEMExecOneBypassEx() here as it suppresses attempt to continue emulating any
+        /* We use IEMExecOneBypass() here as it suppresses attempt to continue emulating any
            instruction(s) when interrupt inhibition is set as part of emulating the VMRUN
            instruction itself, see @bugref{7243#c126} */
-        rcStrict = IEMExecOneBypassEx(pVCpu, NULL /* pcbWritten */);
+        rcStrict = IEMExecOneBypass(pVCpu);
     }
     STAM_PROFILE_ADV_STOP(&pVCpu->hm.s.StatExitVmentry, z);
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -279,10 +279,10 @@ static void testSendPositionRel(RTTEST hTest)
         {
             if (pUrb == &Urb)
             {
-                if (   Urb.abData[0] != 3    /* Buttons */
-                    || Urb.abData[1] != 123  /* x */
-                    || Urb.abData[2] != 240  /* 256 - y */
-                    || Urb.abData[3] != 255  /* z */)
+                if (   Urb.pbData[0] != 3    /* Buttons */
+                    || Urb.pbData[1] != 123  /* x */
+                    || Urb.pbData[2] != 240  /* 256 - y */
+                    || Urb.pbData[3] != 255  /* z */)
                     rc = VERR_GENERAL_FAILURE;
             }
             else
@@ -326,11 +326,11 @@ static void testSendPositionAbs(RTTEST hTest)
         {
             if (pUrb == &Urb)
             {
-                if (   Urb.abData[0] != 3                  /* Buttons */
-                    || (int8_t)Urb.abData[1] != -1         /* dz */
-                    || (int8_t)Urb.abData[2] != -3         /* dw */
-                    || *(uint16_t *)&Urb.abData[4] != 150  /* x >> 1 */
-                    || *(uint16_t *)&Urb.abData[6] != 100  /* y >> 1 */)
+                if (   Urb.pbData[0] != 3                  /* Buttons */
+                    || (int8_t)Urb.pbData[1] != -1         /* dz */
+                    || (int8_t)Urb.pbData[2] != -3         /* dw */
+                    || *(uint16_t *)&Urb.pbData[4] != 150  /* x >> 1 */
+                    || *(uint16_t *)&Urb.pbData[6] != 100  /* y >> 1 */)
                     rc = VERR_GENERAL_FAILURE;
             }
             else
@@ -378,11 +378,11 @@ static void testSendPositionMT(RTTEST hTest)
         {
             if (pUrb == &Urb)
             {
-                if (   Urb.abData[0] != 1                  /* Report ID */
-                    || Urb.abData[1] != 3                  /* Contact flags */
-                    || *(uint16_t *)&Urb.abData[2] != 150  /* x >> 1 */
-                    || *(uint16_t *)&Urb.abData[4] != 100  /* y >> 1 */
-                    || Urb.abData[6] != 2                  /* Contact number */)
+                if (   Urb.pbData[0] != 1                  /* Report ID */
+                    || Urb.pbData[1] != 3                  /* Contact flags */
+                    || *(uint16_t *)&Urb.pbData[2] != 150  /* x >> 1 */
+                    || *(uint16_t *)&Urb.pbData[4] != 100  /* y >> 1 */
+                    || Urb.pbData[6] != 2                  /* Contact number */)
                     rc = VERR_GENERAL_FAILURE;
             }
             else

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -27,10 +27,9 @@
 
 /* Qt includes: */
 #include <QAccessibleWidget>
-#include <QApplication>
-#include <QScrollBar>
 
 /* GUI includes: */
+#include "UICommon.h"
 #include "UITools.h"
 #include "UIToolsItem.h"
 #include "UIToolsModel.h"
@@ -69,7 +68,7 @@ public:
         AssertPtrReturn(view(), 0);
 
         /* Return the number of children: */
-        return view()->tools()->model()->items().size();
+        return view()->model()->items().size();
     }
 
     /** Returns the child with the passed @a iIndex. */
@@ -81,7 +80,7 @@ public:
         AssertReturn(iIndex >= 0 && iIndex < childCount(), 0);
 
         /* Return the child with the passed iIndex: */
-        return QAccessible::queryAccessibleInterface(view()->tools()->model()->items().at(iIndex));
+        return QAccessible::queryAccessibleInterface(view()->model()->items().at(iIndex));
     }
 
     /** Returns the index of passed @a pChild. */
@@ -93,7 +92,7 @@ public:
         AssertReturn(pChild, -1);
 
         /* Return the index of passed model child: */
-        return view()->tools()->model()->items().indexOf(qobject_cast<UIToolsItem*>(pChild->object()));
+        return view()->model()->items().indexOf(qobject_cast<UIToolsItem*>(pChild->object()));
     }
 
     /** Returns a text for the passed @a enmTextRole. */
@@ -114,29 +113,44 @@ private:
 };
 
 
-UIToolsView::UIToolsView(UITools *pParent)
+UIToolsView::UIToolsView(QWidget *pParent, UIToolClass enmClass, UIToolsModel *pModel)
     : QIGraphicsView(pParent)
-    , m_pTools(pParent)
+    , m_enmClass(enmClass)
+    , m_pModel(pModel)
     , m_iMinimumWidthHint(0)
     , m_iMinimumHeightHint(0)
 {
-    /* Prepare: */
     prepare();
 }
 
-void UIToolsView::sltFocusChanged()
+UIToolsView::~UIToolsView()
 {
-    /* Make sure focus-item set: */
-    const UIToolsItem *pFocusItem = tools() && tools()->model()
-                                    ? tools()->model()->focusItem()
-                                    : 0;
-    if (!pFocusItem)
-        return;
+    cleanup();
+}
 
-    const QSize viewSize = viewport()->size();
-    QRectF geo = pFocusItem->geometry();
-    geo &= QRectF(geo.topLeft(), viewSize);
-    ensureVisible(geo, 0, 0);
+QSize UIToolsView::minimumSizeHint() const
+{
+    return QSize(2 * frameWidth() + m_iMinimumWidthHint,
+                 2 * frameWidth() + m_iMinimumHeightHint);
+}
+
+QSize UIToolsView::sizeHint() const
+{
+    return minimumSizeHint();
+}
+
+void UIToolsView::resizeEvent(QResizeEvent *pEvent)
+{
+    /* Call to base-class: */
+    QIGraphicsView::resizeEvent(pEvent);
+
+    /* Update model's layout: */
+    model()->updateLayout();
+}
+
+void UIToolsView::sltRetranslateUI()
+{
+    setWhatsThis(tr("Contains a list of VirtualBox tools."));
 }
 
 void UIToolsView::sltMinimumWidthHintChanged(int iHint)
@@ -148,10 +162,8 @@ void UIToolsView::sltMinimumWidthHintChanged(int iHint)
     /* Remember new value: */
     m_iMinimumWidthHint = iHint;
 
-    /* Set minimum view width according passed width-hint: */
-    setMinimumWidth(2 * frameWidth() + m_iMinimumWidthHint);
-
-    /* Update scene-rect: */
+    /* Update geometry & scene-rect: */
+    updateGeometry();
     updateSceneRect();
 }
 
@@ -164,17 +176,9 @@ void UIToolsView::sltMinimumHeightHintChanged(int iHint)
     /* Remember new value: */
     m_iMinimumHeightHint = iHint;
 
-    /* Set minimum view height according passed height-hint: */
-    setMinimumHeight(2 * frameWidth() + m_iMinimumHeightHint);
-
-    /* Update scene-rect: */
+    /* Update geometry & scene-rect: */
+    updateGeometry();
     updateSceneRect();
-}
-
-void UIToolsView::sltRetranslateUI()
-{
-    /* Translate this: */
-    setWhatsThis(tr("Contains a list of VirtualBox tools."));
 }
 
 void UIToolsView::prepare()
@@ -182,8 +186,26 @@ void UIToolsView::prepare()
     /* Install Tools-view accessibility interface factory: */
     QAccessible::installFactory(UIAccessibilityInterfaceForUIToolsView::pFactory);
 
-    /* Prepare palette: */
+    /* Prepare everything: */
+    prepareThis();
     preparePalette();
+    prepareConnections();
+
+    /* Update scene-rect: */
+    updateSceneRect();
+
+    /* Apply language settings: */
+    sltRetranslateUI();
+}
+
+void UIToolsView::prepareThis()
+{
+    /* Exchange information with model: */
+    setScene(model()->scene());
+    model()->setView(this);
+
+    /* Set minimum size-hint policy: */
+    setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
 
     /* Setup frame: */
     setFrameShape(QFrame::NoFrame);
@@ -192,30 +214,65 @@ void UIToolsView::prepare()
 
     /* Setup scroll-bars policy: */
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    /* Update scene-rect: */
-    updateSceneRect();
-
-    /* Apply language settings: */
-    sltRetranslateUI();
-    connect(&translationEventListener(), &UITranslationEventListener::sigRetranslateUI,
-            this, &UIToolsView::sltRetranslateUI);
 }
 
 void UIToolsView::preparePalette()
 {
     /* Setup palette: */
     QPalette pal = qApp->palette();
-    pal.setColor(QPalette::Active, QPalette::Base, pal.color(QPalette::Active, QPalette::Window));
+
+    /* We are just taking the [in]active Window colors and
+     * making them a bit darker/lighter according to theme: */
+    QColor backgroundColorActive = pal.color(QPalette::Active, QPalette::Window);
+    QColor backgroundColorInactive = pal.color(QPalette::Inactive, QPalette::Window);
+    if (m_enmClass == UIToolClass_Global)
+    {
+        backgroundColorActive = uiCommon().isInDarkMode()
+                              ? backgroundColorActive.lighter(120)
+                              : backgroundColorActive.darker(107);
+        backgroundColorInactive = uiCommon().isInDarkMode()
+                                ? backgroundColorInactive.lighter(120)
+                                : backgroundColorInactive.darker(107);
+    }
+    pal.setColor(QPalette::Active, QPalette::Base, backgroundColorActive);
+    pal.setColor(QPalette::Inactive, QPalette::Base, backgroundColorInactive);
+
+    /* Assing changed palette: */
     setPalette(pal);
+#ifdef VBOX_WS_WIN
+    // WORKAROUND:
+    // New Windows Modern look&feel style have different palettes for view
+    // and viewport, so we are assigning viewport palette as well.
+    viewport()->setPalette(pal);
+#endif
 }
 
-void UIToolsView::resizeEvent(QResizeEvent *pEvent)
+void UIToolsView::prepareConnections()
 {
-    /* Call to base-class: */
-    QIGraphicsView::resizeEvent(pEvent);
-    /* Notify listeners: */
-    emit sigResized();
+    /* Translation signal: */
+    connect(&translationEventListener(), &UITranslationEventListener::sigRetranslateUI,
+            this, &UIToolsView::sltRetranslateUI);
+
+    /* Model connections: */
+    connect(model(), &UIToolsModel::sigItemMinimumWidthHintChanged,
+            this, &UIToolsView::sltMinimumWidthHintChanged);
+    connect(model(), &UIToolsModel::sigItemMinimumHeightHintChanged,
+            this, &UIToolsView::sltMinimumHeightHintChanged);
+}
+
+void UIToolsView::cleanupConnections()
+{
+    /* Model connections: */
+    disconnect(model(), &UIToolsModel::sigItemMinimumWidthHintChanged,
+               this, &UIToolsView::sltMinimumWidthHintChanged);
+    disconnect(model(), &UIToolsModel::sigItemMinimumHeightHintChanged,
+               this, &UIToolsView::sltMinimumHeightHintChanged);
+}
+
+void UIToolsView::cleanup()
+{
+    /* Cleanup everything: */
+    cleanupConnections();
 }
 
 void UIToolsView::updateSceneRect()

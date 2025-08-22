@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -301,9 +301,9 @@ void UIBaseMemoryEditor::setMinimumLayoutIndent(int iIndent)
 void UIBaseMemoryEditor::sltRetranslateUI()
 {
     if (m_pLabelMemory)
-        m_pLabelMemory->setText(tr("Base &Memory:"));
+        m_pLabelMemory->setText(tr("Base &Memory"));
 
-    const QString strToolTip(tr("Holds the amount of base memory the virtual machine will have."));
+    const QString strToolTip(tr("VM's installed RAM"));
     if (m_pSlider)
         m_pSlider->setToolTip(strToolTip);
     if (m_pSpinBox)
@@ -315,12 +315,12 @@ void UIBaseMemoryEditor::sltRetranslateUI()
     if (m_pLabelMemoryMin)
     {
         m_pLabelMemoryMin->setText(tr("%1 MB").arg(m_pSlider->minRAM()));
-        m_pLabelMemoryMin->setToolTip(tr("Minimum possible base memory size."));
+        m_pLabelMemoryMin->setToolTip(tr("Minimum RAM"));
     }
     if (m_pLabelMemoryMax)
     {
         m_pLabelMemoryMax->setText(tr("%1 MB").arg(m_pSlider->maxRAM()));
-        m_pLabelMemoryMax->setToolTip(tr("Maximum possible base memory size."));
+        m_pLabelMemoryMax->setToolTip(tr("Maximum RAM"));
     }
 }
 

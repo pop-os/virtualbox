@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2004-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -203,10 +203,21 @@ struct Host::Data
     Data()
         :
           pParent(NULL),
+#ifdef VBOX_WITH_USB
+          pUSBProxyService(NULL),
+#endif
           fDVDDrivesListBuilt(false),
           fFloppyDrivesListBuilt(false),
-          fPersistentConfigUpToDate(false)
-    {};
+          fVTSupported(false),
+          fLongModeSupported(false),
+          fPAESupported(false),
+          fNestedPagingSupported(false),
+          fUnrestrictedGuestSupported(false),
+          fNestedHWVirtSupported(false),
+          fVirtVmsaveVmload(false),
+          fRecheckVTSupported(false),
+          pHostPowerService(NULL),
+          fPersistentConfigUpToDate(false) {};
 
     VirtualBox              *pParent;
 
@@ -458,7 +469,8 @@ HRESULT Host::init(VirtualBox *aParent)
     std::set<Utf8Str> aConfiguredNames;
     SafeArray<BSTR> aGlobalExtraDataKeys;
     hrc = aParent->GetExtraDataKeys(ComSafeArrayAsOutParam(aGlobalExtraDataKeys));
-    AssertMsg(SUCCEEDED(hrc), ("VirtualBox::GetExtraDataKeys failed with %Rhrc\n", hrc));
+    AssertComRCReturn(hrc, hrc);
+
     for (size_t i = 0; i < aGlobalExtraDataKeys.size(); ++i)
     {
         Utf8Str strKey = aGlobalExtraDataKeys[i];
@@ -932,11 +944,6 @@ HRESULT Host::getNetworkInterfaces(std::vector<ComPtr<IHostNetworkInterface> > &
 #    else
         /* for the filter-based approach we get all miniports our filter (oracle_VBoxNetLwf)is bound to */
         hrc = pNc->FindComponent(L"oracle_VBoxNetLwf", &pTcpIpNcc);
-        if (hrc != S_OK)
-        {
-            /* fall back to NDIS5 miniport lookup (sun_VBoxNetFlt) */
-            hrc = pNc->FindComponent(L"sun_VBoxNetFlt", &pTcpIpNcc);
-        }
 #     ifndef VBOX_WITH_HARDENING
         if (hrc != S_OK)
         {
@@ -1558,9 +1565,13 @@ HRESULT Host::removeHostOnlyNetworkInterface(const com::Guid &aId,
             LogRel(("i_removePersistentConfig(%RTuuid) failed with 0x%x\n", &aId, hrc));
 #else /* !RT_OS_WINDOWS */
         hrc = m->pParent->SetExtraData(BstrFmt("HostOnly/%ls/IPAddress", name.raw()).raw(), NULL);
+        ComAssertComRCRet(hrc, hrc);
         hrc = m->pParent->SetExtraData(BstrFmt("HostOnly/%ls/IPNetMask", name.raw()).raw(), NULL);
+        ComAssertComRCRet(hrc, hrc);
         hrc = m->pParent->SetExtraData(BstrFmt("HostOnly/%ls/IPV6Address", name.raw()).raw(), NULL);
+        ComAssertComRCRet(hrc, hrc);
         hrc = m->pParent->SetExtraData(BstrFmt("HostOnly/%ls/IPV6NetMask", name.raw()).raw(), NULL);
+        ComAssertComRCRet(hrc, hrc);
 #endif /* !RT_OS_WINDOWS */
 
         return S_OK;
@@ -2151,6 +2162,7 @@ HRESULT Host::i_loadSettings(const settings::Host &data)
     }
 
     hrc = m->pUSBProxyService->i_loadSettings(data.llUSBDeviceSources);
+    ComAssertComRCRet(hrc, hrc);
 #else
     RT_NOREF(data);
 #endif /* VBOX_WITH_USB */
@@ -3697,6 +3709,10 @@ HRESULT Host::i_updateNetIfList()
         return E_FAIL;
     }
 
+    /* Take the parent (VirtualBox) lock first to avoid lock order issues, when
+       HostNetworkInterface::i_setVirtualBox calls VirtualBox::getExtraData. */
+    AssertReturn(m->pParent, E_FAIL);
+    AutoReadLock alockParent(m->pParent COMMA_LOCKVAL_SRC_POS);
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     AssertReturn(m->pParent, E_FAIL);

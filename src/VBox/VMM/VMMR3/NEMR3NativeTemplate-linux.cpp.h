@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -65,10 +65,10 @@ static int nemR3LnxInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
 #define CAP_ENTRY_ML(a_Number)           { "KVM_CAP_" #a_Number, a_Number, UINT32_C(0x00ffffff), 0, 1, 0 }
 
         CAP_ENTRY__L(KVM_CAP_IRQCHIP),                       /* 0 */
-#ifdef VBOX_VMM_TARGET_ARMV8
-        CAP_ENTRY__L(KVM_CAP_HLT),
-#else
+#ifdef VBOX_VMM_TARGET_X86
         CAP_ENTRY_ML(KVM_CAP_HLT),
+#else
+        CAP_ENTRY__L(KVM_CAP_HLT),
 #endif
         CAP_ENTRY__L(KVM_CAP_MMU_SHADOW_CACHE_CONTROL),
         CAP_ENTRY_ML(KVM_CAP_USER_MEMORY),
@@ -119,10 +119,10 @@ static int nemR3LnxInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
 #ifdef __KVM_HAVE_XEN_HVM
         CAP_ENTRY__L(KVM_CAP_XEN_HVM),
 #endif
-#ifdef VBOX_VMM_TARGET_ARMV8
-        CAP_ENTRY__L(KVM_CAP_ADJUST_CLOCK),
-#else
+#ifdef VBOX_VMM_TARGET_X86
         CAP_ENTRY_ML(KVM_CAP_ADJUST_CLOCK),
+#else
+        CAP_ENTRY__L(KVM_CAP_ADJUST_CLOCK),
 #endif
         CAP_ENTRY__L(KVM_CAP_INTERNAL_ERROR_DATA),           /* 40 */
 #ifdef __KVM_HAVE_VCPU_EVENTS
@@ -141,10 +141,10 @@ static int nemR3LnxInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
 #ifdef __KVM_HAVE_DEBUGREGS
         CAP_ENTRY__L(KVM_CAP_DEBUGREGS),                     /* 50 */
 #endif
-#ifdef VBOX_VMM_TARGET_ARMV8
-        CAP_ENTRY__L(KVM_CAP_X86_ROBUST_SINGLESTEP),
-#else
+#ifdef VBOX_VMM_TARGET_X86
         CAP_ENTRY__S(KVM_CAP_X86_ROBUST_SINGLESTEP, fRobustSingleStep),
+#else
+        CAP_ENTRY__L(KVM_CAP_X86_ROBUST_SINGLESTEP),
 #endif
         CAP_ENTRY__L(KVM_CAP_PPC_OSI),
         CAP_ENTRY__L(KVM_CAP_PPC_UNSET_IRQ),
@@ -304,14 +304,15 @@ static int nemR3LnxInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
         CAP_ENTRY__L(KVM_CAP_SMALLER_MAXPHYADDR),
         CAP_ENTRY__L(KVM_CAP_S390_DIAG318),
         CAP_ENTRY__L(KVM_CAP_STEAL_TIME),
-#ifdef VBOX_VMM_TARGET_ARMV8
-        CAP_ENTRY__L(KVM_CAP_X86_USER_SPACE_MSR),            /* (since 5.10) */
-        CAP_ENTRY__L(KVM_CAP_X86_MSR_FILTER),
-#else
+#ifdef VBOX_VMM_TARGET_X86
         CAP_ENTRY_ML(KVM_CAP_X86_USER_SPACE_MSR),            /* (since 5.10) */
         CAP_ENTRY_ML(KVM_CAP_X86_MSR_FILTER),
+#else
+        CAP_ENTRY__L(KVM_CAP_X86_USER_SPACE_MSR),            /* (since 5.10) */
+        CAP_ENTRY__L(KVM_CAP_X86_MSR_FILTER),
 #endif
         CAP_ENTRY__L(KVM_CAP_ENFORCE_PV_FEATURE_CPUID),      /* 190 */
+#ifndef RT_ARCH_ARM64 /* Buildroot is too old. */
         CAP_ENTRY__L(KVM_CAP_SYS_HYPERV_CPUID),
         CAP_ENTRY__L(KVM_CAP_DIRTY_LOG_RING),
         CAP_ENTRY__L(KVM_CAP_X86_BUS_LOCK_EXIT),
@@ -320,6 +321,16 @@ static int nemR3LnxInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
         CAP_ENTRY__L(KVM_CAP_SGX_ATTRIBUTE),
         CAP_ENTRY__L(KVM_CAP_VM_COPY_ENC_CONTEXT_FROM),
         CAP_ENTRY__L(KVM_CAP_PTP_KVM),
+#else
+        CAP_ENTRY__U(191),
+        CAP_ENTRY__U(192),
+        CAP_ENTRY__U(193),
+        CAP_ENTRY__U(194),
+        CAP_ENTRY__U(195),
+        CAP_ENTRY__U(196),
+        CAP_ENTRY__U(197),
+        CAP_ENTRY__U(198),
+#endif
         CAP_ENTRY__U(199),
         CAP_ENTRY__U(200),
         CAP_ENTRY__U(201),
@@ -429,20 +440,7 @@ static DECLCALLBACK(VBOXSTRICTRC) nemR3LnxFixThreadPoke(PVM pVM, PVMCPU pVCpu, v
 }
 
 
-/**
- * Try initialize the native API.
- *
- * This may only do part of the job, more can be done in
- * nemR3NativeInitAfterCPUM() and nemR3NativeInitCompleted().
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   fFallback       Whether we're in fallback mode or use-NEM mode. In
- *                          the latter we'll fail if we cannot initialize.
- * @param   fForced         Whether the HMForced flag is set and we should
- *                          fail if we cannot initialize.
- */
-int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
+DECLHIDDEN(int) nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
 {
     RT_NOREF(pVM, fFallback, fForced);
     /*
@@ -575,13 +573,7 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
 }
 
 
-/**
- * This is called after CPUMR3Init is done.
- *
- * @returns VBox status code.
- * @param   pVM                 The VM handle..
- */
-int nemR3NativeInitAfterCPUM(PVM pVM)
+DECLHIDDEN(int) nemR3NativeInitAfterCPUM(PVM pVM)
 {
     /*
      * Validate sanity.
@@ -596,7 +588,7 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
 }
 
 
-int nemR3NativeTerm(PVM pVM)
+DECLHIDDEN(int) nemR3NativeTerm(PVM pVM)
 {
     /*
      * Per-cpu data
@@ -635,25 +627,13 @@ int nemR3NativeTerm(PVM pVM)
 }
 
 
-/**
- * VM reset notification.
- *
- * @param   pVM         The cross context VM structure.
- */
-void nemR3NativeReset(PVM pVM)
+DECLHIDDEN(void) nemR3NativeReset(PVM pVM)
 {
     RT_NOREF(pVM);
 }
 
 
-/**
- * Reset CPU due to INIT IPI or hot (un)plugging.
- *
- * @param   pVCpu       The cross context virtual CPU structure of the CPU being
- *                      reset.
- * @param   fInitIpi    Whether this is the INIT IPI or hot (un)plugging case.
- */
-void nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
+DECLHIDDEN(void) nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
 {
     RT_NOREF(pVCpu, fInitIpi);
 }
@@ -968,15 +948,15 @@ VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalDeregister(PVMCC pVM, PGMPHYSHANDLE
 }
 
 
-void nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb)
+DECLHIDDEN(void) nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb)
 {
     Log5(("nemHCNativeNotifyHandlerPhysicalRegister: %RGp LB %RGp enmKind=%d\n", GCPhys, cb, enmKind));
     RT_NOREF(pVM, enmKind, GCPhys, cb);
 }
 
 
-void nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
-                                            RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM)
+DECLHIDDEN(void) nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
+                                                        RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM)
 {
     Log5(("nemHCNativeNotifyHandlerPhysicalModify: %RGp LB %RGp -> %RGp enmKind=%d fRestoreAsRAM=%d\n",
           GCPhysOld, cb, GCPhysNew, enmKind, fRestoreAsRAM));
@@ -984,8 +964,8 @@ void nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKin
 }
 
 
-int nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
-                                       PGMPAGETYPE enmType, uint8_t *pu2State)
+DECLHIDDEN(int) nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+                                                   PGMPAGETYPE enmType, uint8_t *pu2State)
 {
     Log5(("nemHCNativeNotifyPhysPageAllocated: %RGp HCPhys=%RHp fPageProt=%#x enmType=%d *pu2State=%d\n",
           GCPhys, HCPhys, fPageProt, enmType, *pu2State));

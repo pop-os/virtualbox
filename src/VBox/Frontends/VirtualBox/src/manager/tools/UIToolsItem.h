@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -33,9 +33,7 @@
 
 /* Qt includes: */
 #include <QIcon>
-#include <QMimeData>
 #include <QPixmap>
-#include <QRectF>
 #include <QString>
 
 /* GUI includes: */
@@ -43,16 +41,9 @@
 #include "UITools.h"
 
 /* Forward declaration: */
-class QPropertyAnimation;
 class QGraphicsScene;
-class QGraphicsSceneDragDropEvent;
 class QGraphicsSceneHoverEvent;
-class QGraphicsSceneMouseEvent;
-class QStateMachine;
-class UIActionPool;
-class UIToolsItemGroup;
-class UIToolsItemGlobal;
-class UIToolsItemMachine;
+class UIToolsItemAnimationEngine;
 class UIToolsModel;
 
 /** QIGraphicsWidget extension used as interface
@@ -60,16 +51,16 @@ class UIToolsModel;
 class UIToolsItem : public QIGraphicsWidget
 {
     Q_OBJECT;
-    Q_PROPERTY(int animatedValue READ animatedValue WRITE setAnimatedValue);
+    Q_PROPERTY(int hoveringProgress READ hoveringProgress WRITE setHoveringProgress);
 
 signals:
 
     /** @name Item stuff.
       * @{ */
-        /** Notifies listeners about hover enter. */
-        void sigHoverEnter();
-        /** Notifies listeners about hover leave. */
-        void sigHoverLeave();
+        /** Notifies listeners about item hovered. */
+        void sigHovered();
+        /** Notifies listeners about item unhovered. */
+        void sigUnhovered();
     /** @} */
 
     /** @name Layout stuff.
@@ -82,15 +73,18 @@ signals:
 
 public:
 
+    /** Hiding reasons. */
+    enum HidingReason
+    {
+        HidingReason_Null       = 0,
+        HidingReason_Restricted = RT_BIT(0),
+    };
+
     /** Constructs item on the basis of passed arguments.
       * @param  pScene   Brings the scene reference to add item to.
-      * @param  enmClass Brings the item class.
-      * @param  enmType  Brings the item type.
-      * @param  strName  Brings the item name.
-      * @param  icon     Brings the item icon. */
-    UIToolsItem(QGraphicsScene *pScene,
-                UIToolClass enmClass, UIToolType enmType,
-                const QString &strName, const QIcon &icon);
+      * @param  icon     Brings the item icon.
+      * @param  enmType  Brings the item type. */
+    UIToolsItem(QGraphicsScene *pScene, const QIcon &icon, UIToolType enmType);
     /** Destructs item. */
     virtual ~UIToolsItem() RT_OVERRIDE;
 
@@ -99,28 +93,27 @@ public:
         /** Returns model reference. */
         UIToolsModel *model() const;
 
-        /** Reconfigures item with new @a enmClass, @a enmType, @a icon and @a strName. */
-        void reconfigure(UIToolClass enmClass, UIToolType enmType,
-                         const QIcon &icon, const QString &strName);
-        /** Reconfigures item with @a strName. */
-        void reconfigure(const QString &strName);
+        /** Returns item icon. */
+        QIcon icon() const { return m_icon; }
+
+        /** Returns item name. */
+        QString name() const { return m_strName; }
+        /** Defines item @a strName. */
+        void setName(const QString &strName);
 
         /** Returns item class. */
-        UIToolClass itemClass() const;
+        UIToolClass itemClass() const { return m_enmClass; }
         /** Returns item type. */
-        UIToolType itemType() const;
-        /** Returns item icon. */
-        const QIcon &icon() const;
-        /** Returns item name. */
-        const QString &name() const;
+        UIToolType itemType() const { return m_enmType; }
 
         /** Defines whether item is @a fEnabled. */
         void setEnabled(bool fEnabled);
 
-        /** Defines whether item is @a fHovered. */
-        void setHovered(bool fHovered);
+        /** Defines whether item is @a fHidden by the @a enmReason. */
+        void setHiddenByReason(bool fHidden, HidingReason enmReason);
+
         /** Returns whether item is hovered. */
-        bool isHovered() const;
+        bool isHovered() const { return m_fHovered; }
     /** @} */
 
     /** @name Layout stuff.
@@ -145,9 +138,6 @@ protected:
       * @{ */
         /** Handles show @a pEvent. */
         virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
-
-        /** Handles resize @a pEvent. */
-        virtual void resizeEvent(QGraphicsSceneResizeEvent *pEvent) RT_OVERRIDE;
 
         /** Handles hover enter @a event. */
         virtual void hoverMoveEvent(QGraphicsSceneHoverEvent *pEvent) RT_OVERRIDE;
@@ -174,14 +164,13 @@ private:
         /* Layout hints: */
         ToolsItemData_Margin,
         ToolsItemData_Spacing,
+        ToolsItemData_Padding,
     };
 
     /** @name Prepare/cleanup cascade.
       * @{ */
         /** Prepares all. */
         void prepare();
-        /** Prepares hover animation. */
-        void prepareHoverAnimation();
         /** Prepares connections. */
         void prepareConnections();
 
@@ -193,43 +182,14 @@ private:
       * @{ */
         /** Returns abstractly stored data value for certain @a iKey. */
         QVariant data(int iKey) const;
-
-        /** Defines item's default animation @a iValue. */
-        void setDefaultValue(int iValue) { m_iDefaultValue = iValue; update(); }
-        /** Returns item's default animation value. */
-        int defaultValue() const { return m_iDefaultValue; }
-
-        /** Defines item's hovered animation @a iValue. */
-        void setHoveredValue(int iValue) { m_iHoveredValue = iValue; update(); }
-        /** Returns item's hovered animation value. */
-        int hoveredValue() const { return m_iHoveredValue; }
-
-        /** Defines item's animated @a iValue. */
-        void setAnimatedValue(int iValue) { m_iAnimatedValue = iValue; update(); }
-        /** Returns item's animated value. */
-        int animatedValue() const { return m_iAnimatedValue; }
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
-        /** Defines previous @a geometry. */
-        void setPreviousGeometry(const QRectF &geometry) { m_previousGeometry = geometry; }
-        /** Returns previous geometry. */
-        const QRectF &previousGeometry() const { return m_previousGeometry; }
-
         /** Updates pixmap. */
         void updatePixmap();
-        /** Updates minimum name size. */
-        void updateMinimumNameSize();
-        /** Updates maximum name width. */
-        void updateMaximumNameWidth();
-        /** Updates visible name. */
-        void updateVisibleName();
-
-        /** Returns monospace text width of line containing @a iCount of chars calculated on the basis of certain @a font and @a pPaintDevice. */
-        static int textWidthMonospace(const QFont &font, QPaintDevice *pPaintDevice, int iCount);
-        /** Compresses @a strText to @a iWidth on the basis of certain @a font and @a pPaintDevice. */
-        static QString compressText(const QFont &font, QPaintDevice *pPaintDevice, QString strText, int iWidth);
+        /** Updates name size. */
+        void updateNameSize();
     /** @} */
 
     /** @name Painting stuff.
@@ -237,9 +197,6 @@ private:
         /** Paints background using specified @a pPainter.
           * @param  rectangle  Brings the rectangle to fill with background. */
         void paintBackground(QPainter *pPainter, const QRect &rectangle) const;
-        /** Paints frame using using passed @a pPainter.
-          * @param  rectangle  Brings the rectangle to stroke with frame. */
-        void paintFrame(QPainter *pPainter, const QRect &rectangle) const;
         /** Paints tool info using using passed @a pPainter.
           * @param  rectangle  Brings the rectangle to limit painting with. */
         void paintToolInfo(QPainter *pPainter, const QRect &rectangle) const;
@@ -255,65 +212,51 @@ private:
         static void paintText(QPainter *pPainter, QPoint point,
                               const QFont &font, QPaintDevice *pPaintDevice,
                               const QString &strText);
+
+        /** Paints rounded button which moves light focus according to @a cursorPosition using passed @a pPainter.
+          * @param  rectangle  Brings the button's rectangle.
+          * @param  color      Brings the base color to work with.
+          * @param  iPadding   Brings the button rounded padding. */
+        static void paintRoundedButton(QPainter *pPainter,
+                                       const QRect &rectangle,
+                                       const QPointF &cursorPosition,
+                                       const QColor &color,
+                                       int iPadding);
+    /** @} */
+
+    /** @name Animation stuff.
+     * @{ */
+        /** Returns hovering progress. */
+        int hoveringProgress() const { return m_iHoveringProgress; }
+        /** Defines hovering @a iProgress. */
+        void setHoveringProgress(int iProgress);
     /** @} */
 
     /** @name Item stuff.
       * @{ */
         /** Holds the item parent. */
         QGraphicsScene *m_pScene;
-        /** Holds the item class. */
-        UIToolClass     m_enmClass;
-        /** Holds the item type. */
-        UIToolType      m_enmType;
         /** Holds the item icon. */
         QIcon           m_icon;
         /** Holds the item name. */
         QString         m_strName;
+        /** Holds the item class. */
+        UIToolClass     m_enmClass;
+        /** Holds the item type. */
+        UIToolType      m_enmType;
 
         /** Holds the item pixmap. */
         QPixmap  m_pixmap;
-        /** Holds the item visible name. */
-        QString  m_strVisibleName;
 
-        /** Holds name font. */
-        QFont  m_nameFont;
+        /** Holds the hiding reason. */
+        HidingReason  m_enmReason;
 
         /** Holds whether item is hovered. */
-        bool                m_fHovered;
-        /** Holds the hovering animation machine instance. */
-        QStateMachine      *m_pHoveringMachine;
-        /** Holds the forward hovering animation instance. */
-        QPropertyAnimation *m_pHoveringAnimationForward;
-        /** Holds the backward hovering animation instance. */
-        QPropertyAnimation *m_pHoveringAnimationBackward;
-        /** Holds the animation duration. */
-        int                 m_iAnimationDuration;
-        /** Holds the default animation value. */
-        int                 m_iDefaultValue;
-        /** Holds the hovered animation value. */
-        int                 m_iHoveredValue;
-        /** Holds the animated value. */
-        int                 m_iAnimatedValue;
-
-        /** Holds start default lightness tone. */
-        int  m_iDefaultLightnessStart;
-        /** Holds final default lightness tone. */
-        int  m_iDefaultLightnessFinal;
-        /** Holds start hover lightness tone. */
-        int  m_iHoverLightnessStart;
-        /** Holds final hover lightness tone. */
-        int  m_iHoverLightnessFinal;
-        /** Holds start highlight lightness tone. */
-        int  m_iHighlightLightnessStart;
-        /** Holds final highlight lightness tone. */
-        int  m_iHighlightLightnessFinal;
+        bool  m_fHovered;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
-        /** Holds previous geometry. */
-        QRectF  m_previousGeometry;
-
         /** Holds previous minimum width hint. */
         int  m_iPreviousMinimumWidthHint;
         /** Holds previous minimum height hint. */
@@ -321,11 +264,17 @@ private:
 
         /** Holds the pixmap size. */
         QSize  m_pixmapSize;
-        /** Holds minimum name size. */
-        QSize  m_minimumNameSize;
+        /** Holds the name size. */
+        QSize  m_nameSize;
+    /** @} */
 
-        /** Holds maximum name width. */
-        int  m_iMaximumNameWidth;
+    /** @name Animation stuff.
+     * @{ */
+        /** Holds the animation engine instance. */
+        UIToolsItemAnimationEngine *m_pAnimationEngine;
+
+        /** Holds the hovering progress. */
+        int  m_iHoveringProgress;
     /** @} */
 };
 

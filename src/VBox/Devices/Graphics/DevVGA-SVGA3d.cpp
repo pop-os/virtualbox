@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1091,6 +1091,9 @@ int vmsvga3dScreenUpdate(PVGASTATECC pThisCC, uint32_t idDstScreen, SVGASignedRe
                         && srcRect.bottom - srcRect.top == dstRect.bottom - dstRect.top,
                         VERR_INVALID_PARAMETER); /* Stretch is not supported. */
 
+    if (pSvgaR3State->pFuncs3D && pSvgaR3State->pFuncs3D->pfnFlush)
+        pSvgaR3State->pFuncs3D->pfnFlush(pThisCC);
+
     /* Destination box should be within the screen rectangle. */
     SVGA3dBox dstBox;
     dstBox.x = dstRect.left;
@@ -1125,7 +1128,7 @@ int vmsvga3dScreenUpdate(PVGASTATECC pThisCC, uint32_t idDstScreen, SVGASignedRe
     srcBox.d = 1;
 
     VMSVGA3D_MAPPED_SURFACE srcMap;
-    rc = vmsvga3dSurfaceMap(pThisCC, &srcImage, &srcBox, VMSVGA3D_SURFACE_MAP_READ, &srcMap);
+    rc = vmsvga3dSurfaceMap(pThisCC, &srcImage, &srcBox, VMSVGA3D_SURFACE_MAP_READ, VMSVGA3D_MAP_F_NONE, &srcMap);
     if (RT_SUCCESS(rc))
     {
         /* Clipping rectangle. */
@@ -1658,7 +1661,7 @@ int vmsvga3dShaderSetConst(PVGASTATECC pThisCC, uint32_t cid, uint32_t reg, SVGA
  *
  */
 
-void vmsvga3dSurfaceMapInit(VMSVGA3D_MAPPED_SURFACE *pMap, VMSVGA3D_SURFACE_MAP enmMapType, SVGA3dBox const *pBox,
+void vmsvga3dSurfaceMapInit(VMSVGA3D_MAPPED_SURFACE *pMap, VMSVGA3D_SURFACE_MAP enmMapType, uint32_t fMapFlags, SVGA3dBox const *pBox,
                             PVMSVGA3DSURFACE pSurface, void *pvData, uint32_t cbRowPitch, uint32_t cbDepthPitch)
 {
     uint32_t const cxBlocks = (pBox->w + pSurface->cxBlock - 1) / pSurface->cxBlock;
@@ -1674,15 +1677,17 @@ void vmsvga3dSurfaceMapInit(VMSVGA3D_MAPPED_SURFACE *pMap, VMSVGA3D_SURFACE_MAP 
     pMap->cbRowPitch   = cbRowPitch;
     pMap->cRows        = (cyBlocks * pSurface->cbBlock) / pSurface->cbPitchBlock;
     pMap->cbDepthPitch = cbDepthPitch;
+    pMap->fMapFlags    = fMapFlags;
     pMap->pvData       = (uint8_t *)pvData
                        + (pBox->x / pSurface->cxBlock) * pSurface->cbPitchBlock
                        + (pBox->y / pSurface->cyBlock) * cbRowPitch
                        + pBox->z * cbDepthPitch;
+    pMap->pvBackendResource = NULL;
 }
 
 
 int vmsvga3dSurfaceMap(PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pImage, SVGA3dBox const *pBox,
-                       VMSVGA3D_SURFACE_MAP enmMapType, VMSVGA3D_MAPPED_SURFACE *pMap)
+                       VMSVGA3D_SURFACE_MAP enmMapType, uint32_t fMapFlags, VMSVGA3D_MAPPED_SURFACE *pMap)
 {
     PVMSVGA3DSURFACE pSurface;
     int rc = vmsvga3dSurfaceFromSid(pThisCC->svga.p3dState, pImage->sid, &pSurface);
@@ -1692,7 +1697,7 @@ int vmsvga3dSurfaceMap(PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pImage, 
     {
         PVMSVGAR3STATE const pSvgaR3State = pThisCC->svga.pSvgaR3State;
         AssertReturn(pSvgaR3State->pFuncsMap, VERR_NOT_IMPLEMENTED);
-        return pSvgaR3State->pFuncsMap->pfnSurfaceMap(pThisCC, pImage, pBox, enmMapType, pMap);
+        return pSvgaR3State->pFuncsMap->pfnSurfaceMap(pThisCC, pImage, pBox, enmMapType, fMapFlags, pMap);
     }
 
     PVMSVGA3DMIPMAPLEVEL pMipLevel;
@@ -1726,7 +1731,7 @@ int vmsvga3dSurfaceMap(PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pImage, 
     //if (enmMapType == VMSVGA3D_SURFACE_MAP_WRITE_DISCARD)
     //    RT_BZERO(.);
 
-    vmsvga3dSurfaceMapInit(pMap, enmMapType, &clipBox, pSurface,
+    vmsvga3dSurfaceMapInit(pMap, enmMapType, fMapFlags, &clipBox, pSurface,
                            pMipLevel->pSurfaceData, pMipLevel->cbSurfacePitch, pMipLevel->cbSurfacePlane);
 
     LogFunc(("SysMem: sid = %u, pvData %p\n", pImage->sid, pMap->pvData));
@@ -1822,6 +1827,29 @@ bool vmsvga3dIsMultisampleSurface(PVGASTATECC pThisCC, SVGA3dSurfaceId sid)
     AssertRCReturn(rc, 0);
 
     return pSurface->surfaceDesc.multisampleCount > 1;
+}
+
+
+bool vmsvga3dIsEntireImage(PVGASTATECC pThisCC,  SVGA3dSurfaceImageId const *pImage, SVGA3dBox const *pBox)
+{
+    if (!pBox)
+        return true;
+
+    PVMSVGA3DSURFACE pSurface;
+    int rc = vmsvga3dSurfaceFromSid(pThisCC->svga.p3dState, pImage->sid, &pSurface);
+    AssertRCReturn(rc, false);
+
+    PVMSVGA3DMIPMAPLEVEL pMipLevel;
+    rc = vmsvga3dMipmapLevel(pSurface, pImage->face, pImage->mipmap, &pMipLevel);
+    ASSERT_GUEST_RETURN(RT_SUCCESS(rc), false);
+
+    return (   pBox->x == 0
+            && pBox->y == 0
+            && pBox->z == 0
+            && pBox->w == pMipLevel->mipmapSize.width
+            && pBox->h == pMipLevel->mipmapSize.height
+            && pBox->d == pMipLevel->mipmapSize.depth);
+
 }
 
 

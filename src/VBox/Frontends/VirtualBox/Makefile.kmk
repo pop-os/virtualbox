@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -166,7 +166,7 @@ endif
 #
 # VirtualBox Virtual Machine Application
 #
-VirtualBoxVM_TEMPLATE       := $(if $(VBOX_WITH_HARDENING),VBoxQtGuiDll,VBoxQtGuiExe)
+VirtualBoxVM_TEMPLATE       := $(if $(VBOX_WITH_HARDENING),VBoxQtGuiDll,VBoxQtGuiSignedExe)
 VirtualBoxVM_NAME           = VirtualBoxVM
 ifndef VBOX_WITH_HARDENING
  VirtualBoxVM_INST.darwin   = $(INST_VIRTUALBOX)Contents/Resources/VirtualBoxVM.app/Contents/MacOS/
@@ -485,11 +485,6 @@ if1of ($(KBUILD_TARGET), linux netbsd openbsd)
  VirtualBox_LIBS += dl
 endif
 
-# Xinerama library required for multi-monitor support:
-VirtualBox_LIBS.linux   += Xinerama
-VirtualBox_LIBS.solaris += Xinerama
-VirtualBox_LIBS.freebsd += Xinerama
-
 # XCB library required for direct XCB native code support:
 VirtualBox_LIBS.linux   += xcb
 VirtualBox_LIBS.solaris += xcb
@@ -498,15 +493,9 @@ VirtualBox_LIBS.freebsd += xcb
 # Various Windows hosts libraries:
 VirtualBox_LIBS.win = \
 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Htmlhelp.Lib
-ifdef VBOX_WITH_NEW_WINDOWS_SDK
- VirtualBox_LIBS.win += \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/ddraw.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/dxguid.lib
-else
- VirtualBox_LIBS.win += \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/ddraw.lib \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/dxguid.lib
-endif
+VirtualBox_LIBS.win += \
+	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/ddraw.lib \
+	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/dxguid.lib
 
 # VBox keyboard shared library for X11 hosts:
 if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris)
@@ -534,11 +523,6 @@ if1of ($(KBUILD_TARGET), linux netbsd openbsd)
  VirtualBoxVM_LIBS += dl
 endif
 
-# Xinerama library required for multi-monitor support:
-VirtualBoxVM_LIBS.linux   += Xinerama
-VirtualBoxVM_LIBS.solaris += Xinerama
-VirtualBoxVM_LIBS.freebsd += Xinerama
-
 # XCB library required for direct XCB native code support:
 VirtualBoxVM_LIBS.linux   += xcb
 VirtualBoxVM_LIBS.solaris += xcb
@@ -547,15 +531,9 @@ VirtualBoxVM_LIBS.freebsd += xcb
 # Various Windows hosts libraries:
 VirtualBoxVM_LIBS.win = \
 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Htmlhelp.Lib
-ifdef VBOX_WITH_NEW_WINDOWS_SDK
- VirtualBoxVM_LIBS.win += \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/ddraw.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/dxguid.lib
-else
- VirtualBoxVM_LIBS.win += \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/ddraw.lib \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/dxguid.lib
-endif
+VirtualBoxVM_LIBS.win += \
+	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/ddraw.lib \
+	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/dxguid.lib
 
 # VBox keyboard shared library for X11 hosts:
 if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris)
@@ -573,11 +551,6 @@ endif
 # VirtualBox - GUI Global Shared Library.
 # Libraries.
 #
-
-# Xinerama library required for multi-monitor support:
-UICommon_LIBS.linux   += Xinerama
-UICommon_LIBS.solaris += Xinerama
-UICommon_LIBS.freebsd += Xinerama
 
 # Various Windows hosts libraries:
 UICommon_LIBS.win = \
@@ -604,16 +577,17 @@ VirtualBox_QT_MOCHDRS = \
 	src/extensionpackmanager/UIExtensionPackManager.h \
 	src/globals/UIStarter.h \
 	src/manager/UIErrorPane.h \
+	src/manager/UIGlobalToolsWidget.h \
+	src/manager/UIHomePane.h \
+	src/manager/UIMachineToolsWidget.h \
 	src/manager/UIProgressTaskReadCloudMachineList.h \
 	src/manager/UITaskCloudGetSettingsForm.h \
-	src/manager/UIToolPaneGlobal.h \
-	src/manager/UIToolPaneMachine.h \
+	src/manager/UIToolPane.h \
 	src/manager/UIVirtualBoxManager.h \
-	src/manager/UIVirtualBoxManagerWidget.h \
+	src/manager/UIVirtualBoxWidget.h \
 	src/manager/UIVirtualMachineItem.h \
 	src/manager/UIVirtualMachineItemCloud.h \
 	src/manager/UIVirtualMachineItemLocal.h \
-	src/manager/UIWelcomePane.h \
 	src/manager/chooser/UIChooser.h \
 	src/manager/chooser/UIChooserAbstractModel.h \
 	src/manager/chooser/UIChooserModel.h \
@@ -622,11 +596,9 @@ VirtualBox_QT_MOCHDRS = \
 	src/manager/chooser/UIChooserHandlerKeyboard.h \
 	src/manager/chooser/UIChooserItem.h \
 	src/manager/chooser/UIChooserItemGroup.h \
-	src/manager/chooser/UIChooserItemGlobal.h \
 	src/manager/chooser/UIChooserItemMachine.h \
 	src/manager/chooser/UIChooserNode.h \
 	src/manager/chooser/UIChooserNodeGroup.h \
-	src/manager/chooser/UIChooserNodeGlobal.h \
 	src/manager/chooser/UIChooserNodeMachine.h \
 	src/manager/chooser/UIChooserSearchWidget.h \
 	src/manager/details/UIDetails.h \
@@ -642,8 +614,6 @@ VirtualBox_QT_MOCHDRS = \
 	src/manager/tools/UITools.h \
 	src/manager/tools/UIToolsModel.h \
 	src/manager/tools/UIToolsView.h \
-	src/manager/tools/UIToolsHandlerMouse.h \
-	src/manager/tools/UIToolsHandlerKeyboard.h \
 	src/manager/tools/UIToolsItem.h \
 	src/medium/UIMediumDetailsWidget.h \
 	src/medium/UIMediumManager.h \
@@ -688,7 +658,6 @@ VirtualBox_QT_MOCHDRS = \
 	src/wizards/newvm/UIWizardNewVMNameOSTypePage.h \
 	src/wizards/newvm/UIWizardNewVMUnattendedPage.h \
 	src/wizards/newvm/UIWizardNewVMHardwarePage.h \
-	src/wizards/newvm/UIWizardNewVMDiskPage.h \
 	src/wizards/newvm/UIWizardNewVMExpertPage.h \
 	src/wizards/newvm/UIWizardNewVMSummaryPage.h \
 	src/wizards/clonevm/UIWizardCloneVM.h \
@@ -957,7 +926,6 @@ UICommon_QT_MOCHDRS = \
 	src/widgets/UIMediumSizeEditor.h \
 	src/widgets/UIMenuBar.h \
 	src/widgets/UIPaneContainer.h \
-	src/widgets/UIPopupBox.h \
 	src/widgets/UIPopupPane.h \
 	src/widgets/UIPopupPaneButtonPane.h \
 	src/widgets/UIPopupPaneMessage.h \
@@ -1013,6 +981,7 @@ VirtualBox_QT_MOCSRCS = \
 	src/manager/UIVirtualBoxManager.cpp \
 	src/manager/UIVirtualMachineItemCloud.cpp \
 	src/manager/chooser/UIChooserAbstractModel.cpp \
+	src/manager/tools/UIToolsItem.cpp \
 	src/activity/overview/UIVMActivityOverviewWidget.cpp \
 	src/activity/overview/UIVMActivityOverviewModelView.cpp \
 	src/networkmanager/UINetworkManager.cpp \
@@ -1132,16 +1101,17 @@ VirtualBox_SOURCES = \
 	src/globals/UIStarter.cpp \
 	src/manager/UICloudEntityKey.cpp \
 	src/manager/UIErrorPane.cpp \
+	src/manager/UIGlobalToolsWidget.cpp \
+	src/manager/UIHomePane.cpp \
+	src/manager/UIMachineToolsWidget.cpp \
 	src/manager/UIProgressTaskReadCloudMachineList.cpp \
 	src/manager/UITaskCloudGetSettingsForm.cpp \
-	src/manager/UIToolPaneGlobal.cpp \
-	src/manager/UIToolPaneMachine.cpp \
+	src/manager/UIToolPane.cpp \
 	src/manager/UIVirtualBoxManager.cpp \
-	src/manager/UIVirtualBoxManagerWidget.cpp \
+	src/manager/UIVirtualBoxWidget.cpp \
 	src/manager/UIVirtualMachineItem.cpp \
 	src/manager/UIVirtualMachineItemCloud.cpp \
 	src/manager/UIVirtualMachineItemLocal.cpp \
-	src/manager/UIWelcomePane.cpp \
 	src/manager/chooser/UIChooser.cpp \
 	src/manager/chooser/UIChooserAbstractModel.cpp \
 	src/manager/chooser/UIChooserModel.cpp \
@@ -1150,11 +1120,9 @@ VirtualBox_SOURCES = \
 	src/manager/chooser/UIChooserHandlerKeyboard.cpp \
 	src/manager/chooser/UIChooserItem.cpp \
 	src/manager/chooser/UIChooserItemGroup.cpp \
-	src/manager/chooser/UIChooserItemGlobal.cpp \
 	src/manager/chooser/UIChooserItemMachine.cpp \
 	src/manager/chooser/UIChooserNode.cpp \
 	src/manager/chooser/UIChooserNodeGroup.cpp \
-	src/manager/chooser/UIChooserNodeGlobal.cpp \
 	src/manager/chooser/UIChooserNodeMachine.cpp \
 	src/manager/chooser/UIChooserSearchWidget.cpp \
 	src/manager/details/UIDetails.cpp \
@@ -1170,8 +1138,6 @@ VirtualBox_SOURCES = \
 	src/manager/tools/UITools.cpp \
 	src/manager/tools/UIToolsModel.cpp \
 	src/manager/tools/UIToolsView.cpp \
-	src/manager/tools/UIToolsHandlerMouse.cpp \
-	src/manager/tools/UIToolsHandlerKeyboard.cpp \
 	src/manager/tools/UIToolsItem.cpp \
 	src/medium/UIMediumDetailsWidget.cpp \
 	src/medium/UIMediumManager.cpp \
@@ -1217,7 +1183,6 @@ VirtualBox_SOURCES = \
 	src/wizards/newvm/UIWizardNewVMNameOSTypePage.cpp \
 	src/wizards/newvm/UIWizardNewVMUnattendedPage.cpp \
 	src/wizards/newvm/UIWizardNewVMHardwarePage.cpp \
-	src/wizards/newvm/UIWizardNewVMDiskPage.cpp \
 	src/wizards/newvm/UIWizardNewVMExpertPage.cpp \
 	src/wizards/newvm/UIWizardNewVMSummaryPage.cpp \
 	src/wizards/clonevm/UIWizardCloneVM.cpp \
@@ -1543,7 +1508,6 @@ UICommon_SOURCES = \
 	src/widgets/UIMediumSizeEditor.cpp \
 	src/widgets/UIMenuBar.cpp \
 	src/widgets/UIPaneContainer.cpp \
-	src/widgets/UIPopupBox.cpp \
 	src/widgets/UIPopupPane.cpp \
 	src/widgets/UIPopupPaneButtonPane.cpp \
 	src/widgets/UIPopupPaneMessage.cpp \
@@ -1787,7 +1751,7 @@ $(VBOX_VIRTUALBOX_OUT_DIR)/VirtualBoxBrand.qrc: \
 #      linux.amd64 without: time: real 1m03.719s   user 26m26.766s  sys 2m03.526s
 #      linux.amd64 with:    time: real 0m42.650s   user 14m46.332s  sys 1m28.463s
 #
-ifdef VBOX_WITH_PRECOMPILED_HEADERS
+if defined(VBOX_WITH_PRECOMPILED_HEADERS) && !defined(VBOX_WITHOUT_PRECOMPILED_HEADERS)
  if1of ($(KBUILD_TARGET), win)
   VirtualBox_USES      += vccprecomp
   VirtualBox_PCH_HDR   := $(PATH_SUB_CURRENT)/src/precomp_vcc.h

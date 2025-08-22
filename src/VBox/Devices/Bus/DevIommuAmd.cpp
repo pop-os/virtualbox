@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1914,8 +1914,11 @@ static VBOXSTRICTRC iommuAmdDevTabSegBar_r(PPDMDEVINS pDevIns, PIOMMU pThis, uin
 {
     RT_NOREF(pDevIns);
 
+    /* Paranoia; the MMIO register offset should have been been validated by the caller. */
+    Assert(offReg - IOMMU_MMIO_OFF_DEV_TAB_SEG_FIRST <= IOMMU_MMIO_OFF_DEV_TAB_SEG_LAST - IOMMU_MMIO_OFF_DEV_TAB_SEG_FIRST);
+
     /* Figure out which segment is being written. */
-    uint8_t const offSegment = (offReg - IOMMU_MMIO_OFF_DEV_TAB_SEG_FIRST) >> 3;
+    uint8_t const offSegment = (uint8_t)(offReg - IOMMU_MMIO_OFF_DEV_TAB_SEG_FIRST) >> 3;
     uint8_t const idxSegment = offSegment + 1;
     Assert(idxSegment < RT_ELEMENTS(pThis->aDevTabBaseAddrs));
 
@@ -2316,8 +2319,11 @@ static VBOXSTRICTRC iommuAmdDevTabSegBar_w(PPDMDEVINS pDevIns, PIOMMU pThis, uin
 {
     RT_NOREF(pDevIns);
 
+    /* Paranoia; the MMIO register offset should have been been validated by the caller. */
+    Assert(offReg - IOMMU_MMIO_OFF_DEV_TAB_SEG_FIRST <= IOMMU_MMIO_OFF_DEV_TAB_SEG_LAST - IOMMU_MMIO_OFF_DEV_TAB_SEG_FIRST);
+
     /* Figure out which segment is being written. */
-    uint8_t const offSegment = (offReg - IOMMU_MMIO_OFF_DEV_TAB_SEG_FIRST) >> 3;
+    uint8_t const offSegment = (uint8_t)(offReg - IOMMU_MMIO_OFF_DEV_TAB_SEG_FIRST) >> 3;
     uint8_t const idxSegment = offSegment + 1;
     Assert(idxSegment < RT_ELEMENTS(pThis->aDevTabBaseAddrs));
 
@@ -4594,7 +4600,8 @@ static int iommuAmdIntrRemap(PPDMDEVINS pDevIns, uint16_t idDevice, PCDTE_T pDte
     int rc = iommuAmdIrteRead(pDevIns, idDevice, pDte, pMsiIn->Addr.u64, uMsiInData, enmOp, &Irte);
     if (RT_SUCCESS(rc))
     {
-        if (Irte.n.u1RemapEnable)
+        bool const fRemapEnable = RT_BOOL(Irte.n.u1RemapEnable);
+        if (fRemapEnable)
         {
             if (!Irte.n.u1GuestMode)
             {
@@ -4609,7 +4616,7 @@ static int iommuAmdIntrRemap(PPDMDEVINS pDevIns, uint16_t idDevice, PCDTE_T pDte
 
                 LogFunc(("Interrupt type (%#x) invalid -> IOPF\n", Irte.n.u3IntrType));
                 EVT_IO_PAGE_FAULT_T EvtIoPageFault;
-                iommuAmdIoPageFaultEventInit(idDevice, pDte->n.u16DomainId, pMsiIn->Addr.u64, Irte.n.u1RemapEnable,
+                iommuAmdIoPageFaultEventInit(idDevice, pDte->n.u16DomainId, pMsiIn->Addr.u64, fRemapEnable,
                                              true /* fRsvdNotZero */, false /* fPermDenied */, enmOp, &EvtIoPageFault);
                 iommuAmdIoPageFaultEventRaiseWithDte(pDevIns, pDte, &Irte, enmOp, &EvtIoPageFault,
                                                      kIoPageFaultType_IrteRsvdIntType);
@@ -4618,7 +4625,7 @@ static int iommuAmdIntrRemap(PPDMDEVINS pDevIns, uint16_t idDevice, PCDTE_T pDte
 
             LogFunc(("Guest mode not supported -> IOPF\n"));
             EVT_IO_PAGE_FAULT_T EvtIoPageFault;
-            iommuAmdIoPageFaultEventInit(idDevice, pDte->n.u16DomainId, pMsiIn->Addr.u64, Irte.n.u1RemapEnable,
+            iommuAmdIoPageFaultEventInit(idDevice, pDte->n.u16DomainId, pMsiIn->Addr.u64, fRemapEnable,
                                          true /* fRsvdNotZero */, false /* fPermDenied */, enmOp, &EvtIoPageFault);
             iommuAmdIoPageFaultEventRaiseWithDte(pDevIns, pDte, &Irte, enmOp, &EvtIoPageFault, kIoPageFaultType_IrteRsvdNotZero);
             return VERR_IOMMU_ADDR_TRANSLATION_FAILED;
@@ -4626,7 +4633,7 @@ static int iommuAmdIntrRemap(PPDMDEVINS pDevIns, uint16_t idDevice, PCDTE_T pDte
 
         LogFunc(("Remapping disabled -> IOPF\n"));
         EVT_IO_PAGE_FAULT_T EvtIoPageFault;
-        iommuAmdIoPageFaultEventInit(idDevice, pDte->n.u16DomainId, pMsiIn->Addr.u64, Irte.n.u1RemapEnable,
+        iommuAmdIoPageFaultEventInit(idDevice, pDte->n.u16DomainId, pMsiIn->Addr.u64, fRemapEnable,
                                      false /* fRsvdNotZero */, false /* fPermDenied */, enmOp, &EvtIoPageFault);
         iommuAmdIoPageFaultEventRaiseWithDte(pDevIns, pDte, &Irte, enmOp, &EvtIoPageFault, kIoPageFaultType_IrteRemapEn);
         return VERR_IOMMU_ADDR_TRANSLATION_FAILED;

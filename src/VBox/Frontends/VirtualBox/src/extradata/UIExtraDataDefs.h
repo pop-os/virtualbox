@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -192,6 +192,8 @@ namespace UIExtraDataDefs
         SHARED_LIBRARY_STUFF extern const char *GUI_Tools_LastItemsSelected;
         /** Holds the list of detached tools of VirtualBox Manager. */
         SHARED_LIBRARY_STUFF extern const char *GUI_Tools_Detached;
+        /** Holds whether tools tool-bar text visible. */
+        SHARED_LIBRARY_STUFF extern const char *GUI_Tools_Text;
         /** Holds whether selector-window status-bar visible. */
         SHARED_LIBRARY_STUFF extern const char *GUI_Statusbar;
         /** Prefix used by composite extra-data keys,
@@ -417,6 +419,7 @@ namespace UIExtraDataDefs
         extern const char *GUI_GuestControl_FileManagerShowDeleteConfirmation;
         extern const char *GUI_GuestControl_FileManagerShowHumanReadableSizes;
         extern const char *GUI_GuestControl_FileManagerShowHiddenObjects;
+        extern const char *GUI_GuestControl_FileManagerAllowInteractiveColumnWidths;
     /** @} */
 
     /** @name Virtual Machine: Close dialog
@@ -899,6 +902,7 @@ Q_DECLARE_METATYPE(MachineSettingsPageType);
 /** Common UI: Shared Folder types. */
 enum UISharedFolderType
 {
+    UISharedFolderType_Global,
     UISharedFolderType_Machine,
     UISharedFolderType_Console
 };
@@ -951,6 +955,7 @@ Q_DECLARE_METATYPE(UIColorThemeType);
 enum UIToolClass
 {
     UIToolClass_Invalid,
+    UIToolClass_Aux,
     UIToolClass_Global,
     UIToolClass_Machine
 };
@@ -960,20 +965,23 @@ enum UIToolClass
 enum UIToolType
 {
     UIToolType_Invalid,
+    /* Aux types: */
+    UIToolType_Toggle,
     /* Global types: */
-    UIToolType_Welcome,
+    UIToolType_Home,
+    UIToolType_Machines,
     UIToolType_Extensions,
     UIToolType_Media,
     UIToolType_Network,
     UIToolType_Cloud,
     UIToolType_CloudConsole,
-    UIToolType_VMActivityOverview,
+    UIToolType_Resources,
     /* Machine types: */
     UIToolType_Error,
     UIToolType_Details,
     UIToolType_Snapshots,
     UIToolType_Logs,
-    UIToolType_VMActivity,
+    UIToolType_ResourceUse,
     UIToolType_FileManager
 };
 Q_DECLARE_METATYPE(UIToolType);
@@ -982,6 +990,8 @@ Q_DECLARE_METATYPE(UIToolType);
 /** Contains stuff related to tools handling. */
 namespace UIToolStuff
 {
+    /** Returns @a enmClass for passed @a enmType. */
+    SHARED_LIBRARY_STUFF UIToolClass castTypeToClass(UIToolType enmType);
     /** Returns whether passed @a enmType is of passed @a enmClass. */
     SHARED_LIBRARY_STUFF bool isTypeOfClass(UIToolType enmType, UIToolClass enmClass);
 }

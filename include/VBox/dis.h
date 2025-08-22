@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -202,7 +202,7 @@ AssertCompile(DISOPCODE_FORMAT != 15); /* Needs fixing before use as disopcode.h
 #define DISUSE_IMMEDIATE16_SX8             RT_BIT_64(34)
 #define DISUSE_IMMEDIATE32_SX8             RT_BIT_64(35)
 #define DISUSE_IMMEDIATE64_SX8             RT_BIT_64(36)
-/** MSR on x86, system register on ARMv8. */
+/** MSR on x86, system register/instructions on ARMv8. */
 #define DISUSE_REG_SYSTEM                  RT_BIT_64(37)
 /** Pre-indexed parameter. */
 #define DISUSE_PRE_INDEXED                 RT_BIT_64(38)

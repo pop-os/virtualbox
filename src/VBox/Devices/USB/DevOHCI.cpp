@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2679,7 +2679,7 @@ static void ohciR3RhXferCompleteIsochronousURB(PPDMDEVINS pDevIns, POHCI pThis, 
                     /* Copy data. */
                     if (cb)
                     {
-                        uint8_t *pb = &pUrb->abData[pUrb->aIsocPkts[i - R].off];
+                        uint8_t *pb = &pUrb->pbData[pUrb->aIsocPkts[i - R].off];
                         if (off + cb > 0x1000)
                         {
                             if (off < 0x1000)
@@ -2696,7 +2696,7 @@ static void ohciR3RhXferCompleteIsochronousURB(PPDMDEVINS pDevIns, POHCI pThis, 
                             ohciR3PhysWrite(pDevIns, (pITd->BP0 & ITD_BP0_MASK) + off, pb, cb);
                         Log5(("packet %d: off=%#x cb=%#x pb=%p (%#x)\n"
                               "%.*Rhxd\n",
-                              i + R, off, cb, pb, pb - &pUrb->abData[0], cb, pb));
+                              i + R, off, cb, pb, pb - &pUrb->pbData[0], cb, pb));
                         //off += cb;
                     }
                 }
@@ -2789,7 +2789,7 @@ static void ohciR3RhXferCompleteGeneralURB(PPDMDEVINS pDevIns, POHCI pThis, POHC
      * Copy the data back (if IN operation) and update the TDs.
      */
     unsigned cbLeft = pUrb->cbData;
-    uint8_t *pb     = &pUrb->abData[0];
+    uint8_t *pb     = &pUrb->pbData[0];
     for (unsigned iTd = 0; iTd < pUrb->pHci->cTds; iTd++)
     {
         POHCITD pTd = (POHCITD)&pUrb->paTds[iTd].TdCopy[0];
@@ -3206,9 +3206,9 @@ static bool ohciR3ServiceTd(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThisCC, VU
             return false;
         }
 
-        ohciR3PhysRead(pDevIns, Buf.aVecs[0].Addr, pUrb->abData, Buf.aVecs[0].cb);
+        ohciR3PhysRead(pDevIns, Buf.aVecs[0].Addr, pUrb->pbData, Buf.aVecs[0].cb);
         if (Buf.cVecs > 1)
-            ohciR3PhysRead(pDevIns, Buf.aVecs[1].Addr, &pUrb->abData[Buf.aVecs[0].cb], Buf.aVecs[1].cb);
+            ohciR3PhysRead(pDevIns, Buf.aVecs[1].Addr, &pUrb->pbData[Buf.aVecs[0].cb], Buf.aVecs[1].cb);
     }
 
     /*
@@ -3363,7 +3363,7 @@ static bool ohciR3ServiceTdMultiple(PPDMDEVINS pDevIns, POHCI pThis, VUSBXFERTYP
 
     /* Copy data and TD information. */
     unsigned iTd = 0;
-    uint8_t *pb = &pUrb->abData[0];
+    uint8_t *pb = &pUrb->pbData[0];
     for (struct OHCITDENTRY *pCur = &Head; pCur; pCur = pCur->pNext, iTd++)
     {
         /* data */
@@ -3595,7 +3595,7 @@ static bool ohciR3ServiceIsochronousTd(PPDMDEVINS pDevIns, POHCI pThis, POHCICC 
     AssertCompile(sizeof(pUrb->paTds[0].TdCopy) >= sizeof(*pITd));
     memcpy(pUrb->paTds[0].TdCopy, pITd, sizeof(*pITd));
 # if 0 /* color the data */
-    memset(pUrb->abData, 0xfe, cbTotal);
+    memset(pUrb->pbData, 0xfe, cbTotal);
 # endif
 
     /* copy the data */
@@ -3609,14 +3609,14 @@ static bool ohciR3ServiceIsochronousTd(PPDMDEVINS pDevIns, POHCI pThis, POHCICC 
             {
                 /* both pages. */
                 const unsigned cb0 = 0x1000 - off0;
-                ohciR3PhysRead(pDevIns, (pITd->BP0 & ITD_BP0_MASK) + off0, &pUrb->abData[0], cb0);
-                ohciR3PhysRead(pDevIns, pITd->BE & ITD_BP0_MASK, &pUrb->abData[cb0], offEnd & 0xfff);
+                ohciR3PhysRead(pDevIns, (pITd->BP0 & ITD_BP0_MASK) + off0, &pUrb->pbData[0], cb0);
+                ohciR3PhysRead(pDevIns, pITd->BE & ITD_BP0_MASK, &pUrb->pbData[cb0], offEnd & 0xfff);
             }
             else /* a portion of the 1st page. */
-                ohciR3PhysRead(pDevIns, (pITd->BP0 & ITD_BP0_MASK) + off0, pUrb->abData, offEnd - off0);
+                ohciR3PhysRead(pDevIns, (pITd->BP0 & ITD_BP0_MASK) + off0, pUrb->pbData, offEnd - off0);
         }
         else /* a portion of the 2nd page. */
-            ohciR3PhysRead(pDevIns, (pITd->BE & UINT32_C(0xfffff000)) + (off0 & 0xfff), pUrb->abData, cbTotal);
+            ohciR3PhysRead(pDevIns, (pITd->BE & UINT32_C(0xfffff000)) + (off0 & 0xfff), pUrb->pbData, cbTotal);
     }
 
     /* setup the packets */

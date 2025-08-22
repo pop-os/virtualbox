@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -79,7 +79,7 @@ void UIParavirtProviderEditor::setMinimumLayoutIndent(int iIndent)
 void UIParavirtProviderEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("&Paravirtualization Interface:"));
+        m_pLabel->setText(tr("&Paravirtualization Interface"));
     if (m_pCombo)
     {
         for (int i = 0; i < m_pCombo->count(); ++i)
@@ -87,8 +87,7 @@ void UIParavirtProviderEditor::sltRetranslateUI()
             const KParavirtProvider enmType = m_pCombo->itemData(i).value<KParavirtProvider>();
             m_pCombo->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pCombo->setToolTip(tr("Selects the paravirtualization guest interface "
-                                "provider to be used by this virtual machine."));
+        m_pCombo->setToolTip(tr("Paravirtualization guest interface provider used by this virtual machine"));
     }
 }
 

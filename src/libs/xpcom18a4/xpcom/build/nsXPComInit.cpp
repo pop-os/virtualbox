@@ -37,6 +37,7 @@
 
 #include <iprt/initterm.h>
 #include <iprt/time.h>
+#include <VBox/log.h>
 
 #include "nsXPCOM.h"
 #include "nsXPCOMPrivate.h"
@@ -378,14 +379,16 @@ NS_GetMainThread(RTTHREAD *phThreadMain)
     return NS_OK;
 }
 
-nsresult NS_COM NS_InitXPCOM2(nsIServiceManager* *result,
-                              nsIFile* binDirectory,
-                              nsIDirectoryServiceProvider* appFileLocationProvider)
+nsresult NS_COM NS_InitXPCOM2Ex(nsIServiceManager* *result,
+                                nsIFile* binDirectory,
+                                nsIDirectoryServiceProvider* appFileLocationProvider,
+                                PRUint32 fInitFlags)
 {
     nsresult rv = NS_OK;
 
     /* Make sure IPRT is initialized. */
     RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
+    LogFlow(("NS_InitXPCOM2Ex(,%p,%p,%#x): done RTR3InitDll\n", binDirectory, appFileLocationProvider, fInitFlags));
 
      // We are not shutting down
     gXPCOMShuttingDown = PR_FALSE;
@@ -435,21 +438,19 @@ nsresult NS_COM NS_InitXPCOM2(nsIServiceManager* *result,
 
         nsCOMPtr<nsIFile> xpcomLib;
 
-        PRBool value;
         if (binDirectory)
         {
+            PRBool value = PR_FALSE;
             rv = binDirectory->IsDirectory(&value);
-
             if (NS_SUCCEEDED(rv) && value) {
                 gDirectoryService->Set(NS_XPCOM_INIT_CURRENT_PROCESS_DIR, binDirectory);
                 binDirectory->Clone(getter_AddRefs(xpcomLib));
             }
         }
-        else {
+        else
             gDirectoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
                                    NS_GET_IID(nsIFile),
                                    getter_AddRefs(xpcomLib));
-        }
 
         if (xpcomLib) {
             xpcomLib->AppendNative(nsDependentCString(XPCOM_DLL));
@@ -521,10 +522,20 @@ nsresult NS_COM NS_InitXPCOM2(nsIServiceManager* *result,
         return rv;
 #endif
 
-    if ( NS_FAILED(rv) || CheckUpdateFile()) {
+    PRBool fCheckUpdateFile = PR_FALSE;
+    if (   NS_FAILED(rv)
+        || (fInitFlags & (NS_INIT_XPCOM_F_AUTO_REGISTER_COMPONENTS | NS_INIT_XPCOM_F_AUTO_REGISTER_COMPONENTS_WITH_STATUS))
+        || (fCheckUpdateFile = CheckUpdateFile())) {
+        LogFlow(("NS_InitXPCOM2Ex: rv=%#x fInitFlags=%#x CheckUpdateFile()=%d --> auto (re-)registering components\n",
+                 rv, fInitFlags, fCheckUpdateFile)); RT_NOREF_PV(fCheckUpdateFile);
+
         // if we find no persistent registry, we will try to autoregister
         // the default components directory.
-        nsComponentManagerImpl::gComponentManager->AutoRegister(nsnull);
+        rv = nsComponentManagerImpl::gComponentManager->AutoRegister(nsnull);
+        if (NS_FAILED(rv) && (fInitFlags & NS_INIT_XPCOM_F_AUTO_REGISTER_COMPONENTS_WITH_STATUS)) {
+            NS_ERROR("gComponentManager->AutoRegister failed!");
+            return rv;
+        }
 
         // If the application is using a GRE, then,
         // auto register components in the GRE directory as well.
@@ -609,6 +620,7 @@ nsresult NS_COM NS_InitXPCOM2(nsIServiceManager* *result,
     // Pay the cost at startup time of starting this singleton.
     nsIInterfaceInfoManager* iim = XPTI_GetInterfaceInfoManager();
     NS_IF_RELEASE(iim);
+
 #ifdef VBOX
     // Must initialize the EventQueueService singleton before anyone is
     // using it. The notification below creates a thread which races creating
@@ -625,6 +637,7 @@ nsresult NS_COM NS_InitXPCOM2(nsIServiceManager* *result,
 #endif /* VBOX */
 
     // Notify observers of xpcom autoregistration start
+    LogFlow(("NS_InitXPCOM2Ex: Notifying startup observers\n"));
     NS_CreateServicesFromCategory(NS_XPCOM_STARTUP_OBSERVER_ID,
                                   nsnull,
                                   NS_XPCOM_STARTUP_OBSERVER_ID);
@@ -632,6 +645,7 @@ nsresult NS_COM NS_InitXPCOM2(nsIServiceManager* *result,
 #ifdef VBOX
     gXPCOMInitialized = PR_TRUE;
 #endif
+    LogFlow(("NS_InitXPCOM2Ex: return NS_OK\n"));
     return NS_OK;
 }
 

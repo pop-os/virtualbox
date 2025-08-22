@@ -7,7 +7,7 @@ VirtualBox Test VMs
 
 __copyright__ = \
 """
-Copyright (C) 2010-2024 Oracle and/or its affiliates.
+Copyright (C) 2010-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 164827 $"
+__version__ = "$Revision: 170187 $"
 
 # Standard Python imports.
 import copy;
@@ -2289,7 +2289,7 @@ class TestVmManager(object):
         #
         TestVm('tst-ol-9_2-arm64',          kfGrpStdSmoke,        sHd = '7.1/smoketests/ol-9_2-arm64-txs.vdi',
                sKind = 'Oracle_arm64', acCpusSup = range(1, 33), sChipsetType = 'armv8virtual', \
-               sHddControllerType='VirtIO SCSI Controller', sDvdControllerType = 'SATA Controller', \
+               sHddControllerType='VirtIO SCSI Controller', sDvdControllerType = 'VirtIO SCSI Controller', \
                sGraphicsControllerType = 'QemuRamFb', sPlatformArchitecture = 'ARM'),
     );
 

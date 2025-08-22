@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -323,7 +323,7 @@ DECLINLINE(int) RTCpuSetCount(PCRTCPUSET pSet)
  * @returns The higest set index, -1 if all bits are clear.
  * @param   pSet    Pointer to the set.
  */
-DECLINLINE(int) RTCpuLastIndex(PCRTCPUSET pSet)
+DECLINLINE(int) RTCpuSetLastIndex(PCRTCPUSET pSet)
 {
     size_t i = RT_ELEMENTS(pSet->bmSet);
     while (i-- > 0)

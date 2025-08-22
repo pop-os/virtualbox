@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -832,7 +832,7 @@ void UIHelpViewer::selectMatch(int iMatchIndex, int iSearchStringLength)
     QTextCursor cursor = textCursor();
     /* Move the cursor to the beginning of the matched string: */
     cursor.setPosition(m_matchedCursorPosition.at(iMatchIndex), QTextCursor::MoveAnchor);
-    /* Move the cursor to the end of the matched string while keeping the anchor at the begining thus selecting the text: */
+    /* Move the cursor to the end of the matched string while keeping the anchor at the beginning thus selecting the text: */
     cursor.setPosition(m_matchedCursorPosition.at(iMatchIndex) + iSearchStringLength, QTextCursor::KeepAnchor);
     ensureCursorVisible();
     setTextCursor(cursor);
@@ -933,6 +933,7 @@ void UIHelpViewer::iterateDocumentImages()
                 continue;
             QHash<QString, DocumentImage>::iterator iterator = m_imageMap.insert(imageFormat.name(), DocumentImage());
             DocumentImage &image = iterator.value();
+            /* QtextImageFormat::width() returns something meaningful only if width is set explicitly in html code, else it returns 0:*/
             image.m_fInitialWidth = imageFormat.width();
             image.m_strName = imageFormat.name();
             image.m_textCursor = cursor;
@@ -968,6 +969,8 @@ void UIHelpViewer::scaleImages()
          iterator != m_imageMap.end(); ++iterator)
     {
         DocumentImage &image = *iterator;
+        if (image.m_fInitialWidth <= 0)
+            continue;
         QTextCursor cursor = image.m_textCursor;
         QTextCharFormat format = cursor.charFormat();
         if (!format.isImageFormat())
@@ -1002,7 +1005,7 @@ void UIHelpViewer::enableOverlay()
         m_pOverlayBlurEffect->setEnabled(true);
     toggleFindInPageWidget(false);
 
-    /* Scale the image to 1:1 as long as it fits into avaible space (minus some margins and scrollbar sizes): */
+    /* Scale the image to 1:1 as long as it fits into available space (minus some margins and scrollbar sizes): */
     int vWidth = 0;
     if (verticalScrollBar() && verticalScrollBar()->isVisible())
         vWidth = verticalScrollBar()->width();

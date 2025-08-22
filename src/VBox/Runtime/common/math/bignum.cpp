@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -395,8 +395,7 @@ static int rtBigNumGrow(PRTBIGNUM pBigNum, uint32_t cNewUsed, uint32_t cMinEleme
             pvNew = RTMemRealloc(pBigNum->pauElements, cbNew);
         if (RT_LIKELY(pvNew))
         {
-            if (cbNew > cbOld)
-                RT_BZERO((char *)pvNew + cbOld, cbNew - cbOld);
+            RT_BZERO((char *)pvNew + cbOld, cbNew - cbOld);
             if (pBigNum->cUsed > cNewUsed)
                 RT_BZERO((RTBIGNUMELEMENT *)pvNew + cNewUsed, (pBigNum->cUsed - cNewUsed) * RTBIGNUM_ELEMENT_SIZE);
 

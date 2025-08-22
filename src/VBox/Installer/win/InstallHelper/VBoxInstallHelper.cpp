@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -64,6 +64,7 @@
 #include <iprt/path.h>   /* RTPATH_MAX, RTPATH_IS_SLASH */
 #include <iprt/string.h> /* RT_ZERO */
 #include <iprt/stream.h>
+#include <iprt/system.h>
 #include <iprt/thread.h>
 #include <iprt/utf16.h>
 
@@ -1051,29 +1052,27 @@ UINT __stdcall ArePythonAPIDepsInstalled(MSIHANDLE hModule)
  */
 UINT __stdcall IsMSCRTInstalled(MSIHANDLE hModule)
 {
-    HKEY hKeyVS = NULL;
+    HKEY hKey;
     LSTATUS lrc = RegOpenKeyExW(HKEY_LOCAL_MACHINE,
                                 L"SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\X64",
-                                0, KEY_READ, &hKeyVS);
+                                0, KEY_READ, &hKey);
     if (lrc == ERROR_SUCCESS)
     {
-        DWORD dwVal = 0;
-        DWORD cbVal = sizeof(dwVal);
-        DWORD dwValueType = REG_DWORD; /** @todo r=bird: output only parameter, optional, so pointless. */
-        lrc = RegQueryValueExW(hKeyVS, L"Installed", NULL, &dwValueType, (LPBYTE)&dwVal, &cbVal);
-        if (lrc == ERROR_SUCCESS)
+        DWORD dwVal;
+        int rc = VBoxMsiRegQueryDWORD(hModule, hKey, "Installed", &dwVal);
+        if (RT_SUCCESS(rc))
         {
             if (dwVal >= 1)
             {
-                DWORD dwMaj = 0; /** @todo r=bird: It's purdent to initialize values if you don't bother to check the type and size! */
-                lrc = RegQueryValueExW(hKeyVS, L"Major", NULL, &dwValueType, (LPBYTE)&dwMaj, &cbVal);
-                if (lrc == ERROR_SUCCESS)
+                DWORD dwMaj;
+                rc = VBoxMsiRegQueryDWORD(hModule, hKey, "Major", &dwMaj);
+                if (RT_SUCCESS(rc))
                 {
                     VBoxMsiSetPropDWORD(hModule, L"VBOX_MSCRT_VER_MAJ", dwMaj);
 
-                    DWORD dwMin = 0;
-                    lrc = RegQueryValueExW(hKeyVS, L"Minor", NULL, &dwValueType, (LPBYTE)&dwMin, &cbVal);
-                    if (lrc == ERROR_SUCCESS)
+                    DWORD dwMin;
+                    lrc = VBoxMsiRegQueryDWORD(hModule, hKey, "Minor", &dwMin);
+                    if (RT_SUCCESS(rc))
                     {
                         VBoxMsiSetPropDWORD(hModule, L"VBOX_MSCRT_VER_MIN", dwMin);
 
@@ -1097,6 +1096,8 @@ UINT __stdcall IsMSCRTInstalled(MSIHANDLE hModule)
         }
         else
             logStringF(hModule, "IsMSCRTInstalled: Found, but 'Installed' key not present (lrc=%d)", lrc);
+
+        RegCloseKey(hKey);
     }
 
     if (lrc != ERROR_SUCCESS)
@@ -1106,43 +1107,54 @@ UINT __stdcall IsMSCRTInstalled(MSIHANDLE hModule)
 }
 
 /**
- * Checks if the running OS is (at least) Windows 10 (e.g. >= build 10000).
+ * Checks if the running OS is supported for installing (at least Windows 10 (e.g. >= build 10000)).
  *
  * Called from the MSI installer as custom action.
  *
  * @returns Always ERROR_SUCCESS.
- *          Sets public property VBOX_IS_WINDOWS_10 to "" (empty / false) or "1" (success).
+ *          Sets public property VBOX_IS_WINDOWS_SUPPORTED to "" (empty / false) or "1" (success).
+ *          Sets public property VBOX_WIN_VER_MAJOR to the Windows major version.
+ *          Sets public property VBOX_WIN_VER_MINOR to the Windows minor version.
  *
  * @param   hModule             Windows installer module handle.
  */
-UINT __stdcall IsWindows10(MSIHANDLE hModule)
+UINT __stdcall IsWindowsSupported(MSIHANDLE hModule)
 {
     /*
      * Note: We cannot use RtlGetVersion() / GetVersionExW() here, as the Windows Installer service
      *       all shims this, unfortunately. So we have to go another route by querying the major version
      *       number from the registry.
      */
-    HKEY hKeyCurVer = NULL;
-    LSTATUS lrc = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_READ, &hKeyCurVer);
+    HKEY hKey;
+    LSTATUS lrc = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_READ, &hKey);
     if (lrc == ERROR_SUCCESS)
     {
-        DWORD dwVal = 0;
-        DWORD cbVal = sizeof(dwVal);
-        DWORD dwValueType = REG_DWORD; /** @todo r=bird: Again, the type is an optional output parameter. pointless to init or pass it unless you check.  */
-        lrc = RegQueryValueExW(hKeyCurVer, L"CurrentMajorVersionNumber", NULL, &dwValueType, (LPBYTE)&dwVal, &cbVal);
-        if (lrc == ERROR_SUCCESS)
+        DWORD dwMaj;
+        int rc = VBoxMsiRegQueryDWORD(hModule, hKey, "CurrentMajorVersionNumber", &dwMaj);
+        if (RT_SUCCESS(rc))
         {
-            logStringF(hModule, "IsWindows10/CurrentMajorVersionNumber: %u", dwVal);
+            /* We support installing on Windows 10 or newer. */
+            VBoxMsiSetProp(hModule, L"VBOX_IS_WINDOWS_SUPPORTED", dwMaj >= 10 ? L"1" : L"");
+            VBoxMsiSetPropDWORD(hModule, L"VBOX_WIN_VER_MAJOR", dwMaj);
 
-            VBoxMsiSetProp(hModule, L"VBOX_IS_WINDOWS_10", dwVal >= 10 ? L"1" : L"");
+            DWORD dwMin;
+            rc = VBoxMsiRegQueryDWORD(hModule, hKey, "CurrentMinorVersionNumber", &dwMin);
+            if (RT_SUCCESS(rc))
+            {
+                VBoxMsiSetPropDWORD(hModule, L"VBOX_WIN_VER_MINOR", dwMin);
+
+                logStringF(hModule, "IsWindowsSupported: Detected Windows %u.%u", dwMaj, dwMin);
+            }
+            else
+                logStringF(hModule, "IsWindowsSupported: Error reading CurrentMinorVersionNumber (%Rrc)", rc);
         }
         else
-            logStringF(hModule, "IsWindows10/RegOpenKeyExW: Error reading CurrentMajorVersionNumber (%ld)", lrc);
+            logStringF(hModule, "IsWindowsSupported: Error reading CurrentMajorVersionNumber (%Rrc)", rc);
 
-        RegCloseKey(hKeyCurVer);
+        RegCloseKey(hKey);
     }
     else
-        logStringF(hModule, "IsWindows10/RegOpenKeyExW: Error opening CurrentVersion key (%ld)", lrc);
+        logStringF(hModule, "IsWindowsSupported/RegOpenKeyExW: Error opening CurrentVersion key (%ld)", lrc);
 
     return ERROR_SUCCESS; /* Never return failure. */
 }
@@ -1586,6 +1598,52 @@ UINT __stdcall DriverUninstall(MSIHANDLE hModule)
     return RT_SUCCESS(rc) ? ERROR_SUCCESS : ERROR_DRIVER_STORE_DELETE_FAILED /* Close enough */;
 }
 
+/**
+ * Returns the host's platform architecture as a string.
+ *
+ * Sets public property VBOX_PLATFORM_ARCH to "x86", "amd64" or "arm64" on success.
+ * Called from the MSI installer as custom action.
+ *
+ * We need this in order to distinguish the installer's build
+ * architecture from the current host architecture. Also,
+ * this deliberately is kept as a public property, so that it
+ * can be overriden for testing purposes.
+ *
+ * @returns UINT as Windows error code.
+ * @retval  ERROR_INSTALL_PLATFORM_UNSUPPORTED if the platform is invalid or unsupported.
+ * @param   hModule             Windows installer module handle.
+ *
+ * @note    We don't use WIX' util.QueryNativeMachine, as it's apparently not available on Windows 10 >= 1709.
+ */
+UINT __stdcall GetPlatformArchitecture(MSIHANDLE hModule)
+{
+    const char *pszArch;
+
+    /* Only add supported platforms here.
+     * Also, keep the string the same as kBuild's targets for easier comparrsion. */
+    uint32_t const uNativeArch = RTSystemGetNativeArch();
+    switch (uNativeArch)
+    {
+        case RT_ARCH_VAL_X86:   pszArch = "x86";   break;
+        case RT_ARCH_VAL_AMD64: pszArch = "amd64"; break;
+        case RT_ARCH_VAL_ARM64: pszArch = "arm64"; break;
+        default:                pszArch = NULL;    break;
+    }
+
+    int rc;
+    if (pszArch)
+        rc = VBoxMsiSetPropUtf8(hModule, "VBOX_PLATFORM_ARCH", pszArch);
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    if (RT_SUCCESS(rc))
+        logStringF(hModule, "GetPlatformArchitecture: Detected host architecture '%s'", pszArch);
+    else
+        logStringF(hModule, "GetPlatformArchitecture: Error detecting host architecture: %Rrc", rc);
+
+    return RT_SUCCESS(rc) ? ERROR_SUCCESS : ERROR_INSTALL_PLATFORM_UNSUPPORTED;
+}
+
 UINT __stdcall ServiceControl(MSIHANDLE hModule)
 {
     PVBOXMSICUSTOMACTIONDATA pData;
@@ -1625,7 +1683,7 @@ UINT __stdcall ServiceControl(MSIHANDLE hModule)
                                     &vboxWinDrvInstLogCallback, &hModule /* pvUser */);
         if (RT_SUCCESS(rc))
         {
-            rc = VBoxWinDrvInstControlServiceEx(hWinDrvInst, pszSvcCtlName, enmFn,
+            rc = VBoxWinDrvInstServiceControlEx(hWinDrvInst, pszSvcCtlName, enmFn,
                                                 msTimeout == 0 ? VBOXWINDRVSVCFN_F_NONE : VBOXWINDRVSVCFN_F_WAIT,
                                                 msTimeout);
             VBoxWinDrvInstDestroy(hWinDrvInst);
@@ -1646,15 +1704,13 @@ UINT __stdcall ServiceControl(MSIHANDLE hModule)
 #define VBOX_NETCFG_MAX_RETRIES 10
 #define NETFLT_PT_INF_REL_PATH L"VBoxNetFlt.inf"
 #define NETFLT_MP_INF_REL_PATH L"VBoxNetFltM.inf"
-#define NETFLT_ID  L"sun_VBoxNetFlt" /** @todo Needs to be changed (?). */
 #define NETADP_ID  L"sun_VBoxNetAdp" /** @todo Needs to be changed (?). */
 
 #define NETLWF_INF_NAME L"VBoxNetLwf.inf"
 
 static MSIHANDLE g_hCurrentModule = NULL;
 
-static UINT _uninstallNetFlt(MSIHANDLE hModule);
-static UINT _uninstallNetLwf(MSIHANDLE hModule);
+static UINT uninstallNetLwf(MSIHANDLE hModule);
 
 static VOID vboxDrvLoggerCallback(VBOXDRVCFG_LOG_SEVERITY_T enmSeverity, char *pszMsg, void *pvContext)
 {
@@ -1671,6 +1727,32 @@ static VOID vboxDrvLoggerCallback(VBOXDRVCFG_LOG_SEVERITY_T enmSeverity, char *p
         default:
             break;
     }
+}
+
+static UINT errorConvertFromHResult(MSIHANDLE hModule, HRESULT hr)
+{
+    UINT uRet;
+    switch (hr)
+    {
+        case S_OK:
+            uRet = ERROR_SUCCESS;
+            break;
+
+        case NETCFG_S_REBOOT:
+        {
+            logStringF(hModule, "Reboot required, setting REBOOT property to \"force\"");
+            HRESULT hr2 = MsiSetPropertyW(hModule, L"REBOOT", L"Force");
+            if (hr2 != ERROR_SUCCESS)
+                logStringF(hModule, "Failed to set REBOOT property, error = %#x", hr2);
+            uRet = ERROR_SUCCESS; /* Never fail here. */
+            break;
+        }
+
+        default:
+            logStringF(hModule, "Converting unhandled HRESULT (%#x) to ERROR_GEN_FAILURE", hr);
+            uRet = ERROR_GEN_FAILURE;
+    }
+    return uRet;
 }
 
 static DECLCALLBACK(void) netCfgLoggerCallback(const char *pszString)
@@ -1702,33 +1784,7 @@ static VOID netCfgLoggerEnable(MSIHANDLE hModule)
 //    VBoxDrvCfgLoggerSet(vboxDrvLoggerCallback, NULL);
 }
 
-static UINT errorConvertFromHResult(MSIHANDLE hModule, HRESULT hr)
-{
-    UINT uRet;
-    switch (hr)
-    {
-        case S_OK:
-            uRet = ERROR_SUCCESS;
-            break;
-
-        case NETCFG_S_REBOOT:
-        {
-            logStringF(hModule, "Reboot required, setting REBOOT property to \"force\"");
-            HRESULT hr2 = MsiSetPropertyW(hModule, L"REBOOT", L"Force");
-            if (hr2 != ERROR_SUCCESS)
-                logStringF(hModule, "Failed to set REBOOT property, error = %#x", hr2);
-            uRet = ERROR_SUCCESS; /* Never fail here. */
-            break;
-        }
-
-        default:
-            logStringF(hModule, "Converting unhandled HRESULT (%#x) to ERROR_GEN_FAILURE", hr);
-            uRet = ERROR_GEN_FAILURE;
-    }
-    return uRet;
-}
-
-static MSIHANDLE createNetCfgLockedMsgRecord(MSIHANDLE hModule)
+static MSIHANDLE netCfgCreateLockedMsgRecord(MSIHANDLE hModule)
 {
     MSIHANDLE hRecord = MsiCreateRecord(2);
     if (hRecord)
@@ -1736,18 +1792,18 @@ static MSIHANDLE createNetCfgLockedMsgRecord(MSIHANDLE hModule)
         UINT uErr = MsiRecordSetInteger(hRecord, 1, 25001);
         if (uErr != ERROR_SUCCESS)
         {
-            logStringF(hModule, "createNetCfgLockedMsgRecord: MsiRecordSetInteger failed, error = %#x", uErr);
+            logStringF(hModule, "netCfgCreateLockedMsgRecord: MsiRecordSetInteger failed, error = %#x", uErr);
             MsiCloseHandle(hRecord);
             hRecord = NULL;
         }
     }
     else
-        logStringF(hModule, "createNetCfgLockedMsgRecord: Failed to create a record");
+        logStringF(hModule, "netCfgCreateLockedMsgRecord: Failed to create a record");
 
     return hRecord;
 }
 
-static UINT doNetCfgInit(MSIHANDLE hModule, INetCfg **ppnc, BOOL bWrite)
+static UINT netCfgInit(MSIHANDLE hModule, INetCfg **ppnc, BOOL bWrite)
 {
     MSIHANDLE hMsg = NULL;
     UINT uErr = ERROR_GEN_FAILURE;
@@ -1761,7 +1817,7 @@ static UINT doNetCfgInit(MSIHANDLE hModule, INetCfg **ppnc, BOOL bWrite)
         if (hr != NETCFG_E_NO_WRITE_LOCK)
         {
             if (FAILED(hr))
-                logStringF(hModule, "doNetCfgInit: VBoxNetCfgWinQueryINetCfg failed, error = %#x", hr);
+                logStringF(hModule, "netCfgInit: VBoxNetCfgWinQueryINetCfg failed, error = %#x", hr);
             uErr = errorConvertFromHResult(hModule, hr);
             break;
         }
@@ -1770,7 +1826,7 @@ static UINT doNetCfgInit(MSIHANDLE hModule, INetCfg **ppnc, BOOL bWrite)
 
         if (!lpszLockedBy)
         {
-            logStringF(hModule, "doNetCfgInit: lpszLockedBy == NULL, breaking");
+            logStringF(hModule, "netCfgInit: lpszLockedBy == NULL, breaking");
             break;
         }
 
@@ -1784,17 +1840,17 @@ static UINT doNetCfgInit(MSIHANDLE hModule, INetCfg **ppnc, BOOL bWrite)
             && RTUtf16ICmpAscii(lpszLockedBy, "6to4svc.dll") == 0)
         {
             cRetries++;
-            logStringF(hModule, "doNetCfgInit: lpszLockedBy is 6to4svc.dll, retrying %d out of %d", cRetries, VBOX_NETCFG_MAX_RETRIES);
+            logStringF(hModule, "netCfgInit: lpszLockedBy is 6to4svc.dll, retrying %d out of %d", cRetries, VBOX_NETCFG_MAX_RETRIES);
             MsgResult = IDRETRY;
         }
         else
         {
             if (!hMsg)
             {
-                hMsg = createNetCfgLockedMsgRecord(hModule);
+                hMsg = netCfgCreateLockedMsgRecord(hModule);
                 if (!hMsg)
                 {
-                    logStringF(hModule, "doNetCfgInit: Failed to create a message record, breaking");
+                    logStringF(hModule, "netCfgInit: Failed to create a message record, breaking");
                     CoTaskMemFree(lpszLockedBy);
                     break;
                 }
@@ -1804,14 +1860,14 @@ static UINT doNetCfgInit(MSIHANDLE hModule, INetCfg **ppnc, BOOL bWrite)
             NonStandardAssert(rTmp == ERROR_SUCCESS);
             if (rTmp != ERROR_SUCCESS)
             {
-                logStringF(hModule, "doNetCfgInit: MsiRecordSetStringW failed, error = #%x", rTmp);
+                logStringF(hModule, "netCfgInit: MsiRecordSetStringW failed, error = #%x", rTmp);
                 CoTaskMemFree(lpszLockedBy);
                 break;
             }
 
             MsgResult = MsiProcessMessage(hModule, (INSTALLMESSAGE)(INSTALLMESSAGE_USER | MB_RETRYCANCEL), hMsg);
             NonStandardAssert(MsgResult == IDRETRY || MsgResult == IDCANCEL);
-            logStringF(hModule, "doNetCfgInit: MsiProcessMessage returned (%#x)", MsgResult);
+            logStringF(hModule, "netCfgInit: MsiProcessMessage returned (%#x)", MsgResult);
         }
         CoTaskMemFree(lpszLockedBy);
     } while(MsgResult == IDRETRY);
@@ -1854,129 +1910,7 @@ static UINT vboxNetFltQueryInfArray(MSIHANDLE hModule, OUT LPWSTR pwszPtInf, DWO
     return uErr;
 }
 
-static UINT _uninstallNetFlt(MSIHANDLE hModule)
-{
-    INetCfg *pNetCfg;
-    UINT uErr;
-
-    netCfgLoggerEnable(hModule);
-
-    BOOL bOldIntMode = SetupSetNonInteractiveMode(FALSE);
-
-    __try
-    {
-        logStringF(hModule, "Uninstalling NetFlt");
-
-        uErr = doNetCfgInit(hModule, &pNetCfg, TRUE);
-        if (uErr == ERROR_SUCCESS)
-        {
-            HRESULT hr = VBoxNetCfgWinNetFltUninstall(pNetCfg);
-            if (hr != S_OK)
-                logStringF(hModule, "UninstallNetFlt: VBoxNetCfgWinUninstallComponent failed, error = %#x", hr);
-
-            uErr = errorConvertFromHResult(hModule, hr);
-
-            VBoxNetCfgWinReleaseINetCfg(pNetCfg, TRUE);
-
-            logStringF(hModule, "Uninstalling NetFlt done, error = %#x", uErr);
-        }
-        else
-            logStringF(hModule, "UninstallNetFlt: doNetCfgInit failed, error = %#x", uErr);
-    }
-    __finally
-    {
-        if (bOldIntMode)
-        {
-            /* The prev mode != FALSE, i.e. non-interactive. */
-            SetupSetNonInteractiveMode(bOldIntMode);
-        }
-        netCfgLoggerDisable();
-    }
-
-    /* Never fail the uninstall even if we did not succeed. */
-    return ERROR_SUCCESS;
-}
-#endif /* VBOX_WITH_NETFLT */
-
-UINT __stdcall UninstallNetFlt(MSIHANDLE hModule)
-{
-#ifdef VBOX_WITH_NETFLT
-    _uninstallNetLwf(hModule);
-    return _uninstallNetFlt(hModule);
-#else
-    RT_NOREF(hModule);
-    return ERROR_SUCCESS;
-#endif
-}
-
-#ifdef VBOX_WITH_NETFLT
-static UINT _installNetFlt(MSIHANDLE hModule)
-{
-    UINT uErr;
-    INetCfg *pNetCfg;
-
-    netCfgLoggerEnable(hModule);
-
-    BOOL bOldIntMode = SetupSetNonInteractiveMode(FALSE);
-
-    __try
-    {
-
-        logStringF(hModule, "InstallNetFlt: Installing NetFlt");
-
-        uErr = doNetCfgInit(hModule, &pNetCfg, TRUE);
-        if (uErr == ERROR_SUCCESS)
-        {
-            WCHAR wszPtInf[MAX_PATH];
-            WCHAR wszMpInf[MAX_PATH];
-            uErr = vboxNetFltQueryInfArray(hModule, wszPtInf, RT_ELEMENTS(wszPtInf), wszMpInf, RT_ELEMENTS(wszMpInf));
-            if (uErr == ERROR_SUCCESS)
-            {
-                LPCWSTR const apwszInfs[] = { wszPtInf, wszMpInf };
-                HRESULT hr = VBoxNetCfgWinNetFltInstall(pNetCfg, &apwszInfs[0], RT_ELEMENTS(apwszInfs));
-                if (FAILED(hr))
-                    logStringF(hModule, "InstallNetFlt: VBoxNetCfgWinNetFltInstall failed, error = %#x", hr);
-
-                uErr = errorConvertFromHResult(hModule, hr);
-            }
-            else
-                logStringF(hModule, "InstallNetFlt: vboxNetFltQueryInfArray failed, error = %#x", uErr);
-
-            VBoxNetCfgWinReleaseINetCfg(pNetCfg, TRUE);
-
-            logStringF(hModule, "InstallNetFlt: Done");
-        }
-        else
-            logStringF(hModule, "InstallNetFlt: doNetCfgInit failed, error = %#x", uErr);
-    }
-    __finally
-    {
-        if (bOldIntMode)
-        {
-            /* The prev mode != FALSE, i.e. non-interactive. */
-            SetupSetNonInteractiveMode(bOldIntMode);
-        }
-        netCfgLoggerDisable();
-    }
-
-    /* Never fail the install even if we did not succeed. */
-    return ERROR_SUCCESS;
-}
-#endif /* VBOX_WITH_NETFLT */
-
-UINT __stdcall InstallNetFlt(MSIHANDLE hModule)
-{
-#ifdef VBOX_WITH_NETFLT
-    _uninstallNetLwf(hModule);
-    return _installNetFlt(hModule);
-#else
-    RT_NOREF(hModule);
-    return ERROR_SUCCESS;
-#endif
-}
-
-#ifdef VBOX_WITH_NETFLT
-static UINT _uninstallNetLwf(MSIHANDLE hModule)
+static UINT uninstallNetLwf(MSIHANDLE hModule)
 {
     INetCfg *pNetCfg;
     UINT uErr;
@@ -1989,7 +1923,7 @@ static UINT _uninstallNetLwf(MSIHANDLE hModule)
     {
         logStringF(hModule, "Uninstalling NetLwf");
 
-        uErr = doNetCfgInit(hModule, &pNetCfg, TRUE);
+        uErr = netCfgInit(hModule, &pNetCfg, TRUE);
         if (uErr == ERROR_SUCCESS)
         {
             HRESULT hr = VBoxNetCfgWinNetLwfUninstall(pNetCfg);
@@ -2003,7 +1937,7 @@ static UINT _uninstallNetLwf(MSIHANDLE hModule)
             logStringF(hModule, "Uninstalling NetLwf done, error = %#x", uErr);
         }
         else
-            logStringF(hModule, "UninstallNetLwf: doNetCfgInit failed, error = %#x", uErr);
+            logStringF(hModule, "UninstallNetLwf: netCfgInit failed, error = %#x", uErr);
     }
     __finally
     {
@@ -2023,8 +1957,7 @@ static UINT _uninstallNetLwf(MSIHANDLE hModule)
 UINT __stdcall UninstallNetLwf(MSIHANDLE hModule)
 {
 #ifdef VBOX_WITH_NETFLT
-    _uninstallNetFlt(hModule);
-    return _uninstallNetLwf(hModule);
+    return uninstallNetLwf(hModule);
 #else
     RT_NOREF(hModule);
     return ERROR_SUCCESS;
@@ -2032,7 +1965,7 @@ UINT __stdcall UninstallNetLwf(MSIHANDLE hModule)
 }
 
 #ifdef VBOX_WITH_NETFLT
-static UINT _installNetLwf(MSIHANDLE hModule)
+static UINT installNetLwf(MSIHANDLE hModule)
 {
     UINT uErr;
     INetCfg *pNetCfg;
@@ -2046,7 +1979,7 @@ static UINT _installNetLwf(MSIHANDLE hModule)
 
         logStringF(hModule, "InstallNetLwf: Installing NetLwf");
 
-        uErr = doNetCfgInit(hModule, &pNetCfg, TRUE);
+        uErr = netCfgInit(hModule, &pNetCfg, TRUE);
         if (uErr == ERROR_SUCCESS)
         {
             WCHAR wszInf[MAX_PATH];
@@ -2085,7 +2018,7 @@ static UINT _installNetLwf(MSIHANDLE hModule)
             logStringF(hModule, "InstallNetLwf: Done");
         }
         else
-            logStringF(hModule, "InstallNetLwf: doNetCfgInit failed, error = %#x", uErr);
+            logStringF(hModule, "InstallNetLwf: netCfgInit failed, error = %#x", uErr);
     }
     __finally
     {
@@ -2105,75 +2038,15 @@ static UINT _installNetLwf(MSIHANDLE hModule)
 UINT __stdcall InstallNetLwf(MSIHANDLE hModule)
 {
 #ifdef VBOX_WITH_NETFLT
-    _uninstallNetFlt(hModule);
-    return _installNetLwf(hModule);
+    return installNetLwf(hModule);
 #else
     RT_NOREF(hModule);
     return ERROR_SUCCESS;
 #endif
 }
 
-
-#if 0 /** @todo r=andy Remove this? */
-static BOOL RenameHostOnlyConnectionsCallback(HDEVINFO hDevInfo, PSP_DEVINFO_DATA pDev, PVOID pContext)
-{
-    WCHAR DevName[256];
-    DWORD winEr;
-
-    if (SetupDiGetDeviceRegistryPropertyW(hDevInfo, pDev,
-            SPDRP_FRIENDLYNAME , /* IN DWORD  Property,*/
-              NULL, /*OUT PDWORD  PropertyRegDataType,  OPTIONAL*/
-              (PBYTE)DevName, /*OUT PBYTE  PropertyBuffer,*/
-              sizeof(DevName), /* IN DWORD  PropertyBufferSize,*/
-              NULL /*OUT PDWORD  RequiredSize  OPTIONAL*/
-            ))
-    {
-        HKEY hKey = SetupDiOpenDevRegKey(hDevInfo, pDev,
-                DICS_FLAG_GLOBAL, /* IN DWORD  Scope,*/
-                0, /*IN DWORD  HwProfile, */
-                DIREG_DRV, /* IN DWORD  KeyType, */
-                KEY_READ /*IN REGSAM  samDesired*/
-                );
-        NonStandardAssert(hKey != INVALID_HANDLE_VALUE);
-        if (hKey != INVALID_HANDLE_VALUE)
-        {
-            WCHAR guid[50];
-            DWORD cbGuid=sizeof(guid);
-            winEr = RegQueryValueExW(hKey,
-              L"NetCfgInstanceId", /*__in_opt     LPCTSTR lpValueName,*/
-              NULL, /*__reserved   LPDWORD lpReserved,*/
-              NULL, /*__out_opt    LPDWORD lpType,*/
-              (LPBYTE)guid, /*__out_opt    LPBYTE lpData,*/
-              &cbGuid /*guid__inout_opt  LPDWORD lpcbData*/
-            );
-            NonStandardAssert(winEr == ERROR_SUCCESS);
-            if (winEr == ERROR_SUCCESS)
-            {
-                WCHAR ConnectoinName[128];
-                ULONG cbName = sizeof(ConnectoinName);
-
-                HRESULT hr = VBoxNetCfgWinGenHostonlyConnectionName(DevName, ConnectoinName, &cbName);
-                NonStandardAssert(hr == S_OK);
-                if (SUCCEEDED(hr))
-                {
-                    hr = VBoxNetCfgWinRenameConnection(guid, ConnectoinName);
-                    NonStandardAssert(hr == S_OK);
-                }
-            }
-        }
-        RegCloseKey(hKey);
-    }
-    else
-    {
-        NonStandardAssert(0);
-    }
-
-    return TRUE;
-}
-#endif /* 0 */
-
 #ifdef VBOX_WITH_NETADP
-static UINT _createHostOnlyInterface(MSIHANDLE hModule, LPCWSTR pwszId, LPCWSTR pwszInfName)
+static UINT createHostOnlyInterface(MSIHANDLE hModule, LPCWSTR pwszId, LPCWSTR pwszInfName)
 {
     netCfgLoggerEnable(hModule);
 
@@ -2290,16 +2163,6 @@ static UINT _createHostOnlyInterface(MSIHANDLE hModule, LPCWSTR pwszId, LPCWSTR 
 UINT __stdcall CreateHostOnlyInterface(MSIHANDLE hModule)
 {
 #ifdef VBOX_WITH_NETADP
-    return _createHostOnlyInterface(hModule, NETADP_ID, L"VBoxNetAdp.inf");
-#else
-    RT_NOREF(hModule);
-    return ERROR_SUCCESS;
-#endif
-}
-
-UINT __stdcall Ndis6CreateHostOnlyInterface(MSIHANDLE hModule)
-{
-#ifdef VBOX_WITH_NETADP
 # if 0 /* Trick for allowing the debugger to be attached. */
     for (unsigned i = 0; i < 128 && !IsDebuggerPresent(); i++)
     {
@@ -2309,7 +2172,7 @@ UINT __stdcall Ndis6CreateHostOnlyInterface(MSIHANDLE hModule)
     Sleep(1002);
     __debugbreak();
 # endif
-    return _createHostOnlyInterface(hModule, NETADP_ID, L"VBoxNetAdp6.inf");
+    return createHostOnlyInterface(hModule, NETADP_ID, L"VBoxNetAdp6.inf");
 #else /* !VBOX_WITH_NETADP */
     RT_NOREF(hModule);
     return ERROR_SUCCESS;
@@ -2317,7 +2180,7 @@ UINT __stdcall Ndis6CreateHostOnlyInterface(MSIHANDLE hModule)
 }
 
 #ifdef VBOX_WITH_NETADP
-static UINT _removeHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
+static UINT removeHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
 {
     netCfgLoggerEnable(hModule);
 
@@ -2351,7 +2214,7 @@ static UINT _removeHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
 UINT __stdcall RemoveHostOnlyInterfaces(MSIHANDLE hModule)
 {
 #ifdef VBOX_WITH_NETADP
-    return _removeHostOnlyInterfaces(hModule, NETADP_ID);
+    return removeHostOnlyInterfaces(hModule, NETADP_ID);
 #else
     RT_NOREF(hModule);
     return ERROR_SUCCESS;
@@ -2359,7 +2222,7 @@ UINT __stdcall RemoveHostOnlyInterfaces(MSIHANDLE hModule)
 }
 
 #ifdef VBOX_WITH_NETADP
-static UINT _stopHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
+static UINT stopHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
 {
     netCfgLoggerEnable(hModule);
 
@@ -2387,7 +2250,7 @@ static UINT _stopHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
 UINT __stdcall StopHostOnlyInterfaces(MSIHANDLE hModule)
 {
 #ifdef VBOX_WITH_NETADP
-    return _stopHostOnlyInterfaces(hModule, NETADP_ID);
+    return stopHostOnlyInterfaces(hModule, NETADP_ID);
 #else
     RT_NOREF(hModule);
     return ERROR_SUCCESS;
@@ -2395,7 +2258,7 @@ UINT __stdcall StopHostOnlyInterfaces(MSIHANDLE hModule)
 }
 
 #ifdef VBOX_WITH_NETADP
-static UINT _updateHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszInfName, LPCWSTR pwszId)
+static UINT updateHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszInfName, LPCWSTR pwszId)
 {
     netCfgLoggerEnable(hModule);
 
@@ -2472,17 +2335,7 @@ static UINT _updateHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszInfName, LP
 UINT __stdcall UpdateHostOnlyInterfaces(MSIHANDLE hModule)
 {
 #ifdef VBOX_WITH_NETADP
-    return _updateHostOnlyInterfaces(hModule, L"VBoxNetAdp.inf", NETADP_ID);
-#else
-    RT_NOREF(hModule);
-    return ERROR_SUCCESS;
-#endif
-}
-
-UINT __stdcall Ndis6UpdateHostOnlyInterfaces(MSIHANDLE hModule)
-{
-#ifdef VBOX_WITH_NETADP
-    return _updateHostOnlyInterfaces(hModule, L"VBoxNetAdp6.inf", NETADP_ID);
+    return updateHostOnlyInterfaces(hModule, L"VBoxNetAdp6.inf", NETADP_ID);
 #else
     RT_NOREF(hModule);
     return ERROR_SUCCESS;
@@ -2490,7 +2343,7 @@ UINT __stdcall Ndis6UpdateHostOnlyInterfaces(MSIHANDLE hModule)
 }
 
 #ifdef VBOX_WITH_NETADP
-static UINT _uninstallNetAdp(MSIHANDLE hModule, LPCWSTR pwszId)
+static UINT uninstallNetAdp(MSIHANDLE hModule, LPCWSTR pwszId)
 {
     INetCfg *pNetCfg;
     UINT uErr;
@@ -2503,7 +2356,7 @@ static UINT _uninstallNetAdp(MSIHANDLE hModule, LPCWSTR pwszId)
     {
         logStringF(hModule, "Uninstalling NetAdp");
 
-        uErr = doNetCfgInit(hModule, &pNetCfg, TRUE);
+        uErr = netCfgInit(hModule, &pNetCfg, TRUE);
         if (uErr == ERROR_SUCCESS)
         {
             HRESULT hr = VBoxNetCfgWinNetAdpUninstall(pNetCfg, pwszId);
@@ -2517,7 +2370,7 @@ static UINT _uninstallNetAdp(MSIHANDLE hModule, LPCWSTR pwszId)
             logStringF(hModule, "Uninstalling NetAdp done, error = %#x", uErr);
         }
         else
-            logStringF(hModule, "UninstallNetAdp: doNetCfgInit failed, error = %#x", uErr);
+            logStringF(hModule, "UninstallNetAdp: netCfgInit failed, error = %#x", uErr);
     }
     __finally
     {
@@ -2537,7 +2390,7 @@ static UINT _uninstallNetAdp(MSIHANDLE hModule, LPCWSTR pwszId)
 UINT __stdcall UninstallNetAdp(MSIHANDLE hModule)
 {
 #ifdef VBOX_WITH_NETADP
-    return _uninstallNetAdp(hModule, NETADP_ID);
+    return uninstallNetAdp(hModule, NETADP_ID);
 #else
     RT_NOREF(hModule);
     return ERROR_SUCCESS;
@@ -2852,13 +2705,13 @@ UINT __stdcall UninstallVBoxDrv(MSIHANDLE hModule)
         /*
          * Try stop it before we delete it.
          */
-        /* ignore rc */ VBoxWinDrvInstControlServiceEx(hWinDrvInst, "VBoxDrv",
+        /* ignore rc */ VBoxWinDrvInstServiceControlEx(hWinDrvInst, "VBoxDrv",
                                                        VBOXWINDRVSVCFN_STOP, VBOXWINDRVSVCFN_F_WAIT, RT_MS_10SEC);
 
         /*
          * Delete the service, or at least mark it for deletion.
          */
-        /* ignore rc */ VBoxWinDrvInstControlService(hWinDrvInst, "VBoxDrv", VBOXWINDRVSVCFN_DELETE);
+        /* ignore rc */ VBoxWinDrvInstServiceControl(hWinDrvInst, "VBoxDrv", VBOXWINDRVSVCFN_DELETE);
 
         VBoxWinDrvInstDestroy(hWinDrvInst);
     }

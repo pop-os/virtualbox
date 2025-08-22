@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -74,9 +74,6 @@ public:
 
         /** Returns whether VM is locked. */
         bool isLockedMachine() const;
-
-        /** Returns whether passed @a position belongs to tool button area. */
-        bool isToolButtonArea(const QPoint &position, int iMarginMultiplier = 1) const;
     /** @} */
 
     /** @name Navigation stuff.
@@ -129,8 +126,8 @@ protected:
         /** Returns children items of certain @a enmType. */
         virtual QList<UIChooserItem*> items(UIChooserNodeType enmType = UIChooserNodeType_Any) const RT_OVERRIDE;
 
-        /** Adds possible @a fFavorite child @a pItem to certain @a iPosition. */
-        virtual void addItem(UIChooserItem *pItem, bool fFavorite, int iPosition) RT_OVERRIDE;
+        /** Adds a child @a pItem to certain @a iPosition. */
+        virtual void addItem(UIChooserItem *pItem, int iPosition) RT_OVERRIDE;
         /** Removes child @a pItem. */
         virtual void removeItem(UIChooserItem *pItem) RT_OVERRIDE;
 
@@ -207,7 +204,6 @@ private:
         MachineItemData_MajorSpacing,
         MachineItemData_MinorSpacing,
         MachineItemData_TextSpacing,
-        MachineItemData_ButtonMargin,
     };
 
     /** @name Prepare/cleanup cascade.

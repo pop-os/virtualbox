@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -751,6 +751,19 @@ typedef PCPDMDEVREGRC                           PCPDMDEVREG;
 # error "Not IN_RING3, IN_RING0 or IN_RC"
 #endif
 
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
+/** The PDM APIC device registration structure. */
+extern const PDMDEVREG g_DeviceAPIC;
+# if defined(RT_OS_WINDOWS)
+/** The PDM APIC device registration structure for the Hyper-V NEM. */
+extern const PDMDEVREG g_DeviceAPICNem;
+# endif
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+/** The PDM GIC device registration structure. */
+extern const PDMDEVREG g_DeviceGIC;
+/** The PDM GIC NEM device registration structure. */
+extern const PDMDEVREG g_DeviceGICNem;
+#endif
 
 /**
  * Device registrations for ring-0 modules.
@@ -1814,47 +1827,6 @@ typedef R3PTRTYPE(const PDMFWHLPR3 *) PCPDMFWHLPR3;
 
 
 /**
- * APIC mode argument for apicR3SetCpuIdFeatureLevel.
- *
- * Also used in saved-states, CFGM don't change existing values.
- */
-typedef enum PDMAPICMODE
-{
-    /** Invalid 0 entry. */
-    PDMAPICMODE_INVALID = 0,
-    /** No APIC. */
-    PDMAPICMODE_NONE,
-    /** Standard APIC (X86_CPUID_FEATURE_EDX_APIC). */
-    PDMAPICMODE_APIC,
-    /** Intel X2APIC (X86_CPUID_FEATURE_ECX_X2APIC). */
-    PDMAPICMODE_X2APIC,
-    /** The usual 32-bit paranoia. */
-    PDMAPICMODE_32BIT_HACK = 0x7fffffff
-} PDMAPICMODE;
-
-/**
- * APIC irq argument for pfnSetInterruptFF and pfnClearInterruptFF.
- */
-typedef enum PDMAPICIRQ
-{
-    /** Invalid 0 entry. */
-    PDMAPICIRQ_INVALID = 0,
-    /** Normal hardware interrupt. */
-    PDMAPICIRQ_HARDWARE,
-    /** NMI. */
-    PDMAPICIRQ_NMI,
-    /** SMI. */
-    PDMAPICIRQ_SMI,
-    /** ExtINT (HW interrupt via PIC). */
-    PDMAPICIRQ_EXTINT,
-    /** Interrupt arrived, needs to be updated to the IRR. */
-    PDMAPICIRQ_UPDATE_PENDING,
-    /** The usual 32-bit paranoia. */
-    PDMAPICIRQ_32BIT_HACK = 0x7fffffff
-} PDMAPICIRQ;
-
-
-/**
  * I/O APIC registration structure (all contexts).
  */
 typedef struct PDMIOAPICREG
@@ -1933,7 +1905,7 @@ typedef struct PDMIOAPICHLP
      * @param   u8TriggerMode   See APIC implementation.
      * @param   uTagSrc         The IRQ tag and source (for tracing).
      *
-     * @sa      APICBusDeliver()
+     * @sa      PDMApicBusDeliver()
      */
     DECLCALLBACKMEMBER(int, pfnApicBusDeliver,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
                                                uint8_t uVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
@@ -2431,7 +2403,7 @@ typedef const PDMRTCHLP *PCPDMRTCHLP;
 /** @} */
 
 /** Current PDMDEVHLPR3 version number. */
-#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE_PP(0xffe7, 66, 0)
+#define PDM_DEVHLPR3_VERSION                PDM_VERSION_MAKE_PP(0xffe7, 67, 0)
 
 /**
  * PDM Device API.
@@ -3650,6 +3622,17 @@ typedef struct PDMDEVHLPR3
                                                  const char *pszName, va_list args) RT_IPRT_FORMAT_ATTR(7, 0));
 
     /**
+     * Deregister zero or more samples given their name prefix.
+     *
+     * @returns VBox status code.
+     * @param   pDevIns     The device instance.
+     * @param   pszPrefix   The name prefix of the samples to remove.  If this does
+     *                      not start with a '/', the default prefix will be
+     *                      prepended, otherwise it will be used as-is.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSTAMDeregisterByPrefix,(PPDMDEVINS pDevIns, const char *pszPrefix));
+
+    /**
      * Registers a PCI device with the default PCI bus.
      *
      * If a PDM device has more than one PCI device, they must be registered in the
@@ -4289,12 +4272,12 @@ typedef struct PDMDEVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnPICRegister,(PPDMDEVINS pDevIns, PPDMPICREG pPicReg, PCPDMPICHLP *ppPicHlp));
 
     /**
-     * Register the APIC device.
+     * Register the Interrupt Controller device.
      *
      * @returns VBox status code.
      * @param   pDevIns             The device instance.
      */
-    DECLR3CALLBACKMEMBER(int, pfnApicRegister,(PPDMDEVINS pDevIns));
+    DECLR3CALLBACKMEMBER(int, pfnIcRegister,(PPDMDEVINS pDevIns));
 
     /**
      * Register the I/O APIC device.
@@ -4654,16 +4637,7 @@ typedef struct PDMDEVHLPR3
 
     /** Space reserved for future members.
      * @{ */
-    /**
-     * Deregister zero or more samples given their name prefix.
-     *
-     * @returns VBox status code.
-     * @param   pDevIns     The device instance.
-     * @param   pszPrefix   The name prefix of the samples to remove.  If this does
-     *                      not start with a '/', the default prefix will be
-     *                      prepended, otherwise it will be used as-is.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnSTAMDeregisterByPrefix,(PPDMDEVINS pDevIns, const char *pszPrefix));
+    DECLR3CALLBACKMEMBER(void, pfnReserved1,(void));
     DECLR3CALLBACKMEMBER(void, pfnReserved2,(void));
     DECLR3CALLBACKMEMBER(void, pfnReserved3,(void));
     DECLR3CALLBACKMEMBER(void, pfnReserved4,(void));
@@ -4715,6 +4689,15 @@ typedef struct PDMDEVHLPR3
      * @param   pDevIns             The device instance.
      */
     DECLR3CALLBACKMEMBER(VMCPUID, pfnGetCurrentCpuId,(PPDMDEVINS pDevIns));
+
+    /**
+     * Pokes all the EMTs.
+     *
+     * This is only really for VMMDevTesting.
+     *
+     * @param   pDevIns             The device instance.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnPokeAllEmts,(PPDMDEVINS pDevIns));
 
     /**
      * Registers the VMM device heap or notifies about mapping/unmapping.
@@ -5455,12 +5438,12 @@ typedef struct PDMDEVHLPRC
      * Sets up the APIC for the raw-mode context.
      *
      * This must be called after ring-3 has registered the APIC using
-     * PDMDevHlpApicRegister().
+     * PDMDevHlpIcRegister().
      *
      * @returns VBox status code.
      * @param   pDevIns     The device instance.
      */
-    DECLRCCALLBACKMEMBER(int, pfnApicSetUpContext,(PPDMDEVINS pDevIns));
+    DECLRCCALLBACKMEMBER(int, pfnIcSetUpContext,(PPDMDEVINS pDevIns));
 
     /**
      * Sets up the IOAPIC for the ring-0 context.
@@ -5951,12 +5934,12 @@ typedef struct PDMDEVHLPR0
      * Sets up the APIC for the ring-0 context.
      *
      * This must be called after ring-3 has registered the APIC using
-     * PDMDevHlpApicRegister().
+     * PDMDevHlpIcRegister().
      *
      * @returns VBox status code.
      * @param   pDevIns     The device instance.
      */
-    DECLR0CALLBACKMEMBER(int, pfnApicSetUpContext,(PPDMDEVINS pDevIns));
+    DECLR0CALLBACKMEMBER(int, pfnIcSetUpContext,(PPDMDEVINS pDevIns));
 
     /**
      * Sets up the IOAPIC for the ring-0 context.
@@ -9205,11 +9188,11 @@ DECLINLINE(int) PDMDevHlpPICRegister(PPDMDEVINS pDevIns, PPDMPICREG pPicReg, PCP
 }
 
 /**
- * @copydoc PDMDEVHLPR3::pfnApicRegister
+ * @copydoc PDMDEVHLPR3::pfnIcRegister
  */
-DECLINLINE(int) PDMDevHlpApicRegister(PPDMDEVINS pDevIns)
+DECLINLINE(int) PDMDevHlpIcRegister(PPDMDEVINS pDevIns)
 {
-    return pDevIns->pHlpR3->pfnApicRegister(pDevIns);
+    return pDevIns->pHlpR3->pfnIcRegister(pDevIns);
 }
 
 /**
@@ -9369,11 +9352,11 @@ DECLINLINE(int) PDMDevHlpPICSetUpContext(PPDMDEVINS pDevIns, PPDMPICREG pPicReg,
 }
 
 /**
- * @copydoc PDMDEVHLPR0::pfnApicSetUpContext
+ * @copydoc PDMDEVHLPR0::pfnIcSetUpContext
  */
-DECLINLINE(int) PDMDevHlpApicSetUpContext(PPDMDEVINS pDevIns)
+DECLINLINE(int) PDMDevHlpIcSetUpContext(PPDMDEVINS pDevIns)
 {
-    return pDevIns->CTX_SUFF(pHlp)->pfnApicSetUpContext(pDevIns);
+    return pDevIns->CTX_SUFF(pHlp)->pfnIcSetUpContext(pDevIns);
 }
 
 /**

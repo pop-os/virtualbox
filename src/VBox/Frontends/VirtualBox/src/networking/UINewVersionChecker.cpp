@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,10 +42,18 @@
 #endif
 
 /* Other VBox includes: */
-#include <iprt/system.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
+#include <iprt/mp.h>
 #ifdef Q_OS_LINUX
 # include <iprt/path.h>
 #endif
+#include <iprt/string.h>
+#include <iprt/system.h>
+
+/* COM includes: */
+#include "CHost.h"
 
 
 UINewVersionChecker::UINewVersionChecker(bool fForcedCall)
@@ -77,6 +85,8 @@ void UINewVersionChecker::start()
     url.addQueryItem("count", QString::number(gEDataManager->applicationUpdateCheckCounter()));
     url.addQueryItem("branch", VBoxUpdateData(gEDataManager->applicationUpdateData()).updateChannelName());
     const QString strUserAgent(QString("VirtualBox %1 <%2>").arg(gpGlobalSession->virtualBox().GetVersion()).arg(platformInfo()));
+    AssertMsgFailed(("TODO: Check the user agent string (HW: xxx). Code is currently orphaned and can't be tested.\n"
+                     "User-Agent: %s\n", strUserAgent.toUtf8().constData()));
 
     /* Send GET request: */
     UserDictionary headers;
@@ -133,37 +143,124 @@ void UINewVersionChecker::processNetworkReplyFinished(UINetworkReply *pReply)
     emit sigProgressFinished();
 }
 
+/** A platformInfo() helper that replaces bad characters with spaces. */
+static char *sanitizeUserAgentString(char *psz, const char *pszBadChars = "|[]:;<>")
+{
+    char * const pszRet = psz;
+    RTStrPurgeEncoding(psz);
+    while ((psz = strpbrk(psz, pszBadChars)) != NULL)
+        *psz++ = ' ';
+    return pszRet;
+}
+
+/**
+ * @note This code is duplicated in Main UpdateAgentImpl.cpp.  Changes must be
+ *       applied in both places.
+ */
 /* static */
 QString UINewVersionChecker::platformInfo()
 {
+    char szTmp[256];
+    int vrc;
+
     /* Prepare platform report: */
     QString strPlatform;
 
-#if defined (Q_OS_WIN)
+    /*
+     * The format is <system>.<bitness>:
+     */
+#if defined(RT_OS_WINDOWS)
     strPlatform = "win";
-#elif defined (Q_OS_LINUX)
+#elif defined(RT_OS_LINUX)
     strPlatform = "linux";
-#elif defined (Q_OS_MACX)
+#elif defined(RT_OS_DARWIN)
     strPlatform = "macosx";
-#elif defined (Q_OS_OS2)
+#elif defined(RT_OS_OS2)
     strPlatform = "os2";
-#elif defined (Q_OS_FREEBSD)
+#elif defined(RT_OS_FREEBSD)
     strPlatform = "freebsd";
-#elif defined (Q_OS_SOLARIS)
+#elif defined(RT_OS_SOLARIS)
     strPlatform = "solaris";
 #else
     strPlatform = "unknown";
 #endif
+    strPlatform.append('.');
+#if  defined(RT_ARCH_AMD64)
+    strPlatform.append("amd64");
+#elif defined(RT_ARCH_ARM64)
+    strPlatform.append("arm64");
+#elif defined(RT_ARCH_X86)
+    strPlatform.append("x86");
+#else
+# error "Unexpected RT_ARCH_XXX"
+#endif
 
-    /* The format is <system>.<bitness>: */
-    strPlatform += QString(".%1").arg(ARCH_BITS);
+    /*
+     * Get some very basic HW info.
+     * Do this before the linux stuff, as it may dump too much info on us.
+     */
+    uint64_t cbRam = 0;
+    RTSystemQueryTotalRam(&cbRam);
+    strPlatform.append(QString(" [HW: ram=%1M;cpus=%2:").arg(cbRam / _1M).arg(RTMpGetOnlineCount()));
 
-    /* Add more system information: */
-    int vrc;
+# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    /* Get the CPU vendor (shorten it if possible) and basic model info. */
+    uint32_t uEax, uEbx, uEcx, uEdx;
+    ASMCpuIdExSlow(0, 0, 0, 0, &uEax, &uEbx, &uEcx, &uEdx);
+    const char *pszVendor;
+    if (RTX86IsAmdCpu(uEbx, uEcx, uEdx))                pszVendor = "AMD";
+    else if (RTX86IsIntelCpu(uEbx, uEcx, uEdx))         pszVendor = "Intel";
+    else if (RTX86IsViaCentaurCpu(uEbx, uEcx, uEdx))    pszVendor = "Via";
+    else if (RTX86IsShanghaiCpu(uEbx, uEcx, uEdx))      pszVendor = "Shanghai";
+    else if (RTX86IsHygonCpu(uEbx, uEcx, uEdx))         pszVendor = "Hygon";
+    else
+    {
+        ((uint32_t *)szTmp)[0] = uEbx;
+        ((uint32_t *)szTmp)[1] = uEdx;
+        ((uint32_t *)szTmp)[2] = uEcx;
+        ((uint32_t *)szTmp)[3] = 0;
+        pszVendor = RTStrStrip(sanitizeUserAgentString(szTmp));
+    }
+    ASMCpuIdExSlow(1, 0, 0, 0, &uEax, &uEbx, &uEcx, &uEdx);
+    strPlatform.append(QString("%1:0x%2").arg(pszVendor).arg(uEax, 0, 16));
+
+# else
+    vrc = RTMpGetDescription(NIL_RTCPUID, szTmp, RT_MIN(sizeof(szTmp), 64));
+    if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+        sanitizeUserAgentString(szTmp);
+    else
+        szTmp[0] = '\0';
+    strPlatform.append(RTStrStrip(szTmp));
+# endif
+
+    /* NEM & HM support for the host architecture: */
+    bool fIsNativeApiSupported = false;
+    bool fIsHwVirtSupported = false;
+# if defined(RT_ARCH_ARM64) || defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    CHost comHost = gpGlobalSession->host();
+#  if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    fIsNativeApiSupported = comHost.IsExecutionEngineSupported(KCPUArchitecture_x86, KVMExecutionEngine_NativeApi) != FALSE
+                         && comHost.isOk();
+    fIsHwVirtSupported    = comHost.IsExecutionEngineSupported(KCPUArchitecture_x86, KVMExecutionEngine_HwVirt) != FALSE
+                         && comHost.isOk();
+#  else
+    fIsNativeApiSupported = comHost.IsExecutionEngineSupported(KCPUArchitecture_ARMv8_64, KVMExecutionEngine_NativeApi) != FALSE
+                         && comHost.isOk();
+#  endif
+# else
+#  error "port me"
+# endif
+    strPlatform.append(fIsNativeApiSupported ? ";NEM" : ";no-NEM");
+    strPlatform.append(fIsHwVirtSupported    ? ":HM"  : ":no-HM");
+
+
 #ifdef Q_OS_LINUX
-    // WORKAROUND:
-    // On Linux we try to generate information using script first of all..
-
+    /*
+     * WORKAROUND: On Linux we try to generate information using script first.
+     *
+     * It will get more information than what IPRT currently provide, with distro
+     * details and such.
+     */
     /* Get script path: */
     char szAppPrivPath[RTPATH_MAX];
     vrc = RTPathAppPrivateNoArch(szAppPrivPath, sizeof(szAppPrivPath));
@@ -173,35 +270,39 @@ QString UINewVersionChecker::platformInfo()
         /* Run script: */
         QByteArray result = QIProcess::singleShot(QString(szAppPrivPath) + "/VBoxSysInfo.sh");
         if (!result.isNull())
-            strPlatform += QString(" [%1]").arg(QString(result).trimmed());
+        {
+            QString strTrimmed = QString(result).trimmed();
+            if (!strTrimmed.isEmpty())
+                strPlatform += QString(" | %1]").arg(QString(result).trimmed());
+            else
+                vrc = VERR_TRY_AGAIN; /* (take the fallback path) */
+        }
         else
             vrc = VERR_TRY_AGAIN; /* (take the fallback path) */
     }
     if (RT_FAILURE(vrc))
 #endif /* Q_OS_LINUX */
     {
-        /* Use RTSystemQueryOSInfo: */
-        char szTmp[256];
-        QStringList components;
-
+        /*
+         * Use RTSystemQueryOSInfo:
+         */
         vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szTmp, sizeof(szTmp));
         if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
-            components << QString("Product: %1").arg(szTmp);
+            strPlatform += QString(" | Product: %1").arg(szTmp);
 
         vrc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szTmp, sizeof(szTmp));
         if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
-            components << QString("Release: %1").arg(szTmp);
+            strPlatform += QString(" | Release: %1").arg(szTmp);
 
         vrc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szTmp, sizeof(szTmp));
         if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
-            components << QString("Version: %1").arg(szTmp);
+            strPlatform += QString(" | Version: %1").arg(szTmp);
 
         vrc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szTmp, sizeof(szTmp));
         if ((RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW) && szTmp[0] != '\0')
-            components << QString("SP: %1").arg(szTmp);
+            strPlatform += QString(" | SP: %1").arg(szTmp);
 
-        if (!components.isEmpty())
-            strPlatform += QString(" [%1]").arg(components.join(" | "));
+        strPlatform.append("]");
     }
 
     return strPlatform;

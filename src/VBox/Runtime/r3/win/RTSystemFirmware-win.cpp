@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -51,9 +51,9 @@
 #include <iprt/ldr.h>
 #include <iprt/string.h>
 #include <iprt/utf16.h>
+#include <iprt/win/reg.h>
 
 #include "internal-r3-win.h"
-#include "internal-r3-registry-win.h"
 
 
 /*********************************************************************************************************************************
@@ -193,64 +193,68 @@ RTDECL(int) RTSystemQueryFirmwareType(PRTSYSFWTYPE penmFirmwareType)
 RTDECL(int) RTSystemQueryFirmwareBoolean(RTSYSFWBOOL enmBoolean, bool *pfValue)
 {
     *pfValue = false;
+    AssertReturn(enmBoolean > RTSYSFWBOOL_INVALID && enmBoolean < RTSYSFWBOOL_END, VERR_INVALID_PARAMETER);
 
     /*
      * Translate the enmBoolean to a name:
      */
-    const wchar_t *pwszName = NULL;
+    PCRTUTF16 pwszName          = NULL;
+    PCRTUTF16 pwszFallbackKey   = NULL;
+    PCRTUTF16 pwszFallbackValue = NULL;
     switch (enmBoolean)
     {
         case RTSYSFWBOOL_SECURE_BOOT:
-            pwszName = L"SecureBoot";
+            pwszName          = L"SecureBoot";
+            pwszFallbackKey   = L"SYSTEM\\CurrentControlSet\\Control\\SecureBoot\\State";
+            pwszFallbackValue = L"UEFISecureBootEnabled";
             break;
 
-        default:
-            AssertReturn(enmBoolean > RTSYSFWBOOL_INVALID && enmBoolean < RTSYSFWBOOL_END, VERR_INVALID_PARAMETER);
-            return VERR_SYS_UNSUPPORTED_FIRMWARE_PROPERTY;
+        case RTSYSFWBOOL_INVALID:
+        case RTSYSFWBOOL_END:
+        case RTSYSFWBOOL_32_BIT_HACK:
+            break;
     }
+    if (!pwszName)
+        return VERR_SYS_UNSUPPORTED_FIRMWARE_PROPERTY;
 
-    int rc;
 
     /*
      * Do the query.
+     *
+     * This will typically fail with VERR_PRIVILEGE_NOT_HELD / ERROR_PRIVILEGE_NOT_HELD
+     * unless we're in an elevated process.  (In this case the function will not tell
+     * us whether the variable exists or not.)
      */
     if (g_pfnGetFirmwareEnvironmentVariableW)
     {
         rtSystemFirmwareGetPrivileges(SE_SYSTEM_ENVIRONMENT_NAME);
-
-        /* Note! This will typically fail with access denied unless we're in an elevated process. */
-        uint8_t bValue = 0;
-        DWORD cbRet = g_pfnGetFirmwareEnvironmentVariableW(pwszName, VBOX_UEFI_UUID_GLOBALS, &bValue, sizeof(bValue));
-        *pfValue = cbRet != 0 && bValue != 0;
+        uint8_t     bValue = 0;
+        DWORD const cbRet  = g_pfnGetFirmwareEnvironmentVariableW(pwszName, VBOX_UEFI_UUID_GLOBALS, &bValue, sizeof(bValue));
         if (cbRet != 0)
-            return VINF_SUCCESS;
-        rc = RTErrConvertFromWin32(GetLastError());
-        if (rc == VERR_ENV_VAR_NOT_FOUND)
-            return VINF_SUCCESS;
-    }
-
-    /* If the above call failed because of missing privileges, try the registry as a fallback (if available for the type). */
-    switch (enmBoolean)
-    {
-        case RTSYSFWBOOL_SECURE_BOOT:
         {
-            DWORD dwEnabled;
-            rc = RTSystemWinRegistryQueryDWORD(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\SecureBoot\\State",
-                                               "UEFISecureBootEnabled", &dwEnabled);
-            if (RT_SUCCESS(rc))
-            {
-                *pfValue = RT_BOOL(dwEnabled);
-            }
-            else if (rc == VERR_FILE_NOT_FOUND)
-                rc = VERR_NOT_SUPPORTED;
-            break;
+            *pfValue = bValue != 0;
+            return VINF_SUCCESS;
         }
 
-        default:
-            rc = VERR_NOT_SUPPORTED;
-            break;
+        if (GetLastError() == ERROR_ENVVAR_NOT_FOUND)
+            return VINF_SUCCESS; /* only if privleges held */
     }
 
+    /*
+     * If the above call failed because of missing privileges, try the registry
+     * as a fallback (if available for the type).
+     */
+    Assert(pwszFallbackKey);
+    uint32_t fEnabled = 0;
+    int rc = RTWinRegQueryValueU32(kRTWinRegRoot_LocalMachine, pwszFallbackKey, pwszFallbackValue, &fEnabled);
+    if (RT_SUCCESS(rc))
+        *pfValue = RT_BOOL(fEnabled);
+    else
+    {
+        Assert(rc != VERR_WRONG_TYPE && rc != VERR_MISMATCH);
+        if (rc == VERR_FILE_NOT_FOUND || rc == VERR_PATH_NOT_FOUND || rc == VERR_NOT_FOUND)
+            rc = VERR_NOT_SUPPORTED;
+    }
     return rc;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -237,7 +237,7 @@ static DECLCALLBACK(int) usbProxyVrdpUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB p
 
     PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
     int rc = pDevVrdp->pCallback->pfnQueueURB (pDevVrdp->pDevice, pUrb->enmType, pUrb->EndPt, pUrb->enmDir, pUrb->cbData,
-                                               pUrb->abData, pUrb, (PREMOTEUSBQURB *)&pUrb->Dev.pvPrivate);
+                                               pUrb->pbData, pUrb, (PREMOTEUSBQURB *)&pUrb->Dev.pvPrivate);
 
     if (rc == VERR_VUSB_DEVICE_NOT_ATTACHED)
     {

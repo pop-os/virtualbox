@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -59,6 +59,9 @@ class RT_DECL_CLASS RTCRestOutputBase
 public:
     RTCRestOutputBase() RT_NOEXCEPT;
     virtual ~RTCRestOutputBase();
+
+    RTCRestOutputBase(const RTCRestOutputBase &a_rThat) RT_NOEXCEPT;
+    RTCRestOutputBase &operator=(const RTCRestOutputBase &a_rThat) RT_NOEXCEPT;
 
     /**
      * Raw output function.
@@ -150,6 +153,9 @@ public:
     RTCRestOutputPrettyBase() RT_NOEXCEPT;
     virtual ~RTCRestOutputPrettyBase();
 
+    RTCRestOutputPrettyBase(const RTCRestOutputPrettyBase &a_rThat) RT_NOEXCEPT;
+    RTCRestOutputPrettyBase &operator=(const RTCRestOutputPrettyBase &a_rThat) RT_NOEXCEPT;
+
     /**
      * Begins an array.
      * @returns Previous output state.  Pass to endArray() when done.
@@ -227,8 +233,13 @@ protected:
     bool        m_fOutOfMemory;
 
     /* Make non-copyable (RTCNonCopyable causes warnings): */
+#if RT_CPLUSPLUS_PREREQ(201100)
+    RTCRestOutputToString(RTCRestOutputToString const &) = delete;
+    RTCRestOutputToString *operator=(RTCRestOutputToString const &) = delete;
+#else
     RTCRestOutputToString(RTCRestOutputToString const &);
     RTCRestOutputToString *operator=(RTCRestOutputToString const &);
+#endif
 };
 
 
@@ -268,8 +279,13 @@ protected:
     bool        m_fOutOfMemory;
 
     /* Make non-copyable (RTCNonCopyable causes warnings): */
+#if RT_CPLUSPLUS_PREREQ(201100)
+    RTCRestOutputPrettyToString(RTCRestOutputToString const &) = delete;
+    RTCRestOutputPrettyToString *operator=(RTCRestOutputToString const &) = delete;
+#else
     RTCRestOutputPrettyToString(RTCRestOutputToString const &);
     RTCRestOutputPrettyToString *operator=(RTCRestOutputToString const &);
+#endif
 };
 
 

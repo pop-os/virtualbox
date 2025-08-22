@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -73,9 +73,11 @@
 # include <asm/msr.h>
 #endif
 
-#include <asm/desc.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <asm/desc.h>
 
-#include <iprt/asm-amd64-x86.h>
+# include <iprt/asm-amd64-x86.h>
+#endif
 
 
 /*********************************************************************************************************************************
@@ -994,9 +996,10 @@ SUPR0DECL(int) SUPDrvLinuxLdrDeregisterWrappedModule(PCSUPLDRWRAPPEDMODULE pWrap
 EXPORT_SYMBOL(SUPDrvLinuxLdrDeregisterWrappedModule);
 
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 RTCCUINTREG VBOXCALL supdrvOSChangeCR4(RTCCUINTREG fOrMask, RTCCUINTREG fAndMask)
 {
-#if RTLNX_VER_MIN(5,8,0)
+# if RTLNX_VER_MIN(5,8,0)
     unsigned long fSavedFlags;
     local_irq_save(fSavedFlags);
     RTCCUINTREG const uOld = cr4_read_shadow();
@@ -1004,25 +1007,26 @@ RTCCUINTREG VBOXCALL supdrvOSChangeCR4(RTCCUINTREG fOrMask, RTCCUINTREG fAndMask
     AssertMsg(cr4_read_shadow() == ((uOld & fAndMask) | fOrMask),
               ("fOrMask=%#RTreg fAndMask=%#RTreg uOld=%#RTreg; new cr4=%#llx\n", fOrMask, fAndMask, uOld, cr4_read_shadow()));
     local_irq_restore(fSavedFlags);
-#else
-# if RTLNX_VER_MIN(3,20,0)
-    RTCCUINTREG const uOld = this_cpu_read(cpu_tlbstate.cr4);
 # else
+#  if RTLNX_VER_MIN(3,20,0)
+    RTCCUINTREG const uOld = this_cpu_read(cpu_tlbstate.cr4);
+#  else
     RTCCUINTREG const uOld = ASMGetCR4();
-# endif
+#  endif
     RTCCUINTREG const uNew = (uOld & fAndMask) | fOrMask;
     if (uNew != uOld)
     {
-# if RTLNX_VER_MIN(3,20,0)
+#  if RTLNX_VER_MIN(3,20,0)
         this_cpu_write(cpu_tlbstate.cr4, uNew);
         __write_cr4(uNew);
-# else
+#  else
         ASMSetCR4(uNew);
-# endif
+#  endif
     }
-#endif
+# endif
     return uOld;
 }
+#endif /* RT_ARCH_AMD64 || RT_ARCH_X86 */
 
 
 void VBOXCALL supdrvOSCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
@@ -1725,10 +1729,12 @@ SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
 SUPR0_EXPORT_SYMBOL(SUPR0GetKernelFeatures);
 
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) /* not available on arm64 */
+
 SUPR0DECL(bool) SUPR0FpuBegin(bool fCtxHook)
 {
     RT_NOREF(fCtxHook);
-#if RTLNX_VER_MIN(4,19,0) /* Going back to 4.19.0 for better coverage, we
+# if RTLNX_VER_MIN(4,19,0) /* Going back to 4.19.0 for better coverage, we
                              probably only need 5.17.7+ in the end. */
     /*
      * HACK ALERT!
@@ -1753,7 +1759,7 @@ SUPR0DECL(bool) SUPR0FpuBegin(bool fCtxHook)
     kernel_fpu_begin();
 #  if RTLNX_VER_MIN(6,15,0) /* fpregs_unlock may do more than just preempt_enable, so only when necessary now. */
     if (fCtxHook)
-# endif
+#  endif
     {
 #  if RTLNX_VER_MIN(6,15,0)
         if (!irqs_disabled())
@@ -1766,9 +1772,9 @@ SUPR0DECL(bool) SUPR0FpuBegin(bool fCtxHook)
                    *        if we're limited to the SSE & x87 FPU. If it's the former,
                    *        we should return @a true and the caller can skip
                    *        saving+restoring the host state and save some time. */
-#else
+# else
     return false;
-#endif
+# endif
 }
 SUPR0_EXPORT_SYMBOL(SUPR0FpuBegin);
 
@@ -1776,12 +1782,12 @@ SUPR0_EXPORT_SYMBOL(SUPR0FpuBegin);
 SUPR0DECL(void) SUPR0FpuEnd(bool fCtxHook)
 {
     RT_NOREF(fCtxHook);
-#if RTLNX_VER_MIN(4,19,0)
+# if RTLNX_VER_MIN(4,19,0)
     /* HACK ALERT! See SUPR0FpuBegin for an explanation of this. */
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
 #  if RTLNX_VER_MIN(6,15,0) /* fpregs_unlock may do more than just preempt_enable, so only when necessary now. */
     if (fCtxHook)
-# endif
+#  endif
     {
 #  if RTLNX_VER_MIN(6,15,0)
         if (!irqs_disabled())
@@ -1791,20 +1797,24 @@ SUPR0DECL(void) SUPR0FpuEnd(bool fCtxHook)
 #  endif
     }
     kernel_fpu_end();
-#endif
+# endif
 }
 SUPR0_EXPORT_SYMBOL(SUPR0FpuEnd);
 
+#endif /* RT_ARCH_AMD64 || RT_ARCH_X86 */
 
+
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 int VBOXCALL    supdrvOSGetCurrentGdtRw(RTHCUINTPTR *pGdtRw)
 {
-#if RTLNX_VER_MIN(4,12,0) && !defined(CONFIG_PAX_KERNEXEC)
+# if RTLNX_VER_MIN(4,12,0) && !defined(CONFIG_PAX_KERNEXEC)
     *pGdtRw = (RTHCUINTPTR)get_current_gdt_rw();
     return VINF_SUCCESS;
-#else
+# else
     return VERR_NOT_IMPLEMENTED;
-#endif
+# endif
 }
+#endif
 
 
 module_init(VBoxDrvLinuxInit);

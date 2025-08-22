@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -199,6 +199,7 @@ void NATEngine::i_applyDefaults()
 
     mData->m->fLocalhostReachable = false; /* Applies to new VMs only, see @bugref{9896} */
     mData->m->fForwardBroadcast = false;   /* Applies to new VMs only. see @bugref{10268} */
+    mData->m->fEnableTFTP = false;
 }
 
 bool NATEngine::i_hasDefaults()
@@ -482,6 +483,62 @@ HRESULT NATEngine::getForwardBroadcast(BOOL *pfForwardBroadcast)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     *pfForwardBroadcast = mData->m->fForwardBroadcast;
     return S_OK;
+}
+
+HRESULT NATEngine::setEnableTFTP(BOOL fEnableTFTP)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->m->fEnableTFTP != RT_BOOL(fEnableTFTP))
+    {
+        mData->m.backup();
+        mData->m->fEnableTFTP = RT_BOOL(fEnableTFTP);
+        mParent->i_setModified(Machine::IsModified_NetworkAdapters);
+    }
+    return S_OK;
+}
+
+HRESULT NATEngine::getEnableTFTP(BOOL *pfEnableTFTP)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    *pfEnableTFTP = mData->m->fEnableTFTP;
+    return S_OK;
+}
+
+HRESULT NATEngine::setNatMRU(ULONG uMRU)
+{
+    RT_NOREF(uMRU);
+    return E_NOTIMPL;
+}
+
+HRESULT NATEngine::getNatMRU(ULONG *puMRU)
+{
+    RT_NOREF(puMRU);
+    return E_NOTIMPL;
+}
+
+HRESULT NATEngine::setIPv6Enabled(BOOL fEnableIPv6)
+{
+    RT_NOREF(fEnableIPv6);
+    return E_NOTIMPL;
+}
+
+HRESULT NATEngine::getIPv6Enabled(BOOL *pfEnableIPv6)
+{
+    RT_NOREF(pfEnableIPv6);
+    return E_NOTIMPL;
+}
+
+HRESULT NATEngine::setIPv6Prefix(const com::Utf8Str &aIPv6Prefix)
+{
+    RT_NOREF(aIPv6Prefix);
+    return E_NOTIMPL;
+}
+
+HRESULT NATEngine::getIPv6Prefix(com::Utf8Str &aIPv6Prefix)
+{
+    RT_NOREF(aIPv6Prefix);
+    return E_NOTIMPL;
 }
 
 HRESULT NATEngine::setTFTPPrefix(const com::Utf8Str &aTFTPPrefix)

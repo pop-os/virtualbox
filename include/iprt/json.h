@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -92,12 +92,20 @@ typedef RTJSONIT *PRTJSONIT;
 /** NIL JSON iterator handle. */
 #define NIL_RTJSONIT ((RTJSONIT)~(uintptr_t)0)
 
+/** Allow JSON5 extensions. */
+#define RTJSON_PARSE_F_JSON5            RT_BIT_32(0)
+/** Mask of valid flags. */
+#define RTJSON_PARSE_F_VALID            RTJSON_PARSE_F_JSON5
+
+
+
 /**
  * Parses a JSON document in the provided buffer returning the root JSON value.
  *
  * @returns IPRT status code.
  * @retval  VERR_JSON_MALFORMED if the document does not conform to the spec.
  * @param   phJsonVal       Where to store the handle to the JSON value on success.
+ * @param   fFlags          Combination of RTJSON_PARSE_F_XXX.
  * @param   pbBuf           The byte buffer containing the JSON document.
  * @param   cbBuf           Size of the buffer.
  * @param   pErrInfo        Where to store extended error info. Optional.
@@ -108,7 +116,7 @@ typedef RTJSONIT *PRTJSONIT;
  *          This function should be modified to reflect that it's really for
  *          handling unterminated strings.
  */
-RTDECL(int) RTJsonParseFromBuf(PRTJSONVAL phJsonVal, const uint8_t *pbBuf, size_t cbBuf, PRTERRINFO pErrInfo);
+RTDECL(int) RTJsonParseFromBuf(PRTJSONVAL phJsonVal, uint32_t fFlags, const uint8_t *pbBuf, size_t cbBuf, PRTERRINFO pErrInfo);
 
 /**
  * Parses a JSON document from the provided string returning the root JSON value.
@@ -116,10 +124,11 @@ RTDECL(int) RTJsonParseFromBuf(PRTJSONVAL phJsonVal, const uint8_t *pbBuf, size_
  * @returns IPRT status code.
  * @retval  VERR_JSON_MALFORMED if the document does not conform to the spec.
  * @param   phJsonVal       Where to store the handle to the JSON value on success.
+ * @param   fFlags          Combination of RTJSON_PARSE_F_XXX.
  * @param   pszStr          The string containing the JSON document.
  * @param   pErrInfo        Where to store extended error info. Optional.
  */
-RTDECL(int) RTJsonParseFromString(PRTJSONVAL phJsonVal, const char *pszStr, PRTERRINFO pErrInfo);
+RTDECL(int) RTJsonParseFromString(PRTJSONVAL phJsonVal, uint32_t fFlags, const char *pszStr, PRTERRINFO pErrInfo);
 
 /**
  * Parses a JSON document from the file pointed to by the given filename
@@ -128,10 +137,11 @@ RTDECL(int) RTJsonParseFromString(PRTJSONVAL phJsonVal, const char *pszStr, PRTE
  * @returns IPRT status code.
  * @retval  VERR_JSON_MALFORMED if the document does not conform to the spec.
  * @param   phJsonVal       Where to store the handle to the JSON value on success.
+ * @param   fFlags          Combination of RTJSON_PARSE_F_XXX.
  * @param   pszFilename     The name of the file containing the JSON document.
  * @param   pErrInfo        Where to store extended error info. Optional.
  */
-RTDECL(int) RTJsonParseFromFile(PRTJSONVAL phJsonVal, const char *pszFilename, PRTERRINFO pErrInfo);
+RTDECL(int) RTJsonParseFromFile(PRTJSONVAL phJsonVal, uint32_t fFlags, const char *pszFilename, PRTERRINFO pErrInfo);
 
 /**
  * Parses a JSON document from the given VFS file
@@ -140,10 +150,11 @@ RTDECL(int) RTJsonParseFromFile(PRTJSONVAL phJsonVal, const char *pszFilename, P
  * @returns IPRT status code.
  * @retval  VERR_JSON_MALFORMED if the document does not conform to the spec.
  * @param   phJsonVal       Where to store the handle to the JSON value on success.
+ * @param   fFlags          Combination of RTJSON_PARSE_F_XXX.
  * @param   hVfsFile        The VFS file to parse.
  * @param   pErrInfo        Where to store extended error info. Optional.
  */
-RTDECL(int) RTJsonParseFromVfsFile(PRTJSONVAL phJsonVal, RTVFSFILE hVfsFile, PRTERRINFO pErrInfo);
+RTDECL(int) RTJsonParseFromVfsFile(PRTJSONVAL phJsonVal, uint32_t fFlags, RTVFSFILE hVfsFile, PRTERRINFO pErrInfo);
 
 /**
  * Retain a given JSON value.
@@ -217,6 +228,25 @@ RTDECL(int) RTJsonValueQueryInteger(RTJSONVAL hJsonVal, int64_t *pi64Num);
  * @sa      RTJsonValueQueryInteger
  */
 RTDECL(int) RTJsonValueQueryNumber(RTJSONVAL hJsonVal, double *prdNum);
+
+/**
+ * Returns the numberof members of a given JSON object value.
+ *
+ * @returns Number of members of the given JSON object.
+ * @retval  0 if the object has no members or the JSON value is not an object.
+ * @param   hJsonVal        The JSON value handle.
+ */
+RTDECL(unsigned) RTJsonValueGetObjectMemberCount(RTJSONVAL hJsonVal);
+
+/**
+ * Returns the numberof members of a given JSON object value - extended version.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an object.
+ * @param   hJsonVal        The JSON value handle.
+ * @param   pcMembers       Where to store the number of members for the given JSON object on success.
+ */
+RTDECL(int) RTJsonValueQueryObjectMemberCount(RTJSONVAL hJsonVal, unsigned *pcMembers);
 
 /**
  * Returns the value associated with a given name for the given JSON object value.

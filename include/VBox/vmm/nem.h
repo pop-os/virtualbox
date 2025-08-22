@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -70,6 +70,9 @@ VMMR3_INT_DECL(VBOXSTRICTRC) NEMR3RunGC(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(bool) NEMR3CanExecuteGuest(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(bool) NEMR3SetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable);
 VMMR3_INT_DECL(void) NEMR3NotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags);
+#if defined(VBOX_VMM_TARGET_ARMV8) && defined(RT_OS_WINDOWS)
+VMMR3_INT_DECL(int)  NEMR3Halt(PVM pVM, PVMCPU pVCpu);
+#endif
 
 /**
  * Checks if dirty page tracking for MMIO2 ranges is supported.
@@ -144,7 +147,7 @@ VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterEarly(PVM pVM, RTGCPHYS GCPhys, R
 /**
  * Called after the ROM range has been fully completed.
  *
- * This will be preceeded by a NEMR3NotifyPhysRomRegisterEarly() call as well a
+ * This will be preceded by a NEMR3NotifyPhysRomRegisterEarly() call as well a
  * number of NEMHCNotifyPhysPageProtChanged calls.
  *
  * @returns VBox status code

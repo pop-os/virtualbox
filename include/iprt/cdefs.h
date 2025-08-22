@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -249,9 +249,20 @@
  * @param   a_Min           The minimum version, e.g. 201100.
  */
 #ifdef __cplusplus
-# define RT_CPLUSPLUS_PREREQ(a_Min)      (__cplusplus >= (a_Min))
+# define RT_CPLUSPLUS_PREREQ(a_Min)     (__cplusplus >= (a_Min))
 #else
-# define RT_CPLUSPLUS_PREREQ(a_Min)      (0)
+# define RT_CPLUSPLUS_PREREQ(a_Min)     (0)
+#endif
+
+/** @def RT_STDC_VERSION_PREREQ
+ * Require a minimum __STDC_VERSION__ value, simplifying dealing with non-C code.
+ *
+ * @param   a_Min           The minimum version, e.g. 201100L or 201700L.
+ */
+#if !defined(__cplusplus) && defined(__STDC_VERSION__)
+# define RT_STDC_VERSION_PREREQ(a_Min)  (__STDC_VERSION__ >= (a_Min))
+#else
+# define RT_STDC_VERSION_PREREQ(a_Min)  (0)
 #endif
 
 /** @def RT_GNUC_PREREQ
@@ -327,6 +338,8 @@
 #define RT_MSC_VER_VC142_U8     RT_MSC_VER_VS2019_U8    /**< Visual C++ 14.2 update 8. */
 #define RT_MSC_VER_VS2019_U11   (1929)                  /**< Visual Studio 2019, update 11. */
 #define RT_MSC_VER_VC142_U11    RT_MSC_VER_VS2019_U11   /**< Visual C++ 14.2 update 11. */
+#define RT_MSC_VER_VS2022       (1930)                  /**< Visual Studio 2022. */
+#define RT_MSC_VER_VC143        RT_MSC_VER_VS2022       /**< Visual C++ 14.3, aka Visual Studio 2022. */
 /** @} */
 
 /** @def RT_CLANG_PREREQ
@@ -1157,6 +1170,23 @@
 # define RT_GCC_NO_WARN_CONVERSION_END
 #endif
 
+/** @def RT_NO_WARN_UNUSED_INLINE_PROTOTYPE_BEGIN
+ * Used to start a block of code where the compiler (gcc, ++) should not warn
+ * about unused inline function prototypes.  (This lead the compiler to
+ * ignore more than just inline functions.) */
+#if RT_GNUC_PREREQ(4, 6)
+# define RT_NO_WARN_UNUSED_INLINE_PROTOTYPE_BEGIN \
+   _Pragma("GCC diagnostic push") \
+   _Pragma("GCC diagnostic ignored \"-Wunused-function\"")
+/** @def RT_NO_WARN_UNUSED_INLINE_PROTOTYPE_END
+ * Paired with RT_NO_WARN_UNUSED_INLINE_PROTOTYPE_BEGIN */
+# define RT_NO_WARN_UNUSED_INLINE_PROTOTYPE_END \
+   _Pragma("GCC diagnostic pop")
+#else
+# define RT_NO_WARN_UNUSED_INLINE_PROTOTYPE_BEGIN
+# define RT_NO_WARN_UNUSED_INLINE_PROTOTYPE_END
+#endif
+
 /** @def RT_COMPILER_GROKS_64BIT_BITFIELDS
  * Macro that is defined if the compiler understands 64-bit bitfields. */
 #if !defined(RT_OS_OS2) || (!defined(__IBMC__) && !defined(__IBMCPP__))
@@ -1499,6 +1529,8 @@
 # define RT_FALL_THROUGH()      [[clang::fallthrough]]
 #elif RT_CLANG_PREREQ(12, 0) || RT_GNUC_PREREQ(7, 0)
 # define RT_FALL_THROUGH()      __attribute__((__fallthrough__))
+#elif RT_CPLUSPLUS_PREREQ(201700)
+# define RT_FALL_THROUGH()      [[fallthrough]]
 #else
 # define RT_FALL_THROUGH()      (void)0
 #endif
@@ -1703,6 +1735,18 @@
 # define DECL_INVALID(a_RetType)    a_RetType
 #endif
 
+/** @def DECL_EXTERN_C
+ * Prepends an 'extern "C"' in C++ code.
+ * @param   a_RetTypeExpr   The return type, calling convention, function
+ *                          attributes, and whatnot expression of the function
+ *                          declaration.
+ */
+#ifdef __cplusplus
+# define DECL_EXTERN_C(a_RetTypeExpr)   extern "C" a_RetTypeExpr
+#else
+# define DECL_EXTERN_C(a_RetTypeExpr)   a_RetTypeExpr
+#endif
+
 /** @def DECLASM
  * How to declare an internal assembly function.
  * @param   a_RetType   The return type of the function declaration.
@@ -1730,8 +1774,8 @@
 # define RT_ASM_DECL_PRAGMA_WATCOM(a_RetType)       a_RetType
 # define RT_ASM_DECL_PRAGMA_WATCOM_386(a_RetType)   a_RetType
 #else
-# define RT_ASM_DECL_PRAGMA_WATCOM(a_RetType)       DECLASM(a_RetType)
-# define RT_ASM_DECL_PRAGMA_WATCOM_386(a_RetType)   DECLASM(a_RetType)
+# define RT_ASM_DECL_PRAGMA_WATCOM(a_RetType)       RT_DECL_ASM(a_RetType)
+# define RT_ASM_DECL_PRAGMA_WATCOM_386(a_RetType)   RT_DECL_ASM(a_RetType)
 #endif
 
 /** @def DECL_NO_RETURN
@@ -2106,6 +2150,24 @@
 # endif
 #else
 # define RTDECL(a_RetType)      DECL_IMPORT_NOTHROW(a_RetType) RTCALL
+#endif
+
+/** @def RT_DECL_ASM(a_RetType)
+ * Runtime Library assembly export or import declaration.
+ * Functions declared using this macro exists in all contexts.
+ * @param   a_RetType   The return type of the function declaration.
+ * @remarks This is only used inside IPRT.
+ * @note    This is compatible with DECLASM, just add hidden/import/export
+ *          attributes to the function.
+ */
+#if defined(IN_RT_R3) || defined(IN_RT_RC) || defined(IN_RT_R0)
+# ifdef IN_RT_STATIC
+#  define RT_DECL_ASM(a_RetType) DECL_EXTERN_C(DECL_HIDDEN_NOTHROW(a_RetType RTCALL))
+# else
+#  define RT_DECL_ASM(a_RetType) DECL_EXTERN_C(DECL_EXPORT_NOTHROW(a_RetType RTCALL))
+# endif
+#else
+# define RT_DECL_ASM(a_RetType)  DECL_EXTERN_C(DECL_IMPORT_NOTHROW(a_RetType RTCALL))
 #endif
 
 /** @def RTDATADECL(a_Type)
@@ -3091,18 +3153,14 @@
 #if RT_MSC_PREREQ(RT_MSC_VER_VS2005) /** @todo Probably much much earlier. */ \
  || (defined(__cplusplus) && RT_GNUC_PREREQ(6, 1)) /* not tested 7.x, but hope it works with __extension__ too. */ \
  || defined(__WATCOMC__) /* openwatcom 1.9 supports it, we don't care about older atm. */ \
- || RT_CLANG_PREREQ_EX(3, 4, 0) /* Only tested clang v3.4, support is probably older. */
+ || (RT_CLANG_PREREQ_EX(3, 4, 0) && !defined(__cplusplus)) /* Only tested clang v3.4, support is probably older. */
 # define RT_FLEXIBLE_ARRAY
 # if defined(__cplusplus) && defined(_MSC_VER)
 #  pragma warning(disable:4200) /* -wd4200 does not work with VS2010 */
 #  pragma warning(disable:4815) /* -wd4815 does not work with VS2019 */
 # endif
-#elif defined(__STDC_VERSION__)
-# if __STDC_VERSION__ >= 199901L
-#  define RT_FLEXIBLE_ARRAY
-# else /* __STDC_VERSION__ < 199901L */
-#  define RT_FLEXIBLE_ARRAY                     1
-# endif /* __STDC_VERSION__ < 199901L */
+#elif RT_STDC_VERSION_PREREQ(199901L)
+# define RT_FLEXIBLE_ARRAY
 #else
 # define RT_FLEXIBLE_ARRAY                      1
 #endif
@@ -3111,7 +3169,7 @@
  * A trick to make GNU C++ quietly accept flexible arrays in C++ code when
  * pedantic warnings are enabled.  Put this on the line before the flexible
  * array. */
-#if (RT_GNUC_PREREQ(7, 0) && defined(__cplusplus)) || defined(DOXGYEN_RUNNING)
+#if (RT_GNUC_PREREQ(7, 0) && defined(__cplusplus)) || defined(DOXYGEN_RUNNING)
 # define RT_FLEXIBLE_ARRAY_EXTENSION            RT_GCC_EXTENSION
 #else
 # define RT_FLEXIBLE_ARRAY_EXTENSION
@@ -4215,11 +4273,17 @@
 #else
 # define _512K          UINT32_C(0x00080000)
 #endif
-/** 1 M (Mega)                 (1 048 576). */
+/** 1 M (Mega)                 (1 048 576). (32-bit) */
 #if ARCH_BITS != 16
 # define _1M                     0x00100000
 #else
 # define _1M            UINT32_C(0x00100000)
+#endif
+/** 1 M (Mega)                 (1 048 576). (64-bit) */
+#if ARCH_BITS != 16
+# define _1M64                   0x001000000LL
+#else
+# define _1M64          UINT64_C(0x001000000)
 #endif
 /** 2 M (Mega)                 (2 097 152). */
 #if ARCH_BITS != 16

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -34,6 +34,9 @@
 #include "VirtualBoxClientWrap.h"
 #include "EventImpl.h"
 #include "VirtualBoxTranslator.h"
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+# include "ObjectsTracker.h"
+#endif
 
 #ifdef RT_OS_WINDOWS
 # include "win/resource.h"
@@ -99,6 +102,9 @@ private:
             , m_pVBoxTranslator(NULL)
             , m_pTrComponent(NULL)
 #endif
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+            , m_objectTrackerTask(NULL)
+#endif
         {}
 
         ~Data()
@@ -112,7 +118,6 @@ private:
         }
 
         ComPtr<IVirtualBox> m_pVirtualBox;
-        ComPtr<IToken> m_pToken;
         const ComObjPtr<EventSource> m_pEventSource;
         ComPtr<IEventSource> m_pVBoxEventSource;
         ComPtr<IEventListener> m_pVBoxEventListener;
@@ -122,6 +127,10 @@ private:
 #ifdef VBOX_WITH_MAIN_NLS
         VirtualBoxTranslator *m_pVBoxTranslator;
         PTRCOMPONENT          m_pTrComponent;
+#endif
+
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+        ObjectTracker *m_objectTrackerTask;
 #endif
     };
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -33,7 +33,7 @@
 #define PDMPCIDEV_INCLUDE_PRIVATE  /* Hack to get pdmpcidevint.h included at the right point. */
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/gvm.h>
@@ -1212,11 +1212,11 @@ static DECLCALLBACK(int) pdmR0DevHlp_PICSetUpContext(PPDMDEVINS pDevIns, PPDMPIC
 }
 
 
-/** @interface_method_impl{PDMDEVHLPR0,pfnApicSetUpContext} */
-static DECLCALLBACK(int) pdmR0DevHlp_ApicSetUpContext(PPDMDEVINS pDevIns)
+/** @interface_method_impl{PDMDEVHLPR0,pfnIcSetUpContext} */
+static DECLCALLBACK(int) pdmR0DevHlp_IcSetUpContext(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    LogFlow(("pdmR0DevHlp_ApicSetUpContext: caller='%s'/%d:\n", pDevIns->pReg->szName, pDevIns->iInstance));
+    LogFlow(("pdmR0DevHlp_IcSetUpContext: caller='%s'/%d:\n", pDevIns->pReg->szName, pDevIns->iInstance));
     PGVM pGVM = pDevIns->Internal.s.pGVM;
 
     /*
@@ -1226,21 +1226,21 @@ static DECLCALLBACK(int) pdmR0DevHlp_ApicSetUpContext(PPDMDEVINS pDevIns)
     VM_ASSERT_EMT0_RETURN(pGVM, VERR_VM_THREAD_NOT_EMT);
 
     /* Check that it's the same device as made the ring-3 registrations: */
-    AssertLogRelMsgReturn(pGVM->pdm.s.Apic.pDevInsR3 == pDevIns->pDevInsForR3,
-                          ("%p vs %p\n", pGVM->pdm.s.Apic.pDevInsR3, pDevIns->pDevInsForR3), VERR_NOT_OWNER);
+    AssertLogRelMsgReturn(pGVM->pdm.s.Ic.pDevInsR3 == pDevIns->pDevInsForR3,
+                          ("%p vs %p\n", pGVM->pdm.s.Ic.pDevInsR3, pDevIns->pDevInsForR3), VERR_NOT_OWNER);
 
     /* Check that it isn't already registered in ring-0: */
-    AssertLogRelMsgReturn(pGVM->pdm.s.Apic.pDevInsR0 == NULL, ("%p (caller pDevIns=%p)\n", pGVM->pdm.s.Apic.pDevInsR0, pDevIns),
+    AssertLogRelMsgReturn(pGVM->pdmr0.s.Ic.pDevInsR0 == NULL, ("%p (caller pDevIns=%p)\n", pGVM->pdmr0.s.Ic.pDevInsR0, pDevIns),
                           VERR_ALREADY_EXISTS);
 
     /*
      * Take down the instance.
      */
-    pGVM->pdm.s.Apic.pDevInsR0 = pDevIns;
+    pGVM->pdmr0.s.Ic.pDevInsR0 = pDevIns;
     Log(("PDM: Registered APIC device '%s'/%d pDevIns=%p\n", pDevIns->pReg->szName, pDevIns->iInstance, pDevIns));
 
     /* set the helper pointer and return. */
-    LogFlow(("pdmR0DevHlp_ApicSetUpContext: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, VINF_SUCCESS));
+    LogFlow(("pdmR0DevHlp_IcSetUpContext: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, VINF_SUCCESS));
     return VINF_SUCCESS;
 }
 
@@ -1502,7 +1502,7 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlp =
     pdmR0DevHlp_PCIBusSetUpContext,
     pdmR0DevHlp_IommuSetUpContext,
     pdmR0DevHlp_PICSetUpContext,
-    pdmR0DevHlp_ApicSetUpContext,
+    pdmR0DevHlp_IcSetUpContext,
     pdmR0DevHlp_IoApicSetUpContext,
     pdmR0DevHlp_HpetSetUpContext,
     pdmR0DevHlp_PGMHandlerPhysicalTypeSetUpContext,
@@ -1615,7 +1615,7 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlpTracing =
     pdmR0DevHlp_PCIBusSetUpContext,
     pdmR0DevHlp_IommuSetUpContext,
     pdmR0DevHlp_PICSetUpContext,
-    pdmR0DevHlp_ApicSetUpContext,
+    pdmR0DevHlp_IcSetUpContext,
     pdmR0DevHlp_IoApicSetUpContext,
     pdmR0DevHlp_HpetSetUpContext,
     pdmR0DevHlp_PGMHandlerPhysicalTypeSetUpContext,
@@ -1652,7 +1652,7 @@ static DECLCALLBACK(void) pdmR0PicHlp_SetInterruptFF(PPDMDEVINS pDevIns)
     PGVM     pGVM  = (PGVM)pDevIns->Internal.s.pGVM;
     PVMCPUCC pVCpu = &pGVM->aCpus[0];     /* for PIC we always deliver to CPU 0, MP use APIC */
     /** @todo r=ramshankar: Propagating rcRZ and make all callers handle it? */
-    APICLocalInterrupt(pVCpu, 0 /* u8Pin */, 1 /* u8Level */, VINF_SUCCESS /* rcRZ */);
+    PDMApicSetLocalInterrupt(pVCpu, 0 /* u8Pin */, 1 /* u8Level */, VINF_SUCCESS /* rcRZ */);
 }
 
 
@@ -1663,7 +1663,7 @@ static DECLCALLBACK(void) pdmR0PicHlp_ClearInterruptFF(PPDMDEVINS pDevIns)
     PGVM     pGVM  = (PGVM)pDevIns->Internal.s.pGVM;
     PVMCPUCC pVCpu = &pGVM->aCpus[0];     /* for PIC we always deliver to CPU 0, MP use APIC */
     /** @todo r=ramshankar: Propagating rcRZ and make all callers handle it? */
-    APICLocalInterrupt(pVCpu, 0 /* u8Pin */, 0 /* u8Level */, VINF_SUCCESS /* rcRZ */);
+    PDMApicSetLocalInterrupt(pVCpu, 0 /* u8Pin */, 0 /* u8Level */, VINF_SUCCESS /* rcRZ */);
 }
 
 
@@ -1712,7 +1712,7 @@ static DECLCALLBACK(int) pdmR0IoApicHlp_ApicBusDeliver(PPDMDEVINS pDevIns, uint8
     PGVM pGVM = pDevIns->Internal.s.pGVM;
     LogFlow(("pdmR0IoApicHlp_ApicBusDeliver: caller=%p/%d: u8Dest=%RX8 u8DestMode=%RX8 u8DeliveryMode=%RX8 uVector=%RX8 u8Polarity=%RX8 u8TriggerMode=%RX8 uTagSrc=%#x\n",
              pDevIns, pDevIns->iInstance, u8Dest, u8DestMode, u8DeliveryMode, uVector, u8Polarity, u8TriggerMode, uTagSrc));
-    return APICBusDeliver(pGVM, u8Dest, u8DestMode, u8DeliveryMode, uVector, u8Polarity, u8TriggerMode, uTagSrc);
+    return PDMApicBusDeliver(pGVM, u8Dest, u8DestMode, u8DeliveryMode, uVector, u8Polarity, u8TriggerMode, uTagSrc);
 }
 
 

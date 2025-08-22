@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -392,6 +392,12 @@ void UIMachineSettingsSystem::putToCache()
     if (!m_pCache)
         return;
 
+    /* Some options for x86 machines only: */
+    const KPlatformArchitecture enmArch = optionalFlags().contains("arch")
+                                        ? optionalFlags().value("arch").value<KPlatformArchitecture>()
+                                        : KPlatformArchitecture_x86;
+    const bool fx86Machine = enmArch == KPlatformArchitecture_x86;
+
     /* Prepare new data: */
     UIDataSettingsMachineSystem newSystemData;
 
@@ -414,8 +420,8 @@ void UIMachineSettingsSystem::putToCache()
     if (   m_pEditorMotherboardFeatures
         && m_pEditorVCPU)
         newSystemData.m_fEnabledIoApic =    m_pEditorMotherboardFeatures->isEnabledIoApic()
-                                         || m_pEditorVCPU->value() > 1
-                                         || chipsetType() == KChipsetType_ICH9;
+                                         || (m_pEditorVCPU->value() > 1 && fx86Machine)
+                                         || (chipsetType() == KChipsetType_ICH9 && fx86Machine);
     if (m_pEditorMotherboardFeatures)
         newSystemData.m_fEnabledEFI = m_pEditorMotherboardFeatures->isEnabledEfi();
     if (m_pEditorMotherboardFeatures)
@@ -466,6 +472,12 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
     /* Pass by default: */
     bool fPass = true;
 
+    /* Some options for x86 machines only: */
+    const KPlatformArchitecture enmArch = optionalFlags().contains("arch")
+                                        ? optionalFlags().value("arch").value<KPlatformArchitecture>()
+                                        : KPlatformArchitecture_x86;
+    const bool fx86Machine = enmArch == KPlatformArchitecture_x86;
+
     /* Motherboard tab: */
     {
         /* Prepare message: */
@@ -493,7 +505,8 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
         }
 
         /* Chipset type vs IO-APIC test: */
-        if (   chipsetType() == KChipsetType_ICH9
+        if (   fx86Machine
+            && chipsetType() == KChipsetType_ICH9
             && !m_pEditorMotherboardFeatures->isEnabledIoApic())
         {
             message.second << tr(
@@ -541,7 +554,9 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
         }
 
         /* VCPU vs IO-APIC test: */
-        if (m_pEditorVCPU->value() > 1 && !m_pEditorMotherboardFeatures->isEnabledIoApic())
+        if (   fx86Machine
+            && m_pEditorVCPU->value() > 1
+            && !m_pEditorMotherboardFeatures->isEnabledIoApic())
         {
             message.second << tr(
                 "The I/O APIC feature is not currently enabled in the Motherboard section of the System page. "
@@ -642,10 +657,10 @@ void UIMachineSettingsSystem::handleFilterChange()
     {
         if (m_pEditorChipset)
             m_pEditorChipset->hide();
-        if (m_pEditorTpm)
-            m_pEditorTpm->hide();
         if (m_pEditorProcessorFeatures)
             m_pEditorProcessorFeatures->hide();
+        if (m_pEditorAccelerationFeatures)
+            m_pEditorAccelerationFeatures->hide();
     }
 }
 
@@ -867,7 +882,7 @@ void UIMachineSettingsSystem::prepareTabAcceleration()
             }
 
             /* Prepare acceleration features editor: */
-#ifndef VBOX_WITH_VIRT_ARMV8
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
             m_pEditorAccelerationFeatures = new UIAccelerationFeaturesEditor(m_pTabAcceleration);
 #endif
             if (m_pEditorAccelerationFeatures)
@@ -979,16 +994,22 @@ bool UIMachineSettingsSystem::saveMotherboardData()
         {
             CPlatform comPlatform = m_machine.GetPlatform();
             comPlatform.SetChipsetType(newSystemData.m_chipsetType);
-            fSuccess = comPlatform.isOk();
-            /// @todo convey error info ..
+            if (!comPlatform.isOk())
+            {
+                notifyOperationProgressError(UIErrorString::formatErrorInfo(comPlatform));
+                return false;
+            }
         }
         /* Save TPM type: */
         if (fSuccess && isMachineOffline() && newSystemData.m_tpmType != oldSystemData.m_tpmType)
         {
             CTrustedPlatformModule comModule = m_machine.GetTrustedPlatformModule();
             comModule.SetType(newSystemData.m_tpmType);
-            fSuccess = comModule.isOk();
-            /// @todo convey error info ..
+            if (!comModule.isOk())
+            {
+                notifyOperationProgressError(UIErrorString::formatErrorInfo(comModule));
+                return false;
+            }
         }
         /* Save pointing HID type: */
         if (fSuccess && isMachineOffline() && newSystemData.m_pointingHIDType != oldSystemData.m_pointingHIDType)
@@ -1001,24 +1022,33 @@ bool UIMachineSettingsSystem::saveMotherboardData()
         {
             CFirmwareSettings comFirmwareSettings = m_machine.GetFirmwareSettings();
             comFirmwareSettings.SetIOAPICEnabled(newSystemData.m_fEnabledIoApic);
-            fSuccess = comFirmwareSettings.isOk();
-            /// @todo convey error info ..
+            if (!comFirmwareSettings.isOk())
+            {
+                notifyOperationProgressError(UIErrorString::formatErrorInfo(comFirmwareSettings));
+                return false;
+            }
         }
         /* Save firware type (whether EFI is enabled): */
         if (fSuccess && isMachineOffline() && newSystemData.m_fEnabledEFI != oldSystemData.m_fEnabledEFI)
         {
             CFirmwareSettings comFirmwareSettings = m_machine.GetFirmwareSettings();
             comFirmwareSettings.SetFirmwareType(newSystemData.m_fEnabledEFI ? KFirmwareType_EFI : KFirmwareType_BIOS);
-            fSuccess = comFirmwareSettings.isOk();
-            /// @todo convey error info ..
+            if (!comFirmwareSettings.isOk())
+            {
+                notifyOperationProgressError(UIErrorString::formatErrorInfo(comFirmwareSettings));
+                return false;
+            }
         }
         /* Save whether UTC is enabled: */
         if (fSuccess && isMachineOffline() && newSystemData.m_fEnabledUTC != oldSystemData.m_fEnabledUTC)
         {
             CPlatform comPlatform = m_machine.GetPlatform();
             comPlatform.SetRTCUseUTC(newSystemData.m_fEnabledUTC);
-            fSuccess = comPlatform.isOk();
-            /// @todo convey error info ..
+            if (!comPlatform.isOk())
+            {
+                notifyOperationProgressError(UIErrorString::formatErrorInfo(comPlatform));
+                return false;
+            }
         }
         /* Save whether secure boot is enabled: */
         if (   fSuccess && isMachineOffline()
@@ -1039,22 +1069,45 @@ bool UIMachineSettingsSystem::saveMotherboardData()
                 {
                     /* Init if required: */
                     if (!newSystemData.m_fAvailableSecureBoot)
+                    {
                         comStoreLvl1.InitUefiVariableStore(0);
+                        if (!comStoreLvl1.isOk())
+                        {
+                            notifyOperationProgressError(UIErrorString::formatErrorInfo(comStoreLvl1));
+                            return false;
+                        }
+                    }
                     /* Enroll everything: */
                     comStoreLvl2 = comStoreLvl1.GetUefiVariableStore();
                     comStoreLvl2.EnrollOraclePlatformKey();
+                    if (!comStoreLvl2.isOk())
+                    {
+                        notifyOperationProgressError(UIErrorString::formatErrorInfo(comStoreLvl2));
+                        return false;
+                    }
                     comStoreLvl2.EnrollDefaultMsSignatures();
+                    if (!comStoreLvl2.isOk())
+                    {
+                        notifyOperationProgressError(UIErrorString::formatErrorInfo(comStoreLvl2));
+                        return false;
+                    }
                 }
                 comStoreLvl2.SetSecureBootEnabled(true);
-                fSuccess = comStoreLvl2.isOk();
-                /// @todo convey error info ..
+                if (!comStoreLvl2.isOk())
+                {
+                    notifyOperationProgressError(UIErrorString::formatErrorInfo(comStoreLvl2));
+                    return false;
+                }
             }
             /* Disabling secure boot? */
             else if (!newSystemData.m_fEnabledSecureBoot)
             {
                 comStoreLvl2.SetSecureBootEnabled(false);
-                fSuccess = comStoreLvl2.isOk();
-                /// @todo convey error info ..
+                if (!comStoreLvl2.isOk())
+                {
+                    notifyOperationProgressError(UIErrorString::formatErrorInfo(comStoreLvl2));
+                    return false;
+                }
             }
         }
 
@@ -1098,18 +1151,24 @@ bool UIMachineSettingsSystem::saveProcessorData()
                     CPlatformX86 comPlatformX86 = comPlatform.GetX86();
 
                     /* Save whether PAE is enabled: */
-                    if (fSuccess && isMachineOffline() && newSystemData.m_fEnabledPAE != oldSystemData.m_fEnabledPAE)
+                    if (/*fSuccess &&*/ isMachineOffline() && newSystemData.m_fEnabledPAE != oldSystemData.m_fEnabledPAE)
                     {
                         comPlatformX86.SetCPUProperty(KCPUPropertyTypeX86_PAE, newSystemData.m_fEnabledPAE);
-                        fSuccess = comPlatformX86.isOk();
-                        /// @todo convey error info ..
+                        if (!comPlatformX86.isOk())
+                        {
+                            notifyOperationProgressError(UIErrorString::formatErrorInfo(comPlatformX86));
+                            return false;
+                        }
                     }
                     /* Save whether Nested HW Virt Ex is enabled: */
                     if (fSuccess && isMachineOffline() && newSystemData.m_fEnabledNestedHwVirtEx != oldSystemData.m_fEnabledNestedHwVirtEx)
                     {
                         comPlatformX86.SetCPUProperty(KCPUPropertyTypeX86_HWVirt, newSystemData.m_fEnabledNestedHwVirtEx);
-                        fSuccess = comPlatformX86.isOk();
-                        /// @todo convey error info ..
+                        if (!comPlatformX86.isOk())
+                        {
+                            notifyOperationProgressError(UIErrorString::formatErrorInfo(comPlatformX86));
+                            return false;
+                        }
                     }
 
                     break;
@@ -1174,11 +1233,14 @@ bool UIMachineSettingsSystem::saveAccelerationData()
                     CPlatformX86 comPlatformX86 = comPlatform.GetX86();
 
                     /* Save whether the nested paging is enabled: */
-                    if (fSuccess && isMachineOffline() && newSystemData.m_fEnabledNestedPaging != oldSystemData.m_fEnabledNestedPaging)
+                    if (/*fSuccess &&*/ isMachineOffline() && newSystemData.m_fEnabledNestedPaging != oldSystemData.m_fEnabledNestedPaging)
                     {
                         comPlatformX86.SetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging, newSystemData.m_fEnabledNestedPaging);
-                        fSuccess = comPlatformX86.isOk();
-                        /// @todo convey error info ..
+                        if (!comPlatformX86.isOk())
+                        {
+                            notifyOperationProgressError(UIErrorString::formatErrorInfo(comPlatformX86));
+                            return false;
+                        }
                     }
 
                     break;

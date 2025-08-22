@@ -1,0 +1,293 @@
+# $Id: Makefile.kmk $
+## @file
+# Sub-Makefile for libjpeg-turbo.
+#
+
+#
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
+#
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
+#
+
+SUB_DEPTH = ../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+if1of ($(KBUILD_TARGET_ARCH), amd64 arm64)
+ VBOX_WITH_LIBJPEG_SIMD = 1
+endif
+
+LIBRARIES += VBox-libjpeg
+VBox-libjpeg_TEMPLATE = VBoxR3DllNonPedanticFast
+ifneq ($(KBUILD_TARGET),win)
+ VBox-libjpeg_CFLAGS = -Wno-main
+endif
+
+VBox-libjpeg_CFLAGS.win    += -wd4774 # jerror.c(192): warning C4774: 'snprintf' : format string expected in argument 3 is not a string literal
+
+# Following defines normally reside in jconfigint.h
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ VBox-libjpeg_DEFS += \
+ 	PACKAGE_NAME="libjpeg-turbo" \
+ 	VERSION="3.1.0" \
+ 	BUILD="20231016"
+else
+ VBox-libjpeg_DEFS += \
+ 	PACKAGE_NAME=\"libjpeg-turbo\" \
+ 	VERSION=\"3.1.0\" \
+ 	BUILD=\"20231016\"
+endif
+
+VBox-libjpeg_DEFS.x86 += \
+	SIZEOF_SIZE_T=4
+VBox-libjpeg_DEFS.amd64 += \
+	SIZEOF_SIZE_T=8
+VBox-libjpeg_DEFS.arm64 += \
+	SIZEOF_SIZE_T=8
+
+VBox-libjpeg_INCS = . simd
+
+LIBRARIES += VBox-libjpeg12
+VBox-libjpeg12_TEMPLATE     := $(VBox-libjpeg_TEMPLATE)
+VBox-libjpeg12_DEFS         := $(VBox-libjpeg_DEFS)
+VBox-libjpeg12_DEFS.x86     := $(VBox-libjpeg_DEFS.x86)
+VBox-libjpeg12_DEFS.amd64   := $(VBox-libjpeg_DEFS.amd64)
+VBox-libjpeg12_DEFS.arm64   := $(VBox-libjpeg_DEFS.win.arm64)
+VBox-libjpeg12_INCS         := $(VBox-libjpeg_INCS)
+VBox-libjpeg12_CFLAGS       := $(VBox-libjpeg_CFLAGS)
+VBox-libjpeg12_CFLAGS.win   := $(VBox-libjpeg_CFLAGS.win)
+VBox-libjpeg12_DEFS         += \
+	BITS_IN_JSAMPLE=12
+
+LIBRARIES += VBox-libjpeg16
+VBox-libjpeg16_TEMPLATE     := $(VBox-libjpeg_TEMPLATE)
+VBox-libjpeg16_DEFS         := $(VBox-libjpeg_DEFS)
+VBox-libjpeg16_DEFS.x86     := $(VBox-libjpeg_DEFS.x86)
+VBox-libjpeg16_DEFS.amd64   := $(VBox-libjpeg_DEFS.amd64)
+VBox-libjpeg16_DEFS.arm64   := $(VBox-libjpeg_DEFS.win.arm64)
+VBox-libjpeg16_INCS         := $(VBox-libjpeg_INCS)
+VBox-libjpeg16_CFLAGS       := $(VBox-libjpeg_CFLAGS)
+VBox-libjpeg16_CFLAGS.win   := $(VBox-libjpeg_CFLAGS.win)
+VBox-libjpeg16_DEFS         += \
+	BITS_IN_JSAMPLE=16
+
+VBox-libjpeg16_SOURCES := \
+	src/jcapistd.c \
+	src/jccolor.c \
+	src/jcdiffct.c \
+	src/jclossls.c \
+	src/jcmainct.c \
+	src/jcprepct.c \
+	src/jcsample.c \
+	src/jdapistd.c \
+	src/jdcolor.c \
+	src/jddiffct.c \
+	src/jdlossls.c \
+	src/jdmainct.c \
+	src/jdpostct.c \
+	src/jdsample.c \
+	src/jutils.c
+
+VBox-libjpeg12_SOURCES := $(VBox-libjpeg16_SOURCES)
+VBox-libjpeg12_SOURCES += \
+	src/jccoefct.c \
+	src/jcdctmgr.c \
+	src/jdcoefct.c \
+	src/jddctmgr.c \
+	src/jdmerge.c \
+	src/jfdctfst.c \
+	src/jfdctint.c \
+	src/jidctflt.c \
+	src/jidctfst.c \
+	src/jidctint.c \
+	src/jidctred.c \
+	src/jquant1.c \
+	src/jquant2.c
+
+VBox-libjpeg_SOURCES := $(VBox-libjpeg12_SOURCES)
+VBox-libjpeg_SOURCES += \
+	src/jcapimin.c \
+	src/jchuff.c \
+	src/jcicc.c \
+	src/jcinit.c \
+	src/jclhuff.c \
+	src/jcmarker.c \
+	src/jcmaster.c \
+	src/jcomapi.c \
+	src/jcparam.c \
+	src/jcphuff.c \
+	src/jctrans.c \
+	src/jdapimin.c \
+	src/jdatadst.c \
+	src/jdatasrc.c \
+	src/jdhuff.c \
+	src/jdicc.c \
+	src/jdinput.c \
+	src/jdlhuff.c \
+	src/jdmarker.c \
+	src/jdmaster.c \
+	src/jdphuff.c \
+	src/jdtrans.c \
+	src/jerror.c \
+	src/jfdctflt.c \
+	src/jmemmgr.c \
+	src/jmemnobs.c \
+	src/jpeg_nbits.c \
+	src/jaricom.c \
+	src/jcarith.c \
+	src/jdarith.c
+
+ifdef VBOX_WITH_LIBJPEG_SIMD
+ VBox-libjpeg_DEFS += WITH_SIMD
+
+ # Asm system-dependent defines
+ ifeq ($(KBUILD_TARGET_ARCH),amd64)
+  VBox-libjpeg_DEFS += __x86_64__
+ endif
+ ifeq ($(KBUILD_TARGET_ARCH),arm64)
+  VBox-libjpeg_DEFS += NEON_INTRINSICS
+ endif
+ ifeq ($(VBOX_LDR_FMT),pe)
+  ifeq ($(KBUILD_TARGET_ARCH),x86)
+   VBox-libjpeg_DEFS += WIN32
+  else
+   VBox-libjpeg_DEFS += WIN64
+  endif
+ endif
+ ifeq ($(VBOX_LDR_FMT),elf)
+  VBox-libjpeg_DEFS += ELF
+ endif
+ ifeq ($(VBOX_LDR_FMT),macho)
+  VBox-libjpeg_DEFS += MACHO
+ endif
+
+ VBox-libjpeg_INCS.amd64 += simd/nasm
+ VBox-libjpeg_INCS.x86 += simd/nasm
+ VBox-libjpeg_INCS.arm64 += simd/arm
+
+ VBox-libjpeg_SOURCES.x86 += \
+ 	simd/i386/jsimdcpu.asm \
+ 	simd/i386/jccolext-mmx.asm \
+ 	simd/i386/jccolor-mmx.asm \
+ 	simd/i386/jcgray-mmx.asm \
+ 	simd/i386/jcgryext-mmx.asm \
+ 	simd/i386/jcsample-mmx.asm \
+ 	simd/i386/jdcolext-mmx.asm \
+ 	simd/i386/jdcolor-mmx.asm \
+ 	simd/i386/jdmerge-mmx.asm \
+ 	simd/i386/jdmrgext-mmx.asm \
+ 	simd/i386/jdsample-mmx.asm \
+ 	simd/i386/jfdctflt-mmx.asm \
+ 	simd/i386/jfdctfst-mmx.asm \
+ 	simd/i386/jfdctint-mmx.asm \
+ 	simd/i386/jidctfst-mmx.asm \
+ 	simd/i386/jidctint-mmx.asm \
+ 	simd/i386/jidctred-mmx.asm \
+ 	simd/i386/jquant-mmx.asm \
+ 	simd/i386/jccolext-sse2.asm \
+ 	simd/i386/jccolor-sse2.asm \
+ 	simd/i386/jcgray-sse2.asm \
+ 	simd/i386/jcgryext-sse2.asm \
+ 	simd/i386/jchuff-sse2.asm \
+ 	simd/i386/jcphuff-sse2.asm \
+ 	simd/i386/jcsample-sse2.asm \
+ 	simd/i386/jdcolext-sse2.asm \
+ 	simd/i386/jdcolor-sse2.asm \
+ 	simd/i386/jdmerge-sse2.asm \
+ 	simd/i386/jdmrgext-sse2.asm \
+ 	simd/i386/jdsample-sse2.asm \
+ 	simd/i386/jfdctflt-sse.asm \
+ 	simd/i386/jfdctfst-sse2.asm \
+ 	simd/i386/jfdctint-sse2.asm \
+ 	simd/i386/jidctflt-sse.asm \
+ 	simd/i386/jidctflt-sse2.asm \
+ 	simd/i386/jidctfst-sse2.asm \
+ 	simd/i386/jidctint-sse2.asm \
+ 	simd/i386/jidctred-sse2.asm \
+ 	simd/i386/jquant-sse.asm \
+ 	simd/i386/jquantf-sse2.asm \
+ 	simd/i386/jquanti-sse2.asm \
+ 	simd/i386/jccolext-avx2.asm \
+ 	simd/i386/jccolor-avx2.asm \
+ 	simd/i386/jcgray-avx2.asm \
+ 	simd/i386/jcgryext-avx2.asm \
+ 	simd/i386/jcsample-avx2.asm \
+ 	simd/i386/jdcolext-avx2.asm \
+ 	simd/i386/jdcolor-avx2.asm \
+ 	simd/i386/jdmerge-avx2.asm \
+ 	simd/i386/jdmrgext-avx2.asm \
+ 	simd/i386/jdsample-avx2.asm \
+ 	simd/i386/jfdctint-avx2.asm \
+ 	simd/i386/jidctint-avx2.asm \
+ 	simd/i386/jquanti-avx2.asm \
+ 	simd/i386/jfdctflt-3dn.asm \
+ 	simd/i386/jidctflt-3dn.asm \
+ 	simd/i386/jquant-3dn.asm \
+ 	simd/i386/jsimd.c
+
+ VBox-libjpeg_SOURCES.amd64 += \
+ 	simd/x86_64/jsimdcpu.asm \
+ 	simd/x86_64/jfdctflt-sse.asm \
+ 	simd/x86_64/jccolor-sse2.asm \
+ 	simd/x86_64/jcgray-sse2.asm \
+ 	simd/x86_64/jchuff-sse2.asm \
+ 	simd/x86_64/jcphuff-sse2.asm \
+ 	simd/x86_64/jcsample-sse2.asm \
+ 	simd/x86_64/jdcolor-sse2.asm \
+ 	simd/x86_64/jdmerge-sse2.asm \
+ 	simd/x86_64/jdsample-sse2.asm \
+ 	simd/x86_64/jfdctfst-sse2.asm \
+ 	simd/x86_64/jfdctint-sse2.asm \
+ 	simd/x86_64/jidctflt-sse2.asm \
+ 	simd/x86_64/jidctfst-sse2.asm \
+ 	simd/x86_64/jidctint-sse2.asm \
+ 	simd/x86_64/jidctred-sse2.asm \
+ 	simd/x86_64/jquantf-sse2.asm \
+ 	simd/x86_64/jquanti-sse2.asm \
+ 	simd/x86_64/jccolor-avx2.asm \
+ 	simd/x86_64/jcgray-avx2.asm \
+ 	simd/x86_64/jcsample-avx2.asm \
+ 	simd/x86_64/jdcolor-avx2.asm \
+ 	simd/x86_64/jdmerge-avx2.asm \
+ 	simd/x86_64/jdsample-avx2.asm \
+ 	simd/x86_64/jfdctint-avx2.asm \
+ 	simd/x86_64/jidctint-avx2.asm \
+ 	simd/x86_64/jquanti-avx2.asm \
+ 	simd/x86_64/jsimd.c
+
+ VBox-libjpeg_SOURCES.arm64 += \
+ 	simd/arm/jcgray-neon.c \
+ 	simd/arm/jcphuff-neon.c \
+ 	simd/arm/jcsample-neon.c \
+ 	simd/arm/jdmerge-neon.c \
+ 	simd/arm/jdsample-neon.c \
+ 	simd/arm/jfdctfst-neon.c \
+ 	simd/arm/jidctred-neon.c \
+ 	simd/arm/jquanti-neon.c \
+ 	simd/arm/jccolor-neon.c \
+ 	simd/arm/jidctint-neon.c \
+ 	simd/arm/jidctfst-neon.c \
+ 	simd/arm/aarch64/jchuff-neon.c \
+ 	simd/arm/jdcolor-neon.c \
+ 	simd/arm/jfdctint-neon.c \
+ 	simd/arm/aarch64/jsimd.c
+
+
+endif # VBOX_WITH_LIBJPEG_SIMD
+
+include $(FILE_KBUILD_SUB_FOOTER)

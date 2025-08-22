@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -79,7 +79,7 @@ void UIPointingHIDEditor::setMinimumLayoutIndent(int iIndent)
 void UIPointingHIDEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("&Pointing Device:"));
+        m_pLabel->setText(tr("&Pointing Device"));
     if (m_pCombo)
     {
         for (int i = 0; i < m_pCombo->count(); ++i)
@@ -87,8 +87,7 @@ void UIPointingHIDEditor::sltRetranslateUI()
             const KPointingHIDType enmType = m_pCombo->itemData(i).value<KPointingHIDType>();
             m_pCombo->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pCombo->setToolTip(tr("Determines whether the emulated pointing device is a standard PS/2 mouse, "
-                                "a USB tablet or a USB multi-touch tablet."));
+        m_pCombo->setToolTip(tr("Type of emulated pointing device"));
     }
 }
 

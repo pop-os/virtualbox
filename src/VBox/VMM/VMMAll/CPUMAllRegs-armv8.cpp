@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -32,7 +32,7 @@
 #define LOG_GROUP LOG_GROUP_CPUM
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/dbgf.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/em.h>
@@ -267,6 +267,7 @@ VMMDECL(void) CPUMSetChangedFlags(PVMCPU pVCpu, uint32_t fChangedAdd)
     pVCpu->cpum.s.fChanged |= fChangedAdd;
 }
 
+#if 0 /* unused atm */
 
 /**
  * Checks if the guest debug state is active.
@@ -305,6 +306,7 @@ VMMDECL(void) CPUMDeactivateGuestDebugState(PVMCPU pVCpu)
     NOREF(pVCpu);
 }
 
+#endif
 
 /**
  * Get the current exception level of the guest.
@@ -315,6 +317,7 @@ VMMDECL(void) CPUMDeactivateGuestDebugState(PVMCPU pVCpu)
 VMM_INT_DECL(uint8_t) CPUMGetGuestEL(PVMCPU pVCpu)
 {
     CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_PSTATE);
+    Assert(!(pVCpu->cpum.s.Guest.fPState & ARMV8_SPSR_EL2_AARCH64_M4)); /* ASSUMES aarch64 mode */
     return ARMV8_SPSR_EL2_AARCH64_GET_EL(pVCpu->cpum.s.Guest.fPState);
 }
 
@@ -327,6 +330,7 @@ VMM_INT_DECL(uint8_t) CPUMGetGuestEL(PVMCPU pVCpu)
 VMM_INT_DECL(bool) CPUMGetGuestMmuEnabled(PVMCPUCC pVCpu)
 {
     CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_PSTATE | CPUMCTX_EXTRN_SCTLR_TCR_TTBR);
+    Assert(!(pVCpu->cpum.s.Guest.fPState & ARMV8_SPSR_EL2_AARCH64_M4)); /* ASSUMES aarch64 mode */
     uint8_t bEl = ARMV8_SPSR_EL2_AARCH64_GET_EL(pVCpu->cpum.s.Guest.fPState);
     if (bEl == ARMV8_AARCH64_EL_2)
     {
@@ -335,7 +339,79 @@ VMM_INT_DECL(bool) CPUMGetGuestMmuEnabled(PVMCPUCC pVCpu)
     }
 
     Assert(bEl == ARMV8_AARCH64_EL_0 || bEl == ARMV8_AARCH64_EL_1);
-    return RT_BOOL(pVCpu->cpum.s.Guest.Sctlr.u64 & ARMV8_SCTLR_EL2_M);
+    return RT_BOOL(pVCpu->cpum.s.Guest.Sctlr.u64 & ARMV8_SCTLR_EL1_M);
+}
+
+
+/**
+ * Returns the effective TTBR value for the given guest context pointer.
+ *
+ * @returns Physical base address of the translation table being used, or RTGCPHYS_MAX
+ *          if MMU is disabled.
+ */
+VMM_INT_DECL(RTGCPHYS) CPUMGetEffectiveTtbr(PVMCPUCC pVCpu, RTGCPTR GCPtr)
+{
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_PSTATE | CPUMCTX_EXTRN_SCTLR_TCR_TTBR);
+
+    Assert(!(pVCpu->cpum.s.Guest.fPState & ARMV8_SPSR_EL2_AARCH64_M4)); /* ASSUMES aarch64 mode */
+    uint8_t bEl = ARMV8_SPSR_EL2_AARCH64_GET_EL(pVCpu->cpum.s.Guest.fPState);
+    if (bEl == ARMV8_AARCH64_EL_2)
+    {
+        CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_SYSREG_EL2);
+        if (pVCpu->cpum.s.Guest.SctlrEl2.u64 & ARMV8_SCTLR_EL2_M)
+            return   (GCPtr & RT_BIT_64(55))
+                   ? ARMV8_TTBR_EL1_AARCH64_BADDR_GET(pVCpu->cpum.s.Guest.Ttbr1El2.u64)
+                   : ARMV8_TTBR_EL1_AARCH64_BADDR_GET(pVCpu->cpum.s.Guest.Ttbr0El2.u64);
+    }
+    else
+    {
+        Assert(bEl == ARMV8_AARCH64_EL_0 || bEl == ARMV8_AARCH64_EL_1);
+        if (pVCpu->cpum.s.Guest.Sctlr.u64 & ARMV8_SCTLR_EL1_M)
+            return   (GCPtr & RT_BIT_64(55))
+                   ? ARMV8_TTBR_EL1_AARCH64_BADDR_GET(pVCpu->cpum.s.Guest.Ttbr1.u64)
+                   : ARMV8_TTBR_EL1_AARCH64_BADDR_GET(pVCpu->cpum.s.Guest.Ttbr0.u64);
+    }
+
+    return RTGCPHYS_MAX;
+}
+
+
+/**
+ * Returns the current TCR_EL1 system register value for the given vCPU.
+ *
+ * @returns TCR_EL1 value
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ */
+VMM_INT_DECL(uint64_t) CPUMGetTcrEl1(PVMCPUCC pVCpu)
+{
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_SCTLR_TCR_TTBR);
+    return pVCpu->cpum.s.Guest.Tcr.u64;
+}
+
+
+/**
+ * Returns the virtual address given in the input stripped from any potential
+ * pointer authentication code if enabled for the given vCPU.
+ *
+ * @returns Virtual address given in GCPtr stripped from any PAC (or reserved bits).
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ */
+VMM_INT_DECL(RTGCPTR) CPUMGetGCPtrPacStripped(PVMCPUCC pVCpu, RTGCPTR GCPtr)
+{
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_SCTLR_TCR_TTBR);
+
+    /** @todo MTE support. */
+    bool fUpper = RT_BOOL(GCPtr & RT_BIT_64(55)); /* Save the determinator for upper lower range. */
+    uint8_t u8TxSz =   fUpper
+                     ? ARMV8_TCR_EL1_AARCH64_T1SZ_GET(pVCpu->cpum.s.Guest.Tcr.u64)
+                     : ARMV8_TCR_EL1_AARCH64_T0SZ_GET(pVCpu->cpum.s.Guest.Tcr.u64);
+    RTGCPTR fNonPacMask = RT_BIT_64(64 - u8TxSz) - 1; /* Get mask of non PAC bits. */
+    RTGCPTR fSign       =   fUpper
+                          ? ~fNonPacMask
+                          : 0;
+
+    return   (GCPtr & fNonPacMask)
+           | fSign;
 }
 
 
@@ -419,28 +495,3 @@ VMM_INT_DECL(int) CPUMImportGuestStateOnDemand(PVMCPUCC pVCpu, uint64_t fExtrnIm
     return VINF_SUCCESS;
 }
 
-
-/**
- * Translates a microarchitecture enum value to the corresponding string
- * constant.
- *
- * @returns Read-only string constant (omits "kCpumMicroarch_" prefix). Returns
- *          NULL if the value is invalid.
- *
- * @param   enmMicroarch    The enum value to convert.
- *
- * @todo Doesn't really belong here but for now there is no other Armv8 CPUM source file.
- */
-VMMDECL(const char *) CPUMMicroarchName(CPUMMICROARCH enmMicroarch)
-{
-    switch (enmMicroarch)
-    {
-#define CASE_RET_STR(enmValue)  case enmValue: return #enmValue + (sizeof("kCpumMicroarch_") - 1)
-        CASE_RET_STR(kCpumMicroarch_Apple_M1);
-#undef CASE_RET_STR
-        default:
-            break;
-    }
-
-    return NULL;
-}

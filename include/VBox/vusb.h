@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -842,16 +842,6 @@ typedef struct VUSBIROOTHUBCONNECTOR
     DECLR3CALLBACKMEMBER(void, pfnReapAsyncUrbs,(PVUSBIROOTHUBCONNECTOR pInterface, uint32_t uPort, RTMSINTERVAL cMillies));
 
     /**
-     * Cancels and completes - with CRC failure - all URBs queued on an endpoint.
-     * This is done in response to guest URB cancellation.
-     *
-     * @returns VBox status code.
-     * @param   pInterface  Pointer to this struct.
-     * @param   pUrb        Pointer to a previously submitted URB.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnCancelUrbsEp,(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBURB pUrb));
-
-    /**
      * Cancels and completes - with CRC failure - all in-flight async URBs.
      * This is typically done before saving a state.
      *
@@ -1015,13 +1005,10 @@ typedef struct VUSBIROOTHUBCONNECTOR
      */
     DECLR3CALLBACKMEMBER(VUSBSPEED, pfnDevGetSpeed,(PVUSBIROOTHUBCONNECTOR pInterface, uint32_t uPort));
 
-    /** Alignment dummy. */
-    RTR3PTR Alignment;
-
 } VUSBIROOTHUBCONNECTOR;
 AssertCompileSizeAlignment(VUSBIROOTHUBCONNECTOR, 8);
 /** VUSBIROOTHUBCONNECTOR interface ID. */
-# define VUSBIROOTHUBCONNECTOR_IID              "83eb1fb4-d755-4925-a7c5-751d0899c048"
+# define VUSBIROOTHUBCONNECTOR_IID              "79aad2da-1628-4f11-be03-ccb8560bb204"
 
 
 # ifdef IN_RING3
@@ -1462,11 +1449,13 @@ typedef struct VUSBURB
      * IN: The amount of data to send / receive - set at allocation time.
      * OUT: The amount of data sent / received. */
     uint32_t        cbData;
-    /** The message data.
-     * IN: On host to device transfers, the data to send.
-     * OUT: On device to host transfers, the data to received.
-     * This array has actually a size of VUsb.cbDataAllocated, not 8KB! */
-    uint8_t         abData[8*_1K];
+    /** The message buffer size.
+     * IN: Set at allocation time. */
+    uint32_t        cbDataAllocated;
+    /** Pointer to the message data.
+     * IN: On host to device transfers, the data to be sent.
+     * OUT: On device to host transfers, the data to be received. */
+    uint8_t         *pbData;
 } VUSBURB;
 
 /** The magic value of a valid VUSBURB. (Murakami Haruki) */

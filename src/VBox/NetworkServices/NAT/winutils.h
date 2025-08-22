@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -41,11 +41,6 @@
 #  include <iprt/err.h>
 #  include <iprt/net.h>
 #  include <iprt/log.h>
-/**
- * Inclusion of lwip/def.h was added here to avoid conflict of definitions
- * of hton-family functions in LWIP and windock's headers.
- */
-#  include <lwip/def.h>
 
 #  ifndef PF_LOCAL
 #   define PF_LOCAL AF_INET

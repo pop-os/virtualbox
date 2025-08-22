@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -111,11 +111,7 @@ bool UIChooserHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
                         for (int i = iPosition - 1; i >= iLimit; --i)
                         {
                             pPossiblePreviousItem = model()->navigationItems().at(i);
-                            if ((      pCurrentItem->type() == UIChooserNodeType_Global
-                                    && pPossiblePreviousItem->type() == UIChooserNodeType_Global)
-                                || (   pCurrentItem->type() != UIChooserNodeType_Global
-                                    && pPossiblePreviousItem->type() != UIChooserNodeType_Global))
-                                pPreviousItem = pPossiblePreviousItem;
+                            pPreviousItem = pPossiblePreviousItem;
                         }
                     }
                 }
@@ -216,11 +212,7 @@ bool UIChooserHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
                         for (int i = iPosition + 1; i <= iLimit; ++i)
                         {
                             pPossibleNextItem = model()->navigationItems().at(i);
-                            if ((      pCurrentItem->type() == UIChooserNodeType_Global
-                                    && pPossibleNextItem->type() == UIChooserNodeType_Global)
-                                || (   pCurrentItem->type() != UIChooserNodeType_Global
-                                    && pPossibleNextItem->type() != UIChooserNodeType_Global))
-                                pNextItem = pPossibleNextItem;
+                            pNextItem = pPossibleNextItem;
                         }
                     }
                 }

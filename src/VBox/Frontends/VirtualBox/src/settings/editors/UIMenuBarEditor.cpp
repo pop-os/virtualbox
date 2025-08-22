@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -672,7 +672,7 @@ void UIMenuBarEditorWidget::setRestrictionsOfMenuHelp(UIExtraDataMetaDefs::MenuH
 void UIMenuBarEditorWidget::sltRetranslateUI()
 {
     /* Translate widget itself: */
-    setToolTip(tr("Allows to modify VM menu-bar contents."));
+    setToolTip(tr("Configure the virtual machine menus"));
 
     /* Translate close-button if necessary: */
     if (!m_fStartedFromVMSettings && m_pButtonClose)

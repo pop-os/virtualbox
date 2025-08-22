@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -160,8 +160,7 @@ RTDECL(int) RTStrToUInt64Ex(const char *pszValue, char **ppszNext, unsigned uBas
         uBase = 10;
         if (psz[0] == '0')
         {
-            if (   psz[0] == '0'
-                && cchMax > 1
+            if (   cchMax > 1
                 && (psz[1] == 'x' || psz[1] == 'X')
                 && g_auchDigits[(unsigned char)psz[2]] < 16)
             {
@@ -169,8 +168,7 @@ RTDECL(int) RTStrToUInt64Ex(const char *pszValue, char **ppszNext, unsigned uBas
                 psz      += 2;
                 cchMax   -= 2;
             }
-            else if (   psz[0] == '0'
-                     && g_auchDigits[(unsigned char)psz[1]] < 8)
+            else if (g_auchDigits[(unsigned char)psz[1]] < 8)
                 uBase = 8; /* don't skip the zero, in case it's alone. */
         }
     }
@@ -452,8 +450,7 @@ RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase
         uBase = 10;
         if (psz[0] == '0')
         {
-            if (   psz[0] == '0'
-                && cchMax > 1
+           if (    cchMax > 1
                 && (psz[1] == 'x' || psz[1] == 'X')
                 && g_auchDigits[(unsigned char)psz[2]] < 16)
             {
@@ -461,8 +458,7 @@ RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase
                 psz      += 2;
                 cchMax   -= 2;
             }
-            else if (   psz[0] == '0'
-                     && g_auchDigits[(unsigned char)psz[1]] < 8)
+            else if (g_auchDigits[(unsigned char)psz[1]] < 8)
                 uBase = 8; /* don't skip the zero, in case it's alone. */
         }
     }

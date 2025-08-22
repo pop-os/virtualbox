@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -444,7 +444,7 @@ static DECLCALLBACK(int) picGetInterrupt(PPDMDEVINS pDevIns, uint32_t *puTagSrc)
             *puTagSrc = pThis->aPics[0].auTags[irq2];
             pThis->aPics[0].auTags[irq2] = 0;
             Log2(("picGetInterrupt1: %x base=%x irq=%x uTagSrc=%#x\n", intno, pThis->aPics[1].irq_base, irq2, *puTagSrc));
-            irq = irq2 + 8;
+            /*irq = irq2 + 8; unused */
         }
         else
         {

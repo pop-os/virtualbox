@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -85,6 +85,9 @@ class CVirtualBoxErrorInfo;
 class CVRDEServer;
 class CVRDEServerInfo;
 class CUnattended;
+#ifdef VBOX_WITH_DRAG_AND_DROP
+class CDnDTarget;
+#endif
 
 /** UINotificationObject extension for message functionality. */
 class SHARED_LIBRARY_STUFF UINotificationMessage : public UINotificationSimple
@@ -306,6 +309,9 @@ public:
         /** Notifies about inability to acquire IStorageController parameter.
           * @param  comStorageController  Brings the object parameter get acquired from. */
         static void cannotAcquireStorageControllerParameter(const CStorageController &comStorageController);
+        /** Notifies about inability to change IStorageController parameter.
+          * @param  comStorageController  Brings the object parameter being changed for. */
+        static void cannotChangeStorageControllerParameter(const CStorageController &comStorageController);
         /** Notifies about inability to acquire IMediumAttachment parameter.
           * @param  comMediumAttachment  Brings the object parameter get acquired from. */
         static void cannotAcquireMediumAttachmentParameter(const CMediumAttachment &comMediumAttachment);
@@ -713,6 +719,15 @@ public:
           * @param  fEnable         Brings whether server is enabled or not. */
         static void cannotToggleVRDEServer(const CVRDEServer &comServer,
                                            const QString &strMachineName, bool fEnable);
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+        /** Notifies about inability to drop data to guest.
+          * @param  comDndTarget  Brings the data being dropped. */
+        static void cannotDropDataToGuest(const CDnDTarget &comDndTarget);
+        /** Notifies about inability to drop data to guest.
+          * @param  comProgress  Brings the drop-progress being executed. */
+        static void cannotDropDataToGuest(const CProgress &comProgress);
+#endif /* VBOX_WITH_DRAG_AND_DROP */
     /** @} */
 
 protected:
@@ -899,9 +914,11 @@ public:
 
     /** Constructs medium resize notification-progress.
       * @param  comMedium  Brings the medium being resized.
-      * @param  uSize      Brings the desired size. */
+      * @param  uOldSize   Brings previous medium size.
+      * @param  uNewSize   Brings desired medium size. */
     UINotificationProgressMediumResize(const CMedium &comMedium,
-                                       qulonglong uSize);
+                                       qulonglong uOldSize,
+                                       qulonglong uNewSize);
 
 protected:
 

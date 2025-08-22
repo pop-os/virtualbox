@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -45,8 +45,9 @@ bool UIWizardNewVMUnattendedCommon::checkGAISOFile(const QString &strPath)
     return true;
 }
 
-UIWizardNewVMUnattendedPage::UIWizardNewVMUnattendedPage()
-    : m_pLabel(0)
+UIWizardNewVMUnattendedPage::UIWizardNewVMUnattendedPage(const QString strHelpKeyword /* = QString() */)
+    : UINativeWizardPage(strHelpKeyword)
+    , m_pLabel(0)
     , m_pAdditionalOptionsContainer(0)
     , m_pGAInstallationISOContainer(0)
     , m_pUserNamePasswordGroupBox(0)
@@ -110,13 +111,12 @@ void UIWizardNewVMUnattendedPage::createConnections()
 
 void UIWizardNewVMUnattendedPage::sltRetranslateUI()
 {
-    setTitle(UIWizardNewVM::tr("Unattended Guest OS Install Setup"));
+    setTitle(UIWizardNewVM::tr("Set up unattended guest OS installation"));
     if (m_pLabel)
-        m_pLabel->setText(UIWizardNewVM::tr("You can configure the unattended guest OS install by modifying username, password, "
-                                            "and hostname. Additionally you can enable guest additions install. "
-                                            "For Microsoft Windows guests it is possible to provide a product key."));
+        m_pLabel->setText(UIWizardNewVM::tr("Enter the information that will be required when the OS is installed."));
+
     if (m_pUserNamePasswordGroupBox)
-        m_pUserNamePasswordGroupBox->setTitle(UIWizardNewVM::tr("Username and Password"));
+        m_pUserNamePasswordGroupBox->setTitle(UIWizardNewVM::tr("User Name and Password"));
 }
 
 
@@ -147,7 +147,7 @@ void UIWizardNewVMUnattendedPage::initializePage()
             m_pAdditionalOptionsContainer->setHostname(pWizard->machineBaseName());
             m_pAdditionalOptionsContainer->setDomainName("myguest.virtualbox.org");
             /* Initialize unattended hostname here since we cannot get the efault value from CUnattended this early (unlike username etc): */
-            if (m_pAdditionalOptionsContainer->isHostnameComplete())
+            if (m_pAdditionalOptionsContainer->hostDomainNameComplete())
                 pWizard->setHostnameDomainName(m_pAdditionalOptionsContainer->hostnameDomainName());
         }
         m_pAdditionalOptionsContainer->blockSignals(false);
@@ -171,13 +171,16 @@ bool UIWizardNewVMUnattendedPage::isComplete() const
 {
     markWidgets();
     UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
-    if (pWizard && pWizard->installGuestAdditions() &&
+    AssertReturn(pWizard, false);
+    if (pWizard->installGuestAdditions() &&
         m_pGAInstallationISOContainer &&
         !UIWizardNewVMUnattendedCommon::checkGAISOFile(m_pGAInstallationISOContainer->path()))
         return false;
     if (m_pUserNamePasswordGroupBox && !m_pUserNamePasswordGroupBox->isComplete())
         return false;
-    if (m_pAdditionalOptionsContainer && !m_pAdditionalOptionsContainer->isComplete())
+    if (m_pAdditionalOptionsContainer && !m_pAdditionalOptionsContainer->hostDomainNameComplete())
+        return false;
+    if (pWizard->isProductKeyRequired() && !m_pAdditionalOptionsContainer->hasProductKeyAcceptableInput())
         return false;
     return true;
 }
@@ -232,6 +235,7 @@ void UIWizardNewVMUnattendedPage::sltHostnameDomainNameChanged(const QString &st
 
 void UIWizardNewVMUnattendedPage::sltProductKeyChanged(const QString &strProductKey)
 {
+    emit completeChanged();
     AssertReturnVoid(wizardWindow<UIWizardNewVM>());
     m_userModifiedParameters << "ProductKey";
     wizardWindow<UIWizardNewVM>()->setProductKey(strProductKey);
@@ -249,6 +253,8 @@ void UIWizardNewVMUnattendedPage::markWidgets() const
     UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
     if (pWizard && pWizard->installGuestAdditions() && m_pGAInstallationISOContainer)
         m_pGAInstallationISOContainer->mark();
+    if (m_pAdditionalOptionsContainer)
+        m_pAdditionalOptionsContainer->mark(pWizard->isProductKeyRequired());
 }
 
 void UIWizardNewVMUnattendedPage::sltSelectedWindowsImageChanged(ulong uImageIndex)

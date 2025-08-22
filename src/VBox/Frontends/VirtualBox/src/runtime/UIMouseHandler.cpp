@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -322,8 +322,7 @@ bool UIMouseHandler::nativeEventFilter(void *pMessage, ulong uScreenId)
     RT_NOREF(pMessage, uScreenId);
 
 # elif defined(VBOX_WS_NIX)
-
-    if (uiCommon().X11ServerAvailable())
+    if (NativeWindowSubsystem::displayServerType() == VBGHDISPLAYSERVERTYPE_X11)
     {
         /* Cast to XCB event: */
         xcb_generic_event_t *pEvent = static_cast<xcb_generic_event_t*>(pMessage);

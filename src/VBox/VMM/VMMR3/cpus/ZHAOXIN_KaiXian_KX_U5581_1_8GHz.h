@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -401,17 +401,20 @@ static CPUMMSRRANGE const g_aMsrRanges_ZHAOXIN_KaiXian_KX_U5581_1_8GHz[] =
 /**
  * Database entry for ZHAOXIN KaiXian KX-U5581@1.8GHz.
  */
-static CPUMDBENTRY const g_Entry_ZHAOXIN_KaiXian_KX_U5581_1_8GHz =
+static CPUMDBENTRYX86 const g_Entry_ZHAOXIN_KaiXian_KX_U5581_1_8GHz =
 {
-    /*.pszName          = */ "ZHAOXIN KaiXian KX-U5581 1.8GHz",
-    /*.pszFullName      = */ "ZHAOXIN KaiXian KX-U5581@1.8GHz",
-    /*.enmVendor        = */ CPUMCPUVENDOR_SHANGHAI,
+    {
+        /*.pszName      = */ "ZHAOXIN KaiXian KX-U5581 1.8GHz",
+        /*.pszFullName  = */ "ZHAOXIN KaiXian KX-U5581@1.8GHz",
+        /*.enmVendor    = */ CPUMCPUVENDOR_SHANGHAI,
+        /*.enmMicroarch = */ kCpumMicroarch_Shanghai_Wudaokou,
+        /*.fFlags       = */ 0,
+        /*.enmEntryType = */ CPUMDBENTRYTYPE_X86,
+    },
     /*.uFamily          = */ 7,
     /*.uModel           = */ 11,
     /*.uStepping        = */ 5,
-    /*.enmMicroarch     = */ kCpumMicroarch_Shanghai_Wudaokou,
     /*.uScalableBusFreq = */ CPUM_SBUSFREQ_UNKNOWN,
-    /*.fFlags           = */ 0,
     /*.cMaxPhysAddrWidth= */ 40,
     /*.fMxCsrMask       = */ 0x0000ffff,
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_ZHAOXIN_KaiXian_KX_U5581_1_8GHz),

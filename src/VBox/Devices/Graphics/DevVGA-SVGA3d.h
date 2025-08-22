@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -80,6 +80,12 @@ typedef enum VMSVGA3D_SURFACE_MAP
     VMSVGA3D_SURFACE_MAP_WRITE_DISCARD,
 } VMSVGA3D_SURFACE_MAP;
 
+/* VMSVGA3D_MAPPED_SURFACE::fMapFlags */
+#define VMSVGA3D_MAP_F_NONE                   0x00000000
+#define VMSVGA3D_MAP_F_DYNAMIC_INTERMEDIATE   0x00000001
+#define VMSVGA3D_MAP_F_STAGING_INTERMEDIATE   0x00000002
+#define VMSVGA3D_MAP_F_EXACT_REGION           0x00000004
+
 typedef struct VMSVGA3D_MAPPED_SURFACE
 {
     VMSVGA3D_SURFACE_MAP enmMapType;
@@ -92,7 +98,9 @@ typedef struct VMSVGA3D_MAPPED_SURFACE
     uint32_t cbRowPitch;     /* Bytes between rows. */
     uint32_t cRows;          /* Number of rows. It is greater than cxBlocks for planar formats. */
     uint32_t cbDepthPitch;   /* Bytes between planes. */
+    uint32_t fMapFlags;      /* VMSVGA3D_MAP_F_* */
     void *pvData;
+    void *pvBackendResource;
 } VMSVGA3D_MAPPED_SURFACE;
 
 void vmsvga3dReset(PVGASTATECC pThisCC);
@@ -100,8 +108,6 @@ void vmsvga3dTerminate(PVGASTATECC pThisCC);
 
 int vmsvga3dInit(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC);
 
-/* Write render targets to bitmaps. */
-//#define DUMP_BITMAPS
 void vmsvga3dMapWriteBmpFile(VMSVGA3D_MAPPED_SURFACE const *pMap, char const *pszPrefix);
 
 /* DevVGA-SVGA.cpp: */
@@ -167,7 +173,7 @@ int vmsvga3dQueryWait(PVGASTATECC pThisCC, uint32_t cid, SVGA3dQueryType type, P
 int vmsvga3dSurfaceInvalidate(PVGASTATECC pThisCC, uint32_t sid, uint32_t face, uint32_t mipmap);
 
 int vmsvga3dSurfaceMap(PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pImage, SVGA3dBox const *pBox,
-                           VMSVGA3D_SURFACE_MAP enmMapType, VMSVGA3D_MAPPED_SURFACE *pMap);
+                           VMSVGA3D_SURFACE_MAP enmMapType, uint32_t fMapFlags, VMSVGA3D_MAPPED_SURFACE *pMap);
 int vmsvga3dSurfaceUnmap(PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pImage, VMSVGA3D_MAPPED_SURFACE *pMap, bool fWritten);
 
 uint32_t vmsvga3dCalcSubresourceOffset(PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pImage);
@@ -196,6 +202,7 @@ DECLINLINE(void) vmsvga3dCalcMipmapSize(SVGA3dSize const *pSize0, uint32_t iMipm
 uint32_t vmsvga3dGetArrayElements(PVGASTATECC pThisCC, SVGA3dSurfaceId sid);
 uint32_t vmsvga3dGetSubresourceCount(PVGASTATECC pThisCC, SVGA3dSurfaceId sid);
 bool vmsvga3dIsMultisampleSurface(PVGASTATECC pThisCC, SVGA3dSurfaceId sid);
+bool vmsvga3dIsEntireImage(PVGASTATECC pThisCC,  SVGA3dSurfaceImageId const *pImage, SVGA3dBox const *pBox);
 
 DECLINLINE(uint32_t) vmsvga3dCalcSubresource(uint32_t iMipLevel, uint32_t iArray, uint32_t cMipLevels)
 {
@@ -406,6 +413,9 @@ typedef struct
                                                            SVGASignedRect srcRect, uint32_t cRects, SVGASignedRect *paRects));
     /* Various helpers. */
     DECLCALLBACKMEMBER(int,  pfnSurfaceUpdateHeapBuffers, (PVGASTATECC pThisCC, PVMSVGA3DSURFACE pSurface));
+
+    /* Optional flush method that is called before a screen update. */
+    DECLCALLBACKMEMBER(void, pfnFlush,                    (PVGASTATECC pThisCC));
 } VMSVGA3DBACKENDFUNCS3D;
 
 /* VGPU9 3D */
@@ -450,7 +460,7 @@ typedef struct
 #define VMSVGA3D_BACKEND_INTERFACE_NAME_MAP "MAP"
 typedef struct
 {
-    DECLCALLBACKMEMBER(int, pfnSurfaceMap,   (PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pImage, SVGA3dBox const *pBox, VMSVGA3D_SURFACE_MAP enmMapType, VMSVGA3D_MAPPED_SURFACE *pMap));
+    DECLCALLBACKMEMBER(int, pfnSurfaceMap,   (PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pImage, SVGA3dBox const *pBox, VMSVGA3D_SURFACE_MAP enmMapType, uint32_t fMapFlags, VMSVGA3D_MAPPED_SURFACE *pMap));
     DECLCALLBACKMEMBER(int, pfnSurfaceUnmap, (PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pImage, VMSVGA3D_MAPPED_SURFACE *pMap, bool fWritten));
 } VMSVGA3DBACKENDFUNCSMAP;
 

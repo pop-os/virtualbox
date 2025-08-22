@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -87,7 +87,6 @@
 #include <VBox/vmm/vmapi.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
-#include <VBox/settings.h> /* For MachineConfigFile::getHostDefaultAudioDriver(). */
 #include <VBox/vmm/pdmapi.h> /* For PDMR3DriverAttach/PDMR3DriverDetach. */
 #include <VBox/vmm/pdmusb.h> /* For PDMR3UsbCreateEmulatedDevice. */
 #include <VBox/vmm/pdmdev.h> /* For PDMAPICMODE enum. */
@@ -135,6 +134,7 @@
 # endif
 #endif /* VBOX_WITH_NETFLT */
 
+#include "AudioUtils.h" /* For VBoxAudioGetDefaultDriver(). */
 #ifdef VBOX_WITH_AUDIO_VRDE
 # include "DrvAudioVRDE.h"
 #endif
@@ -864,47 +864,53 @@ int Console::i_configDumpAPISettingsTweaks(IVirtualBox *pVirtualBox, IMachine *p
     {
         SafeArray<BSTR> aGlobalExtraDataKeys;
         HRESULT hrc = pVirtualBox->GetExtraDataKeys(ComSafeArrayAsOutParam(aGlobalExtraDataKeys));
-        AssertMsg(SUCCEEDED(hrc), ("VirtualBox::GetExtraDataKeys failed with %Rhrc\n", hrc));
-        bool hasKey = false;
-        for (size_t i = 0; i < aGlobalExtraDataKeys.size(); i++)
+        if (SUCCEEDED(hrc))
         {
-            Utf8Str strKey(aGlobalExtraDataKeys[i]);
-            if (!strKey.startsWith("VBoxInternal2/"))
-                continue;
+            bool hasKey = false;
+            for (size_t i = 0; i < aGlobalExtraDataKeys.size(); i++)
+            {
+                Utf8Str strKey(aGlobalExtraDataKeys[i]);
+                if (!strKey.startsWith("VBoxInternal2/"))
+                    continue;
 
-            Bstr bstrValue;
-            hrc = pVirtualBox->GetExtraData(Bstr(strKey).raw(),
-                                            bstrValue.asOutParam());
-            if (FAILED(hrc))
-                continue;
-            if (!hasKey)
-                LogRel(("Global extradata API settings:\n"));
-            LogRel(("  %s=\"%ls\"\n", strKey.c_str(), bstrValue.raw()));
-            hasKey = true;
+                Bstr bstrValue;
+                hrc = pVirtualBox->GetExtraData(Bstr(strKey).raw(), bstrValue.asOutParam());
+                if (FAILED(hrc))
+                    continue;
+                if (!hasKey)
+                    LogRel(("Global extradata API settings:\n"));
+                LogRel(("  %s=\"%ls\"\n", strKey.c_str(), bstrValue.raw()));
+                hasKey = true;
+            }
         }
+        else
+            AssertMsgFailed(("VirtualBox::GetExtraDataKeys failed with %Rhrc\n", hrc));
     }
 
     {
         SafeArray<BSTR> aMachineExtraDataKeys;
         HRESULT hrc = pMachine->GetExtraDataKeys(ComSafeArrayAsOutParam(aMachineExtraDataKeys));
-        AssertMsg(SUCCEEDED(hrc), ("Machine::GetExtraDataKeys failed with %Rhrc\n", hrc));
-        bool hasKey = false;
-        for (size_t i = 0; i < aMachineExtraDataKeys.size(); i++)
+        if (SUCCEEDED(hrc))
         {
-            Utf8Str strKey(aMachineExtraDataKeys[i]);
-            if (!strKey.startsWith("VBoxInternal2/"))
-                continue;
+            bool hasKey = false;
+            for (size_t i = 0; i < aMachineExtraDataKeys.size(); i++)
+            {
+                Utf8Str strKey(aMachineExtraDataKeys[i]);
+                if (!strKey.startsWith("VBoxInternal2/"))
+                    continue;
 
-            Bstr bstrValue;
-            hrc = pMachine->GetExtraData(Bstr(strKey).raw(),
-                                         bstrValue.asOutParam());
-            if (FAILED(hrc))
-                continue;
-            if (!hasKey)
-                LogRel(("Per-VM extradata API settings:\n"));
-            LogRel(("  %s=\"%ls\"\n", strKey.c_str(), bstrValue.raw()));
-            hasKey = true;
+                Bstr bstrValue;
+                hrc = pMachine->GetExtraData(Bstr(strKey).raw(), bstrValue.asOutParam());
+                if (FAILED(hrc))
+                    continue;
+                if (!hasKey)
+                    LogRel(("Per-VM extradata API settings:\n"));
+                LogRel(("  %s=\"%ls\"\n", strKey.c_str(), bstrValue.raw()));
+                hasKey = true;
+            }
         }
+        else
+            AssertMsgFailed(("Machine::GetExtraDataKeys failed with %Rhrc\n", hrc));
     }
 
     return VINF_SUCCESS;
@@ -2268,13 +2274,6 @@ int Console::i_configNetwork(const char *pszDevice,
                 InsertConfigString(pLunL0, "Driver", "NAT");
                 InsertConfigNode(pLunL0, "Config", &pCfg);
 
-                /* Configure TFTP prefix and boot filename. */
-                hrc = virtualBox->COMGETTER(HomeFolder)(bstr.asOutParam());                 H();
-                if (!bstr.isEmpty())
-                    InsertConfigStringF(pCfg, "TFTPPrefix", "%ls%c%s", bstr.raw(), RTPATH_DELIMITER, "TFTP");
-                hrc = pMachine->COMGETTER(Name)(bstr.asOutParam());                         H();
-                InsertConfigStringF(pCfg, "BootFile", "%ls.pxe", bstr.raw());
-
                 hrc = natEngine->COMGETTER(Network)(bstr.asOutParam());                     H();
                 if (!bstr.isEmpty())
                     InsertConfigString(pCfg, "Network", bstr);
@@ -2305,15 +2304,27 @@ int Console::i_configNetwork(const char *pszDevice,
                     InsertConfigInteger(pCfg, "TcpSnd", tcpSnd);
                 hrc = natEngine->COMGETTER(TFTPPrefix)(bstr.asOutParam());                  H();
                 if (!bstr.isEmpty())
-                {
-                    RemoveConfigValue(pCfg, "TFTPPrefix");
                     InsertConfigString(pCfg, "TFTPPrefix", bstr);
-                }
+
+                BOOL fEnableTFTP = FALSE;
+                hrc = natEngine->COMGETTER(EnableTFTP)(&fEnableTFTP);                       H();
+                InsertConfigInteger(pCfg, "EnableTFTP", fEnableTFTP);
+
                 hrc = natEngine->COMGETTER(TFTPBootFile)(bstr.asOutParam());                H();
-                if (!bstr.isEmpty())
+                if (!bstr.isEmpty() && fEnableTFTP)
                 {
-                    RemoveConfigValue(pCfg, "BootFile");
-                    InsertConfigString(pCfg, "BootFile", bstr);
+                    // Check for 127 char max (+ 1 for null term character)
+                    if (bstr.length() > 127)
+                    {
+                        i_atVMRuntimeErrorCallbackF(0, "TFTPBootFileTooLong",
+                                     N_("TFTP Boot file name \"%s\" is over the maximum of 127 characters. \
+                                        Ignoring input. Certain functionality will not work as intended"),
+                                     Utf8Str(bstr).c_str());
+
+                        InsertConfigString(pCfg, "BootFile", "");
+                    }
+                    else
+                        InsertConfigString(pCfg, "BootFile", bstr);
                 }
                 hrc = natEngine->COMGETTER(TFTPNextServer)(bstr.asOutParam());              H();
                 if (!bstr.isEmpty())
@@ -2835,10 +2846,9 @@ int Console::i_configNetwork(const char *pszDevice,
                                                             pszHostOnlyName).raw(),
                                                             bstrLowerIP.asOutParam());
                         if (SUCCEEDED(hrc) && !bstrLowerIP.isEmpty())
-                            hrc = virtualBox->GetExtraData(BstrFmt("HostOnly/%s/IPNetMask",
-                                                                pszHostOnlyName).raw(),
-                                                                bstrNetworkMask.asOutParam());
-
+                            virtualBox->GetExtraData(BstrFmt("HostOnly/%s/IPNetMask",
+                                                             pszHostOnlyName).raw(),
+                                                             bstrNetworkMask.asOutParam());
                     }
                     RTNETADDRIPV4 ipAddr, ipMask;
                     vrc = bstrLowerIP.isEmpty() ? VERR_MISSING : RTNetStrToIPv4Addr(Utf8Str(bstrLowerIP).c_str(), &ipAddr);
@@ -3326,7 +3336,9 @@ int Console::i_configNetwork(const char *pszDevice,
                     if (fAttachDetach)
                     {
                         vrc = pVMM->pfnPDMR3DriverAttach(mpUVM, pszDevice, uInstance, uLun, 0 /*fFlags*/, NULL /* ppBase */);
-                        //AssertRC(vrc);
+                        if (RT_FAILURE(vrc))
+                            LogRel(("Console::i_configNetwork: Error attaching device '%s' (instance %u) to LUN %u, rc=%Rrc\n",
+                                    pszDevice, uInstance, uLun, vrc));
                     }
 
                     {
@@ -3362,7 +3374,7 @@ int Console::i_configNetwork(const char *pszDevice,
                             }
 
                             if (fEnabledDhcp)
-                                hrc = dhcpServer->Start(trunkName.raw(), trunkType.raw());
+                                dhcpServer->Start(trunkName.raw(), trunkType.raw());
                         }
                         else
                             hrc = S_OK;
@@ -3699,15 +3711,20 @@ int Console::i_configAudioCtrl(ComPtr<IVirtualBox> pVBox, ComPtr<IMachine> pMach
         InsertConfigNode(pInst, "AudioConfig", &pCfgAudioAdapter);
         SafeArray<BSTR> audioProps;
         hrc = audioAdapter->COMGETTER(PropertiesList)(ComSafeArrayAsOutParam(audioProps));  H();
-
-        std::list<Utf8Str> audioPropertyNamesList;
-        for (size_t i = 0; i < audioProps.size(); ++i)
+        if (SUCCEEDED(hrc))
         {
-            Bstr bstrValue;
-            audioPropertyNamesList.push_back(Utf8Str(audioProps[i]));
-            hrc = audioAdapter->GetProperty(audioProps[i], bstrValue.asOutParam());
-            Utf8Str strKey(audioProps[i]);
-            InsertConfigString(pCfgAudioAdapter, strKey.c_str(), bstrValue);
+            std::list<Utf8Str> audioPropertyNamesList;
+            for (size_t i = 0; i < audioProps.size(); ++i)
+            {
+                Bstr bstrValue;
+                audioPropertyNamesList.push_back(Utf8Str(audioProps[i]));
+                hrc = audioAdapter->GetProperty(audioProps[i], bstrValue.asOutParam());
+                if (SUCCEEDED(hrc))
+                {
+                    Utf8Str strKey(audioProps[i]);
+                    InsertConfigString(pCfgAudioAdapter, strKey.c_str(), bstrValue);
+                }
+            }
         }
 
         /*
@@ -3731,7 +3748,7 @@ int Console::i_configAudioCtrl(ComPtr<IVirtualBox> pVBox, ComPtr<IMachine> pMach
              * by default on the current platform. */
             bool const fUseDefaultDrv = enmAudioDriver == AudioDriverType_Default;
 
-            AudioDriverType_T const enmDefaultAudioDriver = settings::MachineConfigFile::getHostDefaultAudioDriver();
+            AudioDriverType_T const enmDefaultAudioDriver = VBoxAudioGetDefaultDriver();
 
             if (fUseDefaultDrv)
             {
@@ -3748,11 +3765,10 @@ int Console::i_configAudioCtrl(ComPtr<IVirtualBox> pVBox, ComPtr<IMachine> pMach
                     pszAudioDriver = "NullAudio";
                     break;
 #ifdef RT_OS_WINDOWS
-# ifdef VBOX_WITH_WINMM
                 case AudioDriverType_WinMM:
-#  error "Port WinMM audio backend!" /** @todo Still needed? */
-                    break;
-# endif
+                    LogRel(("Audio: Warning: WinMM is not supported, defaulting to WAS backend\n"));
+                    /* Fall through into the next case for selecting a valid Windows backend. */
+                    RT_FALL_THROUGH();
                 case AudioDriverType_DirectSound:
                     /* Use the Windows Audio Session (WAS) API rather than Direct Sound on Windows
                        versions we've tested it on (currently W7+).  Since Vista, Direct Sound has
@@ -4091,7 +4107,6 @@ int Console::i_configVmmDev(ComPtr<IMachine> pMachine, BusAssignmentManager *pBu
 int Console::i_configUsb(ComPtr<IMachine> pMachine, BusAssignmentManager *pBusMgr, PCFGMNODE pRoot, PCFGMNODE pDevices,
                          KeyboardHIDType_T enmKbdHid, PointingHIDType_T enmPointingHid, PCFGMNODE *ppUsbDevices)
 {
-    int vrc = VINF_SUCCESS;
     PCFGMNODE pDev = NULL;          /* /Devices/Dev/ */
     PCFGMNODE pInst = NULL;         /* /Devices/Dev/0/ */
     PCFGMNODE pCfg = NULL;          /* /Devices/Dev/.../Config/ */
@@ -4108,7 +4123,7 @@ int Console::i_configUsb(ComPtr<IMachine> pMachine, BusAssignmentManager *pBusMg
         for (size_t i = 0; i < usbCtrls.size(); ++i)
         {
             USBControllerType_T enmCtrlType;
-            vrc = usbCtrls[i]->COMGETTER(Type)(&enmCtrlType);                                  H();
+            hrc = usbCtrls[i]->COMGETTER(Type)(&enmCtrlType);                                  H();
             if (enmCtrlType == USBControllerType_OHCI)
             {
                 fOhciPresent = true;
@@ -4137,7 +4152,7 @@ int Console::i_configUsb(ComPtr<IMachine> pMachine, BusAssignmentManager *pBusMg
         for (size_t i = 0; i < usbCtrls.size(); ++i)
         {
             USBControllerType_T enmCtrlType;
-            vrc = usbCtrls[i]->COMGETTER(Type)(&enmCtrlType);                                  H();
+            hrc = usbCtrls[i]->COMGETTER(Type)(&enmCtrlType);                                H();
 
             if (enmCtrlType == USBControllerType_OHCI)
             {
@@ -4662,7 +4677,7 @@ int Console::i_configStorageCtrls(ComPtr<IMachine> pMachine, BusAssignmentManage
 
 int Console::i_configNetworkCtrls(ComPtr<IMachine> pMachine, ComPtr<IPlatformProperties> pPlatformProperties,
                                   ChipsetType_T enmChipset, BusAssignmentManager *pBusMgr, PCVMMR3VTABLE pVMM, PUVM pUVM,
-                                  PCFGMNODE pDevices, std::list<BootNic> &llBootNics)
+                                  PCFGMNODE pDevices, PCFGMNODE pUsbDevices, std::list<BootNic> &llBootNics)
 {
 /* Comment out the following line to remove VMWare compatibility hack. */
 #define VMWARE_NET_IN_SLOT_11
@@ -4692,6 +4707,7 @@ int Console::i_configNetworkCtrls(ComPtr<IMachine> pMachine, ComPtr<IPlatformPro
     InsertConfigNode(pDevices, "dp8390", &pDevDP8390);
     PCFGMNODE pDev3C501 = NULL;          /* EtherLink-type devices */
     InsertConfigNode(pDevices, "3c501",  &pDev3C501);
+    PCFGMNODE pUsbNet = NULL;            /* USB NCM Ethernet devices */
 
     for (ULONG uInstance = 0; uInstance < maxNetworkAdapters; ++uInstance)
     {
@@ -4739,6 +4755,12 @@ int Console::i_configNetworkCtrls(ComPtr<IMachine> pMachine, ComPtr<IPlatformPro
             case NetworkAdapterType_ELNK1:
                 pDev = pDev3C501;
                 break;
+            case NetworkAdapterType_UsbNet:
+                if (!pUsbNet)
+                    InsertConfigNode(pUsbDevices, "UsbNet",  &pUsbNet);
+                pDev = pUsbNet;
+                pszAdapterName = "UsbNet";
+                break;
             default:
                 AssertMsgFailed(("Invalid network adapter type '%d' for slot '%d'", adapterType, uInstance));
                 return pVMM->pfnVMR3SetError(pUVM, VERR_INVALID_PARAMETER, RT_SRC_POS,
@@ -4746,115 +4768,122 @@ int Console::i_configNetworkCtrls(ComPtr<IMachine> pMachine, ComPtr<IPlatformPro
         }
 
         InsertConfigNode(pDev, Utf8StrFmt("%u", uInstance).c_str(), &pInst);
-        InsertConfigInteger(pInst, "Trusted",              1); /* boolean */
-
-        int iPCIDeviceNo;
-        if (enmChipset == ChipsetType_ICH9 || enmChipset == ChipsetType_PIIX3)
+        /* USB Ethernet is not attached to PCI bus, skip irrelevant bits. */
+        if (adapterType != NetworkAdapterType_UsbNet)
         {
-            /* the first network card gets the PCI ID 3, the next 3 gets 8..10,
-             * next 4 get 16..19. */
-            switch (uInstance)
+            InsertConfigInteger(pInst, "Trusted",              1); /* boolean */
+
+            int iPCIDeviceNo;
+            if (enmChipset == ChipsetType_ICH9 || enmChipset == ChipsetType_PIIX3)
             {
-                case 0:
-                    iPCIDeviceNo = 3;
-                    break;
-                case 1: case 2: case 3:
-                    iPCIDeviceNo = uInstance - 1 + 8;
-                    break;
-                case 4: case 5: case 6: case 7:
-                    iPCIDeviceNo = uInstance - 4 + 16;
-                    break;
-                default:
-                    /* auto assignment */
-                    iPCIDeviceNo = -1;
-                    break;
-            }
+                /* the first network card gets the PCI ID 3, the next 3 gets 8..10,
+                * next 4 get 16..19. */
+                switch (uInstance)
+                {
+                    case 0:
+                        iPCIDeviceNo = 3;
+                        break;
+                    case 1: case 2: case 3:
+                        iPCIDeviceNo = uInstance - 1 + 8;
+                        break;
+                    case 4: case 5: case 6: case 7:
+                        iPCIDeviceNo = uInstance - 4 + 16;
+                        break;
+                    default:
+                        /* auto assignment */
+                        iPCIDeviceNo = -1;
+                        break;
+                }
 #ifdef VMWARE_NET_IN_SLOT_11
-            /*
-             * Dirty hack for PCI slot compatibility with VMWare,
-             * it assigns slot 0x11 to the first network controller.
-             */
-            if (iPCIDeviceNo == 3 && adapterType == NetworkAdapterType_I82545EM)
-            {
-                iPCIDeviceNo = 0x11;
-                fSwapSlots3and11 = true;
+                /*
+                * Dirty hack for PCI slot compatibility with VMWare,
+                * it assigns slot 0x11 to the first network controller.
+                */
+                if (iPCIDeviceNo == 3 && adapterType == NetworkAdapterType_I82545EM)
+                {
+                    iPCIDeviceNo = 0x11;
+                    fSwapSlots3and11 = true;
+                }
+                else if (iPCIDeviceNo == 0x11 && fSwapSlots3and11)
+                    iPCIDeviceNo = 3;
+#endif
             }
-            else if (iPCIDeviceNo == 0x11 && fSwapSlots3and11)
-                iPCIDeviceNo = 3;
-#endif
-        }
-        else /* Platforms other than x86 just use the auto assignment, no slot swap hack there. */
-            iPCIDeviceNo = -1;
+            else /* Platforms other than x86 just use the auto assignment, no slot swap hack there. */
+                iPCIDeviceNo = -1;
 
-        PCIBusAddress PCIAddr = PCIBusAddress(0, iPCIDeviceNo, 0);
-        hrc = pBusMgr->assignPCIDevice(pszAdapterName, pInst, PCIAddr);                 H();
+            PCIBusAddress PCIAddr = PCIBusAddress(0, iPCIDeviceNo, 0);
+            hrc = pBusMgr->assignPCIDevice(pszAdapterName, pInst, PCIAddr);                 H();
 
-        InsertConfigNode(pInst, "Config", &pCfg);
+            InsertConfigNode(pInst, "Config", &pCfg);
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE   /* not safe here yet. */ /** @todo Make PCNet ring-0 safe on 32-bit mac kernels! */
-        if (pDev == pDevPCNet)
-            InsertConfigInteger(pCfg, "R0Enabled",    false);
+            if (pDev == pDevPCNet)
+                InsertConfigInteger(pCfg, "R0Enabled",    false);
 #endif
-        /*
-         * Collect information needed for network booting and add it to the list.
-         */
-        BootNic     nic;
+            /*
+            * Collect information needed for network booting and add it to the list.
+            */
+            BootNic     nic;
 
-        nic.mInstance    = uInstance;
-        /* Could be updated by reference, if auto assigned */
-        nic.mPCIAddress  = PCIAddr;
+            nic.mInstance    = uInstance;
+            /* Could be updated by reference, if auto assigned */
+            nic.mPCIAddress  = PCIAddr;
 
-        hrc = networkAdapter->COMGETTER(BootPriority)(&nic.mBootPrio);                  H();
+            hrc = networkAdapter->COMGETTER(BootPriority)(&nic.mBootPrio);                  H();
 
-        llBootNics.push_back(nic);
+            llBootNics.push_back(nic);
 
-        /*
-         * The virtual hardware type. PCNet supports three types, E1000 three,
-         * but VirtIO only one.
-         */
-        switch (adapterType)
-        {
-            case NetworkAdapterType_Am79C970A:
-                InsertConfigString(pCfg, "ChipType", "Am79C970A");
-                break;
-            case NetworkAdapterType_Am79C973:
-                InsertConfigString(pCfg, "ChipType", "Am79C973");
-                break;
-            case NetworkAdapterType_Am79C960:
-                InsertConfigString(pCfg, "ChipType", "Am79C960");
-                break;
-            case NetworkAdapterType_I82540EM:
-                InsertConfigInteger(pCfg, "AdapterType", 0);
-                break;
-            case NetworkAdapterType_I82543GC:
-                InsertConfigInteger(pCfg, "AdapterType", 1);
-                break;
-            case NetworkAdapterType_I82545EM:
-                InsertConfigInteger(pCfg, "AdapterType", 2);
-                break;
-            case NetworkAdapterType_Virtio:
-                break;
-            case NetworkAdapterType_NE1000:
-                InsertConfigString(pCfg, "DeviceType", "NE1000");
-                break;
-            case NetworkAdapterType_NE2000:
-                InsertConfigString(pCfg, "DeviceType", "NE2000");
-                break;
-            case NetworkAdapterType_WD8003:
-                InsertConfigString(pCfg, "DeviceType", "WD8003");
-                break;
-            case NetworkAdapterType_WD8013:
-                InsertConfigString(pCfg, "DeviceType", "WD8013");
-                break;
-            case NetworkAdapterType_ELNK2:
-                InsertConfigString(pCfg, "DeviceType", "3C503");
-                break;
-            case NetworkAdapterType_ELNK1:
-                break;
-            case NetworkAdapterType_Null:      AssertFailedBreak(); /* (compiler warnings) */
+            /*
+            * The virtual hardware type. PCNet supports three types, E1000 three,
+            * but VirtIO only one.
+            */
+            switch (adapterType)
+            {
+                case NetworkAdapterType_Am79C970A:
+                    InsertConfigString(pCfg, "ChipType", "Am79C970A");
+                    break;
+                case NetworkAdapterType_Am79C973:
+                    InsertConfigString(pCfg, "ChipType", "Am79C973");
+                    break;
+                case NetworkAdapterType_Am79C960:
+                    InsertConfigString(pCfg, "ChipType", "Am79C960");
+                    break;
+                case NetworkAdapterType_I82540EM:
+                    InsertConfigInteger(pCfg, "AdapterType", 0);
+                    break;
+                case NetworkAdapterType_I82543GC:
+                    InsertConfigInteger(pCfg, "AdapterType", 1);
+                    break;
+                case NetworkAdapterType_I82545EM:
+                    InsertConfigInteger(pCfg, "AdapterType", 2);
+                    break;
+                case NetworkAdapterType_Virtio:
+                    break;
+                case NetworkAdapterType_NE1000:
+                    InsertConfigString(pCfg, "DeviceType", "NE1000");
+                    break;
+                case NetworkAdapterType_NE2000:
+                    InsertConfigString(pCfg, "DeviceType", "NE2000");
+                    break;
+                case NetworkAdapterType_WD8003:
+                    InsertConfigString(pCfg, "DeviceType", "WD8003");
+                    break;
+                case NetworkAdapterType_WD8013:
+                    InsertConfigString(pCfg, "DeviceType", "WD8013");
+                    break;
+                case NetworkAdapterType_ELNK2:
+                    InsertConfigString(pCfg, "DeviceType", "3C503");
+                    break;
+                case NetworkAdapterType_ELNK1:
+                    break;
+                case NetworkAdapterType_UsbNet:    /* fall through */
+                case NetworkAdapterType_Null:      AssertFailedBreak(); /* (compiler warnings) */
 #ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
-            case NetworkAdapterType_32BitHack: AssertFailedBreak(); /* (compiler warnings) */
+                case NetworkAdapterType_32BitHack: AssertFailedBreak(); /* (compiler warnings) */
 #endif
+            }
         }
+        else
+            InsertConfigNode(pInst, "Config", &pCfg);
 
         /*
          * Get the MAC address and convert it to binary representation
@@ -4900,12 +4929,16 @@ int Console::i_configNetworkCtrls(ComPtr<IMachine> pMachine, ComPtr<IPlatformPro
         hrc = networkAdapter->COMGETTER(CableConnected)(&fCableConnected);              H();
         InsertConfigInteger(pCfg, "CableConnected", fCableConnected ? 1 : 0);
 
+        /* No line speed for USB Ethernet. */
+        if (adapterType != NetworkAdapterType_UsbNet)
+        {
         /*
          * Line speed to report from custom drivers
          */
         ULONG ulLineSpeed;
         hrc = networkAdapter->COMGETTER(LineSpeed)(&ulLineSpeed);                       H();
         InsertConfigInteger(pCfg, "LineSpeed", ulLineSpeed);
+        }
 
         /*
          * Attach the status driver.
@@ -5193,6 +5226,80 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
 
     return VINF_SUCCESS;
 }
+
+
+#if defined(VBOX_WITH_TPM)
+int Console::i_configTpm(ComPtr<ITrustedPlatformModule> pTpm, TpmType_T enmTpmType, PCFGMNODE pDevices,
+                         RTGCPHYS GCPhysTpmMmio, uint32_t uIrq, RTGCPHYS GCPhysTpmPpi, bool fCrb)
+{
+    Assert(enmTpmType != TpmType_None);
+
+    // InsertConfig* throws
+    try
+    {
+        HRESULT hrc;
+        Bstr    bstr;
+        PCFGMNODE pDev = NULL;          /* /Devices/Dev/ */
+        PCFGMNODE pInst = NULL;         /* /Devices/Dev/0/ */
+        PCFGMNODE pCfg = NULL;          /* /Devices/Dev/.../Config/ */
+        PCFGMNODE pLunL0 = NULL;        /* /Devices/Dev/0/LUN#0/ */
+        PCFGMNODE pLunL1 = NULL;        /* /Devices/Dev/0/LUN#0/AttachedDriver */
+
+        InsertConfigNode(pDevices, "tpm", &pDev);
+        InsertConfigNode(pDev,     "0", &pInst);
+        InsertConfigInteger(pInst, "Trusted", 1); /* boolean */
+        InsertConfigNode(pInst,    "Config", &pCfg);
+        InsertConfigInteger(pCfg,  "MmioBase", GCPhysTpmMmio);
+        InsertConfigInteger(pCfg,  "Irq",      uIrq);
+        InsertConfigInteger(pCfg,  "Crb",      fCrb ? 1 : 0); /* boolean */
+
+        InsertConfigNode(pInst,    "LUN#0", &pLunL0);
+
+        switch (enmTpmType)
+        {
+            case TpmType_v1_2:
+            case TpmType_v2_0:
+                InsertConfigString(pLunL0, "Driver",               "TpmEmuTpms");
+                InsertConfigNode(pLunL0,   "Config", &pCfg);
+                InsertConfigInteger(pCfg, "TpmVersion", enmTpmType == TpmType_v1_2 ? 1 : 2);
+                InsertConfigNode(pLunL0, "AttachedDriver", &pLunL1);
+                InsertConfigString(pLunL1, "Driver", "NvramStore");
+                break;
+            case TpmType_Host:
+#if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
+                InsertConfigString(pLunL0, "Driver",               "TpmHost");
+                InsertConfigNode(pLunL0,   "Config", &pCfg);
+#endif
+                break;
+            case TpmType_Swtpm:
+                hrc = pTpm->COMGETTER(Location)(bstr.asOutParam());                   H();
+                InsertConfigString(pLunL0, "Driver",               "TpmEmu");
+                InsertConfigNode(pLunL0,   "Config", &pCfg);
+                InsertConfigString(pCfg,   "Location", bstr);
+                break;
+            default:
+                AssertFailedBreak();
+        }
+
+        if (GCPhysTpmPpi != RTGCPHYS_MAX)
+        {
+            /* Add the device for the physical presence interface. */
+            InsertConfigNode(   pDevices, "tpm-ppi",  &pDev);
+            InsertConfigNode(   pDev,     "0",        &pInst);
+            InsertConfigInteger(pInst,    "Trusted",  1); /* boolean */
+            InsertConfigNode(   pInst,    "Config",   &pCfg);
+            InsertConfigInteger(pCfg,     "MmioBase", GCPhysTpmPpi);
+        }
+    }
+    catch (ConfigError &x)
+    {
+        // InsertConfig threw something:
+        return x.m_vrc;
+    }
+
+    return VINF_SUCCESS;
+}
+#endif /* VBOX_WITH_TPM */
 
 #undef H
 #undef VRC

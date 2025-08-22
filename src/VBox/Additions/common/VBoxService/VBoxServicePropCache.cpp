@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -41,8 +41,14 @@
 #include "VBoxServicePropCache.h"
 
 
-
-/** @todo Docs */
+/**
+ * Searches a property within a property cache.
+ *
+ * @returns A pointer to the found property cache entry on success, or NULL if not found.
+ * @param   pCache          The property cache.
+ * @param   pszName         Name of property to search for. Case sensitive.
+ * @param   fFlags          Search flags. Currently unused and must be 0.
+ */
 static PVBOXSERVICEVEPROPCACHEENTRY vgsvcPropCacheFindInternal(PVBOXSERVICEVEPROPCACHE pCache, const char *pszName,
                                                                uint32_t fFlags)
 {
@@ -73,7 +79,13 @@ static PVBOXSERVICEVEPROPCACHEENTRY vgsvcPropCacheFindInternal(PVBOXSERVICEVEPRO
 }
 
 
-/** @todo Docs */
+/**
+ * Inserts (appends) a property into a property cache.
+ *
+ * @returns A pointer to the inserted property cache entry on success, or NULL on failure.
+ * @param   pCache          The property cache.
+ * @param   pszName         Name of property to insert. Case sensitive.
+ */
 static PVBOXSERVICEVEPROPCACHEENTRY vgsvcPropCacheInsertEntryInternal(PVBOXSERVICEVEPROPCACHE pCache, const char *pszName)
 {
     AssertPtrReturn(pCache, NULL);
@@ -83,11 +95,7 @@ static PVBOXSERVICEVEPROPCACHEENTRY vgsvcPropCacheInsertEntryInternal(PVBOXSERVI
     if (pNode)
     {
         pNode->pszName = RTStrDup(pszName);
-        if (!pNode->pszName)
-        {
-            RTMemFree(pNode);
-            return NULL;
-        }
+        AssertPtrReturnStmt(pNode->pszName, RTMemFree(pNode), NULL);
         pNode->pszValue = NULL;
         pNode->fFlags = 0;
         pNode->pszValueReset = NULL;
@@ -96,15 +104,29 @@ static PVBOXSERVICEVEPROPCACHEENTRY vgsvcPropCacheInsertEntryInternal(PVBOXSERVI
         if (RT_SUCCESS(rc))
         {
             RTListAppend(&pCache->NodeHead, &pNode->NodeSucc);
-            rc = RTCritSectLeave(&pCache->CritSect);
+            RTCritSectLeave(&pCache->CritSect);
+
+            return pNode;
         }
+
+        RTStrFree(pNode->pszName);
+        RTMemFree(pNode);
     }
-    return pNode;
+
+    return NULL;
 }
 
 
-/** @todo Docs */
-static int vgsvcPropCacheWritePropF(uint32_t u32ClientId, const char *pszName, uint32_t fFlags, const char *pszValueFormat, ...)
+/**
+ * Writes a new value to a property.
+ *
+ * @returns VBox status code.
+ * @param   uClientId       The HGCM handle of to the guest property service.
+ * @param   pszName         Name of property to write value for. Case sensitive.
+ * @param   fFlags          Property cache flags of type VGSVCPROPCACHE_FLAGS_XXX.
+ * @param   pszValueFormat  Format string of value to write.
+ */
+static int vgsvcPropCacheWritePropF(uint32_t uClientId, const char *pszName, uint32_t fFlags, const char *pszValueFormat, ...)
 {
     AssertPtrReturn(pszName, VERR_INVALID_POINTER);
 
@@ -125,18 +147,18 @@ static int vgsvcPropCacheWritePropF(uint32_t u32ClientId, const char *pszName, u
                  * gracefully clean it up (due to a hard VM reset etc), so set this
                  * guest property using the TRANSRESET flag..
                  */
-                rc = VbglR3GuestPropWrite(u32ClientId, pszName, pszValue, "TRANSRESET");
+                rc = VbglR3GuestPropWrite(uClientId, pszName, pszValue, "TRANSRESET");
                 if (rc == VERR_PARSE_ERROR)
                 {
                     /* Host does not support the "TRANSRESET" flag, so only
                      * use the "TRANSIENT" flag -- better than nothing :-). */
-                    rc = VbglR3GuestPropWrite(u32ClientId, pszName, pszValue, "TRANSIENT");
+                    rc = VbglR3GuestPropWrite(uClientId, pszName, pszValue, "TRANSIENT");
                     /** @todo r=bird: Remember that the host doesn't support
                      * this. */
                 }
             }
             else
-                rc = VbglR3GuestPropWriteValue(u32ClientId, pszName, pszValue /* No transient flags set */);
+                rc = VbglR3GuestPropWriteValue(uClientId, pszName, pszValue /* No transient flags set */);
             RTStrFree(pszValue);
         }
         else
@@ -144,7 +166,7 @@ static int vgsvcPropCacheWritePropF(uint32_t u32ClientId, const char *pszName, u
         va_end(va);
     }
     else
-        rc = VbglR3GuestPropWriteValue(u32ClientId, pszName, NULL);
+        rc = VbglR3GuestPropWriteValue(uClientId, pszName, NULL);
     return rc;
 }
 
@@ -152,7 +174,7 @@ static int vgsvcPropCacheWritePropF(uint32_t u32ClientId, const char *pszName, u
 /**
  * Creates a property cache.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  * @param   pCache          Pointer to the cache.
  * @param   uClientId       The HGCM handle of to the guest property service.
  */
@@ -173,7 +195,6 @@ int VGSvcPropCacheCreate(PVBOXSERVICEVEPROPCACHE pCache, uint32_t uClientId)
  * This is handy for defining default values/flags.
  *
  * @returns VBox status code.
- *
  * @param   pCache          The property cache.
  * @param   pszName         The property name.
  * @param   fFlags          The property flags to set.
@@ -326,7 +347,6 @@ int VGSvcPropCacheUpdate(PVBOXSERVICEVEPROPCACHE pCache, const char *pszName, co
  * Updates all cache values which are matching the specified path.
  *
  * @returns VBox status code.
- *
  * @param   pCache          The property cache.
  * @param   pszValue        The value to set.  A NULL will delete the value.
  * @param   fFlags          Flags to set.
@@ -381,6 +401,7 @@ int VGSvcPropCacheUpdateByPath(PVBOXSERVICEVEPROPCACHE pCache, const char *pszVa
 /**
  * Flushes the cache by writing every item regardless of its state.
  *
+ * @returns VBox status code.
  * @param   pCache          The property cache.
  */
 int VGSvcPropCacheFlush(PVBOXSERVICEVEPROPCACHE pCache)
@@ -427,7 +448,7 @@ void VGSvcPropCacheDestroy(PVBOXSERVICEVEPROPCACHE pCache)
             RTListNodeRemove(&pNode->NodeSucc);
 
             if (pNode->fFlags & VGSVCPROPCACHE_FLAGS_TEMPORARY)
-                rc = vgsvcPropCacheWritePropF(pCache->uClientID, pNode->pszName, pNode->fFlags, pNode->pszValueReset);
+                vgsvcPropCacheWritePropF(pCache->uClientID, pNode->pszName, pNode->fFlags, pNode->pszValueReset);
 
             AssertPtr(pNode->pszName);
             RTStrFree(pNode->pszName);

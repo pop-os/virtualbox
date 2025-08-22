@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage modifyvm
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-modifyvm" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2025-07-12 05:39:09 +0200 (Sat, 12 Jul 2025) $</pubdate>
+    <pubdate>$Date: 2025-08-11 19:18:47 +0200 (Mon, 11 Aug 2025) $</pubdate>
     <title>VBoxManage modifyvm</title>
   </refentryinfo>
 
@@ -143,6 +143,10 @@
           <arg choice="plain">on</arg>
           <arg choice="plain">off</arg>
         </group></arg>
+      <arg>--arm-gic-its=<group choice="plain">
+          <arg choice="plain">on</arg>
+          <arg choice="plain">off</arg>
+        </group></arg>
       <arg>--paravirt-provider=<group choice="plain">
           <arg choice="plain">none</arg>
           <arg choice="plain">default</arg>
@@ -177,10 +181,6 @@
           <arg choice="plain">off</arg>
         </group></arg>
       <arg>--accelerate-3d=<group choice="plain">
-          <arg choice="plain">on</arg>
-          <arg choice="plain">off</arg>
-        </group></arg>
-      <arg>--accelerate-2d-video=<group choice="plain">
           <arg choice="plain">on</arg>
           <arg choice="plain">off</arg>
         </group></arg>
@@ -311,6 +311,7 @@ time on documenting it. -->
           <arg choice="plain">82543GC</arg>
           <arg choice="plain">82545EM</arg>
           <arg choice="plain">virtio</arg>
+          <arg choice="plain">usbnet</arg>
         </group></arg>
       <arg>--cable-connected<replaceable>N</replaceable>=<group choice="plain">
           <arg choice="plain">on</arg>
@@ -381,6 +382,11 @@ time on documenting it. -->
         </group></arg>
       <arg>--nat-settings<replaceable>N</replaceable>=[<replaceable>mtu</replaceable>]</arg>
       <arg>--nat-forward-broadcast<replaceable>N</replaceable>=<group choice="plain">
+          <arg choice="plain">on</arg>
+          <arg choice="plain">off</arg>
+        </group>
+      </arg>
+      <arg>--nat-enable-tftp<replaceable>N</replaceable>=<group choice="plain">
           <arg choice="plain">on</arg>
           <arg choice="plain">off</arg>
         </group>
@@ -689,7 +695,7 @@ it unless this changes. -->
       Most of these properties correspond to the VM settings that are
       shown in each VM's <emphasis role="bold">Settings</emphasis>
       dialog in the VirtualBox Manager. See
-      <xref linkend="BasicConcepts" />. However, some settings can only
+      <xref linkend="ct_working-with-vms" />. However, some settings can only
       be viewed and managed with the <command>VBoxManage</command>
       command.
     </para>
@@ -764,7 +770,7 @@ it unless this changes. -->
           <listitem><para>
               Specifies the amount of host system RAM to allocate to the
               VM. The size is in MB. See
-              <xref linkend="create-vm-wizard" />.
+              <xref linkend="tk_create-vm" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -781,7 +787,7 @@ it unless this changes. -->
           <term><option>--vram=<replaceable>size</replaceable></option></term>
           <listitem><para>
               Specifies the amount of RAM to allocate to the virtual
-              graphics card. See <xref linkend="settings-display" />.
+              graphics card. See <xref linkend="ct_settings-display" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -968,8 +974,7 @@ it unless this changes. -->
           <listitem><para>
               Enables or disables the use of hardware virtualization
               extensions in the processor of the host system. Such
-              extensions are Intel VT-x or AMD-V. See
-              <xref linkend="hwvirt" />.
+              extensions are Intel VT-x or AMD-V.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -1002,6 +1007,14 @@ it unless this changes. -->
             </para><para>
               Disable this feature when the OS that runs on a host
               system or a guest VM is incompatible with CPU x2APIC.
+            </para></listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><option>--arm-gic-its=on | off</option></term>
+          <listitem><para>
+              Enables or disables the ITS (Interrupt Translation
+              Service) component of the GIC (Generic Interrupt
+              Controller). This feature is disabled by default.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -1053,7 +1066,6 @@ it unless this changes. -->
               Enables or disables the nested paging feature in the
               processor of the host system. This option is available
               only when hardware virtualization is enabled. See
-              <xref linkend="hwvirt" /> and
               <xref linkend="sec-rec-cve-2018-3646" />.
             </para></listitem>
         </varlistentry>
@@ -1071,9 +1083,9 @@ it unless this changes. -->
           <term><option>--x86-vtx-vpid=on | off</option></term>
           <listitem><para>
               Enables or disables the use of the tagged TLB (VPID)
-              feature in the processor of your host system. See
-              <xref linkend="hwvirt" />. This option is available only
-              when hardware virtualization is enabled on Intel VT-x.
+              feature in the processor of your host system. This
+              option is available only when hardware virtualization
+              is enabled on Intel VT-x.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -1112,13 +1124,6 @@ it unless this changes. -->
               graphics adapter variants which support it. This option
               has an effect only when the Guest Additions are installed.
               See <xref linkend="guestadd-video" />.
-            </para></listitem>
-        </varlistentry>
-        <varlistentry>
-          <term><option>--accelerate-2d-video=on | off</option></term>
-          <listitem><para>
-              Enables or disables 2D video acceleration for the graphics
-              adapter variants which support it.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -1460,7 +1465,7 @@ it unless this changes. -->
             </itemizedlist></listitem>
         </varlistentry>
         <varlistentry>
-          <term><option>--nic-type<replaceable>N</replaceable>=Am79C970A | Am79C973 | 82540EM | 82543GC | 82545EM | virtio</option></term>
+          <term><option>--nic-type<replaceable>N</replaceable>=Am79C970A | Am79C973 | 82540EM | 82543GC | 82545EM | virtio | usbnet</option></term>
           <listitem><para>
               Identifies the type of networking hardware that
               &product-name; presents to the guest VM for the specified
@@ -1491,6 +1496,10 @@ it unless this changes. -->
               <listitem><para>
                   <literal>virtio</literal> represents a paravirtualized
                   network adapter.
+                </para></listitem>
+              <listitem><para>
+                  <literal>usbnet</literal> represents an Ethernet over
+                  USB network adapter.
                 </para></listitem>
             </itemizedlist></listitem>
         </varlistentry>
@@ -1717,7 +1726,8 @@ it unless this changes. -->
           <term><option>--nat-bind-ip<replaceable>N</replaceable>=<replaceable>IP-address</replaceable></option></term>
           <listitem><para>
               Specifies an alternate IP address to which the NAT engine
-              binds. By default, &product-name;'s NAT engine routes TCP/IP packets
+              binds. See <xref linkend="changenat" />. By
+              default, &product-name;'s NAT engine routes TCP/IP packets
               through the default interface assigned by the host's
               TCP/IP stack.
             </para></listitem>
@@ -1730,22 +1740,6 @@ it unless this changes. -->
             </para></listitem>
         </varlistentry>
         <varlistentry>
-          <term><option>--nat-dns-proxy<replaceable>N</replaceable>=on | off</option></term>
-          <listitem><para>
-              Specifies whether the NAT engine is the proxy for all
-              guest DNS requests to the host system's DNS servers. See
-              <xref linkend="nat-adv-dns" />.
-            </para></listitem>
-        </varlistentry>
-        <varlistentry>
-          <term><option>--nat-dns-host-resolver<replaceable>N</replaceable>=on | off</option></term>
-          <listitem><para>
-              Specifies whether the NAT engine uses the host system's
-              resolver mechanisms to handle DNS requests. See
-              <xref linkend="nat-adv-dns" />.
-            </para></listitem>
-        </varlistentry>
-        <varlistentry>
           <term><option>--nat-localhostreachable<replaceable>N</replaceable>=on | off</option></term>
           <listitem><para>
               Specifies whether the NAT engine allows traffic from the guest directed to
@@ -1753,34 +1747,10 @@ it unless this changes. -->
             </para></listitem>
         </varlistentry>
         <varlistentry>
-          <term><option>--nat-settings<replaceable>N</replaceable>=[<replaceable>mtu</replaceable>],[<replaceable>socksnd</replaceable>],[<replaceable>sockrcv</replaceable>],[<replaceable>tcpsnd</replaceable>],[<replaceable>tcprcv</replaceable>]</option></term>
+          <term><option>--nat-settings<replaceable>N</replaceable>=[<replaceable>mtu</replaceable>]</option></term>
           <listitem><para>
-              Specifies values for tuning NAT performance.
-            </para></listitem>
-        </varlistentry>
-        <varlistentry>
-          <term><option>--nat-alias-mode<replaceable>N</replaceable>=default | [log],[proxyonly],[sameports]</option></term>
-          <listitem><para>
-              Specifies the behavior of the NAT engine core as follows:
-            </para><itemizedlist>
-              <listitem><para>
-                  <literal>log</literal> enables logging
-                </para></listitem>
-              <listitem><para>
-                  <literal>proxyonly</literal> switches off aliasing
-                  mode and makes NAT transparent
-                </para></listitem>
-              <listitem><para>
-                  <literal>sameports</literal> enforces that the NAT
-                  engine sends packets through the same port on which
-                  they originated
-                </para></listitem>
-              <listitem><para>
-                  <literal>default</literal> disables all aliasing modes
-                </para></listitem>
-            </itemizedlist><para>
-              For more information, see
-              <xref linkend="nat-adv-alias" />.
+              Specifies values for tuning NAT performance. See
+              <xref linkend="changenat" />.
             </para></listitem>
         </varlistentry>
       </variablelist>
@@ -1820,7 +1790,7 @@ it unless this changes. -->
               modify. Valid values are <literal>off</literal> to disable
               the port or an I/O base address and IRQ. For information
               about the traditional COM port I/O base address and IRQ
-              values, see <xref linkend="serialports" />.
+              values, see <xref linkend="ct_serialports" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -1828,7 +1798,7 @@ it unless this changes. -->
           <listitem><para>
               Specifies how &product-name; connects the specified
               virtual serial port to the host system that runs the VM.
-              See <xref linkend="serialports" />.
+              See <xref linkend="ct_serialports" />.
             </para><para>
               Ensure that you first configure the virtual serial port by
               using the
@@ -2011,7 +1981,7 @@ it unless this changes. -->
               <literal>hosttoguest</literal>,
               <literal>guesttohost</literal>, and
               <literal>bidirectional</literal>. See
-              <xref linkend="generalsettings" />.
+              <xref linkend="ct_generalsettings" />.
             </para><para>
               The clipboard feature is available only if you have the
               Guest Additions be installed in the VM.
@@ -2049,7 +2019,7 @@ it unless this changes. -->
           <term><option>--monitor-count=<replaceable>count</replaceable></option></term>
           <listitem><para>
               Enables you to configure multiple monitors. See
-              <xref linkend="settings-display" />.
+              <xref linkend="ct_settings-display" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>

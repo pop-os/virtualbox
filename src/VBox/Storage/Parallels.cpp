@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -695,7 +695,7 @@ static DECLCALLBACK(int) parallelsWrite(void *pBackendData, uint64_t uOffset, si
             Assert(uSector == 0);
             AssertMsg(pImage->cbFileCurrent % 512 == 0, ("File size is not a multiple of 512\n"));
             pImage->pAllocationBitmap[iIndexInAllocationTable] = (uint32_t)(pImage->cbFileCurrent / 512);
-            pImage->cbFileCurrent += pImage->PCHSGeometry.cSectors * 512;
+            pImage->cbFileCurrent += (uint64_t)pImage->PCHSGeometry.cSectors * 512;
             pImage->fAllocationBitmapChanged = true;
             uOffsetInFile = (uint64_t)pImage->pAllocationBitmap[iIndexInAllocationTable] * 512;
 

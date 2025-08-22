@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -60,6 +60,10 @@ BEGIN
       VALUE "Translation", 0x409, 1200
    END
 END
+
+#ifdef VBOX_STUB_WITH_SPLASH
+ IDB_SPLASH PNG "Binary\\splash.png"
+#endif
 
 #include "VBoxStub-icon.rc"
 #include "VBoxStub-manifest.rc"

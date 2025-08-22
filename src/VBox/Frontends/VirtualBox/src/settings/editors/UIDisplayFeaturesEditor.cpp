@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -100,20 +100,20 @@ void UIDisplayFeaturesEditor::setMinimumLayoutIndent(int iIndent)
 void UIDisplayFeaturesEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Extended Features:"));
+        m_pLabel->setText(tr("Features"));
 
     if (m_pCheckBoxActivateOnMouseHover)
     {
         m_pCheckBoxActivateOnMouseHover->setText(tr("&Raise Window Under Mouse Pointer"));
-        m_pCheckBoxActivateOnMouseHover->setToolTip(tr("When checked, machine windows will be raised "
-                                                       "when the mouse pointer moves over them."));
+        m_pCheckBoxActivateOnMouseHover->setToolTip(tr("Machine windows will be raised "
+                                                       "when the mouse pointer moves over them"));
     }
 
     if (m_pCheckBoxDisableHostScreenSaver)
     {
         m_pCheckBoxDisableHostScreenSaver->setText(tr("&Disable Host Screen Saver"));
-        m_pCheckBoxDisableHostScreenSaver->setToolTip(tr("When checked, screen saver of "
-                                                         "the host OS is disabled."));
+        m_pCheckBoxDisableHostScreenSaver->setToolTip(tr("Screen saver of "
+                                                         "the host OS is disabled"));
     }
 }
 

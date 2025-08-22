@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -352,17 +352,20 @@ static CPUMMSRRANGE const g_aMsrRanges_Intel_Core_i7_5600U[] =
 /**
  * Database entry for Intel(R) Core(TM) i7-5600U CPU @ 2.60GHz.
  */
-static CPUMDBENTRY const g_Entry_Intel_Core_i7_5600U =
+static CPUMDBENTRYX86 const g_Entry_Intel_Core_i7_5600U =
 {
-    /*.pszName          = */ "Intel Core i7-5600U",
-    /*.pszFullName      = */ "Intel(R) Core(TM) i7-5600U CPU @ 2.60GHz",
-    /*.enmVendor        = */ CPUMCPUVENDOR_INTEL,
+    {
+        /*.pszName      = */ "Intel Core i7-5600U",
+        /*.pszFullName  = */ "Intel(R) Core(TM) i7-5600U CPU @ 2.60GHz",
+        /*.enmVendor    = */ CPUMCPUVENDOR_INTEL,
+        /*.enmMicroarch = */ kCpumMicroarch_Intel_Core7_Broadwell,
+        /*.fFlags       = */ 0,
+        /*.enmEntryType = */ CPUMDBENTRYTYPE_X86,
+    },
     /*.uFamily          = */ 6,
     /*.uModel           = */ 61,
     /*.uStepping        = */ 4,
-    /*.enmMicroarch     = */ kCpumMicroarch_Intel_Core7_Broadwell,
     /*.uScalableBusFreq = */ CPUM_SBUSFREQ_100MHZ,
-    /*.fFlags           = */ 0,
     /*.cMaxPhysAddrWidth= */ 39,
     /*.fMxCsrMask       = */ 0xffff,
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_Intel_Core_i7_5600U),

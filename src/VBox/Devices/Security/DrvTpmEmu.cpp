@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -502,7 +502,7 @@ static int drvTpmEmuQueryTpmVersion(PDRVTPMEMU pThis)
             if (RT_SUCCESS(rc))
             {
                 RTJSONVAL hJsonVal = NIL_RTJSONVAL;
-                rc = RTJsonParseFromBuf(&hJsonVal, &abData[0], RT_BE2H_U32(Resp.cbThis), NULL /*pErrInfo*/);
+                rc = RTJsonParseFromBuf(&hJsonVal, 0 /*fFlags*/, &abData[0], RT_BE2H_U32(Resp.cbThis), NULL /*pErrInfo*/);
                 if (RT_SUCCESS(rc))
                 {
                     RTJSONVAL hJsonTpmSpec = NIL_RTJSONVAL;
@@ -960,7 +960,8 @@ static DECLCALLBACK(int) drvTpmEmuConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, 
                                    N_("Configuration error: querying \"BufferSize\" resulted in %Rrc"), rc);
 
     /* Limit to the maximum buffer size of the device above. */
-    pThis->cbBuffer = RT_MIN(pThis->cbBuffer, pThis->pTpmPort->pfnGetMaxBufferSize(pThis->pTpmPort));
+    uint32_t const cbTpmBufferMax = pThis->pTpmPort->pfnGetMaxBufferSize(pThis->pTpmPort);
+    pThis->cbBuffer = RT_MIN(pThis->cbBuffer, cbTpmBufferMax);
 
     /* Set the buffer size. */
     rc = drvTpmEmuSetBufferSz(pThis, pThis->cbBuffer);

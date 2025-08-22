@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -39,7 +39,9 @@
 
 /* Other VBox includes: */
 #include <VBox/VBoxCocoa.h>
+#define UInt UInt_not_needed // libkern/OSTypes.h defines it without any code needing it, causing trouble with Qt's use of this type for different purpose!!
 #include <ApplicationServices/ApplicationServices.h>
+#undef UInt
 #undef PVM // Stupid, stupid apple headers (sys/param.h)!!
 
 /* External includes: */

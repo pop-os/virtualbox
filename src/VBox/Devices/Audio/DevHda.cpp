@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -789,7 +789,7 @@ static int hdaRegLookup(uint32_t offReg)
  * @returns Register index on success, -1 if not found.
  * @param   offReg      The register offset.
  * @param   pcbBefore   Where to return the number of bytes in the matching
- *                      register preceeding @a offReg.
+ *                      register preceding @a offReg.
  */
 static int hdaR3RegLookupWithin(uint32_t offReg, uint32_t *pcbBefore)
 {

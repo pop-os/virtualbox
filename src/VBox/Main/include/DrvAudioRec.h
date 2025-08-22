@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2017-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -37,7 +37,7 @@
 #include <VBox/vmm/pdmifs.h>
 
 #include "AudioDriver.h"
-#include "Recording.h"
+#include "RecordingContext.h"
 
 using namespace com;
 
@@ -57,7 +57,7 @@ public:
 
 public:
 
-    int applyConfiguration(const settings::Recording &Settings);
+    int applyConfiguration(const ComPtr<IRecordingSettings> & Settings);
 
 public:
 
@@ -70,9 +70,9 @@ private:
     virtual int configureDriver(PCFGMNODE pLunCfg, PCVMMR3VTABLE pVMM) RT_OVERRIDE;
 
     /** Pointer to the associated video recording audio driver. */
-    struct DRVAUDIORECORDING  *mpDrv;
+    struct DRVAUDIORECORDING         *m_pDrv;
     /** Recording settings used for configuring the driver. */
-    struct settings::Recording mSettings;
+    ComPtr<IRecordingSettings>        m_Settings;
 };
 
 #endif /* !MAIN_INCLUDED_DrvAudioRec_h */

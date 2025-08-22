@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -82,9 +82,7 @@ enum
     MODIFYVM_GRAPHICSCONTROLLER,
     MODIFYVM_MONITORCOUNT,
     MODIFYVM_ACCELERATE3D,
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    MODIFYVM_ACCELERATE2DVIDEO,
-#endif
+    MODIFYVM_ACCELERATE2DVIDEO,  // deprecated
     /*
      * Firmware-specific stuff.
      */
@@ -146,6 +144,7 @@ enum
     MODIFYVM_NATDNSHOSTRESOLVER,
     MODIFYVM_NATLOCALHOSTREACHABLE,
     MODIFYVM_NATFORWARD_BROADCAST,
+    MODIFYVM_NATENABLETFTP,
     MODIFYVM_MACADDRESS,
     MODIFYVM_HIDPTR,
     MODIFYVM_HIDKBD,
@@ -250,6 +249,12 @@ enum
     MODIFYVM_GUEST_DEBUG_IO_PROVIDER,
     MODIFYVM_GUEST_DEBUG_ADDRESS,
     MODIFYVM_GUEST_DEBUG_PORT,
+
+    /*
+     * Stuff common between x86 and ARM.
+     */
+    MODIFYVM_NESTED_HW_VIRT,
+
     /*
      * x86-specific stuff.
      */
@@ -267,7 +272,6 @@ enum
     MODIFYVM_X86_LONGMODE,
     MODIFYVM_X86_MDS_CLEAR_ON_SCHED,
     MODIFYVM_X86_MDS_CLEAR_ON_VM_ENTRY,
-    MODIFYVM_X86_NESTED_HW_VIRT,
     MODIFYVM_X86_NESTEDPAGING,
     MODIFYVM_X86_PAE,
     MODIFYVM_X86_SETCPUID,
@@ -276,7 +280,12 @@ enum
     MODIFYVM_X86_VIRT_VMSAVE_VMLOAD,
     MODIFYVM_X86_VTXUX,
     MODIFYVM_X86_VTXVPID,
-    MODIFYVM_X86_X2APIC
+    MODIFYVM_X86_X2APIC,
+
+    /*
+     * ARM-specific stuff.
+     */
+    MODIFYVM_ARM_GIC_ITS
 };
 
 static const RTGETOPTDEF g_aModifyVMOptions[] =
@@ -305,9 +314,9 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     OPT2("--graphicscontroller",            "--graphicscontroller",     MODIFYVM_GRAPHICSCONTROLLER,        RTGETOPT_REQ_STRING),
     OPT2("--monitor-count",                 "--monitorcount",           MODIFYVM_MONITORCOUNT,              RTGETOPT_REQ_UINT32),
     OPT2("--accelerate-3d",                 "--accelerate3d",           MODIFYVM_ACCELERATE3D,              RTGETOPT_REQ_BOOL_ONOFF),
-#ifdef VBOX_WITH_VIDEOHWACCEL
+    /* { Kept for backwards-compatibility*/
     OPT2("--accelerate-2d-video",           "--accelerate2dvideo",      MODIFYVM_ACCELERATE2DVIDEO,         RTGETOPT_REQ_BOOL_ONOFF),
-#endif
+    /* } */
     OPT1("--firmware-logo-fade-in",                                     MODIFYVM_FWLOGOFADEIN,              RTGETOPT_REQ_BOOL_ONOFF),
     OPT1("--firmware-logo-fade-out",                                    MODIFYVM_FWLOGOFADEOUT,             RTGETOPT_REQ_BOOL_ONOFF),
     OPT1("--firmware-logo-image-path",                                  MODIFYVM_FWLOGOIMAGEPATH,           RTGETOPT_REQ_STRING),
@@ -377,6 +386,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     OPT2("--nat-dns-host-resolver",         "--natdnshostresolver",     MODIFYVM_NATDNSHOSTRESOLVER,        RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
     OPT2("--nat-localhostreachable",        "--natlocalhostreachable",  MODIFYVM_NATLOCALHOSTREACHABLE,     RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
     OPT1("--nat-forward-broadcast",                                     MODIFYVM_NATFORWARD_BROADCAST,      RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
+    OPT1("--nat-enable-tftp",                                           MODIFYVM_NATENABLETFTP,             RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
     OPT2("--mac-address",                   "--macaddress",             MODIFYVM_MACADDRESS,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
     OPT1("--mouse",                                                     MODIFYVM_HIDPTR,                    RTGETOPT_REQ_STRING),
     OPT1("--keyboard",                                                  MODIFYVM_HIDKBD,                    RTGETOPT_REQ_STRING),
@@ -517,8 +527,8 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     OPT1("--mds-clear-on-sched",                                        MODIFYVM_X86_MDS_CLEAR_ON_SCHED,    RTGETOPT_REQ_BOOL_ONOFF),
     OPT1("--x86-mds-clear-on-vm-entry",                                 MODIFYVM_X86_MDS_CLEAR_ON_VM_ENTRY, RTGETOPT_REQ_BOOL_ONOFF),
     OPT1("--mds-clear-on-vm-entry",                                     MODIFYVM_X86_MDS_CLEAR_ON_VM_ENTRY, RTGETOPT_REQ_BOOL_ONOFF),
-    OPT1("--x86-nested-hw-virt",                                        MODIFYVM_X86_NESTED_HW_VIRT,        RTGETOPT_REQ_BOOL_ONOFF),
-    OPT1("--nested-hw-virt",                                            MODIFYVM_X86_NESTED_HW_VIRT,        RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--x86-nested-hw-virt",                                        MODIFYVM_NESTED_HW_VIRT,            RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--nested-hw-virt",                                            MODIFYVM_NESTED_HW_VIRT,            RTGETOPT_REQ_BOOL_ONOFF),
     OPT1("--x86-nested-paging",                                         MODIFYVM_X86_NESTEDPAGING,          RTGETOPT_REQ_BOOL_ONOFF),
     OPT2("--nested-paging",                 "--nestedpaging",           MODIFYVM_X86_NESTEDPAGING,          RTGETOPT_REQ_BOOL_ONOFF),
     OPT1("--x86-pae",                                                   MODIFYVM_X86_PAE,                   RTGETOPT_REQ_BOOL_ONOFF),
@@ -537,6 +547,11 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     OPT2("--vtx-vpid",                      "--vtxvpid",                MODIFYVM_X86_VTXVPID,               RTGETOPT_REQ_BOOL_ONOFF),
     OPT1("--x86-x2apic",                                                MODIFYVM_X86_X2APIC,                RTGETOPT_REQ_BOOL_ONOFF),
     OPT1("--x2apic",                                                    MODIFYVM_X86_X2APIC,                RTGETOPT_REQ_BOOL_ONOFF),
+
+    /*
+     * ARM-only stuff.
+     */
+    OPT1("--arm-gic-its",                                               MODIFYVM_ARM_GIC_ITS,               RTGETOPT_REQ_BOOL_ONOFF),
 };
 
 static void vrdeWarningDeprecatedOption(const char *pszOption)
@@ -597,7 +612,7 @@ void parseGroups(const char *pcszGroups, com::SafeArray<BSTR> *pGroups)
         char *pComma = RTStrStr(pcszGroups, ",");
         if (pComma)
         {
-            Bstr(pcszGroups, pComma - pcszGroups).detachTo(pGroups->appendedRaw());
+            Bstr(pcszGroups, (size_t)(pComma - pcszGroups)).detachTo(pGroups->appendedRaw());
             pcszGroups = pComma + 1;
         }
         else
@@ -650,7 +665,7 @@ static int parseNum(uint32_t uIndex, unsigned cMaxIndex, const char *pszName)
 {
     if (   uIndex >= 1
         && uIndex <= cMaxIndex)
-        return uIndex;
+        return (int)uIndex;
     errorArgument(ModifyVM::tr("Invalid %s number %u"), pszName, uIndex);
     return 0;
 }
@@ -793,7 +808,7 @@ static HRESULT handleModifyVM_x86(PRTGETOPTSTATE pGetOptState, int c, PRTGETOPTU
             CHECK_ERROR(platformX86, SetCPUProperty(CPUPropertyTypeX86_MDSClearOnVMEntry, pValueUnion->f));
             break;
 
-        case MODIFYVM_X86_NESTED_HW_VIRT:
+        case MODIFYVM_NESTED_HW_VIRT:
             CHECK_ERROR(platformX86, SetCPUProperty(CPUPropertyTypeX86_HWVirt, pValueUnion->f));
             break;
 
@@ -803,8 +818,8 @@ static HRESULT handleModifyVM_x86(PRTGETOPTSTATE pGetOptState, int c, PRTGETOPTU
 
         case MODIFYVM_X86_SETCPUID:
         {
-            uint32_t const idx    = c == MODIFYVM_X86_SETCPUID ?  pValueUnion->PairU32.uFirst  : pValueUnion->u32;
-            uint32_t const idxSub = c == MODIFYVM_X86_SETCPUID ?  pValueUnion->PairU32.uSecond : UINT32_MAX;
+            uint32_t const idx    = pValueUnion->PairU32.uFirst;
+            uint32_t const idxSub = pValueUnion->PairU32.uSecond;
             uint32_t aValue[4];
             for (unsigned i = 0; i < 4; i++)
             {
@@ -817,6 +832,42 @@ static HRESULT handleModifyVM_x86(PRTGETOPTSTATE pGetOptState, int c, PRTGETOPTU
             CHECK_ERROR(platformX86, SetCPUIDLeaf(idx, idxSub, aValue[0], aValue[1], aValue[2], aValue[3]));
             break;
         }
+
+        default:
+            hrc = E_INVALIDARG;
+            break;
+    }
+
+    return hrc;
+}
+
+/**
+ * Handles the x86-specific modifyvm options.
+ *
+ * @returns HRESULT
+ * @retval  E_INVALIDARG if handed-in option was not being handled.
+ * @param   pGetOptState        Pointer to GetOpt state to use.
+ * @param   c                   Current GetOpt value (short form).
+ * @param   pValueUnion         Pointer to current value union.
+ * @param   sessionMachine      Session machine to use.
+ * @param   platformARM         ARM-specific platform object to use.
+ */
+static HRESULT handleModifyVM_ARM(PRTGETOPTSTATE pGetOptState, int c, PRTGETOPTUNION pValueUnion,
+                                  ComPtr<IMachine> &sessionMachine, ComPtr<IPlatformARM> &platformARM)
+{
+    RT_NOREF(pGetOptState, sessionMachine);
+
+    HRESULT hrc = S_OK;
+
+    switch (c)
+    {
+        case MODIFYVM_NESTED_HW_VIRT:
+            CHECK_ERROR(platformARM, SetCPUProperty(CPUPropertyTypeARM_HWVirt, pValueUnion->f));
+            break;
+
+        case MODIFYVM_ARM_GIC_ITS:
+            CHECK_ERROR(platformARM, SetCPUProperty(CPUPropertyTypeARM_GICITS, pValueUnion->f));
+            break;
 
         default:
             hrc = E_INVALIDARG;
@@ -858,10 +909,6 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
     ComPtr<IPlatform> platform;
     CHECK_ERROR_RET(sessionMachine, COMGETTER(Platform)(platform.asOutParam()), RTEXITCODE_FAILURE);
-
-    /* For the x86-based options we need the x86-specific platform object. */
-    ComPtr<IPlatformX86> platformX86;
-    platform->COMGETTER(X86)(platformX86.asOutParam());
 
     ComPtr<IGraphicsAdapter> pGraphicsAdapter;
     sessionMachine->COMGETTER(GraphicsAdapter)(pGraphicsAdapter.asOutParam());
@@ -924,7 +971,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     break;
                 }
                 SafeArray<BYTE> icon((size_t)cbSize);
-                hrc = RTFileRead(iconFile, icon.raw(), (size_t)cbSize, NULL);
+                vrc = RTFileRead(iconFile, icon.raw(), (size_t)cbSize, NULL);
                 if (RT_FAILURE(vrc))
                 {
                     RTMsgError(ModifyVM::tr("Cannot read contents of file \"%s\": %Rrc"), ValueUnion.psz, vrc);
@@ -1114,13 +1161,13 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
+            /* Kept for backwards-compatibility. */
             case MODIFYVM_ACCELERATE2DVIDEO:
             {
-                CHECK_ERROR(pGraphicsAdapter, SetFeature(GraphicsFeature_Acceleration2DVideo, ValueUnion.f));
+                RTStrmPrintf(g_pStdErr, ModifyVM::tr("Warning: '--accelerate-2d-video' is deprecated and will be removed in a future version\n"));
                 break;
             }
-#endif
+
             case MODIFYVM_FWLOGOFADEIN:
             {
                 CHECK_ERROR(firmwareSettings, COMSETTER(LogoFadeIn)(ValueUnion.f));
@@ -1274,7 +1321,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
                 if (!RTStrICmp(ValueUnion.psz, "none"))
                 {
-                    sessionMachine->DetachDevice(bstrController.raw(), u1, u2);
+                    sessionMachine->DetachDevice(bstrController.raw(), (LONG)u1, (LONG)u2);
                 }
                 else
                 {
@@ -1288,7 +1335,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     if (hardDisk)
                     {
                         CHECK_ERROR(sessionMachine, AttachDevice(bstrController.raw(),
-                                                          u1, u2,
+                                                          (LONG)u1, (LONG)u2,
                                                           DeviceType_HardDisk,
                                                           hardDisk));
                     }
@@ -1357,10 +1404,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 if (!RTStrICmp(ValueUnion.psz, "none"))
                 {
                     hrc = sessionMachine->DetachDevice(Bstr("LsiLogic").raw(),
-                                               GetOptState.uIndex, 0);
+                                               (LONG)GetOptState.uIndex, 0);
                     if (FAILED(hrc))
                         CHECK_ERROR(sessionMachine, DetachDevice(Bstr("BusLogic").raw(),
-                                                          GetOptState.uIndex, 0));
+                                                          (LONG)GetOptState.uIndex, 0));
                 }
                 else
                 {
@@ -1374,13 +1421,13 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     if (hardDisk)
                     {
                         hrc = sessionMachine->AttachDevice(Bstr("LsiLogic").raw(),
-                                                   GetOptState.uIndex, 0,
+                                                   (LONG)GetOptState.uIndex, 0,
                                                    DeviceType_HardDisk,
                                                    hardDisk);
                         if (FAILED(hrc))
                             CHECK_ERROR(sessionMachine,
                                         AttachDevice(Bstr("BusLogic").raw(),
-                                                     GetOptState.uIndex, 0,
+                                                     (LONG)GetOptState.uIndex, 0,
                                                      DeviceType_HardDisk,
                                                      hardDisk));
                     }
@@ -1710,6 +1757,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else if (!RTStrICmp(ValueUnion.psz, "3C501"))
                 {
                     CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_ELNK1));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "usbnet"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_UsbNet));
                 }
                 else
                 {
@@ -2371,6 +2422,22 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
+            case MODIFYVM_NATENABLETFTP:
+            {
+                if (!parseNum(GetOptState.uIndex, NetworkAdapterCount, "NIC"))
+                    break;
+
+                ComPtr<INetworkAdapter> nic;
+                CHECK_ERROR_BREAK(sessionMachine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                ComPtr<INATEngine> engine;
+                CHECK_ERROR(nic, COMGETTER(NATEngine)(engine.asOutParam()));
+
+                CHECK_ERROR(engine, COMSETTER(EnableTFTP)(ValueUnion.f));
+                break;
+            }
+
             case MODIFYVM_MACADDRESS:
             {
                 if (!parseNum(GetOptState.uIndex, NetworkAdapterCount, "NIC"))
@@ -2729,10 +2796,6 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else if (!RTStrICmp(ValueUnion.psz, "default"))
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_Default));
 #ifdef RT_OS_WINDOWS
-# ifdef VBOX_WITH_WINMM
-                else if (!RTStrICmp(ValueUnion.psz, "winmm"))
-                    CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_WinMM));
-# endif
                 else if (!RTStrICmp(ValueUnion.psz, "dsound"))
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_DirectSound));
                 else if (!RTStrICmp(ValueUnion.psz, "was"))
@@ -3759,7 +3822,31 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
             default:
             {
-                hrc = handleModifyVM_x86(&GetOptState, c, &ValueUnion, sessionMachine, platformX86);
+                PlatformArchitecture_T enmArch;
+                CHECK_ERROR_RET(platform, COMGETTER(Architecture)(&enmArch), RTEXITCODE_FAILURE);
+
+                if (enmArch == PlatformArchitecture_x86)
+                {
+                    /* For the x86-based options we need the x86-specific platform object. */
+                    ComPtr<IPlatformX86> platformX86;
+                    CHECK_ERROR_RET(platform, COMGETTER(X86)(platformX86.asOutParam()), RTEXITCODE_FAILURE);
+
+                    hrc = handleModifyVM_x86(&GetOptState, c, &ValueUnion, sessionMachine, platformX86);
+                }
+                else if (enmArch == PlatformArchitecture_ARM)
+                {
+                    /* For the ARM-based options we need the ARM-specific platform object. */
+                    ComPtr<IPlatformARM> platformARM;
+                    CHECK_ERROR_RET(platform, COMGETTER(ARM)(platformARM.asOutParam()), RTEXITCODE_FAILURE);
+
+                    hrc = handleModifyVM_ARM(&GetOptState, c, &ValueUnion, sessionMachine, platformARM);
+                }
+                else
+                {
+                    errorArgument(ModifyVM::tr("Invalid platform architecture returned for VM"));
+                    hrc = E_FAIL;
+                }
+
                 if (FAILED(hrc))
                     errorGetOpt(c, &ValueUnion);
                 break;

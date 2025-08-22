@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1182,9 +1182,9 @@ static int vdiFlushImageIoCtx(PVDIIMAGEDESC pImage, PVDIOCTX pIoCtx)
     {
         /* Save header. */
         rc = vdiUpdateHeaderAsync(pImage, pIoCtx);
-        AssertMsg(RT_SUCCESS(rc) || rc == VERR_VD_ASYNC_IO_IN_PROGRESS,
-                  ("vdiUpdateHeaderAsync() failed, filename=\"%s\", rc=%Rrc\n",
-                  pImage->pszFilename, rc));
+        AssertMsgReturn(RT_SUCCESS(rc) || rc == VERR_VD_ASYNC_IO_IN_PROGRESS,
+                        ("vdiUpdateHeaderAsync() failed, filename=\"%s\", rc=%Rrc\n",
+                        pImage->pszFilename, rc), rc);
         rc = vdIfIoIntFileFlush(pImage->pIfIo, pImage->pStorage, pIoCtx, NULL, NULL);
         AssertMsg(RT_SUCCESS(rc) || rc == VERR_VD_ASYNC_IO_IN_PROGRESS,
                   ("Flushing data to disk failed rc=%Rrc\n", rc));

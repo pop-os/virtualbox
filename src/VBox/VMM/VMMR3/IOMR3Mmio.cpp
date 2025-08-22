@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -134,6 +134,7 @@ static int iomR3MmioGrowStatisticsTable(PVM pVM, uint32_t cNewEntries)
     AssertReturn(cNewEntries <= _64K, VERR_IOM_TOO_MANY_MMIO_REGISTRATIONS);
 
     int rc;
+# if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
     if (!SUPR3IsDriverless())
     {
         rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_GROW_MMIO_STATS, cNewEntries, NULL);
@@ -141,6 +142,7 @@ static int iomR3MmioGrowStatisticsTable(PVM pVM, uint32_t cNewEntries)
         AssertReturn(cNewEntries <= pVM->iom.s.cMmioStatsAllocation, VERR_IOM_MMIO_IPE_2);
     }
     else
+# endif
     {
         /*
          * Validate input and state.
@@ -152,7 +154,7 @@ static int iomR3MmioGrowStatisticsTable(PVM pVM, uint32_t cNewEntries)
         /*
          * Calc size and allocate a new table.
          */
-        uint32_t const cbNew = RT_ALIGN_32(cNewEntries * sizeof(IOMMMIOSTATSENTRY), HOST_PAGE_SIZE);
+        uint32_t const cbNew = RT_ALIGN_32(cNewEntries * sizeof(IOMMMIOSTATSENTRY), HOST_PAGE_SIZE_DYNAMIC);
         cNewEntries = cbNew / sizeof(IOMMMIOSTATSENTRY);
 
         PIOMMMIOSTATSENTRY const paMmioStats = (PIOMMMIOSTATSENTRY)RTMemPageAllocZ(cbNew);
@@ -168,7 +170,7 @@ static int iomR3MmioGrowStatisticsTable(PVM pVM, uint32_t cNewEntries)
             pVM->iom.s.paMmioStats             = paMmioStats;
             pVM->iom.s.cMmioStatsAllocation    = cNewEntries;
 
-            RTMemPageFree(pOldMmioStats, RT_ALIGN_32(cOldEntries * sizeof(IOMMMIOSTATSENTRY), HOST_PAGE_SIZE));
+            RTMemPageFree(pOldMmioStats, RT_ALIGN_32(cOldEntries * sizeof(IOMMMIOSTATSENTRY), HOST_PAGE_SIZE_DYNAMIC));
 
             rc = VINF_SUCCESS;
         }
@@ -194,6 +196,7 @@ static int iomR3MmioGrowTable(PVM pVM, uint32_t cNewEntries)
     AssertReturn(cNewEntries <= _4K, VERR_IOM_TOO_MANY_MMIO_REGISTRATIONS);
 
     int rc;
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
     if (!SUPR3IsDriverless())
     {
         rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_GROW_MMIO_REGS, cNewEntries, NULL);
@@ -201,6 +204,7 @@ static int iomR3MmioGrowTable(PVM pVM, uint32_t cNewEntries)
         AssertReturn(cNewEntries <= pVM->iom.s.cMmioAlloc, VERR_IOM_MMIO_IPE_2);
     }
     else
+#endif
     {
         /*
          * Validate input and state.
@@ -212,8 +216,8 @@ static int iomR3MmioGrowTable(PVM pVM, uint32_t cNewEntries)
          * Allocate the new tables.  We use a single allocation for the three tables (ring-0,
          * ring-3, lookup) and does a partial mapping of the result to ring-3.
          */
-        uint32_t const cbRing3  = RT_ALIGN_32(cNewEntries * sizeof(IOMMMIOENTRYR3),     HOST_PAGE_SIZE);
-        uint32_t const cbShared = RT_ALIGN_32(cNewEntries * sizeof(IOMMMIOLOOKUPENTRY), HOST_PAGE_SIZE);
+        uint32_t const cbRing3  = RT_ALIGN_32(cNewEntries * sizeof(IOMMMIOENTRYR3),     HOST_PAGE_SIZE_DYNAMIC);
+        uint32_t const cbShared = RT_ALIGN_32(cNewEntries * sizeof(IOMMMIOLOOKUPENTRY), HOST_PAGE_SIZE_DYNAMIC);
         uint32_t const cbNew    = cbRing3 + cbShared;
 
         /* Use the rounded up space as best we can. */
@@ -250,8 +254,8 @@ static int iomR3MmioGrowTable(PVM pVM, uint32_t cNewEntries)
             pVM->iom.s.cMmioAlloc     = cNewEntries;
 
             RTMemPageFree(pvFree,
-                            RT_ALIGN_32(cOldEntries * sizeof(IOMMMIOENTRYR3),     HOST_PAGE_SIZE)
-                          + RT_ALIGN_32(cOldEntries * sizeof(IOMMMIOLOOKUPENTRY), HOST_PAGE_SIZE));
+                            RT_ALIGN_32(cOldEntries * sizeof(IOMMMIOENTRYR3),     HOST_PAGE_SIZE_DYNAMIC)
+                          + RT_ALIGN_32(cOldEntries * sizeof(IOMMMIOLOOKUPENTRY), HOST_PAGE_SIZE_DYNAMIC));
 
             rc = VINF_SUCCESS;
         }

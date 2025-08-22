@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -318,6 +318,13 @@ void UINativeWizard::sltCurrentIndexChanged(int iIndex /* = -1 */)
     if (iIndex > m_iLastIndex)
         pPage->initializePage();
 
+    /* If there is a help keyword assigned to this page, use it as help keyword of this wizard. */
+    QString strPageHelpKeyword = uiCommon().helpKeyword(pPage);
+    if (!strPageHelpKeyword.isEmpty())
+        uiCommon().setHelpKeyword(this, strPageHelpKeyword);
+    else
+        uiCommon().setHelpKeyword(this, m_strHelpKeyword);
+
     /* Disable/enable Next button: */
     QPushButton *pButtonNext = wizardButton(WizardButtonType_Next);
     AssertMsgReturnVoid(pButtonNext, ("No Next wizard button found!\n"));
@@ -537,6 +544,10 @@ void UINativeWizard::prepare()
                         && enmType == WizardButtonType_Next)
                         pButton->setDefault(true);
                 }
+                /* Hide Back button in Expert mode: */
+                if (   m_enmMode == WizardMode_Expert
+                    && wizardButton(WizardButtonType_Back))
+                    wizardButton(WizardButtonType_Back)->hide();
                 /* Connect buttons: */
                 if (wizardButton(WizardButtonType_Help))
                 {

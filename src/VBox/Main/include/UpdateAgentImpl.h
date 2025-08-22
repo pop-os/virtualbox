@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -83,7 +83,7 @@ protected:
 
     /** @name Static helper methods.
      * @{ */
-    static Utf8Str i_getPlatformInfo(void);
+    void           i_appendPlatformInfo(Utf8Str &a_rStr);
     const char    *i_proxyModeToStr(ProxyMode_T enmMode);
     bool           i_urlSchemeIsSupported(const Utf8Str &strUrl) const;
     /** @} */

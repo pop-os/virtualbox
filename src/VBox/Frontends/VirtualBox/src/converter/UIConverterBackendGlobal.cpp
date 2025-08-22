@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1692,18 +1692,19 @@ template<> SHARED_LIBRARY_STUFF QString UIConverter::toInternalString(const UITo
     QString strResult;
     switch (enmToolType)
     {
-        case UIToolType_Welcome:            strResult = "Welcome"; break;
-        case UIToolType_Extensions:         strResult = "Extensions"; break;
-        case UIToolType_Media:              strResult = "Media"; break;
-        case UIToolType_Network:            strResult = "Network"; break;
-        case UIToolType_Cloud:              strResult = "Cloud"; break;
-        case UIToolType_CloudConsole:       strResult = "CloudConsole"; break;
-        case UIToolType_VMActivityOverview: strResult = "Activities"; break;
-        case UIToolType_Details:            strResult = "Details"; break;
-        case UIToolType_Snapshots:          strResult = "Snapshots"; break;
-        case UIToolType_Logs:               strResult = "Logs"; break;
-        case UIToolType_VMActivity:         strResult = "Activity"; break;
-        case UIToolType_FileManager:        strResult = "FileManager"; break;
+        case UIToolType_Home:         strResult = "Home"; break;
+        case UIToolType_Machines:     strResult = "Machines"; break;
+        case UIToolType_Extensions:   strResult = "Extensions"; break;
+        case UIToolType_Media:        strResult = "Media"; break;
+        case UIToolType_Network:      strResult = "Network"; break;
+        case UIToolType_Cloud:        strResult = "Cloud"; break;
+        case UIToolType_CloudConsole: strResult = "CloudConsole"; break;
+        case UIToolType_Resources:    strResult = "Resources"; break;
+        case UIToolType_Details:      strResult = "Details"; break;
+        case UIToolType_Snapshots:    strResult = "Snapshots"; break;
+        case UIToolType_Logs:         strResult = "Logs"; break;
+        case UIToolType_ResourceUse:  strResult = "ResourceUse"; break;
+        case UIToolType_FileManager:  strResult = "FileManager"; break;
         default:
         {
             AssertMsgFailed(("No text for tool type=%d", enmToolType));
@@ -1716,8 +1717,10 @@ template<> SHARED_LIBRARY_STUFF QString UIConverter::toInternalString(const UITo
 /* UIToolType <= QString: */
 template<> SHARED_LIBRARY_STUFF UIToolType UIConverter::fromInternalString<UIToolType>(const QString &strToolType) const
 {
-    if (strToolType.compare("Welcome", Qt::CaseInsensitive) == 0)
-        return UIToolType_Welcome;
+    if (strToolType.compare("Home", Qt::CaseInsensitive) == 0)
+        return UIToolType_Home;
+    if (strToolType.compare("Machines", Qt::CaseInsensitive) == 0)
+        return UIToolType_Machines;
     if (strToolType.compare("Extensions", Qt::CaseInsensitive) == 0)
         return UIToolType_Extensions;
     if (strToolType.compare("Media", Qt::CaseInsensitive) == 0)
@@ -1728,16 +1731,16 @@ template<> SHARED_LIBRARY_STUFF UIToolType UIConverter::fromInternalString<UIToo
         return UIToolType_Cloud;
     if (strToolType.compare("CloudConsole", Qt::CaseInsensitive) == 0)
         return UIToolType_CloudConsole;
-    if (strToolType.compare("Activities", Qt::CaseInsensitive) == 0)
-        return UIToolType_VMActivityOverview;
+    if (strToolType.compare("Resources", Qt::CaseInsensitive) == 0)
+        return UIToolType_Resources;
     if (strToolType.compare("Details", Qt::CaseInsensitive) == 0)
         return UIToolType_Details;
     if (strToolType.compare("Snapshots", Qt::CaseInsensitive) == 0)
         return UIToolType_Snapshots;
     if (strToolType.compare("Logs", Qt::CaseInsensitive) == 0)
         return UIToolType_Logs;
-    if (strToolType.compare("Activity", Qt::CaseInsensitive) == 0)
-        return UIToolType_VMActivity;
+    if (strToolType.compare("ResourceUse", Qt::CaseInsensitive) == 0)
+        return UIToolType_ResourceUse;
     if (strToolType.compare("FileManager", Qt::CaseInsensitive) == 0)
         return UIToolType_FileManager;
     return UIToolType_Invalid;
@@ -2950,3 +2953,13 @@ template<> SHARED_LIBRARY_STUFF UIVRDESecurityMethod UIConverter::fromInternalSt
         return UIVRDESecurityMethod_Negotiate;
     return UIVRDESecurityMethod_TLS;
 }
+
+#ifdef VBOX_WS_WIN
+/* WindowsRelease <= QString: */
+template<> SHARED_LIBRARY_STUFF WindowsRelease UIConverter::fromInternalString<WindowsRelease>(const QString &strRelease) const
+{
+    if (strRelease.compare("Windows 11", Qt::CaseInsensitive) == 0)
+        return WindowsRelease_11;
+    return WindowsRelease_Unknown;
+}
+#endif

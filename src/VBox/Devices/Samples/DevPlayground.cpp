@@ -12,7 +12,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -275,7 +275,7 @@ static DECLCALLBACK(int) devPlaygroundConstruct(PPDMDEVINS pDevIns, int iInstanc
             return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to query integer value \"BigBAR0MB\""));
         if (uBigBAR0MB < 1 || uBigBAR0MB > 4095)
             return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Invalid \"BigBAR0MB\" value (must be between 1 and 4095)"));
-        cbFirstBAR = uBigBAR0MB * _1M;
+        cbFirstBAR = uBigBAR0MB * _1M64;
     }
 
     RTGCPHYS cbSecondBAR;
@@ -296,7 +296,7 @@ static DECLCALLBACK(int) devPlaygroundConstruct(PPDMDEVINS pDevIns, int iInstanc
             return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to query integer value \"BigBAR2MB\""));
         if (uBigBAR2MB < 1 || uBigBAR2MB > 4095)
             return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Invalid \"BigBAR2MB\" value (must be between 1 and 4095)"));
-        cbSecondBAR = uBigBAR2MB * _1M;
+        cbSecondBAR = uBigBAR2MB * _1M64;
     }
 
 

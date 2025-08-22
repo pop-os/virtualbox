@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -214,7 +214,7 @@ void UINetworkFeaturesEditor::generateMac()
 void UINetworkFeaturesEditor::sltRetranslateUI()
 {
     if (m_pLabelAdapterType)
-        m_pLabelAdapterType->setText(tr("Adapter &Type:"));
+        m_pLabelAdapterType->setText(tr("Adapter &Type"));
     if (m_pComboAdapterType)
     {
         for (int i = 0; i < m_pComboAdapterType->count(); ++i)
@@ -222,12 +222,12 @@ void UINetworkFeaturesEditor::sltRetranslateUI()
             const KNetworkAdapterType enmType = m_pComboAdapterType->itemData(i).value<KNetworkAdapterType>();
             m_pComboAdapterType->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pComboAdapterType->setToolTip(tr("Holds the type of the virtual network adapter. Depending on this value, VirtualBox "
+        m_pComboAdapterType->setToolTip(tr("Virtual network adapter type. Depending on this value, VirtualBox "
                                            "will provide different network hardware to the virtual machine."));
     }
 
     if (m_pLabelPromiscuousMode)
-        m_pLabelPromiscuousMode->setText(tr("&Promiscuous Mode:"));
+        m_pLabelPromiscuousMode->setText(tr("&Promiscuous Mode"));
     if (m_pComboPromiscuousMode)
     {
         for (int i = 0; i < m_pComboPromiscuousMode->count(); ++i)
@@ -235,35 +235,35 @@ void UINetworkFeaturesEditor::sltRetranslateUI()
             const KNetworkAdapterPromiscModePolicy enmType = m_pComboPromiscuousMode->itemData(i).value<KNetworkAdapterPromiscModePolicy>();
             m_pComboPromiscuousMode->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pComboPromiscuousMode->setToolTip(tr("Holds the promiscuous mode policy of the network adapter when attached to an "
-                                               "internal network, host only network or a bridge."));
+        m_pComboPromiscuousMode->setToolTip(tr("Promiscuous mode policy of the network adapter when attached to an "
+                                               "internal network, host only network or a bridge"));
     }
 
     if (m_pLabelMAC)
-        m_pLabelMAC->setText(tr("&MAC Address:"));
+        m_pLabelMAC->setText(tr("&MAC Address"));
     if (m_pEditorMAC)
-        m_pEditorMAC->setToolTip(tr("Holds the MAC address of this adapter. It contains exactly 12 characters chosen from "
+        m_pEditorMAC->setToolTip(tr("MAC address of this adapter. It contains exactly 12 characters chosen from "
                                     "{0-9,A-F}. Note that the second character must be an even digit."));
     if (m_pButtonMAC)
-        m_pButtonMAC->setToolTip(tr("Generates a new random MAC address."));
+        m_pButtonMAC->setToolTip(tr("Generate a new random MAC address"));
 
     if (m_pLabelGenericProperties)
-        m_pLabelGenericProperties->setText(tr("Generic Properties:"));
+        m_pLabelGenericProperties->setText(tr("Generic Properties"));
     if (m_pEditorGenericProperties)
-        m_pEditorGenericProperties->setToolTip(tr("Holds the configuration settings for the network attachment driver. The "
+        m_pEditorGenericProperties->setToolTip(tr("Configuration settings for the network attachment driver. The "
                                                   "settings should be of the form name=value and will depend on the "
                                                   "driver. Use shift-enter to add a new entry."));
 
     if (m_pCheckBoxCableConnected)
     {
-        m_pCheckBoxCableConnected->setText(tr("&Cable Connected"));
-        m_pCheckBoxCableConnected->setToolTip(tr("When checked, the virtual network cable is plugged in."));
+        m_pCheckBoxCableConnected->setText(tr("Virtual &Cable Connected"));
+        m_pCheckBoxCableConnected->setToolTip(tr("Virtual network cable will be plugged in"));
     }
 
     if (m_pButtonPortForwarding)
     {
         m_pButtonPortForwarding->setText(tr("&Port Forwarding"));
-        m_pButtonPortForwarding->setToolTip(tr("Displays a window to configure port forwarding rules."));
+        m_pButtonPortForwarding->setToolTip(tr("Configure port forwarding rules"));
     }
 }
 

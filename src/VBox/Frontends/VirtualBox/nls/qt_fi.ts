@@ -40,20 +40,6 @@
     </message>
 </context>
 <context>
-    <name>Print Device Input Slot</name>
-    <message>
-        <source>Automatic</source>
-        <translation type="unfinished">Automaattinen</translation>
-    </message>
-</context>
-<context>
-    <name>Print Device Output Bin</name>
-    <message>
-        <source>Automatic</source>
-        <translation type="unfinished">Automaattinen</translation>
-    </message>
-</context>
-<context>
     <name>QAbstractSocket</name>
     <message>
         <source>Socket operation timed out</source>
@@ -224,12 +210,12 @@
 <context>
     <name>QApplication</name>
     <message>
-        <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>Sovellus ”%1” vaatii Qt-version %2, mutta löytyi versio %3.</translation>
-    </message>
-    <message>
         <source>Incompatible Qt Library Error</source>
         <translation>Virhe: yhteensopimaton Qt-kirjasto</translation>
+    </message>
+    <message>
+        <source>Application &quot;%1&quot; requires Qt %2, found Qt %3.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -413,26 +399,8 @@ Peru painamalla ESC</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Displays help including Qt specific options.</source>
+        <source>Displays help, including generic Qt options.</source>
         <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QCoreApplication</name>
-    <message>
-        <source>%1: key is empty</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: avain on tyhjä</translation>
-    </message>
-    <message>
-        <source>%1: unable to make key</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: avaimen tekeminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>%1: ftok failed</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: ftok epäonnistui</translation>
     </message>
 </context>
 <context>
@@ -540,29 +508,6 @@ Peru painamalla ESC</translation>
     </message>
 </context>
 <context>
-    <name>QCupsPrinterSupport</name>
-    <message>
-        <source>Authentication Needed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Authentication needed to use %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Authentication needed to use %1 on %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Username:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Password:</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
@@ -616,25 +561,6 @@ Peru painamalla ESC</translation>
     </message>
 </context>
 <context>
-    <name>QDateTimeParser</name>
-    <message>
-        <source>AM</source>
-        <translation>AP</translation>
-    </message>
-    <message>
-        <source>am</source>
-        <translation>ap.</translation>
-    </message>
-    <message>
-        <source>PM</source>
-        <translation>IP</translation>
-    </message>
-    <message>
-        <source>pm</source>
-        <translation>ip.</translation>
-    </message>
-</context>
-<context>
     <name>QDialog</name>
     <message>
         <source>What&apos;s This?</source>
@@ -649,134 +575,105 @@ Peru painamalla ESC</translation>
     </message>
 </context>
 <context>
-    <name>QDirModel</name>
-    <message>
-        <source>Name</source>
-        <translation>Nimi</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <translation>Koko</translation>
-    </message>
-    <message>
-        <source>Kind</source>
-        <comment>Match OS X Finder</comment>
-        <translation>Laji</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <comment>All other platforms</comment>
-        <translation>Tyyppi</translation>
-    </message>
-    <message>
-        <source>Date Modified</source>
-        <translation>Muutosaika</translation>
-    </message>
-</context>
-<context>
     <name>QDnsLookup</name>
     <message>
         <source>Operation cancelled</source>
         <translation>Toiminto keskeytettiin</translation>
     </message>
+    <message>
+        <source>Invalid domain name</source>
+        <translation type="unfinished">Virheellinen verkkotunnus</translation>
+    </message>
+    <message>
+        <source>SSL/TLS support not present</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Request timed out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server could not process query</source>
+        <translation type="unfinished">Palvelin ei onnistunut käsittelemään kyselyä</translation>
+    </message>
+    <message>
+        <source>Server failure</source>
+        <translation type="unfinished">Palvelimen virhe</translation>
+    </message>
+    <message>
+        <source>Non existent domain</source>
+        <translation type="unfinished">Verkkotunnusta ei löytynyt</translation>
+    </message>
+    <message>
+        <source>Server refused to answer</source>
+        <translation type="unfinished">Palvelin hylkäsi kyselyn</translation>
+    </message>
+    <message>
+        <source>Invalid reply received (rcode %1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid reply received</source>
+        <translation type="unfinished">Saatiin virheellinen vastaus</translation>
+    </message>
+    <message>
+        <source>Invalid reply received (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IPv6 nameservers are currently not supported on this OS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reply was too large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not expand domain name</source>
+        <translation type="unfinished">Verkkotunnusta ei voitu purkaa</translation>
+    </message>
+    <message>
+        <source>Invalid IPv4 address record</source>
+        <translation type="unfinished">Virheellinen IPv4-osoitetietue</translation>
+    </message>
+    <message>
+        <source>Invalid IPv6 address record</source>
+        <translation type="unfinished">Virheellinen IPv6-osoitetietue</translation>
+    </message>
+    <message>
+        <source>Invalid canonical name record</source>
+        <translation type="unfinished">Virheellinen kanoninen nimitietue</translation>
+    </message>
+    <message>
+        <source>Invalid name server record</source>
+        <translation type="unfinished">Virheellinen nimipalvelintietue</translation>
+    </message>
+    <message>
+        <source>Invalid pointer record</source>
+        <translation type="unfinished">Virheellinen osoitintietue</translation>
+    </message>
+    <message>
+        <source>Invalid mail exchange record</source>
+        <translation type="unfinished">Virheellinen postivaihdetietue</translation>
+    </message>
+    <message>
+        <source>Invalid service record</source>
+        <translation type="unfinished">Virheellinen palvelutietue</translation>
+    </message>
+    <message>
+        <source>Invalid TLS association record</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid text record</source>
+        <translation type="unfinished">Virheellinen tekstitietue</translation>
+    </message>
 </context>
 <context>
     <name>QDnsLookupRunnable</name>
     <message>
-        <source>IPv6 addresses for nameservers are currently not supported</source>
-        <translation>Nimipalvelimien IPv6-osoitteita ei tällä hetkellä tueta</translation>
-    </message>
-    <message>
-        <source>Invalid domain name</source>
-        <translation>Virheellinen verkkotunnus</translation>
-    </message>
-    <message>
-        <source>Not yet supported on Android</source>
-        <translation>Ei tuettu Androidissa</translation>
-    </message>
-    <message>
-        <source>Resolver functions not found</source>
-        <translation>Selvitysfunktioita ei löytynyt</translation>
-    </message>
-    <message>
-        <source>Resolver initialization failed</source>
-        <translation>Alustus epäonnistui</translation>
-    </message>
-    <message>
-        <source>Server could not process query</source>
-        <translation>Palvelin ei onnistunut käsittelemään kyselyä</translation>
-    </message>
-    <message>
-        <source>Server failure</source>
-        <translation>Palvelimen virhe</translation>
-    </message>
-    <message>
-        <source>Non existent domain</source>
-        <translation>Verkkotunnusta ei löytynyt</translation>
-    </message>
-    <message>
-        <source>Server refused to answer</source>
-        <translation>Palvelin hylkäsi kyselyn</translation>
-    </message>
-    <message>
-        <source>Invalid reply received</source>
-        <translation>Saatiin virheellinen vastaus</translation>
-    </message>
-    <message>
-        <source>Could not expand domain name</source>
-        <translation>Verkkotunnusta ei voitu purkaa</translation>
-    </message>
-    <message>
-        <source>Invalid IPv4 address record</source>
-        <translation>Virheellinen IPv4-osoitetietue</translation>
-    </message>
-    <message>
-        <source>Invalid IPv6 address record</source>
-        <translation>Virheellinen IPv6-osoitetietue</translation>
-    </message>
-    <message>
-        <source>Invalid canonical name record</source>
-        <translation>Virheellinen kanoninen nimitietue</translation>
-    </message>
-    <message>
-        <source>Invalid name server record</source>
-        <translation>Virheellinen nimipalvelintietue</translation>
-    </message>
-    <message>
-        <source>Invalid pointer record</source>
-        <translation>Virheellinen osoitintietue</translation>
-    </message>
-    <message>
-        <source>Invalid mail exchange record</source>
-        <translation>Virheellinen postivaihdetietue</translation>
-    </message>
-    <message>
-        <source>Invalid service record</source>
-        <translation>Virheellinen palvelutietue</translation>
-    </message>
-    <message>
-        <source>Invalid text record</source>
-        <translation>Virheellinen tekstitietue</translation>
-    </message>
-    <message>
-        <source>Resolver library can&apos;t be loaded: No runtime library loading support</source>
-        <translation>Selvityskirjastoa ei voida ladata. Ajonaikaista kirjaston lataamista ei tueta</translation>
-    </message>
-    <message>
-        <source>No hostname given</source>
-        <translation>Konenimeä ei annettu</translation>
-    </message>
-    <message>
-        <source>Invalid hostname</source>
-        <translation>Virheellinen konenimi</translation>
-    </message>
-    <message>
-        <source>Host %1 could not be found.</source>
-        <translation>Konetta %1 ei löydetty.</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Tuntematon virhe</translation>
+        <source>Not yet supported on this OS</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -798,196 +695,6 @@ Peru painamalla ESC</translation>
     <message>
         <source>Closes the dock widget</source>
         <translation>Sulkee telakoitavan elementin</translation>
-    </message>
-</context>
-<context>
-    <name>QDomParser</name>
-    <message>
-        <source>Error occurred while processing XML declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Multiple DTD sections are not allowed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing document type declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing comment</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing a processing instruction</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing a start element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected end element &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing an end element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing the element content</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing comments</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing an entity reference</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected token</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Tag mismatch</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing entity declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing notation declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QDtls</name>
-    <message>
-        <source>Invalid (empty) secret</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Multicast and broadcast addresses are not supported</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot set peer after handshake started</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid address</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot set verification name after handshake started</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot set configuration after handshake started</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot start/continue handshake, invalid handshake state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid (nullptr) socket</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>To start a handshake you must set peer&apos;s address and port first</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>To start a handshake, DTLS server requires non-empty datagram (client hello)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot start handshake, already done/in progress</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A valid QUdpSocket and non-empty datagram are needed to continue the handshake</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot continue handshake, not in InProgress state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot resume, not in VerificationError state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No handshake in progress, nothing to abort</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot send shutdown alert, not encrypted</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot write a datagram, not in encrypted state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot read a datagram, not in encrypted state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 failed</source>
-        <extracomment>%1: Some function</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid SslMode, SslServerMode or SslClientMode expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid protocol version, DTLS protocol expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>BIO_ADD_new failed, cannot start handshake</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot start the handshake, verified client hello expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Peer verification failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The DTLS connection has been closed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error while writing: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The DTLS connection has been shutdown</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error while reading: %1</source>
-        <translation type="unfinished">Virhe luettaessa: %1</translation>
-    </message>
-</context>
-<context>
-    <name>QDtlsClientVerifier</name>
-    <message>
-        <source>A valid UDP socket, non-empty datagram, valid address/port were expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>BIO_ADDR_new failed, ignoring client hello</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1019,6 +726,10 @@ Peru painamalla ESC</translation>
     <message>
         <source>&amp;OK</source>
         <translation>&amp;OK</translation>
+    </message>
+    <message>
+        <source>An error occurred</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1060,15 +771,15 @@ Peru painamalla ESC</translation>
         <translation>Tiedoston %1 avaaminen syötteeksi epäonnistui</translation>
     </message>
     <message>
-        <source>Failure to write block</source>
-        <translation>Lohkon kirjoittaminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>Cannot create %1 for output</source>
-        <translation>Tiedoston %1 luonti tulosteeksi epäonnistui</translation>
-    </message>
-    <message>
         <source>Cannot open for output: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failure to write block: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot create %1 for output: %2</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1281,58 +992,9 @@ Haluatko silti poistaa sen?</translation>
         <source>Remove</source>
         <translation>Poista</translation>
     </message>
-    <message>
-        <source>My Computer</source>
-        <translation>Oma tietokone</translation>
-    </message>
-    <message>
-        <source>Drive</source>
-        <translation>Asema</translation>
-    </message>
-    <message>
-        <source>%1 File</source>
-        <extracomment>%1 is a file name suffix, for example txt</extracomment>
-        <translation>%1-tiedosto</translation>
-    </message>
-    <message>
-        <source>File</source>
-        <translation>Tiedosto</translation>
-    </message>
-    <message>
-        <source>File Folder</source>
-        <comment>Match Windows Explorer</comment>
-        <translation>Tiedostokansio</translation>
-    </message>
-    <message>
-        <source>Folder</source>
-        <comment>All other platforms</comment>
-        <translation>Kansio</translation>
-    </message>
-    <message>
-        <source>Alias</source>
-        <comment>OS X Finder</comment>
-        <translation>Alias</translation>
-    </message>
-    <message>
-        <source>Shortcut</source>
-        <comment>All other platforms</comment>
-        <translation>Pikakuvake</translation>
-    </message>
-    <message>
-        <source>Unknown</source>
-        <translation>Tuntematon</translation>
-    </message>
 </context>
 <context>
     <name>QFileSystemModel</name>
-    <message>
-        <source>Invalid filename</source>
-        <translation>Virheellinen tiedostonimi</translation>
-    </message>
-    <message>
-        <source>&lt;b&gt;The name &quot;%1&quot; cannot be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuation marks.</source>
-        <translation>&lt;b&gt;Nimeä ”%1” ei voi käyttää.&lt;/b&gt;&lt;p&gt;Kokeile jotain muuta nimeä, esim. vähemmän merkkejä tai ei välimerkkejä.</translation>
-    </message>
     <message>
         <source>Name</source>
         <translation>Nimi</translation>
@@ -1599,95 +1261,6 @@ Haluatko silti poistaa sen?</translation>
     </message>
 </context>
 <context>
-    <name>QFtp</name>
-    <message>
-        <source>Not connected</source>
-        <translation>Ei yhteyttä</translation>
-    </message>
-    <message>
-        <source>Host %1 not found</source>
-        <translation>Konetta %1 ei löydy</translation>
-    </message>
-    <message>
-        <source>Connection refused to host %1</source>
-        <translation>Yhteys koneeseen %1 torjuttu</translation>
-    </message>
-    <message>
-        <source>Connection timed out to host %1</source>
-        <translation>Yhteys koneeseen %1 aikakatkaistiin</translation>
-    </message>
-    <message>
-        <source>Connected to host %1</source>
-        <translation>Yhdistetty koneeseen %1</translation>
-    </message>
-    <message>
-        <source>Data Connection refused</source>
-        <translation>Datayhteys torjuttu</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Tuntematon virhe</translation>
-    </message>
-    <message>
-        <source>Connecting to host failed:
-%1</source>
-        <translation>Yhteys koneeseen epäonnistui:
-%1</translation>
-    </message>
-    <message>
-        <source>Login failed:
-%1</source>
-        <translation>Kirjautuminen epäonnistui:
-%1</translation>
-    </message>
-    <message>
-        <source>Listing directory failed:
-%1</source>
-        <translation>Hakemistolistaus epäonnistui:
-%1</translation>
-    </message>
-    <message>
-        <source>Changing directory failed:
-%1</source>
-        <translation>Hakemiston vaihtaminen epäonnistui:
-%1</translation>
-    </message>
-    <message>
-        <source>Downloading file failed:
-%1</source>
-        <translation>Tiedoston lataaminen epäonnistui:
-%1</translation>
-    </message>
-    <message>
-        <source>Uploading file failed:
-%1</source>
-        <translation>Tiedoston kopioiminen palvelimelle epäonnistui:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing file failed:
-%1</source>
-        <translation>Tiedoston poisto epäonnistui:
-%1</translation>
-    </message>
-    <message>
-        <source>Creating directory failed:
-%1</source>
-        <translation>Hakemiston luonti epäonnistui:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing directory failed:
-%1</source>
-        <translation>Hakemiston poisto epäonnistui:
-%1</translation>
-    </message>
-    <message>
-        <source>Connection closed</source>
-        <translation>Yhteys suljettu</translation>
-    </message>
-</context>
-<context>
     <name>QGnomeTheme</name>
     <message>
         <source>&amp;OK</source>
@@ -1774,15 +1347,15 @@ Haluatko silti poistaa sen?</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Alias for --windowgeometry.</source>
+        <source>Alias for --qwindowgeometry.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Alias for --windowicon.</source>
+        <source>Alias for --qwindowicon.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Alias for --windowtitle.</source>
+        <source>Alias for --qwindowtitle.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1858,6 +1431,30 @@ Haluatko silti poistaa sen?</translation>
         <source>Insecure redirect</source>
         <translation>Turvaton uudelleenohjaus</translation>
     </message>
+    <message>
+        <source>Unsupported content encoding: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to initialize the compression decoder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The decompressed output exceeds the limits specified by QNetworkRequest::decompressedSafetyCheckThreshold()</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Decompression failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Data downloaded is too large to store</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to initialize decompression: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QHttpSocketEngine</name>
@@ -1915,6 +1512,14 @@ Haluatko silti poistaa sen?</translation>
     <message>
         <source>Unable to rollback transaction</source>
         <translation>Tietokantatapahtuman rollback-toiminnon suorittaminen epäonnistui</translation>
+    </message>
+    <message>
+        <source>Could not subscribe to event notifications for %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not unsubscribe from event notifications for %1.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1986,6 +1591,18 @@ Haluatko silti poistaa sen?</translation>
     <message>
         <source>Could not get statement info</source>
         <translation>Lauseen tietojen hakeminen epäonnistui</translation>
+    </message>
+    <message>
+        <source>Array size mismatch. Field name: %3, expected size: %1. Supplied size: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Array dimensions mismatch. Field name: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Array size mismatch: size of %1 is %2, size of provided list is %3</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2150,69 +1767,6 @@ Haluatko silti poistaa sen?</translation>
 <context>
     <name>QLibrary</name>
     <message>
-        <source>&apos;%1&apos; is not an ELF object (%2)</source>
-        <translation>”%1” ei ole ELF-objekti (%2)</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is not an ELF object</source>
-        <translation>”%1” ei ole ELF-objekti</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is an invalid ELF object (%2)</source>
-        <translation>”%1” on virheellinen ELF-objekti (%2)</translation>
-    </message>
-    <message>
-        <source>odd cpu architecture</source>
-        <translation>outo prosessoriarkkitehtuuri</translation>
-    </message>
-    <message>
-        <source>wrong cpu architecture</source>
-        <translation>väärä prosessoriarkkitehtuuri</translation>
-    </message>
-    <message>
-        <source>odd endianness</source>
-        <translation>outo tavujärjestys</translation>
-    </message>
-    <message>
-        <source>unexpected e_shsize</source>
-        <translation>odottamaton e_shsize</translation>
-    </message>
-    <message>
-        <source>unexpected e_shentsize</source>
-        <translation>odottamaton e_shentsize</translation>
-    </message>
-    <message numerus="yes">
-        <source>announced %n section(s), each %1 byte(s), exceed file size</source>
-        <translation>
-            <numerusform>ilmoitettu %n osio, kooltaan %1 tavua, ylittää tiedoston koon</numerusform>
-            <numerusform>ilmoitettu %n osiota, kukin %1 tavua, ylittää tiedoston koon</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>shstrtab section header seems to be at %1</source>
-        <translation>shstrtab-osion otsake näyttäisi olevan sijainnissa %1</translation>
-    </message>
-    <message>
-        <source>string table seems to be at %1</source>
-        <translation>merkkijonotaulukko näyttäisi olevan sijainnissa %1</translation>
-    </message>
-    <message>
-        <source>section name %1 of %2 behind end of file</source>
-        <translation>osion nimi %1/%2 on tiedoston lopun jälkeen</translation>
-    </message>
-    <message>
-        <source>empty .rodata. not a library.</source>
-        <translation>tyhjä .rodata, ei ole kirjasto.</translation>
-    </message>
-    <message>
-        <source>missing section data. This is not a library.</source>
-        <translation>osiolla ei ole dataa. Tämä ei ole kirjasto.</translation>
-    </message>
-    <message>
-        <source>Failed to extract plugin meta data from &apos;%1&apos;</source>
-        <translation>Liitännäismetatietojen saaminen kirjastosta ”%1” epäonnistui</translation>
-    </message>
-    <message>
         <source>The shared library was not found.</source>
         <translation>Jaettua kirjastoa ei löytynyt.</translation>
     </message>
@@ -2271,6 +1825,146 @@ Haluatko silti poistaa sen?</translation>
     <message>
         <source>&apos;%1&apos; is not a Qt plugin</source>
         <translation>”%1” ei ole Qt-liitännäinen</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a valid Windows DLL (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is too small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a Qt plugin (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>metadata not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>invalid signature</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is for a different processor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has no sections</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>wrong characteristics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is for a different word size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has no code</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a section name is empty or extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section contents extend past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is too small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section has incorrect magic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is writable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is executable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is for the wrong endianness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has an unknown ELF version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has an unexpected ABI</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is not a shared object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a valid ELF object (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unimplemented: PN_XNUM program headers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>program header table extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a program header entry extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a note segment start is not properly aligned (offset 0x%1, alignment %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section table extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section header string table extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a section name extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unexpected program header entry size (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unexpected section entry size (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>e_shstrndx greater than the number of sections e_shnum (%1 &gt;= %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to extract plugin meta data from &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not resolve &apos;qt_plugin_instance&apos; function</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>metadata too small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>entrypoint to query the plugin meta data not found</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2384,6 +2078,10 @@ Haluatko silti poistaa sen?</translation>
     <message>
         <source>Socket is not connected</source>
         <translation type="unfinished">Pistoketta ei ole yhdistetty</translation>
+    </message>
+    <message>
+        <source>Remote closed</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2561,7 +2259,7 @@ Haluatko silti poistaa sen?</translation>
         <translation>Tietoja Qt:stä</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) %1 The Qt Company Ltd and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd product developed as an open source project. See &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;https://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) The Qt Company Ltd. and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd. product developed as an open source project. See &lt;a href=&quot;https://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
         <extracomment>Leave this text untranslated or include a verbatim copy of it below and note that it is the authoritative version in case of doubt.</extracomment>
         <translation type="unfinished"></translation>
     </message>
@@ -2738,45 +2436,10 @@ Haluatko silti poistaa sen?</translation>
     </message>
 </context>
 <context>
-    <name>QNetworkAccessFtpBackend</name>
-    <message>
-        <source>No suitable proxy found</source>
-        <translation>Sopivaa välityspalvelinta ei löytynyt</translation>
-    </message>
-    <message>
-        <source>Cannot open %1: is a directory</source>
-        <translation>Ei voida avata kohdetta %1, koska se on kansio</translation>
-    </message>
-    <message>
-        <source>Logging in to %1 failed: authentication required</source>
-        <translation>Kirjautuminen koneeseen %1 epäonnistui: todentamisvirhe</translation>
-    </message>
-    <message>
-        <source>Error while downloading %1: %2</source>
-        <translation>Virhe ladattaessa kohdetta %1: %2</translation>
-    </message>
-    <message>
-        <source>Error while uploading %1: %2</source>
-        <translation>Virhe kopioitaessa kohdetta %1 palvelimelle: %2</translation>
-    </message>
-</context>
-<context>
     <name>QNetworkReply</name>
-    <message>
-        <source>Background request not allowed.</source>
-        <translation>Taustapyyntö ei ole sallittu.</translation>
-    </message>
-    <message>
-        <source>Network session error.</source>
-        <translation>Verkkoistuntovirhe.</translation>
-    </message>
     <message>
         <source>backend start error.</source>
         <translation>taustajärjestelmän käynnistymisvirhe.</translation>
-    </message>
-    <message>
-        <source>Temporary network failure.</source>
-        <translation>Tilapäinen verkkovirhe.</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
@@ -2803,36 +2466,6 @@ Haluatko silti poistaa sen?</translation>
     <message>
         <source>Operation canceled</source>
         <translation>Toiminto keskeytettiin</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkSession</name>
-    <message>
-        <source>Invalid configuration.</source>
-        <translation>Virheelliset asetukset.</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkSessionPrivateImpl</name>
-    <message>
-        <source>Unknown session error.</source>
-        <translation>Tuntematon istuntovirhe.</translation>
-    </message>
-    <message>
-        <source>The session was aborted by the user or system.</source>
-        <translation>Käyttäjä tai järjestelmä keskeytti istunnon.</translation>
-    </message>
-    <message>
-        <source>The requested operation is not supported by the system.</source>
-        <translation>Järjestelmä ei tue pyydettyä toimintoa.</translation>
-    </message>
-    <message>
-        <source>The specified configuration cannot be used.</source>
-        <translation>Määriteltyjä asetuksia ei voida käyttää.</translation>
-    </message>
-    <message>
-        <source>Roaming was aborted or is not possible.</source>
-        <translation>Verkkovierailu keskeytettiin tai se ei ole mahdollista.</translation>
     </message>
 </context>
 <context>
@@ -2959,6 +2592,10 @@ Haluatko silti poistaa sen?</translation>
         <source>Unable to bind variable</source>
         <translation>Muuttujan sitominen epäonnistui</translation>
     </message>
+    <message>
+        <source>QODBCResult::reset: Unable to set &apos;SQL_ATTR_CURSOR_TYPE&apos; as statement attribute. Please check your ODBC driver configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
@@ -2985,6 +2622,10 @@ Haluatko silti poistaa sen?</translation>
     <message>
         <source>Unable to unsubscribe</source>
         <translation>Tilauksen peruminen epäonnistui</translation>
+    </message>
+    <message>
+        <source>Unable to set client encoding to &apos;UNICODE&apos;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3850,10 +3491,6 @@ Poista toinen niistä käytöstä.</translation>
         <translation>Sivulta-arvo ei voi olla suurempi kuin sivulle-arvo.</translation>
     </message>
     <message>
-        <source>OK</source>
-        <translation>OK</translation>
-    </message>
-    <message>
         <source>Duplex Settings Conflicts</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4163,63 +3800,28 @@ Poista toinen niistä käytöstä.</translation>
         <source>Process failed to start: %1</source>
         <translation>Prosessin käynnistys epäonnistui: %1</translation>
     </message>
+    <message>
+        <source>Child process modifier threw an exception: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Child process set up failed: %1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QProgressDialog</name>
     <message>
         <source>Cancel</source>
         <translation>Peru</translation>
-    </message>
-</context>
-<context>
-    <name>QRegExp</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>ei virhettä</translation>
-    </message>
-    <message>
-        <source>disabled feature used</source>
-        <translation>käytettiin käytöstä poistettua ominaisuutta</translation>
-    </message>
-    <message>
-        <source>bad char class syntax</source>
-        <translation>lausevirhe merkistöluokassa</translation>
-    </message>
-    <message>
-        <source>bad lookahead syntax</source>
-        <translation>lausevirhe</translation>
-    </message>
-    <message>
-        <source>lookbehinds not supported, see QTBUG-2371</source>
-        <translation>lookbehinds ei ole tuettu, katso QTBUG-2371</translation>
-    </message>
-    <message>
-        <source>bad repetition syntax</source>
-        <translation>lausekkeen toistovirhe</translation>
-    </message>
-    <message>
-        <source>invalid octal value</source>
-        <translation>virheellinen oktaaliarvo</translation>
-    </message>
-    <message>
-        <source>missing left delim</source>
-        <translation>puuttuva vasen rajoitin</translation>
-    </message>
-    <message>
-        <source>unexpected end</source>
-        <translation>odottamaton loppu</translation>
-    </message>
-    <message>
-        <source>met internal limit</source>
-        <translation>kohdattu sisäinen rajoitus</translation>
-    </message>
-    <message>
-        <source>invalid interval</source>
-        <translation>virheellinen määräväli</translation>
-    </message>
-    <message>
-        <source>invalid category</source>
-        <translation>virheellinen luokka</translation>
     </message>
 </context>
 <context>
@@ -4889,35 +4491,9 @@ Poista toinen niistä käytöstä.</translation>
         <source>PCRE2_MATCH_INVALID_UTF is not supported for DFA matching</source>
         <translation type="unfinished"></translation>
     </message>
-</context>
-<context>
-    <name>QSQLite2Driver</name>
     <message>
-        <source>Error opening database</source>
-        <translation>Tietokannan avaaminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>Unable to begin transaction</source>
-        <translation>Tietokantatapahtuman aloittaminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>Unable to commit transaction</source>
-        <translation>Tietokantatapahtuman commit-toiminnon suorittaminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>Unable to rollback transaction</source>
-        <translation>Tietokantatapahtuman rollback-toiminnon suorittaminen epäonnistui</translation>
-    </message>
-</context>
-<context>
-    <name>QSQLite2Result</name>
-    <message>
-        <source>Unable to fetch results</source>
-        <translation>Tulosten noutaminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>Unable to execute statement</source>
-        <translation>Lauseen suorittaminen epäonnistui</translation>
+        <source>INTERNAL ERROR: invalid substring offset</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5058,10 +4634,6 @@ Poista toinen niistä käytöstä.</translation>
 <context>
     <name>QSharedMemory</name>
     <message>
-        <source>%1: unable to set key on lock</source>
-        <translation>%1: avaimen asettaminen lukkoon epäonnistui</translation>
-    </message>
-    <message>
         <source>%1: create size is less then 0</source>
         <translation>%1: luotava koko on pienempi kuin 0</translation>
     </message>
@@ -5090,24 +4662,12 @@ Poista toinen niistä käytöstä.</translation>
         <translation>%1: resurssit loppu</translation>
     </message>
     <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: tuntematon virhe %2</translation>
-    </message>
-    <message>
         <source>%1: key is empty</source>
         <translation>%1: avain on tyhjä</translation>
     </message>
     <message>
         <source>%1: bad name</source>
         <translation>%1: virheellinen nimi</translation>
-    </message>
-    <message>
-        <source>%1: UNIX key file doesn&apos;t exist</source>
-        <translation>%1: UNIX-avaintiedostoa ei ole olemassa</translation>
-    </message>
-    <message>
-        <source>%1: ftok failed</source>
-        <translation>%1: ftok epäonnistui</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
@@ -5132,6 +4692,18 @@ Poista toinen niistä käytöstä.</translation>
     <message>
         <source>%1: size query failed</source>
         <translation>%1: koon kysely epäonnistui</translation>
+    </message>
+    <message>
+        <source>%1: unsupported key type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unable to set key on lock (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unknown error: %2</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6155,6 +5727,10 @@ Poista toinen niistä käytöstä.</translation>
         <source>To-do list</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Control</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
@@ -6309,9 +5885,7 @@ Poista toinen niistä käytöstä.</translation>
     </message>
     <message>
         <source>frame</source>
-        <extracomment>Role of an accessible object: a window with frame and title
-----------
-Role of an accessible object</extracomment>
+        <extracomment>Role of an accessible object: a window with frame and title</extracomment>
         <translation>kehys</translation>
     </message>
     <message>
@@ -6624,10 +6198,6 @@ Role of an accessible object</extracomment>
         <translation>Virheellinen tai tyhjä salausluettelo (%1)</translation>
     </message>
     <message>
-        <source>Cannot provide a certificate with no key, %1</source>
-        <translation>Avaimetonta varmennetta ei voida tarjota, %1</translation>
-    </message>
-    <message>
         <source>Error loading local certificate, %1</source>
         <translation>Virhe ladattaessa paikallista varmennetta, %1</translation>
     </message>
@@ -6804,14 +6374,6 @@ Role of an accessible object</extracomment>
         <translation>Virhe SSL-kättelyssä: %1</translation>
     </message>
     <message>
-        <source>Error while setting the minimal protocol version</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error while setting the maximum protocol version</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>No OCSP status response found</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6861,6 +6423,22 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Attempted to use an unsupported protocol.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error while setting the minimal protocol version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error while setting the maximum protocol version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot provide a certificate with no key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TLS certificate unexpectedly changed during renegotiation!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7011,10 +6589,6 @@ Role of an accessible object</extracomment>
         <source>Schannel failed to encrypt data: %1</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Cannot provide a certificate with no key</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>QStandardPaths</name>
@@ -7090,27 +6664,25 @@ Role of an accessible object</extracomment>
         <source>Download</source>
         <translation>Lataukset</translation>
     </message>
-</context>
-<context>
-    <name>QStateMachine</name>
     <message>
-        <source>Missing initial state in compound state &apos;%1&apos;</source>
-        <translation>Lähtötila puuttuu yhdistelmätilasta ”%1”</translation>
+        <source>State</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Missing default state in history state &apos;%1&apos;</source>
-        <translation>Oletustila puuttuu historiatilasta ”%1”</translation>
+        <source>Shared State</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No common ancestor for targets and source of transition from state &apos;%1&apos;</source>
-        <translation>Ei yhteistä edeltäjää kohteille ja lähteille siirtyessä tilasta ”%1”</translation>
+        <source>Public</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Unknown error</source>
-        <translation>Tuntematon virhe</translation>
+        <source>Templates</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Child mode of state machine &apos;%1&apos; is not &apos;ExclusiveStates&apos;.</source>
+        <source>Temporary Items</source>
+        <extracomment>macOS: Temporary directory</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7133,19 +6705,32 @@ Role of an accessible object</extracomment>
         <translation>%1: resurssit loppu</translation>
     </message>
     <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: tuntematon virhe %2</translation>
-    </message>
-</context>
-<context>
-    <name>QTDSDriver</name>
-    <message>
-        <source>Unable to open connection</source>
-        <translation>Yhteyden avaaminen epäonnistui</translation>
+        <source>%1: unsupported key type</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Unable to use database</source>
-        <translation>Tietokannan käyttäminen epäonnistui</translation>
+        <source>%1: key too long</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unknown error: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: key is empty</source>
+        <translation type="unfinished">%1: avain on tyhjä</translation>
+    </message>
+    <message>
+        <source>%1: System V semaphores are not available for sandboxed applications. Please build Qt with -feature-ipc_posix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unable to make key</source>
+        <translation type="unfinished">%1: avaimen tekeminen epäonnistui</translation>
+    </message>
+    <message>
+        <source>%1: ftok failed</source>
+        <translation type="unfinished">%1: ftok epäonnistui</translation>
     </message>
 </context>
 <context>
@@ -7401,101 +6986,6 @@ Direct2D-version vähimmäisvaatimus on %1. Järjestelmän Direct2D-versio on %2
     </message>
 </context>
 <context>
-    <name>QXml</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>ei virhettä</translation>
-    </message>
-    <message>
-        <source>error triggered by consumer</source>
-        <translation>käyttäjä aiheutti virheen</translation>
-    </message>
-    <message>
-        <source>unexpected end of file</source>
-        <translation>odottamaton tiedoston loppu</translation>
-    </message>
-    <message>
-        <source>more than one document type definition</source>
-        <translation>enemmän kuin yksi dokumentin tyyppimääritys</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing element</source>
-        <translation>elementin jäsentäminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>tag mismatch</source>
-        <translation>tunniste ei täsmää</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing content</source>
-        <translation>sisällön jäsentäminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>unexpected character</source>
-        <translation>odottamaton merkki</translation>
-    </message>
-    <message>
-        <source>invalid name for processing instruction</source>
-        <translation>virheellinen prosessointikäskyn nimi</translation>
-    </message>
-    <message>
-        <source>version expected while reading the XML declaration</source>
-        <translation>odotettiin versiota XML-esittelyä luettaessa</translation>
-    </message>
-    <message>
-        <source>wrong value for standalone declaration</source>
-        <translation>väärä arvo standalone-esittelylle</translation>
-    </message>
-    <message>
-        <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>odotettiin encoding-esittelyä tai standalone-esittelyä XML-esittelyä luettaessa</translation>
-    </message>
-    <message>
-        <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>odotettiin standalone-esittelyä XML-esittelyä luettaessa</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing document type definition</source>
-        <translation>tapahtui virhe jäsennettäessä dokumentin tyyppimääritystä</translation>
-    </message>
-    <message>
-        <source>letter is expected</source>
-        <translation>kirjainta odotetaan</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing comment</source>
-        <translation>kommentin jäsentäminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing reference</source>
-        <translation>viitteen jäsentäminen epäonnistui</translation>
-    </message>
-    <message>
-        <source>internal general entity reference not allowed in DTD</source>
-        <translation>sisäistä yleistä entiteettiviittausta ei sallita DTD:ssä</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>ulkoista jäsennettyä yleistä entiteettiviittausta ei sallita attribuutin arvossa</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>DTD ei salli ulkoista jäsennettyä yleistä entiteettiviittausta</translation>
-    </message>
-    <message>
-        <source>unparsed entity reference in wrong context</source>
-        <translation>jäsentämätön entiteettiviittaus väärässä kontekstissa</translation>
-    </message>
-    <message>
-        <source>recursive entities</source>
-        <translation>rekursiivisia entiteettejä</translation>
-    </message>
-    <message>
-        <source>error in the text declaration of an external entity</source>
-        <translation>virhe ulkoisen entiteetin tekstiesittelyssä</translation>
-    </message>
-</context>
-<context>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
@@ -7556,10 +7046,6 @@ Direct2D-version vähimmäisvaatimus on %1. Järjestelmän Direct2D-versio on %2
     <message>
         <source>Standalone accepts only yes or no.</source>
         <translation>Standalonen arvoksi kelpaa vain yes tai no.</translation>
-    </message>
-    <message>
-        <source>Invalid attribute in XML declaration.</source>
-        <translation>Virheellinen attribuutti XML-esittelyssä.</translation>
     </message>
     <message>
         <source>Premature end of document.</source>
@@ -7654,11 +7140,456 @@ Direct2D-version vähimmäisvaatimus on %1. Järjestelmän Direct2D-versio on %2
         <translation>Virheellinen merkkiviittaus.</translation>
     </message>
     <message>
+        <source>Invalid attribute in XML declaration: %1 = %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length of XML attribute name exceeds implementation limits (4KiB characters).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected token type %1 in %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Found second DTD token in %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Self-referencing entity detected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Entity expands to more characters than the entity expansion limit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Assets::Downloader::AssetDownloader</name>
+    <message>
+        <source>Downloading JSON file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading zip file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unzipping...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading assets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copying assets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QFactoryLoader</name>
+    <message>
+        <source>Metadata parsing error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid metadata version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected metadata contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QAbstractFileIconProvider</name>
+    <message>
+        <source>Drive</source>
+        <translation type="unfinished">Asema</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation type="unfinished">Tiedosto</translation>
+    </message>
+    <message>
+        <source>File Folder</source>
+        <comment>Match Windows Explorer</comment>
+        <translation type="unfinished">Tiedostokansio</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <comment>All other platforms</comment>
+        <translation type="unfinished">Kansio</translation>
+    </message>
+    <message>
+        <source>Alias</source>
+        <comment>macOS Finder</comment>
+        <translation type="unfinished">Alias</translation>
+    </message>
+    <message>
+        <source>Shortcut</source>
+        <comment>All other platforms</comment>
+        <translation type="unfinished">Pikakuvake</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation type="unfinished">Tuntematon</translation>
+    </message>
+</context>
+<context>
+    <name>QDtls</name>
+    <message>
+        <source>Multicast and broadcast addresses are not supported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot set peer after handshake started</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid address</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot set verification name after handshake started</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot set configuration after handshake started</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot start/continue handshake, invalid handshake state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid (nullptr) socket</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>To start a handshake you must set peer&apos;s address and port first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>To start a handshake, DTLS server requires non-empty datagram (client hello)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot start handshake, already done/in progress</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A valid QUdpSocket and non-empty datagram are needed to continue the handshake</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot continue handshake, not in InProgress state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot resume, not in VerificationError state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No handshake in progress, nothing to abort</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot send shutdown alert, not encrypted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot write a datagram, not in encrypted state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot read a datagram, not in encrypted state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 failed</source>
+        <extracomment>%1: Some function</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid SslMode, SslServerMode or SslClientMode expected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid protocol version, DTLS protocol expected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BIO_ADD_new failed, cannot start handshake</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot start the handshake, verified client hello expected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Peer verification failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The DTLS connection has been closed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error while writing: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The DTLS connection has been shutdown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error while reading: %1</source>
+        <translation type="unfinished">Virhe luettaessa: %1</translation>
+    </message>
+    <message>
+        <source>Invalid (empty) secret</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QDtlsClientVerifier</name>
+    <message>
+        <source>A valid UDP socket, non-empty datagram, and valid address/port were expected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BIO_ADDR_new failed, ignoring client hello</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QCocoaMenuBar</name>
+    <message>
+        <source>Edit</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>quiaccessibilityelement</name>
+    <message>
+        <source>checked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unchecked</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QCupsPrinterSupport</name>
+    <message>
+        <source>Authentication Needed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Authentication needed to use %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Authentication needed to use %1 on %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Username:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Password:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQL</name>
+    <message>
+        <source>No Mimer SQL error for code %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generic Mimer SQL error</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult</name>
+    <message>
+        <source>Could not get %1, column %2</source>
+        <extracomment>Data type, column</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not set %1, parameter %2</source>
+        <extracomment>Data type, parameter</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not close cursor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not close statement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fetch did not succeed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fetch first did not succeed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not fetch next row</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown data type %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not check null, column %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not prepare/execute statement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wrong number of parameters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown datatype, parameter %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not execute statement/open cursor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only input parameters can be used in batch operations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not add batch %1</source>
+        <extracomment>%1 is the batch number</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not execute batch</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult:</name>
+    <message>
+        <source>Fetch last did not succeed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Column %1 out of range</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLDriver</name>
+    <message>
+        <source>Could not connect to database</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start transaction</source>
+        <translation type="unfinished">Tietokantatapahtuman aloittaminen epäonnistui</translation>
+    </message>
+    <message>
+        <source>Could not commit transaction</source>
+        <translation type="unfinished">Tietokantatapahtuman commit-toiminnon suorittaminen epäonnistui</translation>
+    </message>
+    <message>
+        <source>Could not roll back transaction</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Print Device Input Slot</name>
+    <message>
+        <source>Automatic</source>
+        <translation type="unfinished">Automaattinen</translation>
+    </message>
+</context>
+<context>
+    <name>Print Device Output Bin</name>
+    <message>
+        <source>Automatic</source>
+        <translation type="unfinished">Automaattinen</translation>
+    </message>
+</context>
+<context>
+    <name>QDomParser</name>
+    <message>
+        <source>Error occurred while processing XML declaration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Multiple DTD sections are not allowed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing document type declaration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing comment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing a processing instruction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing a start element</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected end element &apos;%1&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing an end element</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing the element content</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing comments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing an entity reference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected token</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tag mismatch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing entity declaration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing notation declaration</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -536,11 +536,11 @@ void darwinCreateContextMenuEvent(void *pvUser, int x, int y)
 
 QString darwinResolveAlias(const QString &strFile)
 {
-    OSErr err = noErr;
     FSRef fileRef;
     QString strTarget;
     do
     {
+        OSErr err;
         Boolean fDir;
         if ((err = FSPathMakeRef((const UInt8*)strFile.toUtf8().constData(), &fileRef, &fDir)) != noErr)
             break;

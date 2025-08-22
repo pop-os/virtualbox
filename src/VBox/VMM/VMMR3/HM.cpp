@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -154,9 +154,11 @@ static DECLCALLBACK(void) hmR3Info(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszA
 static DECLCALLBACK(void) hmR3InfoEventPending(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) hmR3InfoLbr(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static int                hmR3InitFinalizeR3(PVM pVM);
+#if defined(RT_ARCH_AMD64)
 static int                hmR3InitFinalizeR0(PVM pVM);
 static int                hmR3InitFinalizeR0Intel(PVM pVM);
 static int                hmR3InitFinalizeR0Amd(PVM pVM);
+#endif
 static int                hmR3TermCPU(PVM pVM);
 
 
@@ -1100,8 +1102,12 @@ VMMR3_INT_DECL(int) HMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
     {
         case VMINITCOMPLETED_RING3:
             return hmR3InitFinalizeR3(pVM);
+#if defined(RT_ARCH_AMD64)
         case VMINITCOMPLETED_RING0:
             return hmR3InitFinalizeR0(pVM);
+#else
+        case VMINITCOMPLETED_RING0:
+#endif
         default:
             return VINF_SUCCESS;
     }
@@ -1125,6 +1131,7 @@ static void hmR3DisableRawMode(PVM pVM)
 }
 
 
+#if defined(RT_ARCH_AMD64)
 /**
  * Initialize VT-x or AMD-V.
  *
@@ -2038,6 +2045,7 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
                                            : "HM: Guest support: 32-bit only\n"));
     return VINF_SUCCESS;
 }
+#endif
 
 
 /**

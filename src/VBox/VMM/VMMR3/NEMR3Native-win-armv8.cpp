@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -53,14 +53,17 @@
 #include <fileapi.h>
 #include <winerror.h> /* no api header for this. */
 
+#include <VBox/dis.h>
 #include <VBox/vmm/nem.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/dbgftrace.h>
 #include "NEMInternal.h"
 #include <VBox/vmm/vmcc.h>
+
+#include <iprt/formats/arm-psci.h>
 
 #include <iprt/ldr.h>
 #include <iprt/path.h>
@@ -72,6 +75,102 @@
 HRESULT WINAPI WHvQueryGpaRangeDirtyBitmap(WHV_PARTITION_HANDLE, WHV_GUEST_PHYSICAL_ADDRESS, UINT64, UINT64 *, UINT32);
 # define WHvMapGpaRangeFlagTrackDirtyPages      ((WHV_MAP_GPA_RANGE_FLAGS)0x00000008)
 #endif
+
+/** Our saved state version for Hyper-V specific things. */
+#define NEM_HV_SAVED_STATE_VERSION 1
+
+
+/*
+ * The following definitions appeared in build 27744 allow configuring the base address of the GICv3 controller,
+ * (there is no official SDK for this yet).
+ */
+/** @todo Better way of defining these which doesn't require casting later on when calling APIs. */
+#define WHV_PARTITION_PROPERTY_CODE_ARM64_IC_PARAMETERS UINT32_C(0x00001012)
+/** No GIC present. */
+#define WHV_ARM64_IC_EMULATION_MODE_NONE  0
+/** Hyper-V emulates a GICv3. */
+#define WHV_ARM64_IC_EMULATION_MODE_GICV3 1
+
+/**
+ * Configures the interrupt controller emulated by Hyper-V.
+ */
+typedef struct MY_WHV_ARM64_IC_PARAMETERS
+{
+    uint32_t u32EmulationMode;
+    uint32_t u32Rsvd;
+    union
+    {
+        struct
+        {
+            RTGCPHYS        GCPhysGicdBase;
+            RTGCPHYS        GCPhysGitsTranslaterBase;
+            uint32_t        u32Rsvd;
+            uint32_t        cLpiIntIdBits;
+            uint32_t        u32PpiCntvOverflw;
+            uint32_t        u32PpiPmu;
+            uint32_t        au32Rsvd[6];
+        } GicV3;
+    } u;
+} MY_WHV_ARM64_IC_PARAMETERS;
+AssertCompileSize(MY_WHV_ARM64_IC_PARAMETERS, 64);
+
+
+/**
+ * The hypercall exit context.
+ */
+typedef struct MY_WHV_HYPERCALL_CONTEXT
+{
+    WHV_INTERCEPT_MESSAGE_HEADER Header;
+    uint16_t                     Immediate;
+    uint16_t                     u16Rsvd;
+    uint32_t                     u32Rsvd;
+    uint64_t                     X[18];
+} MY_WHV_HYPERCALL_CONTEXT;
+typedef MY_WHV_HYPERCALL_CONTEXT *PMY_WHV_HYPERCALL_CONTEXT;
+AssertCompileSize(MY_WHV_HYPERCALL_CONTEXT, 24 + 19 * sizeof(uint64_t));
+
+
+/**
+ * The ARM64 reset context.
+ */
+typedef struct MY_WHV_ARM64_RESET_CONTEXT
+{
+    WHV_INTERCEPT_MESSAGE_HEADER Header;
+    uint32_t                     ResetType;
+    uint32_t                     u32Rsvd;
+} MY_WHV_ARM64_RESET_CONTEXT;
+typedef MY_WHV_ARM64_RESET_CONTEXT *PMY_WHV_ARM64_RESET_CONTEXT;
+AssertCompileSize(MY_WHV_ARM64_RESET_CONTEXT, 24 + 2 * sizeof(uint32_t));
+
+
+#define WHV_ARM64_RESET_CONTEXT_TYPE_POWER_OFF   0
+#define WHV_ARM64_RESET_CONTEXT_TYPE_RESET       1
+
+
+/**
+ * The exit reason context for arm64, the size is different
+ * from the default SDK we build against.
+ */
+typedef struct MY_WHV_RUN_VP_EXIT_CONTEXT
+{
+    WHV_RUN_VP_EXIT_REASON  ExitReason;
+    uint32_t                u32Rsvd;
+    uint64_t                u64Rsvd;
+    union
+    {
+        WHV_MEMORY_ACCESS_CONTEXT           MemoryAccess;
+        WHV_RUN_VP_CANCELED_CONTEXT         CancelReason;
+        MY_WHV_HYPERCALL_CONTEXT            Hypercall;
+        WHV_UNRECOVERABLE_EXCEPTION_CONTEXT UnrecoverableException;
+        MY_WHV_ARM64_RESET_CONTEXT          Arm64Reset;
+        uint64_t au64Rsvd2[32];
+    };
+} MY_WHV_RUN_VP_EXIT_CONTEXT;
+typedef MY_WHV_RUN_VP_EXIT_CONTEXT *PMY_WHV_RUN_VP_EXIT_CONTEXT;
+AssertCompileSize(MY_WHV_RUN_VP_EXIT_CONTEXT, 272);
+
+#define My_WHvArm64RegisterGicrBaseGpa ((WHV_REGISTER_NAME)UINT32_C(0x00063000))
+#define My_WHvArm64RegisterActlrEl1    ((WHV_REGISTER_NAME)UINT32_C(0x00040003))
 
 
 /*********************************************************************************************************************************
@@ -100,6 +199,11 @@ static decltype(WHvRunVirtualProcessor) *           g_pfnWHvRunVirtualProcessor;
 static decltype(WHvCancelRunVirtualProcessor) *     g_pfnWHvCancelRunVirtualProcessor;
 static decltype(WHvGetVirtualProcessorRegisters) *  g_pfnWHvGetVirtualProcessorRegisters;
 static decltype(WHvSetVirtualProcessorRegisters) *  g_pfnWHvSetVirtualProcessorRegisters;
+static decltype(WHvSuspendPartitionTime) *          g_pfnWHvSuspendPartitionTime;
+static decltype(WHvResumePartitionTime) *           g_pfnWHvResumePartitionTime;
+decltype(WHvGetVirtualProcessorState) *             g_pfnWHvGetVirtualProcessorState;
+decltype(WHvSetVirtualProcessorState) *             g_pfnWHvSetVirtualProcessorState;
+decltype(WHvRequestInterrupt) *                     g_pfnWHvRequestInterrupt;
 /** @} */
 
 /** The Windows build number. */
@@ -135,6 +239,11 @@ static const struct
     NEM_WIN_IMPORT(0, false, WHvCancelRunVirtualProcessor),
     NEM_WIN_IMPORT(0, false, WHvGetVirtualProcessorRegisters),
     NEM_WIN_IMPORT(0, false, WHvSetVirtualProcessorRegisters),
+    NEM_WIN_IMPORT(0, false, WHvSuspendPartitionTime),
+    NEM_WIN_IMPORT(0, false, WHvResumePartitionTime),
+    NEM_WIN_IMPORT(0, false, WHvGetVirtualProcessorState),
+    NEM_WIN_IMPORT(0, false, WHvSetVirtualProcessorState),
+    NEM_WIN_IMPORT(0, false, WHvRequestInterrupt),
 #undef NEM_WIN_IMPORT
 };
 
@@ -160,19 +269,166 @@ static const struct
 # define WHvCancelRunVirtualProcessor               g_pfnWHvCancelRunVirtualProcessor
 # define WHvGetVirtualProcessorRegisters            g_pfnWHvGetVirtualProcessorRegisters
 # define WHvSetVirtualProcessorRegisters            g_pfnWHvSetVirtualProcessorRegisters
-
-# define VidMessageSlotHandleAndGetNext             g_pfnVidMessageSlotHandleAndGetNext
-# define VidStartVirtualProcessor                   g_pfnVidStartVirtualProcessor
-# define VidStopVirtualProcessor                    g_pfnVidStopVirtualProcessor
-
+# define WHvSuspendPartitionTime                    g_pfnWHvSuspendPartitionTime
+# define WHvResumePartitionTime                     g_pfnWHvResumePartitionTime
+# define WHvGetVirtualProcessorState                g_pfnWHvGetVirtualProcessorState
+# define WHvSetVirtualProcessorState                g_pfnWHvSetVirtualProcessorState
+# define WHvRequestInterrupt                        g_pfnWHvRequestInterrupt
 #endif
 
-/** WHV_MEMORY_ACCESS_TYPE names */
-static const char * const g_apszWHvMemAccesstypes[4] = { "read", "write", "exec", "!undefined!" };
-/** NEM_WIN_PAGE_STATE_XXX names. */
-NEM_TMPL_STATIC const char * const g_apszPageStates[4] = { "not-set", "unmapped", "readable", "writable" };
-/** HV_INTERCEPT_ACCESS_TYPE names. */
-static const char * const g_apszHvInterceptAccessTypes[4] = { "read", "write", "exec", "!undefined!" };
+
+#define WHV_REGNM(a_Suffix) WHvArm64Register ## a_Suffix
+/** The general registers. */
+static const struct
+{
+    WHV_REGISTER_NAME    enmWHvReg;
+    uint32_t             fCpumExtrn;
+    uintptr_t            offCpumCtx;
+} s_aCpumRegs[] =
+{
+#define CPUM_GREG_EMIT_X0_X3(a_Idx)  { WHV_REGNM(X ## a_Idx), CPUMCTX_EXTRN_X ## a_Idx, RT_UOFFSETOF(CPUMCTX, aGRegs[a_Idx].x) }
+#define CPUM_GREG_EMIT_X4_X28(a_Idx) { WHV_REGNM(X ## a_Idx), CPUMCTX_EXTRN_X4_X28,     RT_UOFFSETOF(CPUMCTX, aGRegs[a_Idx].x) }
+    CPUM_GREG_EMIT_X0_X3(0),
+    CPUM_GREG_EMIT_X0_X3(1),
+    CPUM_GREG_EMIT_X0_X3(2),
+    CPUM_GREG_EMIT_X0_X3(3),
+    CPUM_GREG_EMIT_X4_X28(4),
+    CPUM_GREG_EMIT_X4_X28(5),
+    CPUM_GREG_EMIT_X4_X28(6),
+    CPUM_GREG_EMIT_X4_X28(7),
+    CPUM_GREG_EMIT_X4_X28(8),
+    CPUM_GREG_EMIT_X4_X28(9),
+    CPUM_GREG_EMIT_X4_X28(10),
+    CPUM_GREG_EMIT_X4_X28(11),
+    CPUM_GREG_EMIT_X4_X28(12),
+    CPUM_GREG_EMIT_X4_X28(13),
+    CPUM_GREG_EMIT_X4_X28(14),
+    CPUM_GREG_EMIT_X4_X28(15),
+    CPUM_GREG_EMIT_X4_X28(16),
+    CPUM_GREG_EMIT_X4_X28(17),
+    CPUM_GREG_EMIT_X4_X28(18),
+    CPUM_GREG_EMIT_X4_X28(19),
+    CPUM_GREG_EMIT_X4_X28(20),
+    CPUM_GREG_EMIT_X4_X28(21),
+    CPUM_GREG_EMIT_X4_X28(22),
+    CPUM_GREG_EMIT_X4_X28(23),
+    CPUM_GREG_EMIT_X4_X28(24),
+    CPUM_GREG_EMIT_X4_X28(25),
+    CPUM_GREG_EMIT_X4_X28(26),
+    CPUM_GREG_EMIT_X4_X28(27),
+    CPUM_GREG_EMIT_X4_X28(28),
+    { WHV_REGNM(Fp),   CPUMCTX_EXTRN_FP,   RT_UOFFSETOF(CPUMCTX, aGRegs[29].x) },
+    { WHV_REGNM(Lr),   CPUMCTX_EXTRN_LR,   RT_UOFFSETOF(CPUMCTX, aGRegs[30].x) },
+    { WHV_REGNM(Pc),   CPUMCTX_EXTRN_PC,   RT_UOFFSETOF(CPUMCTX, Pc.u64)       },
+    { WHV_REGNM(Fpcr), CPUMCTX_EXTRN_FPCR, RT_UOFFSETOF(CPUMCTX, fpcr)         },
+    { WHV_REGNM(Fpsr), CPUMCTX_EXTRN_FPSR, RT_UOFFSETOF(CPUMCTX, fpsr)         }
+#undef CPUM_GREG_EMIT_X0_X3
+#undef CPUM_GREG_EMIT_X4_X28
+};
+/** SIMD/FP registers. */
+static const struct
+{
+    WHV_REGISTER_NAME   enmWHvReg;
+    uintptr_t           offCpumCtx;
+} s_aCpumFpRegs[] =
+{
+#define CPUM_VREG_EMIT(a_Idx)  {  WHV_REGNM(Q ## a_Idx), RT_UOFFSETOF(CPUMCTX, aVRegs[a_Idx].v) }
+    CPUM_VREG_EMIT(0),
+    CPUM_VREG_EMIT(1),
+    CPUM_VREG_EMIT(2),
+    CPUM_VREG_EMIT(3),
+    CPUM_VREG_EMIT(4),
+    CPUM_VREG_EMIT(5),
+    CPUM_VREG_EMIT(6),
+    CPUM_VREG_EMIT(7),
+    CPUM_VREG_EMIT(8),
+    CPUM_VREG_EMIT(9),
+    CPUM_VREG_EMIT(10),
+    CPUM_VREG_EMIT(11),
+    CPUM_VREG_EMIT(12),
+    CPUM_VREG_EMIT(13),
+    CPUM_VREG_EMIT(14),
+    CPUM_VREG_EMIT(15),
+    CPUM_VREG_EMIT(16),
+    CPUM_VREG_EMIT(17),
+    CPUM_VREG_EMIT(18),
+    CPUM_VREG_EMIT(19),
+    CPUM_VREG_EMIT(20),
+    CPUM_VREG_EMIT(21),
+    CPUM_VREG_EMIT(22),
+    CPUM_VREG_EMIT(23),
+    CPUM_VREG_EMIT(24),
+    CPUM_VREG_EMIT(25),
+    CPUM_VREG_EMIT(26),
+    CPUM_VREG_EMIT(27),
+    CPUM_VREG_EMIT(28),
+    CPUM_VREG_EMIT(29),
+    CPUM_VREG_EMIT(30),
+    CPUM_VREG_EMIT(31)
+#undef CPUM_VREG_EMIT
+};
+/** PAuth key system registers. */
+static const struct
+{
+    WHV_REGISTER_NAME   enmWHvReg;
+    uintptr_t           offCpumCtx;
+} s_aCpumPAuthKeyRegs[] =
+{
+    { WHV_REGNM(ApdAKeyLoEl1), RT_UOFFSETOF(CPUMCTX, Apda.Low.u64)  },
+    { WHV_REGNM(ApdAKeyHiEl1), RT_UOFFSETOF(CPUMCTX, Apda.High.u64) },
+    { WHV_REGNM(ApdBKeyLoEl1), RT_UOFFSETOF(CPUMCTX, Apdb.Low.u64)  },
+    { WHV_REGNM(ApdBKeyHiEl1), RT_UOFFSETOF(CPUMCTX, Apdb.High.u64) },
+    { WHV_REGNM(ApgAKeyLoEl1), RT_UOFFSETOF(CPUMCTX, Apga.Low.u64)  },
+    { WHV_REGNM(ApgAKeyHiEl1), RT_UOFFSETOF(CPUMCTX, Apga.High.u64) },
+    { WHV_REGNM(ApiAKeyLoEl1), RT_UOFFSETOF(CPUMCTX, Apia.Low.u64)  },
+    { WHV_REGNM(ApiAKeyHiEl1), RT_UOFFSETOF(CPUMCTX, Apia.High.u64) },
+    { WHV_REGNM(ApiBKeyLoEl1), RT_UOFFSETOF(CPUMCTX, Apib.Low.u64)  },
+    { WHV_REGNM(ApiBKeyHiEl1), RT_UOFFSETOF(CPUMCTX, Apib.High.u64) }
+};
+/** System registers. */
+static const struct
+{
+    WHV_REGISTER_NAME   enmWHvReg;
+    uint32_t            fCpumExtrn;
+    uintptr_t           offCpumCtx;
+} s_aCpumSysRegs[] =
+{
+    { WHV_REGNM(SpEl0),            CPUMCTX_EXTRN_SP,               RT_UOFFSETOF(CPUMCTX, aSpReg[0].u64)    },
+    { WHV_REGNM(SpEl1),            CPUMCTX_EXTRN_SP,               RT_UOFFSETOF(CPUMCTX, aSpReg[1].u64)    },
+    { WHV_REGNM(SpsrEl1),          CPUMCTX_EXTRN_SPSR,             RT_UOFFSETOF(CPUMCTX, Spsr.u64)         },
+    { WHV_REGNM(ElrEl1),           CPUMCTX_EXTRN_ELR,              RT_UOFFSETOF(CPUMCTX, Elr.u64)          },
+    { WHV_REGNM(VbarEl1),          CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, VBar.u64)         },
+    { WHV_REGNM(CntkctlEl1),       CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, CntKCtl.u64)      },
+    { WHV_REGNM(ContextidrEl1),    CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, ContextIdr.u64)   },
+    { WHV_REGNM(CpacrEl1),         CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Cpacr.u64)        },
+    { WHV_REGNM(CsselrEl1),        CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Csselr.u64)       },
+    { WHV_REGNM(EsrEl1),           CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Esr.u64)          },
+    { WHV_REGNM(FarEl1),           CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Far.u64)          },
+    { WHV_REGNM(MairEl1),          CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Mair.u64)         },
+    { WHV_REGNM(ParEl1),           CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Par.u64)          },
+    { WHV_REGNM(TpidrroEl0),       CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, TpIdrRoEl0.u64)   },
+    { WHV_REGNM(TpidrEl0),         CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, aTpIdr[0].u64)    },
+    { WHV_REGNM(TpidrEl1),         CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, aTpIdr[1].u64)    },
+    { My_WHvArm64RegisterActlrEl1, CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Actlr.u64)        }
+#if 0 /* Not available in Hyper-V */
+    { WHV_REGNM(),                 CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Afsr0.u64)        },
+    { WHV_REGNM(),                 CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Afsr1.u64)        },
+    { WHV_REGNM(),                 CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Amair.u64)        },
+    { WHV_REGNM(),                 CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, MDccInt.u64)      }
+#endif
+};
+/** Paging registers (CPUMCTX_EXTRN_SCTLR_TCR_TTBR). */
+static const struct
+{
+    WHV_REGISTER_NAME   enmWHvReg;
+    uint32_t            offCpumCtx;
+} s_aCpumSysRegsPg[] =
+{
+    { WHV_REGNM(SctlrEl1),         RT_UOFFSETOF(CPUMCTX, Sctlr.u64) },
+    { WHV_REGNM(TcrEl1),           RT_UOFFSETOF(CPUMCTX, Tcr.u64)   },
+    { WHV_REGNM(Ttbr0El1),         RT_UOFFSETOF(CPUMCTX, Ttbr0.u64) },
+    { WHV_REGNM(Ttbr1El1),         RT_UOFFSETOF(CPUMCTX, Ttbr1.u64) },
+};
 
 
 /*********************************************************************************************************************************
@@ -181,8 +437,6 @@ static const char * const g_apszHvInterceptAccessTypes[4] = { "read", "write", "
 DECLINLINE(int) nemR3NativeGCPhys2R3PtrReadOnly(PVM pVM, RTGCPHYS GCPhys, const void **ppv);
 DECLINLINE(int) nemR3NativeGCPhys2R3PtrWriteable(PVM pVM, RTGCPHYS GCPhys, void **ppv);
 
-NEM_TMPL_STATIC int nemHCNativeSetPhysPage(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhysSrc, RTGCPHYS GCPhysDst,
-                                           uint32_t fPageProt, uint8_t *pu2State, bool fBackingChanged);
 
 /**
  * Worker for nemR3NativeInit that probes and load the native API.
@@ -300,22 +554,6 @@ static int nemR3WinInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
 #define NEM_LOG_REL_CAP_SUB_EX(a_szField, a_szFmt, a_Value) LogRel(("NEM:   %36s: " a_szFmt "\n", a_szField, a_Value))
 #define NEM_LOG_REL_CAP_SUB(a_szField, a_Value)             NEM_LOG_REL_CAP_SUB_EX(a_szField, "%d", a_Value)
 
-    /*
-     * Is the hypervisor present with the desired capability?
-     *
-     * In build 17083 this translates into:
-     *      - CPUID[0x00000001].HVP is set
-     *      - CPUID[0x40000000] == "Microsoft Hv"
-     *      - CPUID[0x40000001].eax == "Hv#1"
-     *      - CPUID[0x40000003].ebx[12] is set.
-     *      - VidGetExoPartitionProperty(INVALID_HANDLE_VALUE, 0x60000, &Ignored) returns
-     *        a non-zero value.
-     */
-    /**
-     * @todo Someone at Microsoft please explain weird API design:
-     *   1. Pointless CapabilityCode duplication int the output;
-     *   2. No output size.
-     */
     WHV_CAPABILITY Caps;
     RT_ZERO(Caps);
     SetLastError(0);
@@ -517,6 +755,66 @@ static int nemR3WinInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
 
 
 /**
+ * Initializes the GIC controller emulation provided by Hyper-V.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
+ *
+ * @note Needs to be done early when setting up the partition so this has to live here and not in GICNem-win.cpp
+ */
+static int nemR3WinGicCreate(PVM pVM)
+{
+    PCFGMNODE pGicCfg = CFGMR3GetChild(CFGMR3GetRoot(pVM), "Devices/gic-nem/0/Config");
+    AssertPtrReturn(pGicCfg, VERR_NEM_IPE_5);
+
+    /*
+     * Query the MMIO ranges.
+     */
+    RTGCPHYS GCPhysMmioBaseDist = 0;
+    int rc = CFGMR3QueryU64(pGicCfg, "DistributorMmioBase", &GCPhysMmioBaseDist);
+    if (RT_FAILURE(rc))
+        return VMSetError(pVM, rc, RT_SRC_POS,
+                          "Configuration error: Failed to get the \"DistributorMmioBase\" value\n");
+
+    RTGCPHYS GCPhysMmioBaseReDist = 0;
+    rc = CFGMR3QueryU64(pGicCfg, "RedistributorMmioBase", &GCPhysMmioBaseReDist);
+    if (RT_FAILURE(rc))
+        return VMSetError(pVM, rc, RT_SRC_POS,
+                          "Configuration error: Failed to get the \"RedistributorMmioBase\" value\n");
+
+    RTGCPHYS GCPhysMmioBaseIts = 0;
+    rc = CFGMR3QueryU64(pGicCfg, "ItsMmioBase", &GCPhysMmioBaseIts);
+    if (RT_FAILURE(rc) && rc != VERR_CFGM_VALUE_NOT_FOUND)
+        return VMSetError(pVM, rc, RT_SRC_POS,
+                          "Configuration error: Failed to get the \"ItsMmioBase\" value\n");
+    rc = VINF_SUCCESS;
+
+    /*
+     * One can only set the GIC distributor base. The re-distributor regions for the individual
+     * vCPUs are configured when the vCPUs are created, so we need to save the base of the MMIO region.
+     */
+    pVM->nem.s.GCPhysMmioBaseReDist = GCPhysMmioBaseReDist;
+
+    WHV_PARTITION_HANDLE hPartition = pVM->nem.s.hPartition;
+
+    MY_WHV_ARM64_IC_PARAMETERS Property; RT_ZERO(Property);
+    Property.u32EmulationMode                 = WHV_ARM64_IC_EMULATION_MODE_GICV3;
+    Property.u.GicV3.GCPhysGicdBase           = GCPhysMmioBaseDist;
+    Property.u.GicV3.GCPhysGitsTranslaterBase = GCPhysMmioBaseIts;
+    Property.u.GicV3.cLpiIntIdBits            = 1; /** @todo LPIs are currently not supported with our device emulations. */
+    Property.u.GicV3.u32PpiCntvOverflw        = pVM->nem.s.u32GicPpiVTimer + 16; /* Calculate the absolute timer INTID. */
+    Property.u.GicV3.u32PpiPmu                = 23; /** @todo Configure dynamically (from SBSA, needs a PMU/NEM emulation just like with the GIC probably). */
+    HRESULT hrc = WHvSetPartitionProperty(hPartition, (WHV_PARTITION_PROPERTY_CODE)WHV_PARTITION_PROPERTY_CODE_ARM64_IC_PARAMETERS, &Property, sizeof(Property));
+    if (FAILED(hrc))
+        return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
+                          "Failed to set WHvPartitionPropertyCodeArm64IcParameters: %Rhrc (Last=%#x/%u)",
+                          hrc, RTNtLastStatusValue(), RTNtLastErrorValue());
+
+    return rc;
+}
+
+
+/**
  * Creates and sets up a Hyper-V (exo) partition.
  *
  * @returns VBox status code.
@@ -586,6 +884,334 @@ static int nemR3WinInitCreatePartition(PVM pVM, PRTERRINFO pErrInfo)
 }
 
 
+/** Regular g_aNemWinArmIdRegs entry. */
+#define ENTRY_REGULAR(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2, a_RegNm, a_uWHv, a_enmWHv, a_fMustWork, a_fPerVCpu) \
+    { RT_CONCAT(ARMV8_AARCH64_SYSREG_, a_RegNm), \
+      0 /*fMissing*/, 0 /*fUndefined*/, a_fMustWork, a_fPerVCpu, \
+         RT_CONCAT(ARMV8_AARCH64_SYSREG_, a_RegNm) == ARMV8_AARCH64_SYSREG_ID_CREATE(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) \
+      && (unsigned)(a_enmWHv)                      == (a_uWHv) ? 0 : -1 /*u1Assert1*/, \
+      (a_enmWHv), #a_RegNm }
+
+/** Entry in g_aNemWinArmIdRegs where there is no WHV_REGISTER_NAME value. */
+#define ENTRY_MISSING(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2, a_RegNm, a_uWHv) \
+    { RT_CONCAT(ARMV8_AARCH64_SYSREG_, a_RegNm), \
+      1 /*fMissing*/, 0 /*fUndefined*/, 0 /*fMustWork*/, 0 /*fPerVCpu*/, \
+      RT_CONCAT(ARMV8_AARCH64_SYSREG_, a_RegNm) == ARMV8_AARCH64_SYSREG_ID_CREATE(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) ? 0 : -1 /*u1Assert1*/, \
+      (WHV_REGISTER_NAME)(a_uWHv), #a_RegNm }
+
+/** Entry in g_aNemWinArmIdRegs for an undefined register. */
+#define ENTRY_UNDEF(  a_Op0, a_Op1, a_CRn, a_CRm, a_Op2, a_uWHv) \
+    { ARMV8_AARCH64_SYSREG_ID_CREATE(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2), \
+      0 /*fMissing*/, 1 /*fUndefined*/, 0 /*fMustWork*/, 0 /*fPerVCpu*/, 0 /*u1Assert1*/, \
+      (WHV_REGISTER_NAME)(a_uWHv), #a_Op0 "," #a_Op1 "," #a_CRn "," #a_CRm "," #a_Op2 }
+
+/**
+ * Array mapping ARM ID register values to WHV_REGISTER_NAME.
+ */
+static struct
+{
+    /** Our register ID value. */
+    uint32_t            idReg      : 27;
+    uint32_t            fMissing   : 1; /**< Set if no WHV_REGISTER_NAME value. */
+    uint32_t            fUndefined : 1; /**< Set if not defined by any ARM spec. */
+    uint32_t            fMustWork  : 1; /**< If set, we expect this register to be both gettable and settable. */
+    uint32_t            fPerVCpu   : 1; /**< Set if this is per VCpu. */
+    uint32_t            u1Assert1  : 1; /**< Used for compile time assertions. */
+    /** The windows register enum name. */
+    WHV_REGISTER_NAME   enmHvName;
+    /** The register name. */
+    const char         *pszName;
+} const g_aNemWinArmIdRegs[] =
+{
+    /*
+     * Standard ID registers.
+     */
+    /* The first three seems to be in a sparse block. */
+    ENTRY_REGULAR(3, 0, 0, 0, 0, MIDR_EL1,              0x00040051, WHvArm64RegisterMidrEl1,            0, 1),
+    ENTRY_REGULAR(3, 0, 0, 0, 5, MPIDR_EL1,             0x00040001, WHvArm64RegisterMpidrEl1,           0, 1),
+    ENTRY_REGULAR(3, 0, 0, 0, 6, REVIDR_EL1,            0x00040055, WHvArm64RegisterRevidrEl1,          0, 0),
+
+    /* AArch64 feature registers. */
+    ENTRY_REGULAR(3, 0, 0, 1, 0, ID_PFR0_EL1,           0x00022008, WHvArm64RegisterIdPfr0El1,          0, 0),
+    ENTRY_REGULAR(3, 0, 0, 1, 1, ID_PFR1_EL1,           0x00022009, WHvArm64RegisterIdPfr1El1,          0, 0),
+    ENTRY_REGULAR(3, 0, 0, 1, 2, ID_DFR0_EL1,           0x0002200a, WHvArm64RegisterIdDfr0El1,          0, 0),
+    ENTRY_MISSING(3, 0, 0, 1, 3, ID_AFR0_EL1,           0x0002200b),
+    ENTRY_REGULAR(3, 0, 0, 1, 4, ID_MMFR0_EL1,          0x0002200c, WHvArm64RegisterIdMmfr0El1,         0, 0),
+    ENTRY_REGULAR(3, 0, 0, 1, 5, ID_MMFR1_EL1,          0x0002200d, WHvArm64RegisterIdMmfr1El1,         0, 0),
+    ENTRY_REGULAR(3, 0, 0, 1, 6, ID_MMFR2_EL1,          0x0002200e, WHvArm64RegisterIdMmfr2El1,         0, 0),
+    ENTRY_REGULAR(3, 0, 0, 1, 7, ID_MMFR3_EL1,          0x0002200f, WHvArm64RegisterIdMmfr3El1,         0, 0),
+    ENTRY_REGULAR(3, 0, 0, 2, 0, ID_ISAR0_EL1,          0x00022010, WHvArm64RegisterIdIsar0El1,         0, 0),
+    ENTRY_REGULAR(3, 0, 0, 2, 1, ID_ISAR1_EL1,          0x00022011, WHvArm64RegisterIdIsar1El1,         0, 0),
+    ENTRY_REGULAR(3, 0, 0, 2, 2, ID_ISAR2_EL1,          0x00022012, WHvArm64RegisterIdIsar2El1,         0, 0),
+    ENTRY_REGULAR(3, 0, 0, 2, 3, ID_ISAR3_EL1,          0x00022013, WHvArm64RegisterIdIsar3El1,         0, 0),
+    ENTRY_REGULAR(3, 0, 0, 2, 4, ID_ISAR4_EL1,          0x00022014, WHvArm64RegisterIdIsar4El1,         0, 0),
+    ENTRY_REGULAR(3, 0, 0, 2, 5, ID_ISAR5_EL1,          0x00022015, WHvArm64RegisterIdIsar5El1,         0, 0),
+    ENTRY_MISSING(3, 0, 0, 2, 6, ID_MMFR4_EL1,          0x00022016),
+    ENTRY_MISSING(3, 0, 0, 2, 7, ID_ISAR6_EL1,          0x00022017),
+    ENTRY_MISSING(3, 0, 0, 3, 0, MVFR0_EL1,             0x00022018),
+    ENTRY_MISSING(3, 0, 0, 3, 1, MVFR1_EL1,             0x00022019),
+    ENTRY_MISSING(3, 0, 0, 3, 2, MVFR2_EL1,             0x0002201a),
+    ENTRY_UNDEF(  3, 0, 0, 3, 3,                        0x0002201b),
+    ENTRY_REGULAR(3, 0, 0, 3, 4, ID_PFR2_EL1,           0x0002201c, WHvArm64RegisterIdPfr2El1,          0, 0),
+    ENTRY_MISSING(3, 0, 0, 3, 5, ID_DFR1_EL1,           0x0002201d),
+    ENTRY_MISSING(3, 0, 0, 3, 6, ID_MMFR5_EL1,          0x0002201e),
+    ENTRY_UNDEF(  3, 0, 0, 3, 7,                        0x0002201f),
+    ENTRY_REGULAR(3, 0, 0, 4, 0, ID_AA64PFR0_EL1,       0x00022020, WHvArm64RegisterIdAa64Pfr0El1,      1, 0),
+    ENTRY_REGULAR(3, 0, 0, 4, 1, ID_AA64PFR1_EL1,       0x00022021, WHvArm64RegisterIdAa64Pfr1El1,      1, 0),
+    ENTRY_REGULAR(3, 0, 0, 4, 2, ID_AA64PFR2_EL1,       0x00022022, WHvArm64RegisterIdAa64Pfr2El1,      0, 0),
+    ENTRY_UNDEF(  3, 0, 0, 4, 3,                        0x00022023),
+    ENTRY_REGULAR(3, 0, 0, 4, 4, ID_AA64ZFR0_EL1,       0x00022024, WHvArm64RegisterIdAa64Zfr0El1,      0, 0),
+    ENTRY_REGULAR(3, 0, 0, 4, 5, ID_AA64SMFR0_EL1,      0x00022025, WHvArm64RegisterIdAa64Smfr0El1,     0, 0),
+    ENTRY_UNDEF(  3, 0, 0, 4, 6,                        0x00022026),
+    ENTRY_MISSING(3, 0, 0, 4, 7, ID_AA64FPFR0_EL1,      0x00022027),
+    ENTRY_REGULAR(3, 0, 0, 5, 0, ID_AA64DFR0_EL1,       0x00022028, WHvArm64RegisterIdAa64Dfr0El1,      0, 0),
+    ENTRY_REGULAR(3, 0, 0, 5, 1, ID_AA64DFR1_EL1,       0x00022029, WHvArm64RegisterIdAa64Dfr1El1,      0, 0),
+    ENTRY_MISSING(3, 0, 0, 5, 2, ID_AA64DFR2_EL1,       0x0002202a),
+    ENTRY_UNDEF(  3, 0, 0, 5, 3,                        0x0002202b),
+    ENTRY_MISSING(3, 0, 0, 5, 4, ID_AA64AFR0_EL1,       0x0002202c),
+    ENTRY_MISSING(3, 0, 0, 5, 5, ID_AA64AFR1_EL1,       0x0002202d),
+    ENTRY_UNDEF(  3, 0, 0, 5, 6,                        0x0002202e),
+    ENTRY_UNDEF(  3, 0, 0, 5, 7,                        0x0002202f),
+    ENTRY_REGULAR(3, 0, 0, 6, 0, ID_AA64ISAR0_EL1,      0x00022030, WHvArm64RegisterIdAa64Isar0El1,     1, 0),
+    ENTRY_REGULAR(3, 0, 0, 6, 1, ID_AA64ISAR1_EL1,      0x00022031, WHvArm64RegisterIdAa64Isar1El1,     1, 0),
+    ENTRY_REGULAR(3, 0, 0, 6, 2, ID_AA64ISAR2_EL1,      0x00022032, WHvArm64RegisterIdAa64Isar2El1,     1, 0),
+    ENTRY_MISSING(3, 0, 0, 6, 3, ID_AA64ISAR3_EL1,      0x00022033),
+    ENTRY_UNDEF(  3, 0, 0, 6, 4,                        0x00022034),
+    ENTRY_UNDEF(  3, 0, 0, 6, 5,                        0x00022035),
+    ENTRY_UNDEF(  3, 0, 0, 6, 6,                        0x00022036),
+    ENTRY_UNDEF(  3, 0, 0, 6, 7,                        0x00022037),
+    ENTRY_REGULAR(3, 0, 0, 7, 0, ID_AA64MMFR0_EL1,      0x00022038, WHvArm64RegisterIdAa64Mmfr0El1,     1, 0),
+    ENTRY_REGULAR(3, 0, 0, 7, 1, ID_AA64MMFR1_EL1,      0x00022039, WHvArm64RegisterIdAa64Mmfr1El1,     1, 0),
+    ENTRY_REGULAR(3, 0, 0, 7, 2, ID_AA64MMFR2_EL1,      0x0002203a, WHvArm64RegisterIdAa64Mmfr2El1,     1, 0),
+    ENTRY_REGULAR(3, 0, 0, 7, 3, ID_AA64MMFR3_EL1,      0x0002203b, WHvArm64RegisterIdAa64Mmfr3El1,     0, 0),
+    ENTRY_REGULAR(3, 0, 0, 7, 4, ID_AA64MMFR4_EL1,      0x0002203c, WHvArm64RegisterIdAa64Mmfr4El1,     0, 0),
+    ENTRY_UNDEF(  3, 0, 0, 7, 5,                        0x0002203d),
+    ENTRY_UNDEF(  3, 0, 0, 7, 6,                        0x0002203e),
+    ENTRY_UNDEF(  3, 0, 0, 7, 7,                        0x0002203f),
+
+    /*
+     * Feature dependent registers outside the ID block:
+     */
+    // READ_SYS_REG_NAMED(3, 0, 5, 3, 0, ERRIDR_EL1),      /* FEAT_RAS */
+    //
+    // READ_SYS_REG_NAMED(3, 0, 9,  9, 7, PMSIDR_EL1),     /* FEAT_SPS */
+    // READ_SYS_REG_NAMED(3, 0, 9, 10, 7, PMBIDR_EL1),     /* FEAT_SPS*/
+    //
+    // READ_SYS_REG_NAMED(3, 0, 9, 11, 7, TRBIDR_EL1),     /* FEAT_TRBE */
+    //
+    // READ_SYS_REG_NAMED(3, 0, 9, 14, 6, PMMIR_EL1),      /* FEAT_PMUv3p4 */
+    //
+    // READ_SYS_REG_NAMED(3, 0, 10, 4, 4, MPAMIDR_EL1),    /* FEAT_MPAM */
+    // READ_SYS_REG_NAMED(3, 0, 10, 4, 5, MPAMBWIDR_EL1),  /* FEAT_MPAM_PE_BW_CTRL (&& FEAT_MPAM) */
+    //
+    // /// @todo LORID_EL1 3,0,10,4,7  - FEAT_LOR
+    // /// @todo PMCEID0_EL0 ?
+    // /// @todo PMCEID1_EL0 ?
+    // /// @todo AMCFGR_EL0 ?
+    // /// @todo AMCGCR_EL0 ?
+    // /// @todo AMCG1IDR_EL0 ?
+    // /// @todo AMEVTYPER0<n>_EL0 ?
+    //
+    // READ_SYS_REG_NAMED(3, 1, 0, 0, 4, GMID_EL1),        /* FEAT_MTE2 */
+    //
+    // READ_SYS_REG_NAMED(3, 1, 0, 0, 6, SMIDR_EL1),       /* FEAT_SME */
+    //
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  8, 7, TRCIDR0),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  9, 7, TRCIDR1),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 10, 7, TRCIDR2),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 11, 7, TRCIDR3),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 12, 7, TRCIDR4),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 13, 7, TRCIDR5),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 14, 7, TRCIDR6),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 15, 7, TRCIDR7),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  0, 6, TRCIDR8),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  1, 6, TRCIDR10),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  2, 6, TRCIDR11),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  4, 6, TRCIDR12),  */
+    // /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  5, 6, TRCIDR13),  */
+    //
+    // READ_SYS_REG_NAMED(2, 1, 7, 15, 6, TRCDEVARCH),     /* FEAT_ETE */
+
+    /*
+     * Collections of other read-only registers.
+     */
+    /** @todo None of these work. First thought they were not partition wide and
+     *        added the fPerVCpu flag, but that didn't help, so just ignoring
+     *        these for now... */
+    ENTRY_REGULAR(3, 1, 0, 0, 1, CLIDR_EL1,             0x00040032, WHvArm64RegisterClidrEl1,           0, 0),
+    //READ_SYS_REG_NAMED(3, 1, 0, 0, 7, AIDR_EL1),
+    ENTRY_REGULAR(3, 3, 0, 0, 1, CTR_EL0,               0x00040036, WHvArm64RegisterCtrEl0,             0, 0),
+    ENTRY_REGULAR(3, 3, 0, 0, 7, DCZID_EL0,             0x00040038, WHvArm64RegisterDczidEl0,           0, 0),
+    ENTRY_REGULAR(3, 3,14, 0, 0, CNTFRQ_EL0,            0x00058000, WHvArm64RegisterCntfrqEl0,          0, 0),
+};
+#undef ENTRY_REGULAR
+#undef ENTRY_MISSING
+#undef ENTRY_UNDEF
+
+
+/**
+ * @callback_method_impl{FNCPUMARMCPUIDREGQUERY}
+ */
+static DECLCALLBACK(int) nemR3WinCpuIdRegQuery(PVM pVM, PVMCPU pVCpu, uint32_t idReg, void *pvUser, uint64_t *puValue)
+{
+    RT_NOREF_PV(pvUser);
+    *puValue = 0;
+
+    /*
+     * Lookup the register in the translation table.
+     */
+    size_t iReg = 0;
+    while (iReg < RT_ELEMENTS(g_aNemWinArmIdRegs) && g_aNemWinArmIdRegs[iReg].idReg != idReg)
+        iReg++;
+    if (iReg >= RT_ELEMENTS(g_aNemWinArmIdRegs))
+    {
+        LogFlow(("nemR3WinCpuIdRegQuery: Unknown register: %#x\n", idReg));
+        return VERR_CPUM_UNSUPPORTED_ID_REGISTER;
+    }
+
+    /*
+     * Query the register.
+     *
+     * Note! Most of the registers are partition wide and must be queried/set
+     *       with WHV_ANY_VP as CPU number.  We encode this in the fPerVCpu
+     *       g_aNemWinArmIdRegs member.  In case the hypervisor should change
+     *       the register scope, we will try to adopt on the fly.
+     */
+    uint32_t           idCpu   = !g_aNemWinArmIdRegs[iReg].fPerVCpu ? WHV_ANY_VP : pVCpu->idCpu;
+    WHV_REGISTER_NAME  enmName = g_aNemWinArmIdRegs[iReg].enmHvName;
+    WHV_REGISTER_VALUE Value   = {};
+    HRESULT            hrc     = WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, idCpu, &enmName, 1, &Value);
+    if (hrc == ERROR_HV_INVALID_PARAMETER)
+    {
+        uint32_t const idCpu2 = idCpu == WHV_ANY_VP ? pVCpu->idCpu : WHV_ANY_VP;
+        HRESULT const  hrc2   = WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, idCpu2, &enmName, 1, &Value);
+        if (SUCCEEDED(hrc2))
+        {
+            LogRel(("nemR3WinCpuIdRegQuery: TODO: mixed up fPerVCpu setting for idReg=%#x/%s: %d -> %Rhrc, while %d works\n",
+                    idReg, g_aNemWinArmIdRegs[iReg].pszName, idCpu, hrc, idCpu2));
+            idCpu = idCpu2;
+            hrc   = hrc2;
+        }
+    }
+    LogRel2(("nemR3WinCpuIdRegQuery: WHvGetVirtualProcessorRegisters(,%d, %#x (%s),) -> %Rhrc %#RX64\n",
+             idCpu, g_aNemWinArmIdRegs[iReg].enmHvName, g_aNemWinArmIdRegs[iReg].pszName, hrc, Value.Reg64));
+    if (SUCCEEDED(hrc))
+    {
+        *puValue = Value.Reg64;
+        return VINF_SUCCESS;
+    }
+
+    /* Do we complain about this? */
+    if (!g_aNemWinArmIdRegs[iReg].fUndefined && !g_aNemWinArmIdRegs[iReg].fUndefined)
+    {
+        LogFlow(("NEM: WHvGetVirtualProcessorRegisters(,%d, %#x (%s),) failed: %Rhrc\n",
+                 idCpu, g_aNemWinArmIdRegs[iReg].enmHvName, g_aNemWinArmIdRegs[iReg].pszName, hrc));
+        AssertLogRelMsgReturn(!g_aNemWinArmIdRegs[iReg].fMustWork,
+                              ("NEM: WHvGetVirtualProcessorRegisters(,%d, %#x (%s),) failed: %Rhrc\n",
+                               idCpu, g_aNemWinArmIdRegs[iReg].enmHvName, g_aNemWinArmIdRegs[iReg].pszName, hrc),
+                              VERR_NEM_GET_REGISTERS_FAILED);
+    }
+    /** @todo do we return other status codes here? */
+    return VERR_CPUM_UNSUPPORTED_ID_REGISTER;
+}
+
+
+/**
+ * @callback_method_impl{FNCPUMARMCPUIDREGUPDATE}
+ */
+static DECLCALLBACK(int) nemR3WinCpuIdRegUpdate(PVM pVM, PVMCPU pVCpu, uint32_t idReg, uint64_t uNewValue, void *pvUser,
+                                                uint64_t *puUpdatedValue)
+{
+    if (puUpdatedValue)
+        *puUpdatedValue = 0;
+    RT_NOREF(pvUser);
+
+    /*
+     * Lookup the register in the translation table.
+     */
+    size_t iReg = 0;
+    while (iReg < RT_ELEMENTS(g_aNemWinArmIdRegs) && g_aNemWinArmIdRegs[iReg].idReg != idReg)
+        iReg++;
+    if (iReg >= RT_ELEMENTS(g_aNemWinArmIdRegs))
+    {
+        LogFlow(("nemR3WinCpuIdRegUpdate: Unknown register: %#x\n", idReg));
+        return VERR_CPUM_UNSUPPORTED_ID_REGISTER;
+    }
+
+    /*
+     * Query the current value.
+     *
+     * Note! Most of the registers are partition wide and must be queried/set
+     *       with WHV_ANY_VP as CPU number.  We encode this in the fPerVCpu
+     *       g_aNemWinArmIdRegs member.  In case the hypervisor should change
+     *       the register scope, we will try to adopt on the fly.
+     */
+    HANDLE const       hPartition = pVM->nem.s.hPartition;
+    WHV_REGISTER_NAME  enmName    = g_aNemWinArmIdRegs[iReg].enmHvName;
+    uint32_t           idCpu      = !g_aNemWinArmIdRegs[iReg].fPerVCpu ? WHV_ANY_VP : pVCpu->idCpu;
+    WHV_REGISTER_VALUE OldValue   = {};
+    HRESULT            hrcGet     = WHvGetVirtualProcessorRegisters(hPartition, idCpu, &enmName, 1, &OldValue);
+    if (hrcGet == ERROR_HV_INVALID_PARAMETER)
+    {
+        uint32_t const idCpu2 = idCpu == WHV_ANY_VP ? pVCpu->idCpu : WHV_ANY_VP;
+        HRESULT const  hrc2   = WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, idCpu2, &enmName, 1, &OldValue);
+        if (SUCCEEDED(hrc2))
+        {
+            LogRel(("nemR3WinCpuIdRegUpdate: TODO: mixed up fPerVCpu setting for idReg=%#x/%s: %d -> %Rhrc, while %d works\n",
+                    idReg, g_aNemWinArmIdRegs[iReg].pszName, idCpu, hrcGet, idCpu2));
+            idCpu  = idCpu2;
+            hrcGet = hrc2;
+        }
+    }
+
+    /* Quietly skip setting partition wide registers if this isn't vCPU #0.  */
+    if (idCpu == WHV_ANY_VP && pVCpu->idCpu != 0 && SUCCEEDED(hrcGet))
+    {
+        Assert(OldValue.Reg64 == uNewValue);
+        if (puUpdatedValue)
+            *puUpdatedValue = uNewValue;
+        return VINF_SUCCESS;
+    }
+
+    /*
+     * Do the setting and query the updated value on success.
+     */
+    WHV_REGISTER_VALUE NewValue   = {};
+    NewValue.Reg64 = uNewValue;
+    HRESULT const      hrcSet     = WHvSetVirtualProcessorRegisters(hPartition, idCpu, &enmName, 1, &NewValue);
+    Assert(SUCCEEDED(hrcGet) == SUCCEEDED(hrcSet)); RT_NOREF(hrcGet);
+    if (SUCCEEDED(hrcSet))
+    {
+        WHV_REGISTER_VALUE UpdatedValue = {};
+        HRESULT const  hrcGet2 = WHvGetVirtualProcessorRegisters(hPartition, idCpu, &enmName, 1, &UpdatedValue);
+        Assert(SUCCEEDED(hrcGet2));
+
+        if (UpdatedValue.Reg64 != uNewValue)
+            LogRel(("nemR3WinCpuIdRegUpdate: idCpu=%d idReg=%#x (%s): old=%#RX64 new=%#RX64 -> %#RX64\n",
+                    idCpu, idReg, g_aNemWinArmIdRegs[iReg].pszName, OldValue.Reg64, uNewValue, UpdatedValue.Reg64));
+        else if (OldValue.Reg64 != uNewValue || LogRelIsFlowEnabled())
+            LogRel(("nemR3WinCpuIdRegUpdate: idCpu=%d idReg=%#x (%s): old=%#RX64 new=%#RX64\n",
+                    idCpu, idReg, g_aNemWinArmIdRegs[iReg].pszName, OldValue.Reg64, uNewValue));
+
+        if (puUpdatedValue)
+            *puUpdatedValue = SUCCEEDED(hrcGet2) ? UpdatedValue.Reg64 : uNewValue;
+        return VINF_SUCCESS;
+    }
+    LogRel(("nemR3WinCpuIdRegUpdate: WHvSetVirtualProcessorRegisters(,%#x, %#x (%s), %#RX64) -> %Rhrc\n",
+            idCpu, g_aNemWinArmIdRegs[iReg].enmHvName, g_aNemWinArmIdRegs[iReg].pszName, uNewValue, hrcSet));
+
+    AssertLogRelMsgReturn(!g_aNemWinArmIdRegs[iReg].fMustWork,
+                          ("NEM: hrcSet=%Rhrc idReg=%#x (%s)\n", hrcSet, idReg, g_aNemWinArmIdRegs[iReg].pszName),
+                          VERR_INTERNAL_ERROR_5);
+
+    /* Unsupported registers fail with bad argument status when getting them: */
+    // if (hrcGet == E_INVALIDARG)
+        return VERR_CPUM_UNSUPPORTED_ID_REGISTER;
+    // /** @todo what's the other status codes here... */
+    // return nemR3DarwinHvSts2Rc(rcHvSet);
+}
+
+
 static int nemR3NativeInitSetupVm(PVM pVM)
 {
     WHV_PARTITION_HANDLE hPartition = pVM->nem.s.hPartition;
@@ -598,19 +1224,6 @@ static int nemR3NativeInitSetupVm(PVM pVM)
      */
     WHV_PARTITION_PROPERTY Property;
     HRESULT                hrc;
-
-#if 0
-    /* Not sure if we really need to set the vendor.
-       Update: Apparently we don't. WHvPartitionPropertyCodeProcessorVendor was removed in 17110. */
-    RT_ZERO(Property);
-    Property.ProcessorVendor = pVM->nem.s.enmCpuVendor == CPUMCPUVENDOR_AMD ? WHvProcessorVendorAmd
-                             : WHvProcessorVendorIntel;
-    hrc = WHvSetPartitionProperty(hPartition, WHvPartitionPropertyCodeProcessorVendor, &Property, sizeof(Property));
-    if (FAILED(hrc))
-        return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
-                          "Failed to set WHvPartitionPropertyCodeProcessorVendor to %u: %Rhrc (Last=%#x/%u)",
-                          Property.ProcessorVendor, hrc, RTNtLastStatusValue(), RTNtLastErrorValue());
-#endif
 
     /* Not sure if we really need to set the cache line flush size. */
     RT_ZERO(Property);
@@ -634,6 +1247,11 @@ static int nemR3NativeInitSetupVm(PVM pVM)
         return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
                           "Failed to set WHvPartitionPropertyCodeProcessorFeatures to %'#RX64: %Rhrc (Last=%#x/%u)",
                           pVM->nem.s.uCpuFeatures.u64, hrc, RTNtLastStatusValue(), RTNtLastErrorValue());
+
+    /* Configure the GIC. */
+    int rc = nemR3WinGicCreate(pVM);
+    if (RT_FAILURE(rc))
+        return rc;
 
     /*
      * Set up the partition.
@@ -668,66 +1286,51 @@ static int nemR3NativeInitSetupVm(PVM pVM)
                               "Call to WHvCreateVirtualProcessor failed: %Rhrc (Last=%#x/%u)", hrc, rcNtLast, dwErrLast);
         }
 
+        PVMCPU const pVCpu = pVM->apCpusR3[idCpu];
+#if 1 /* just curious */
+        uint64_t  uMidr   = 0;
+        int const rcMidr  = nemR3WinCpuIdRegQuery(pVM, pVCpu, ARMV8_AARCH64_SYSREG_MIDR_EL1, NULL, &uMidr);
+        uint64_t  uMpIdr  = 0;
+        int const rcMpIdr = nemR3WinCpuIdRegQuery(pVM, pVCpu, ARMV8_AARCH64_SYSREG_MPIDR_EL1, NULL, &uMpIdr);
+        LogRel(("NEM: Debug: CPU #%u: default MIDR_EL1=%#RX64 (%Rrc),  default MPIDR_EL1=%#RX64 (%Rrc)\n",
+                idCpu, uMidr, rcMidr, uMpIdr, rcMpIdr));
+#endif
         if (idCpu == 0)
         {
-            /* Need to query the ID registers and populate CPUM. */
-            CPUMIDREGS IdRegs; RT_ZERO(IdRegs);
-
-#if 1
-            WHV_REGISTER_NAME  aenmNames[12];
-            WHV_REGISTER_VALUE aValues[12];
-            RT_ZERO(aValues);
-
-            aenmNames[0] = WHvArm64RegisterIdAa64Dfr0El1;
-            aenmNames[1] = WHvArm64RegisterIdAa64Dfr1El1;
-            aenmNames[2] = WHvArm64RegisterIdAa64Isar0El1;
-            aenmNames[3] = WHvArm64RegisterIdAa64Isar1El1;
-            aenmNames[4] = WHvArm64RegisterIdAa64Isar2El1;
-            aenmNames[5] = WHvArm64RegisterIdAa64Mmfr0El1;
-            aenmNames[6] = WHvArm64RegisterIdAa64Mmfr1El1;
-            aenmNames[7] = WHvArm64RegisterIdAa64Mmfr2El1;
-            aenmNames[8] = WHvArm64RegisterIdAa64Pfr0El1;
-            aenmNames[9] = WHvArm64RegisterIdAa64Pfr1El1;
-            aenmNames[10] = WHvArm64RegisterCtrEl0;
-            aenmNames[11] = WHvArm64RegisterDczidEl0;
-
-            hrc = WHvGetVirtualProcessorRegisters(hPartition, WHV_ANY_VP /*idCpu*/, aenmNames, RT_ELEMENTS(aenmNames), aValues);
-            AssertLogRelMsgReturn(SUCCEEDED(hrc),
-                                  ("WHvGetVirtualProcessorRegisters(%p, %u,,%u,) -> %Rhrc (Last=%#x/%u)\n",
-                                   hPartition, WHV_ANY_VP, RT_ELEMENTS(aenmNames), hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
-                                  , VERR_NEM_GET_REGISTERS_FAILED);
-
-            IdRegs.u64RegIdAa64Pfr0El1  = aValues[8].Reg64;
-            IdRegs.u64RegIdAa64Pfr1El1  = aValues[9].Reg64;
-            IdRegs.u64RegIdAa64Dfr0El1  = aValues[0].Reg64;
-            IdRegs.u64RegIdAa64Dfr1El1  = aValues[1].Reg64;
-            IdRegs.u64RegIdAa64Isar0El1 = aValues[2].Reg64;
-            IdRegs.u64RegIdAa64Isar1El1 = aValues[3].Reg64;
-            IdRegs.u64RegIdAa64Isar2El1 = aValues[4].Reg64;
-            IdRegs.u64RegIdAa64Mmfr0El1 = aValues[5].Reg64;
-            IdRegs.u64RegIdAa64Mmfr1El1 = aValues[6].Reg64;
-            IdRegs.u64RegIdAa64Mmfr2El1 = aValues[7].Reg64;
-            IdRegs.u64RegCtrEl0         = aValues[10].Reg64;
-            IdRegs.u64RegDczidEl0       = aValues[11].Reg64;
-#else
-            switch (pVM->nem.s.cPhysicalAddressWidth)
-            {
-                case 32: IdRegs.u64RegIdAa64Mmfr0El1 = RT_BF_SET(IdRegs.u64RegIdAa64Mmfr0El1, ARMV8_ID_AA64MMFR0_EL1_PARANGE, ARMV8_ID_AA64MMFR0_EL1_PARANGE_32BITS); break;
-                case 36: IdRegs.u64RegIdAa64Mmfr0El1 = RT_BF_SET(IdRegs.u64RegIdAa64Mmfr0El1, ARMV8_ID_AA64MMFR0_EL1_PARANGE, ARMV8_ID_AA64MMFR0_EL1_PARANGE_36BITS); break;
-                case 40: IdRegs.u64RegIdAa64Mmfr0El1 = RT_BF_SET(IdRegs.u64RegIdAa64Mmfr0El1, ARMV8_ID_AA64MMFR0_EL1_PARANGE, ARMV8_ID_AA64MMFR0_EL1_PARANGE_40BITS); break;
-                case 42: IdRegs.u64RegIdAa64Mmfr0El1 = RT_BF_SET(IdRegs.u64RegIdAa64Mmfr0El1, ARMV8_ID_AA64MMFR0_EL1_PARANGE, ARMV8_ID_AA64MMFR0_EL1_PARANGE_42BITS); break;
-                case 44: IdRegs.u64RegIdAa64Mmfr0El1 = RT_BF_SET(IdRegs.u64RegIdAa64Mmfr0El1, ARMV8_ID_AA64MMFR0_EL1_PARANGE, ARMV8_ID_AA64MMFR0_EL1_PARANGE_44BITS); break;
-                case 48: IdRegs.u64RegIdAa64Mmfr0El1 = RT_BF_SET(IdRegs.u64RegIdAa64Mmfr0El1, ARMV8_ID_AA64MMFR0_EL1_PARANGE, ARMV8_ID_AA64MMFR0_EL1_PARANGE_48BITS); break;
-                case 52: IdRegs.u64RegIdAa64Mmfr0El1 = RT_BF_SET(IdRegs.u64RegIdAa64Mmfr0El1, ARMV8_ID_AA64MMFR0_EL1_PARANGE, ARMV8_ID_AA64MMFR0_EL1_PARANGE_52BITS); break;
-                default: AssertReleaseFailed(); break;
-            }
-#endif
-
-            int rc = CPUMR3PopulateFeaturesByIdRegisters(pVM, &IdRegs);
+            rc = CPUMR3PopulateGuestFeaturesViaCallbacks(pVM, pVCpu, nemR3WinCpuIdRegQuery, nemR3WinCpuIdRegUpdate, NULL /*pvUser*/);
             if (RT_FAILURE(rc))
-                return rc;
+                return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
+                                  "CPUMR3PopulateGuestFeaturesViaCallbacks failed on vCPU #%u: %Rrc", idCpu, rc);
+
+            /** @todo this should be exposed in the read-only cpum GuestFeatures! */
+            uint64_t uValue = 0;
+            rc = CPUMR3QueryGuestIdReg(pVM, ARMV8_AARCH64_SYSREG_ID_AA64DFR0_EL1, &uValue);
+            if (RT_SUCCESS(rc))
+            {
+                pVM->nem.s.cBreakpoints = RT_BF_GET(uValue, ARMV8_ID_AA64DFR0_EL1_BRPS) + 1;
+                pVM->nem.s.cWatchpoints = RT_BF_GET(uValue, ARMV8_ID_AA64DFR0_EL1_WRPS) + 1;
+            }
         }
+        else
+        {
+            rc = CPUMR3PopulateGuestFeaturesViaCallbacks(pVM, pVCpu, NULL /*pfnQuery*/, nemR3WinCpuIdRegUpdate, NULL /*pvUser*/);
+            if (RT_FAILURE(rc))
+                return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
+                                  "CPUMR3PopulateGuestFeaturesViaCallbacks failed on vCPU #%u: %Rrc", idCpu, rc);
+        }
+
+        /* Configure the GIC re-distributor region for the GIC. */
+        WHV_REGISTER_NAME  enmName = My_WHvArm64RegisterGicrBaseGpa;
+        WHV_REGISTER_VALUE Value;
+        Value.Reg64 = pVM->nem.s.GCPhysMmioBaseReDist + idCpu * _128K;
+
+        hrc = WHvSetVirtualProcessorRegisters(hPartition, idCpu, &enmName, 1, &Value);
+        AssertLogRelMsgReturn(SUCCEEDED(hrc),
+                              ("WHvSetVirtualProcessorRegisters(%p, %u, WHvArm64RegisterGicrBaseGpa,) -> %Rhrc (Last=%#x/%u)\n",
+                               hPartition, idCpu, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                              , VERR_NEM_SET_REGISTERS_FAILED);
     }
+
     pVM->nem.s.fCreatedEmts = true;
 
     LogRel(("NEM: Successfully set up partition\n"));
@@ -735,20 +1338,7 @@ static int nemR3NativeInitSetupVm(PVM pVM)
 }
 
 
-/**
- * Try initialize the native API.
- *
- * This may only do part of the job, more can be done in
- * nemR3NativeInitAfterCPUM() and nemR3NativeInitCompleted().
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   fFallback       Whether we're in fallback mode or use-NEM mode. In
- *                          the latter we'll fail if we cannot initialize.
- * @param   fForced         Whether the HMForced flag is set and we should
- *                          fail if we cannot initialize.
- */
-int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
+DECLHIDDEN(int) nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
 {
     g_uBuildNo = RTSystemGetNtBuildNo();
 
@@ -840,6 +1430,7 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                         STAMR3RegisterF(pVM, &pNemCpu->StatQueryCpuTick,        STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of TSC queries",                  "/NEM/CPU%u/QueryCpuTick", idCpu);
                     }
 
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
                     if (!SUPR3IsDriverless())
                     {
                         PUVM pUVM = pVM->pUVM;
@@ -850,10 +1441,9 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                                               STAMUNIT_PAGES, STAM_REFRESH_GRP_NEM, "Pages in use by hypervisor",
                                               "/NEM/R0Stats/cPagesInUse");
                     }
+#endif /* VBOX_WITH_R0_MODULES && !VBOX_WITH_MINIMAL_R0 */
                 }
-
             }
-
         }
     }
 
@@ -871,13 +1461,7 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
 }
 
 
-/**
- * This is called after CPUMR3Init is done.
- *
- * @returns VBox status code.
- * @param   pVM                 The VM handle..
- */
-int nemR3NativeInitAfterCPUM(PVM pVM)
+DECLHIDDEN(int) nemR3NativeInitAfterCPUM(PVM pVM)
 {
     /*
      * Validate sanity.
@@ -902,17 +1486,120 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
 }
 
 
-int nemR3NativeInitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+/**
+ * @callback_method_impl{PFNSSMINTSAVEEXEC, Saves the NEM/windows state.}
+ */
+static DECLCALLBACK(int) nemR3WinSave(PVM pVM, PSSMHANDLE pSSM)
 {
-    //BOOL fRet = SetThreadPriority(GetCurrentThread(), 0);
-    //AssertLogRel(fRet);
+    /*
+     * Save the Hyper-V activity state for all CPUs.
+     */
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    {
+        PVMCPUCC pVCpu = pVM->apCpusR3[i];
 
-    NOREF(pVM); NOREF(enmWhat);
+        static const WHV_REGISTER_NAME s_Name = WHvRegisterInternalActivityState;
+        WHV_REGISTER_VALUE Reg;
+
+        HRESULT hrc = WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, &s_Name, 1, &Reg);
+        AssertLogRelMsgReturn(SUCCEEDED(hrc),
+                              ("WHvGetVirtualProcessorRegisters(%p, 0,{WHvRegisterInternalActivityState}, 1,) -> %Rhrc (Last=%#x/%u)\n",
+                               pVM->nem.s.hPartition, pVCpu->idCpu, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                              , VERR_NEM_IPE_9);
+
+        SSMR3PutU64(pSSM, Reg.Reg64);
+    }
+
+    return SSMR3PutU32(pSSM, UINT32_MAX); /* terminator */
+}
+
+
+/**
+ * @callback_method_impl{PFNSSMINTLOADEXEC, Loads the NEM/windows state.}
+ */
+static DECLCALLBACK(int) nemR3WinLoad(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+{
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
+
+    /*
+     * Validate version.
+     */
+    if (uVersion != 1)
+    {
+        AssertMsgFailed(("nemR3WinLoad: Invalid version uVersion=%u!\n", uVersion));
+        return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
+    }
+
+    /*
+     * Restore the Hyper-V activity states for all vCPUs.
+     */
+    VMCPU_SET_STATE(pVM->apCpusR3[0], VMCPUSTATE_STARTED);
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    {
+        PVMCPUCC pVCpu = pVM->apCpusR3[i];
+
+        static const WHV_REGISTER_NAME s_Name = WHvRegisterInternalActivityState;
+        WHV_REGISTER_VALUE Reg;
+        int rc = SSMR3GetU64(pSSM, &Reg.Reg64);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        HRESULT hrc = WHvSetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, &s_Name, 1, &Reg);
+        AssertLogRelMsgReturn(SUCCEEDED(hrc),
+                              ("WHvSetVirtualProcessorRegisters(%p, 0,{WHvRegisterInternalActivityState}, 1,) -> %Rhrc (Last=%#x/%u)\n",
+                               pVM->nem.s.hPartition, pVCpu->idCpu, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                              , VERR_NEM_IPE_9);
+    }
+
+    /* terminator */
+    uint32_t u32;
+    int rc = SSMR3GetU32(pSSM, &u32);
+    if (RT_FAILURE(rc))
+        return rc;
+    if (u32 != UINT32_MAX)
+    {
+        AssertMsgFailed(("u32=%#x\n", u32));
+        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+    }
     return VINF_SUCCESS;
 }
 
 
-int nemR3NativeTerm(PVM pVM)
+/**
+ * @callback_method_impl{PFNSSMINTLOADDONE,
+ *          For loading saved system ID registers.}
+ */
+static DECLCALLBACK(int) nemR3WinLoadDone(PVM pVM, PSSMHANDLE pSSM)
+{
+    VM_ASSERT_EMT(pVM);
+    int rc = CPUMR3PopulateGuestFeaturesViaCallbacks(pVM, pVM->apCpusR3[0], NULL, nemR3WinCpuIdRegUpdate, pSSM /*pvUser*/);
+    if (RT_FAILURE(rc))
+        return SSMR3SetLoadError(pSSM, rc, RT_SRC_POS, "CPUMR3PopulateGuestFeaturesViaCallbacks failed: %Rrc", rc);
+    return VINF_SUCCESS;
+}
+
+
+DECLHIDDEN(int) nemR3NativeInitCompletedRing3(PVM pVM)
+{
+    //BOOL fRet = SetThreadPriority(GetCurrentThread(), 0);
+    //AssertLogRel(fRet);
+
+    /*
+     * Register the saved state data unit.
+     */
+    int rc = SSMR3RegisterInternal(pVM, "nem-win", 1, NEM_HV_SAVED_STATE_VERSION,
+                                   sizeof(uint64_t),
+                                   NULL, NULL, NULL,
+                                   NULL, nemR3WinSave, NULL,
+                                   NULL, nemR3WinLoad, nemR3WinLoadDone);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    return VINF_SUCCESS;
+}
+
+
+DECLHIDDEN(int) nemR3NativeTerm(PVM pVM)
 {
     /*
      * Delete the partition.
@@ -938,25 +1625,13 @@ int nemR3NativeTerm(PVM pVM)
 }
 
 
-/**
- * VM reset notification.
- *
- * @param   pVM         The cross context VM structure.
- */
-void nemR3NativeReset(PVM pVM)
+DECLHIDDEN(void) nemR3NativeReset(PVM pVM)
 {
     RT_NOREF(pVM);
 }
 
 
-/**
- * Reset CPU due to INIT IPI or hot (un)plugging.
- *
- * @param   pVCpu       The cross context virtual CPU structure of the CPU being
- *                      reset.
- * @param   fInitIpi    Whether this is the INIT IPI or hot (un)plugging case.
- */
-void nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
+DECLHIDDEN(void) nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
 {
     RT_NOREF(pVCpu, fInitIpi);
 }
@@ -984,6 +1659,12 @@ NEM_TMPL_STATIC int nemHCWinCopyStateToHyperV(PVMCC pVM, PVMCPUCC pVCpu)
             aValues[iReg].Reg64  = (a_uValue); \
             iReg++; \
         } while (0)
+#define ADD_SYSREG64(a_enmName, a_uValue) do { \
+            aenmNames[iReg]      = (a_enmName); \
+            aValues[iReg].Reg128.High64 = 0; \
+            aValues[iReg].Reg64  = (a_uValue).u64; \
+            iReg++; \
+        } while (0)
 #define ADD_REG128(a_enmName, a_uValue) do { \
             aenmNames[iReg] = (a_enmName); \
             aValues[iReg].Reg128.Low64  = (a_uValue).au64[0]; \
@@ -991,93 +1672,80 @@ NEM_TMPL_STATIC int nemHCWinCopyStateToHyperV(PVMCC pVM, PVMCPUCC pVCpu)
             iReg++; \
         } while (0)
 
-    /* GPRs */
-    if (fWhat & CPUMCTX_EXTRN_GPRS_MASK)
+    if (fWhat & (CPUMCTX_EXTRN_GPRS_MASK | CPUMCTX_EXTRN_PC | CPUMCTX_EXTRN_FPCR | CPUMCTX_EXTRN_FPSR))
     {
-        if (fWhat & CPUMCTX_EXTRN_X0)
-            ADD_REG64(WHvArm64RegisterX0, pVCpu->cpum.GstCtx.aGRegs[0]);
-        if (fWhat & CPUMCTX_EXTRN_X1)
-            ADD_REG64(WHvArm64RegisterX1, pVCpu->cpum.GstCtx.aGRegs[1]);
-        if (fWhat & CPUMCTX_EXTRN_X2)
-            ADD_REG64(WHvArm64RegisterX2, pVCpu->cpum.GstCtx.aGRegs[2]);
-        if (fWhat & CPUMCTX_EXTRN_X3)
-            ADD_REG64(WHvArm64RegisterX3, pVCpu->cpum.GstCtx.aGRegs[3]);
-        if (fWhat & CPUMCTX_EXTRN_X4_X28)
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumRegs); i++)
         {
-            ADD_REG64(WHvArm64RegisterX4,  pVCpu->cpum.GstCtx.aGRegs[4]);
-            ADD_REG64(WHvArm64RegisterX5,  pVCpu->cpum.GstCtx.aGRegs[5]);
-            ADD_REG64(WHvArm64RegisterX6,  pVCpu->cpum.GstCtx.aGRegs[6]);
-            ADD_REG64(WHvArm64RegisterX7,  pVCpu->cpum.GstCtx.aGRegs[7]);
-            ADD_REG64(WHvArm64RegisterX8,  pVCpu->cpum.GstCtx.aGRegs[8]);
-            ADD_REG64(WHvArm64RegisterX9,  pVCpu->cpum.GstCtx.aGRegs[9]);
-            ADD_REG64(WHvArm64RegisterX10, pVCpu->cpum.GstCtx.aGRegs[10]);
-            ADD_REG64(WHvArm64RegisterX11, pVCpu->cpum.GstCtx.aGRegs[11]);
-            ADD_REG64(WHvArm64RegisterX12, pVCpu->cpum.GstCtx.aGRegs[12]);
-            ADD_REG64(WHvArm64RegisterX13, pVCpu->cpum.GstCtx.aGRegs[13]);
-            ADD_REG64(WHvArm64RegisterX14, pVCpu->cpum.GstCtx.aGRegs[14]);
-            ADD_REG64(WHvArm64RegisterX15, pVCpu->cpum.GstCtx.aGRegs[15]);
-            ADD_REG64(WHvArm64RegisterX16, pVCpu->cpum.GstCtx.aGRegs[16]);
-            ADD_REG64(WHvArm64RegisterX17, pVCpu->cpum.GstCtx.aGRegs[17]);
-            ADD_REG64(WHvArm64RegisterX18, pVCpu->cpum.GstCtx.aGRegs[18]);
-            ADD_REG64(WHvArm64RegisterX19, pVCpu->cpum.GstCtx.aGRegs[19]);
-            ADD_REG64(WHvArm64RegisterX20, pVCpu->cpum.GstCtx.aGRegs[20]);
-            ADD_REG64(WHvArm64RegisterX21, pVCpu->cpum.GstCtx.aGRegs[21]);
-            ADD_REG64(WHvArm64RegisterX22, pVCpu->cpum.GstCtx.aGRegs[22]);
-            ADD_REG64(WHvArm64RegisterX23, pVCpu->cpum.GstCtx.aGRegs[23]);
-            ADD_REG64(WHvArm64RegisterX24, pVCpu->cpum.GstCtx.aGRegs[24]);
-            ADD_REG64(WHvArm64RegisterX25, pVCpu->cpum.GstCtx.aGRegs[25]);
-            ADD_REG64(WHvArm64RegisterX26, pVCpu->cpum.GstCtx.aGRegs[26]);
-            ADD_REG64(WHvArm64RegisterX27, pVCpu->cpum.GstCtx.aGRegs[27]);
-            ADD_REG64(WHvArm64RegisterX28, pVCpu->cpum.GstCtx.aGRegs[28]);
+            if (s_aCpumRegs[i].fCpumExtrn & fWhat)
+            {
+                const CPUMCTXGREG *pReg = (const CPUMCTXGREG *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumRegs[i].offCpumCtx);
+                ADD_REG64(s_aCpumRegs[i].enmWHvReg, *pReg);
+            }
         }
-        if (fWhat & CPUMCTX_EXTRN_LR)
-            ADD_REG64(WHvArm64RegisterLr, pVCpu->cpum.GstCtx.aGRegs[30]);
-        if (fWhat & CPUMCTX_EXTRN_FP)
-            ADD_REG64(WHvArm64RegisterFp, pVCpu->cpum.GstCtx.aGRegs[29]);
     }
 
-    /* RIP & Flags */
-    if (fWhat & CPUMCTX_EXTRN_PC)
-        ADD_REG64_RAW(WHvArm64RegisterPc, pVCpu->cpum.GstCtx.Pc.u64);
-    if (fWhat & CPUMCTX_EXTRN_PSTATE)
-        ADD_REG64_RAW(WHvArm64RegisterPstate, pVCpu->cpum.GstCtx.fPState);
-
-    /* Vector state. */
     if (fWhat & CPUMCTX_EXTRN_V0_V31)
     {
-        ADD_REG128(WHvArm64RegisterQ0,  pVCpu->cpum.GstCtx.aVRegs[0]);
-        ADD_REG128(WHvArm64RegisterQ1,  pVCpu->cpum.GstCtx.aVRegs[1]);
-        ADD_REG128(WHvArm64RegisterQ2,  pVCpu->cpum.GstCtx.aVRegs[2]);
-        ADD_REG128(WHvArm64RegisterQ3,  pVCpu->cpum.GstCtx.aVRegs[3]);
-        ADD_REG128(WHvArm64RegisterQ4,  pVCpu->cpum.GstCtx.aVRegs[4]);
-        ADD_REG128(WHvArm64RegisterQ5,  pVCpu->cpum.GstCtx.aVRegs[5]);
-        ADD_REG128(WHvArm64RegisterQ6,  pVCpu->cpum.GstCtx.aVRegs[6]);
-        ADD_REG128(WHvArm64RegisterQ7,  pVCpu->cpum.GstCtx.aVRegs[7]);
-        ADD_REG128(WHvArm64RegisterQ8,  pVCpu->cpum.GstCtx.aVRegs[8]);
-        ADD_REG128(WHvArm64RegisterQ9,  pVCpu->cpum.GstCtx.aVRegs[9]);
-        ADD_REG128(WHvArm64RegisterQ10, pVCpu->cpum.GstCtx.aVRegs[10]);
-        ADD_REG128(WHvArm64RegisterQ11, pVCpu->cpum.GstCtx.aVRegs[11]);
-        ADD_REG128(WHvArm64RegisterQ12, pVCpu->cpum.GstCtx.aVRegs[12]);
-        ADD_REG128(WHvArm64RegisterQ13, pVCpu->cpum.GstCtx.aVRegs[13]);
-        ADD_REG128(WHvArm64RegisterQ14, pVCpu->cpum.GstCtx.aVRegs[14]);
-        ADD_REG128(WHvArm64RegisterQ15, pVCpu->cpum.GstCtx.aVRegs[15]);
-        ADD_REG128(WHvArm64RegisterQ16, pVCpu->cpum.GstCtx.aVRegs[16]);
-        ADD_REG128(WHvArm64RegisterQ17, pVCpu->cpum.GstCtx.aVRegs[17]);
-        ADD_REG128(WHvArm64RegisterQ18, pVCpu->cpum.GstCtx.aVRegs[18]);
-        ADD_REG128(WHvArm64RegisterQ19, pVCpu->cpum.GstCtx.aVRegs[19]);
-        ADD_REG128(WHvArm64RegisterQ20, pVCpu->cpum.GstCtx.aVRegs[20]);
-        ADD_REG128(WHvArm64RegisterQ21, pVCpu->cpum.GstCtx.aVRegs[21]);
-        ADD_REG128(WHvArm64RegisterQ22, pVCpu->cpum.GstCtx.aVRegs[22]);
-        ADD_REG128(WHvArm64RegisterQ23, pVCpu->cpum.GstCtx.aVRegs[23]);
-        ADD_REG128(WHvArm64RegisterQ24, pVCpu->cpum.GstCtx.aVRegs[24]);
-        ADD_REG128(WHvArm64RegisterQ25, pVCpu->cpum.GstCtx.aVRegs[25]);
-        ADD_REG128(WHvArm64RegisterQ26, pVCpu->cpum.GstCtx.aVRegs[26]);
-        ADD_REG128(WHvArm64RegisterQ27, pVCpu->cpum.GstCtx.aVRegs[27]);
-        ADD_REG128(WHvArm64RegisterQ28, pVCpu->cpum.GstCtx.aVRegs[28]);
-        ADD_REG128(WHvArm64RegisterQ29, pVCpu->cpum.GstCtx.aVRegs[29]);
-        ADD_REG128(WHvArm64RegisterQ30, pVCpu->cpum.GstCtx.aVRegs[30]);
-        ADD_REG128(WHvArm64RegisterQ31, pVCpu->cpum.GstCtx.aVRegs[31]);
+        /* SIMD/FP registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumFpRegs); i++)
+        {
+            PCCPUMCTXVREG pVReg = (PCCPUMCTXVREG)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumFpRegs[i].offCpumCtx);
+            ADD_REG128(s_aCpumFpRegs[i].enmWHvReg, *pVReg);
+        }
     }
+
+    if (fWhat & CPUMCTX_EXTRN_SYSREG_DEBUG)
+    {
+        for (uint32_t i = 0; i < pVM->nem.s.cBreakpoints; i++)
+        {
+            ADD_SYSREG64((WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgbcr0El1 + i), pVCpu->cpum.GstCtx.aBp[i].Ctrl);
+            ADD_SYSREG64((WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgbvr0El1 + i), pVCpu->cpum.GstCtx.aBp[i].Value);
+        }
+
+        for (uint32_t i = 0; i < pVM->nem.s.cWatchpoints; i++)
+        {
+            ADD_SYSREG64((WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgwcr0El1 + i), pVCpu->cpum.GstCtx.aWp[i].Ctrl);
+            ADD_SYSREG64((WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgwvr0El1 + i), pVCpu->cpum.GstCtx.aWp[i].Value);
+        }
+
+        ADD_SYSREG64(WHvArm64RegisterMdscrEl1, pVCpu->cpum.GstCtx.Mdscr);
+    }
+
+    if (fWhat & CPUMCTX_EXTRN_SYSREG_PAUTH_KEYS)
+    {
+        /* PAuth registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumPAuthKeyRegs); i++)
+        {
+            const CPUMCTXSYSREG *pReg = (const CPUMCTXSYSREG *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumPAuthKeyRegs[i].offCpumCtx);
+            ADD_SYSREG64(s_aCpumPAuthKeyRegs[i].enmWHvReg, *pReg);
+        }
+    }
+
+    if (fWhat & (CPUMCTX_EXTRN_SPSR | CPUMCTX_EXTRN_ELR | CPUMCTX_EXTRN_SP | CPUMCTX_EXTRN_SYSREG_MISC))
+    {
+        /* System registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegs); i++)
+        {
+            if (s_aCpumSysRegs[i].fCpumExtrn & fWhat)
+            {
+                const CPUMCTXSYSREG *pReg = (const CPUMCTXSYSREG *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumSysRegs[i].offCpumCtx);
+                ADD_SYSREG64(s_aCpumSysRegs[i].enmWHvReg, *pReg);
+            }
+        }
+    }
+
+    if (fWhat & CPUMCTX_EXTRN_SCTLR_TCR_TTBR)
+    {
+        /* Paging related system registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegsPg); i++)
+        {
+            const CPUMCTXSYSREG *pReg = (const CPUMCTXSYSREG *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumSysRegsPg[i].offCpumCtx);
+            ADD_SYSREG64(s_aCpumSysRegsPg[i].enmWHvReg, *pReg);
+        }
+    }
+
+    if (fWhat & CPUMCTX_EXTRN_PSTATE)
+        ADD_REG64_RAW(WHvArm64RegisterPstate, pVCpu->cpum.GstCtx.fPState);
 
 #undef ADD_REG64
 #undef ADD_REG64_RAW
@@ -1097,13 +1765,26 @@ NEM_TMPL_STATIC int nemHCWinCopyStateToHyperV(PVMCC pVM, PVMCPUCC pVCpu)
     AssertLogRelMsgFailed(("WHvSetVirtualProcessorRegisters(%p, %u,,%u,) -> %Rhrc (Last=%#x/%u)\n",
                            pVM->nem.s.hPartition, pVCpu->idCpu, iReg,
                            hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+
+    /* Try to figure out which register Hyper-V is not happy with exactly. */
+    for (uint32_t i = 0; i < iReg; i++)
+    {
+        hrc = WHvSetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, &aenmNames[i], 1, &aValues[i]);
+        if (FAILED(hrc))
+        {
+            AssertLogRelMsgFailed(("WHvSetVirtualProcessorRegisters(%p, %u, %#x, 1, %#RX64) -> %Rhrc (Last=%#x/%u)\n",
+                                   pVM->nem.s.hPartition, pVCpu->idCpu, aenmNames[i], aValues[i].Reg64,
+                                   hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+        }
+    }
+
     return VERR_INTERNAL_ERROR;
 }
 
 
 NEM_TMPL_STATIC int nemHCWinCopyStateFromHyperV(PVMCC pVM, PVMCPUCC pVCpu, uint64_t fWhat)
 {
-    WHV_REGISTER_NAME  aenmNames[128];
+    WHV_REGISTER_NAME  aenmNames[256];
 
     fWhat &= pVCpu->cpum.GstCtx.fExtrn;
     if (!fWhat)
@@ -1111,137 +1792,69 @@ NEM_TMPL_STATIC int nemHCWinCopyStateFromHyperV(PVMCC pVM, PVMCPUCC pVCpu, uint6
 
     uintptr_t iReg = 0;
 
-    /* GPRs */
-    if (fWhat & CPUMCTX_EXTRN_GPRS_MASK)
+    if (fWhat & (CPUMCTX_EXTRN_GPRS_MASK | CPUMCTX_EXTRN_PC | CPUMCTX_EXTRN_FPCR | CPUMCTX_EXTRN_FPSR))
     {
-        if (fWhat & CPUMCTX_EXTRN_X0)
-            aenmNames[iReg++] = WHvArm64RegisterX0;
-        if (fWhat & CPUMCTX_EXTRN_X1)
-            aenmNames[iReg++] = WHvArm64RegisterX1;
-        if (fWhat & CPUMCTX_EXTRN_X2)
-            aenmNames[iReg++] = WHvArm64RegisterX2;
-        if (fWhat & CPUMCTX_EXTRN_X3)
-            aenmNames[iReg++] = WHvArm64RegisterX3;
-        if (fWhat & CPUMCTX_EXTRN_X4_X28)
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumRegs); i++)
         {
-            aenmNames[iReg++] = WHvArm64RegisterX4;
-            aenmNames[iReg++] = WHvArm64RegisterX5;
-            aenmNames[iReg++] = WHvArm64RegisterX6;
-            aenmNames[iReg++] = WHvArm64RegisterX7;
-            aenmNames[iReg++] = WHvArm64RegisterX8;
-            aenmNames[iReg++] = WHvArm64RegisterX9;
-            aenmNames[iReg++] = WHvArm64RegisterX10;
-            aenmNames[iReg++] = WHvArm64RegisterX11;
-            aenmNames[iReg++] = WHvArm64RegisterX12;
-            aenmNames[iReg++] = WHvArm64RegisterX13;
-            aenmNames[iReg++] = WHvArm64RegisterX14;
-            aenmNames[iReg++] = WHvArm64RegisterX15;
-            aenmNames[iReg++] = WHvArm64RegisterX16;
-            aenmNames[iReg++] = WHvArm64RegisterX17;
-            aenmNames[iReg++] = WHvArm64RegisterX18;
-            aenmNames[iReg++] = WHvArm64RegisterX19;
-            aenmNames[iReg++] = WHvArm64RegisterX20;
-            aenmNames[iReg++] = WHvArm64RegisterX21;
-            aenmNames[iReg++] = WHvArm64RegisterX22;
-            aenmNames[iReg++] = WHvArm64RegisterX23;
-            aenmNames[iReg++] = WHvArm64RegisterX24;
-            aenmNames[iReg++] = WHvArm64RegisterX25;
-            aenmNames[iReg++] = WHvArm64RegisterX26;
-            aenmNames[iReg++] = WHvArm64RegisterX27;
-            aenmNames[iReg++] = WHvArm64RegisterX28;
+            if (s_aCpumRegs[i].fCpumExtrn & fWhat)
+                aenmNames[iReg++] = s_aCpumRegs[i].enmWHvReg;
         }
-        if (fWhat & CPUMCTX_EXTRN_LR)
-            aenmNames[iReg++] = WHvArm64RegisterLr;
-        if (fWhat & CPUMCTX_EXTRN_FP)
-            aenmNames[iReg++] = WHvArm64RegisterFp;
     }
 
-    /* PC & Flags */
-    if (fWhat & CPUMCTX_EXTRN_PC)
-        aenmNames[iReg++] = WHvArm64RegisterPc;
-    if (fWhat & CPUMCTX_EXTRN_PSTATE)
-        aenmNames[iReg++] = WHvArm64RegisterPstate;
-    if (fWhat & CPUMCTX_EXTRN_SPSR)
-        aenmNames[iReg++] = WHvArm64RegisterSpsrEl1;
-    if (fWhat & CPUMCTX_EXTRN_ELR)
-        aenmNames[iReg++] = WHvArm64RegisterElrEl1;
-    if (fWhat & CPUMCTX_EXTRN_SP)
-    {
-        aenmNames[iReg++] = WHvArm64RegisterSpEl0;
-        aenmNames[iReg++] = WHvArm64RegisterSpEl1;
-    }
-    if (fWhat & CPUMCTX_EXTRN_SCTLR_TCR_TTBR)
-    {
-        aenmNames[iReg++] = WHvArm64RegisterSctlrEl1;
-        aenmNames[iReg++] = WHvArm64RegisterTcrEl1;
-        aenmNames[iReg++] = WHvArm64RegisterTtbr0El1;
-        aenmNames[iReg++] = WHvArm64RegisterTtbr1El1;
-    }
-
-    /* Vector state. */
     if (fWhat & CPUMCTX_EXTRN_V0_V31)
     {
-        aenmNames[iReg++] = WHvArm64RegisterQ0;
-        aenmNames[iReg++] = WHvArm64RegisterQ1;
-        aenmNames[iReg++] = WHvArm64RegisterQ2;
-        aenmNames[iReg++] = WHvArm64RegisterQ3;
-        aenmNames[iReg++] = WHvArm64RegisterQ4;
-        aenmNames[iReg++] = WHvArm64RegisterQ5;
-        aenmNames[iReg++] = WHvArm64RegisterQ6;
-        aenmNames[iReg++] = WHvArm64RegisterQ7;
-        aenmNames[iReg++] = WHvArm64RegisterQ8;
-        aenmNames[iReg++] = WHvArm64RegisterQ9;
-        aenmNames[iReg++] = WHvArm64RegisterQ10;
-        aenmNames[iReg++] = WHvArm64RegisterQ11;
-        aenmNames[iReg++] = WHvArm64RegisterQ12;
-        aenmNames[iReg++] = WHvArm64RegisterQ13;
-        aenmNames[iReg++] = WHvArm64RegisterQ14;
-        aenmNames[iReg++] = WHvArm64RegisterQ15;
-
-        aenmNames[iReg++] = WHvArm64RegisterQ16;
-        aenmNames[iReg++] = WHvArm64RegisterQ17;
-        aenmNames[iReg++] = WHvArm64RegisterQ18;
-        aenmNames[iReg++] = WHvArm64RegisterQ19;
-        aenmNames[iReg++] = WHvArm64RegisterQ20;
-        aenmNames[iReg++] = WHvArm64RegisterQ21;
-        aenmNames[iReg++] = WHvArm64RegisterQ22;
-        aenmNames[iReg++] = WHvArm64RegisterQ23;
-        aenmNames[iReg++] = WHvArm64RegisterQ24;
-        aenmNames[iReg++] = WHvArm64RegisterQ25;
-        aenmNames[iReg++] = WHvArm64RegisterQ26;
-        aenmNames[iReg++] = WHvArm64RegisterQ27;
-        aenmNames[iReg++] = WHvArm64RegisterQ28;
-        aenmNames[iReg++] = WHvArm64RegisterQ29;
-        aenmNames[iReg++] = WHvArm64RegisterQ30;
-        aenmNames[iReg++] = WHvArm64RegisterQ31;
-    }
-    if (fWhat & CPUMCTX_EXTRN_FPCR)
-        aenmNames[iReg++] = WHvArm64RegisterFpcr;
-    if (fWhat & CPUMCTX_EXTRN_FPSR)
-        aenmNames[iReg++] = WHvArm64RegisterFpsr;
-
-    /* System registers. */
-    if (fWhat & CPUMCTX_EXTRN_SYSREG_MISC)
-    {
-        aenmNames[iReg++] = WHvArm64RegisterVbarEl1;
-        aenmNames[iReg++] = WHvArm64RegisterEsrEl1;
-        aenmNames[iReg++] = WHvArm64RegisterFarEl1;
-        /** @todo */
+        /* SIMD/FP registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumFpRegs); i++)
+        {
+            aenmNames[iReg++] = s_aCpumFpRegs[i].enmWHvReg;
+        }
     }
 
-#if 0
     if (fWhat & CPUMCTX_EXTRN_SYSREG_DEBUG)
     {
-        aenmNames[iReg++] = WHvArm64RegisterDbgbcr0El1;
-        /** @todo */
+        for (uint32_t i = 0; i < pVM->nem.s.cBreakpoints; i++)
+        {
+            aenmNames[iReg++] = (WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgbcr0El1 + i);
+            aenmNames[iReg++] = (WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgbvr0El1 + i);
+        }
+
+        for (uint32_t i = 0; i < pVM->nem.s.cWatchpoints; i++)
+        {
+            aenmNames[iReg++] = (WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgwcr0El1 + i);
+            aenmNames[iReg++] = (WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgwvr0El1 + i);
+        }
+
+        aenmNames[iReg++] = WHvArm64RegisterMdscrEl1;
     }
-#endif
 
     if (fWhat & CPUMCTX_EXTRN_SYSREG_PAUTH_KEYS)
     {
-        aenmNames[iReg++] = WHvArm64RegisterApdAKeyHiEl1;
-        /** @todo */
+        /* PAuth registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumPAuthKeyRegs); i++)
+        {
+            aenmNames[iReg++] = s_aCpumPAuthKeyRegs[i].enmWHvReg;
+        }
     }
+
+    if (fWhat & (CPUMCTX_EXTRN_SPSR | CPUMCTX_EXTRN_ELR | CPUMCTX_EXTRN_SP | CPUMCTX_EXTRN_SYSREG_MISC))
+    {
+        /* System registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegs); i++)
+        {
+            if (s_aCpumSysRegs[i].fCpumExtrn & fWhat)
+                aenmNames[iReg++] = s_aCpumSysRegs[i].enmWHvReg;
+        }
+    }
+
+    if (fWhat & CPUMCTX_EXTRN_SCTLR_TCR_TTBR)
+    {
+        /* Paging related system registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegsPg); i++)
+            aenmNames[iReg++] = s_aCpumSysRegsPg[i].enmWHvReg;
+    }
+
+    if (fWhat & CPUMCTX_EXTRN_PSTATE)
+        aenmNames[iReg++] = WHvArm64RegisterPstate;
 
     size_t const cRegs = iReg;
     Assert(cRegs < RT_ELEMENTS(aenmNames));
@@ -1249,7 +1862,7 @@ NEM_TMPL_STATIC int nemHCWinCopyStateFromHyperV(PVMCC pVM, PVMCPUCC pVCpu, uint6
     /*
      * Get the registers.
      */
-    WHV_REGISTER_VALUE aValues[128];
+    WHV_REGISTER_VALUE aValues[256];
     RT_ZERO(aValues);
     Assert(RT_ELEMENTS(aValues) >= cRegs);
     Assert(RT_ELEMENTS(aenmNames) >= cRegs);
@@ -1262,157 +1875,109 @@ NEM_TMPL_STATIC int nemHCWinCopyStateFromHyperV(PVMCC pVM, PVMCPUCC pVCpu, uint6
     iReg = 0;
 #define GET_REG64(a_DstVar, a_enmName) do { \
             Assert(aenmNames[iReg] == (a_enmName)); \
-            (a_DstVar).x = aValues[iReg].Reg64; \
+            (a_DstVar)->x = aValues[iReg].Reg64; \
             iReg++; \
         } while (0)
 #define GET_REG64_RAW(a_DstVar, a_enmName) do { \
             Assert(aenmNames[iReg] == (a_enmName)); \
-            (a_DstVar) = aValues[iReg].Reg64; \
+            *(a_DstVar) = aValues[iReg].Reg64; \
             iReg++; \
         } while (0)
 #define GET_SYSREG64(a_DstVar, a_enmName) do { \
             Assert(aenmNames[iReg] == (a_enmName)); \
-            (a_DstVar).u64 = aValues[iReg].Reg64; \
+            (a_DstVar)->u64 = aValues[iReg].Reg64; \
             iReg++; \
         } while (0)
 #define GET_REG128(a_DstVar, a_enmName) do { \
             Assert(aenmNames[iReg] == a_enmName); \
-            (a_DstVar).au64[0] = aValues[iReg].Reg128.Low64; \
-            (a_DstVar).au64[1] = aValues[iReg].Reg128.High64; \
+            (a_DstVar)->au64[0] = aValues[iReg].Reg128.Low64; \
+            (a_DstVar)->au64[1] = aValues[iReg].Reg128.High64; \
             iReg++; \
         } while (0)
 
-    /* GPRs */
-    if (fWhat & CPUMCTX_EXTRN_GPRS_MASK)
+    if (fWhat & (CPUMCTX_EXTRN_GPRS_MASK | CPUMCTX_EXTRN_PC | CPUMCTX_EXTRN_FPCR | CPUMCTX_EXTRN_FPSR))
     {
-        if (fWhat & CPUMCTX_EXTRN_X0)
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[0], WHvArm64RegisterX0);
-        if (fWhat & CPUMCTX_EXTRN_X1)
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[1], WHvArm64RegisterX1);
-        if (fWhat & CPUMCTX_EXTRN_X2)
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[2], WHvArm64RegisterX2);
-        if (fWhat & CPUMCTX_EXTRN_X3)
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[3], WHvArm64RegisterX3);
-        if (fWhat & CPUMCTX_EXTRN_X4_X28)
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumRegs); i++)
         {
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[4],  WHvArm64RegisterX4);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[5],  WHvArm64RegisterX5);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[6],  WHvArm64RegisterX6);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[7],  WHvArm64RegisterX7);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[8],  WHvArm64RegisterX8);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[9],  WHvArm64RegisterX9);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[10], WHvArm64RegisterX10);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[11], WHvArm64RegisterX11);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[12], WHvArm64RegisterX12);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[13], WHvArm64RegisterX13);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[14], WHvArm64RegisterX14);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[15], WHvArm64RegisterX15);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[16], WHvArm64RegisterX16);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[17], WHvArm64RegisterX17);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[18], WHvArm64RegisterX18);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[19], WHvArm64RegisterX19);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[20], WHvArm64RegisterX20);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[21], WHvArm64RegisterX21);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[22], WHvArm64RegisterX22);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[23], WHvArm64RegisterX23);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[24], WHvArm64RegisterX24);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[25], WHvArm64RegisterX25);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[26], WHvArm64RegisterX26);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[27], WHvArm64RegisterX27);
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[28], WHvArm64RegisterX28);
+            if (s_aCpumRegs[i].fCpumExtrn & fWhat)
+            {
+                CPUMCTXGREG *pReg = (CPUMCTXGREG *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumRegs[i].offCpumCtx);
+                GET_REG64(pReg, s_aCpumRegs[i].enmWHvReg);
+            }
         }
-        if (fWhat & CPUMCTX_EXTRN_LR)
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[30], WHvArm64RegisterLr);
-        if (fWhat & CPUMCTX_EXTRN_FP)
-            GET_REG64(pVCpu->cpum.GstCtx.aGRegs[29], WHvArm64RegisterFp);
     }
 
-    /* RIP & Flags */
-    if (fWhat & CPUMCTX_EXTRN_PC)
-        GET_REG64_RAW(pVCpu->cpum.GstCtx.Pc.u64, WHvArm64RegisterPc);
-    if (fWhat & CPUMCTX_EXTRN_PSTATE)
-        GET_REG64_RAW(pVCpu->cpum.GstCtx.fPState, WHvArm64RegisterPstate);
-    if (fWhat & CPUMCTX_EXTRN_SPSR)
-        GET_SYSREG64(pVCpu->cpum.GstCtx.Spsr, WHvArm64RegisterSpsrEl1);
-    if (fWhat & CPUMCTX_EXTRN_ELR)
-        GET_SYSREG64(pVCpu->cpum.GstCtx.Elr, WHvArm64RegisterElrEl1);
-    if (fWhat & CPUMCTX_EXTRN_SP)
-    {
-        GET_SYSREG64(pVCpu->cpum.GstCtx.aSpReg[0], WHvArm64RegisterSpEl0);
-        GET_SYSREG64(pVCpu->cpum.GstCtx.aSpReg[1], WHvArm64RegisterSpEl1);
-    }
-    if (fWhat & CPUMCTX_EXTRN_SCTLR_TCR_TTBR)
-    {
-        GET_SYSREG64(pVCpu->cpum.GstCtx.Sctlr, WHvArm64RegisterSctlrEl1);
-        GET_SYSREG64(pVCpu->cpum.GstCtx.Tcr, WHvArm64RegisterTcrEl1);
-        GET_SYSREG64(pVCpu->cpum.GstCtx.Ttbr0, WHvArm64RegisterTtbr0El1);
-        GET_SYSREG64(pVCpu->cpum.GstCtx.Ttbr1, WHvArm64RegisterTtbr1El1);
-    }
-
-    /* Vector state. */
     if (fWhat & CPUMCTX_EXTRN_V0_V31)
     {
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[0],  WHvArm64RegisterQ0);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[1],  WHvArm64RegisterQ1);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[2],  WHvArm64RegisterQ2);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[3],  WHvArm64RegisterQ3);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[4],  WHvArm64RegisterQ4);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[5],  WHvArm64RegisterQ5);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[6],  WHvArm64RegisterQ6);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[7],  WHvArm64RegisterQ7);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[8],  WHvArm64RegisterQ8);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[9],  WHvArm64RegisterQ9);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[10], WHvArm64RegisterQ10);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[11], WHvArm64RegisterQ11);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[12], WHvArm64RegisterQ12);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[13], WHvArm64RegisterQ13);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[14], WHvArm64RegisterQ14);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[15], WHvArm64RegisterQ15);
-
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[16], WHvArm64RegisterQ16);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[17], WHvArm64RegisterQ17);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[18], WHvArm64RegisterQ18);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[19], WHvArm64RegisterQ19);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[20], WHvArm64RegisterQ20);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[21], WHvArm64RegisterQ21);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[22], WHvArm64RegisterQ22);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[23], WHvArm64RegisterQ23);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[24], WHvArm64RegisterQ24);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[25], WHvArm64RegisterQ25);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[26], WHvArm64RegisterQ26);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[27], WHvArm64RegisterQ27);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[28], WHvArm64RegisterQ28);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[29], WHvArm64RegisterQ29);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[30], WHvArm64RegisterQ30);
-        GET_REG128(pVCpu->cpum.GstCtx.aVRegs[31], WHvArm64RegisterQ31);
-    }
-    if (fWhat & CPUMCTX_EXTRN_FPCR)
-        GET_REG64_RAW(pVCpu->cpum.GstCtx.fpcr, WHvArm64RegisterFpcr);
-    if (fWhat & CPUMCTX_EXTRN_FPSR)
-        GET_REG64_RAW(pVCpu->cpum.GstCtx.fpsr, WHvArm64RegisterFpsr);
-
-    /* System registers. */
-    if (fWhat & CPUMCTX_EXTRN_SYSREG_MISC)
-    {
-        GET_SYSREG64(pVCpu->cpum.GstCtx.VBar, WHvArm64RegisterVbarEl1);
-        GET_SYSREG64(pVCpu->cpum.GstCtx.Esr, WHvArm64RegisterEsrEl1);
-        GET_SYSREG64(pVCpu->cpum.GstCtx.Far, WHvArm64RegisterFarEl1);
-        /** @todo */
+        /* SIMD/FP registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumFpRegs); i++)
+        {
+            PCPUMCTXVREG pVReg = (PCPUMCTXVREG)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumFpRegs[i].offCpumCtx);
+            GET_REG128(pVReg, s_aCpumFpRegs[i].enmWHvReg);
+        }
     }
 
-#if 0
     if (fWhat & CPUMCTX_EXTRN_SYSREG_DEBUG)
     {
-        GET_SYSREG64(pVCpu->cpum.GstCtx.aBp[0].Ctrl, WHvArm64RegisterDbgbcr0El1);
-        /** @todo */
+        for (uint32_t i = 0; i < pVM->nem.s.cBreakpoints; i++)
+        {
+            GET_SYSREG64(&pVCpu->cpum.GstCtx.aBp[i].Ctrl,  (WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgbcr0El1 + i));
+            GET_SYSREG64(&pVCpu->cpum.GstCtx.aBp[i].Value, (WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgbvr0El1 + i));
+        }
+
+        for (uint32_t i = 0; i < pVM->nem.s.cWatchpoints; i++)
+        {
+            GET_SYSREG64(&pVCpu->cpum.GstCtx.aWp[i].Ctrl,  (WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgwcr0El1 + i));
+            GET_SYSREG64(&pVCpu->cpum.GstCtx.aWp[i].Value, (WHV_REGISTER_NAME)((uint32_t)WHvArm64RegisterDbgwvr0El1 + i));
+        }
+
+        GET_SYSREG64(&pVCpu->cpum.GstCtx.Mdscr, WHvArm64RegisterMdscrEl1);
     }
-#endif
 
     if (fWhat & CPUMCTX_EXTRN_SYSREG_PAUTH_KEYS)
     {
-        GET_SYSREG64(pVCpu->cpum.GstCtx.Apda.High, WHvArm64RegisterApdAKeyHiEl1);
-        /** @todo */
+        /* PAuth registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumPAuthKeyRegs); i++)
+        {
+            CPUMCTXSYSREG *pReg = (CPUMCTXSYSREG *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumPAuthKeyRegs[i].offCpumCtx);
+            GET_SYSREG64(pReg, s_aCpumPAuthKeyRegs[i].enmWHvReg);
+        }
     }
+
+    if (fWhat & (CPUMCTX_EXTRN_SPSR | CPUMCTX_EXTRN_ELR | CPUMCTX_EXTRN_SP | CPUMCTX_EXTRN_SYSREG_MISC))
+    {
+        /* System registers. */
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegs); i++)
+        {
+            if (s_aCpumSysRegs[i].fCpumExtrn & fWhat)
+            {
+                CPUMCTXSYSREG *pReg = (CPUMCTXSYSREG *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumSysRegs[i].offCpumCtx);
+                GET_SYSREG64(pReg, s_aCpumSysRegs[i].enmWHvReg);
+            }
+        }
+    }
+
+    /* The paging related system registers need to be treated differently as they might invoke a PGM mode change. */
+    uint64_t u64RegSctlrEl1;
+    uint64_t u64RegTcrEl1;
+    if (fWhat & CPUMCTX_EXTRN_SCTLR_TCR_TTBR)
+    {
+        GET_REG64_RAW(&u64RegSctlrEl1, WHvArm64RegisterSctlrEl1);
+        GET_REG64_RAW(&u64RegTcrEl1,   WHvArm64RegisterTcrEl1);
+        GET_SYSREG64(&pVCpu->cpum.GstCtx.Ttbr0, WHvArm64RegisterTtbr0El1);
+        GET_SYSREG64(&pVCpu->cpum.GstCtx.Ttbr1, WHvArm64RegisterTtbr1El1);
+        if (   u64RegSctlrEl1 != pVCpu->cpum.GstCtx.Sctlr.u64
+            || u64RegTcrEl1   != pVCpu->cpum.GstCtx.Tcr.u64)
+        {
+            pVCpu->cpum.GstCtx.Sctlr.u64 = u64RegSctlrEl1;
+            pVCpu->cpum.GstCtx.Tcr.u64   = u64RegTcrEl1;
+            int rc = PGMChangeMode(pVCpu, 1 /*bEl*/, u64RegSctlrEl1, u64RegTcrEl1);
+            AssertMsgReturn(rc == VINF_SUCCESS, ("rc=%Rrc\n", rc), RT_FAILURE_NP(rc) ? rc : VERR_NEM_IPE_1);
+        }
+    }
+
+    if (fWhat & CPUMCTX_EXTRN_PSTATE)
+        GET_REG64_RAW(&pVCpu->cpum.GstCtx.fPState, WHvArm64RegisterPstate);
 
     /* Almost done, just update extrn flags. */
     pVCpu->cpum.GstCtx.fExtrn &= ~fWhat;
@@ -1453,20 +2018,26 @@ VMM_INT_DECL(int) NEMHCQueryCpuTick(PVMCPUCC pVCpu, uint64_t *pcTicks, uint32_t 
     VMCPU_ASSERT_EMT_RETURN(pVCpu, VERR_VM_THREAD_NOT_EMT);
     AssertReturn(VM_IS_NEM_ENABLED(pVM), VERR_NEM_IPE_9);
 
-#if 0 /** @todo */
-    /* Call the offical API. */
-    WHV_REGISTER_NAME  aenmNames[2] = { WHvX64RegisterTsc, WHvX64RegisterTscAux };
-    WHV_REGISTER_VALUE aValues[2]   = { { {0, 0} }, { {0, 0} } };
-    Assert(RT_ELEMENTS(aenmNames) == RT_ELEMENTS(aValues));
-    HRESULT hrc = WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, aenmNames, 2, aValues);
+    /* Ensure time for the partition is suspended - it will be resumed as soon as a vCPU starts executing. */
+    HRESULT hrc = WHvSuspendPartitionTime(pVM->nem.s.hPartition);
     AssertLogRelMsgReturn(SUCCEEDED(hrc),
-                          ("WHvGetVirtualProcessorRegisters(%p, %u,{tsc,tsc_aux},2,) -> %Rhrc (Last=%#x/%u)\n",
+                          ("WHvSuspendPartitionTime(%p) -> %Rhrc (Last=%#x/%u)\n",
+                           pVM->nem.s.hPartition, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                          , VERR_NEM_GET_REGISTERS_FAILED);
+
+    /* Call the offical API. */
+    WHV_REGISTER_NAME  enmName = WHvArm64RegisterCntvctEl0;
+    WHV_REGISTER_VALUE Value   = { { {0, 0} } };
+    hrc = WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, &enmName, 1, &Value);
+    AssertLogRelMsgReturn(SUCCEEDED(hrc),
+                          ("WHvGetVirtualProcessorRegisters(%p, %u,{CNTVCT_EL0},1,) -> %Rhrc (Last=%#x/%u)\n",
                            pVM->nem.s.hPartition, pVCpu->idCpu, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
                           , VERR_NEM_GET_REGISTERS_FAILED);
-    *pcTicks = aValues[0].Reg64;
+    *pcTicks = Value.Reg64;
+    LogFlow(("NEMHCQueryCpuTick: %#RX64 (host: %#RX64)\n", *pcTicks, ASMReadTSC()));
     if (puAux)
-        *puAux = pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_TSC_AUX ? aValues[1].Reg64 : CPUMGetGuestTscAux(pVCpu);
-#endif
+        *puAux =0;
+
     return VINF_SUCCESS;
 }
 
@@ -1489,35 +2060,35 @@ VMM_INT_DECL(int) NEMHCResumeCpuTickOnAll(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uP
     /*
      * Call the offical API to do the job.
      */
-    if (pVM->cCpus > 1)
-        RTThreadYield(); /* Try decrease the chance that we get rescheduled in the middle. */
+    LogFlow(("NEMHCResumeCpuTickOnAll: %#RX64 (host: %#RX64)\n", uPausedTscValue, ASMReadTSC()));
 
-#if 0 /** @todo */
-    /* Start with the first CPU. */
-    WHV_REGISTER_NAME  enmName   = WHvX64RegisterTsc;
-    WHV_REGISTER_VALUE Value     = { {0, 0} };
-    Value.Reg64 = uPausedTscValue;
-    uint64_t const     uFirstTsc = ASMReadTSC();
-    HRESULT hrc = WHvSetVirtualProcessorRegisters(pVM->nem.s.hPartition, 0 /*iCpu*/, &enmName, 1, &Value);
-    AssertLogRelMsgReturn(SUCCEEDED(hrc),
-                          ("WHvSetVirtualProcessorRegisters(%p, 0,{tsc},2,%#RX64) -> %Rhrc (Last=%#x/%u)\n",
-                           pVM->nem.s.hPartition, uPausedTscValue, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
-                          , VERR_NEM_SET_TSC);
-
-    /* Do the other CPUs, adjusting for elapsed TSC and keeping finger crossed
-       that we don't introduce too much drift here. */
-    for (VMCPUID iCpu = 1; iCpu < pVM->cCpus; iCpu++)
+    /*
+     * Now set the CNTVCT_EL0 register for each vCPU, Hyper-V will program the timer offset in
+     * CNTVOFF_EL2 accordingly. ARM guarantees that CNTVCT_EL0 is synchronised across all CPUs,
+     * as long as CNTVOFF_EL2 is the same everywhere. Lets just hope scheduling will not affect it
+     * if the partition time is suspended.
+     */
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        Assert(enmName == WHvX64RegisterTsc);
-        const uint64_t offDelta = (ASMReadTSC() - uFirstTsc);
-        Value.Reg64 = uPausedTscValue + offDelta;
-        hrc = WHvSetVirtualProcessorRegisters(pVM->nem.s.hPartition, iCpu, &enmName, 1, &Value);
+        WHV_REGISTER_NAME enmName = WHvArm64RegisterCntvctEl0;
+        WHV_REGISTER_VALUE Value;
+        Value.Reg64 = uPausedTscValue;
+        HRESULT hrc = WHvSetVirtualProcessorRegisters(pVM->nem.s.hPartition, idCpu, &enmName, 1, &Value);
         AssertLogRelMsgReturn(SUCCEEDED(hrc),
-                              ("WHvSetVirtualProcessorRegisters(%p, 0,{tsc},2,%#RX64 + %#RX64) -> %Rhrc (Last=%#x/%u)\n",
-                               pVM->nem.s.hPartition, iCpu, uPausedTscValue, offDelta, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                              ("WHvSetVirtualProcessorRegisters(%p, 0,{CNTVCT_EL0},1,%#RX64) -> %Rhrc (Last=%#x/%u)\n",
+                               pVM->nem.s.hPartition, idCpu, uPausedTscValue, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
                               , VERR_NEM_SET_TSC);
+
+        /* Make sure the CNTV_CTL_EL0 and CNTV_CVAL_EL0 registers are up to date after resuming (saved state load). */
+        PVMCPUCC pVCpuDst = pVM->apCpusR3[idCpu];
+        pVCpuDst->nem.s.fSyncCntvRegs = true;
     }
-#endif
+
+    HRESULT hrc = WHvResumePartitionTime(pVM->nem.s.hPartition);
+    AssertLogRelMsgReturn(SUCCEEDED(hrc),
+                          ("WHvResumePartitionTime(%p) -> %Rhrc (Last=%#x/%u)\n",
+                           pVM->nem.s.hPartition, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                          , VERR_NEM_SET_TSC);
 
     return VINF_SUCCESS;
 }
@@ -1548,11 +2119,9 @@ static void nemR3WinLogState(PVMCC pVM, PVMCPUCC pVCpu)
                         "vbar_el1=%016VR{vbar_el1}\n"
                         );
         char szInstr[256]; RT_ZERO(szInstr);
-#if 0
         DBGFR3DisasInstrEx(pVM->pUVM, pVCpu->idCpu, 0, 0,
                            DBGF_DISAS_FLAGS_CURRENT_GUEST | DBGF_DISAS_FLAGS_DEFAULT_MODE,
                            szInstr, sizeof(szInstr), NULL);
-#endif
         Log3(("%s%s\n", szRegs, szInstr));
     }
 }
@@ -1569,136 +2138,16 @@ static void nemR3WinLogState(PVMCC pVM, PVMCPUCC pVCpu)
  */
 DECLINLINE(void) nemR3WinCopyStateFromArmHeader(PVMCPUCC pVCpu, WHV_INTERCEPT_MESSAGE_HEADER const *pMsgHdr)
 {
-    Assert(   (pVCpu->cpum.GstCtx.fExtrn & (CPUMCTX_EXTRN_PC | CPUMCTX_EXTRN_PSTATE))
-           ==                              (CPUMCTX_EXTRN_PC | CPUMCTX_EXTRN_PSTATE));
+#ifdef LOG_ENABLED /* When state logging is enabled the state is synced completely upon VM exit. */
+    if (!LogIs3Enabled())
+#endif
+        Assert(   (pVCpu->cpum.GstCtx.fExtrn & (CPUMCTX_EXTRN_PC | CPUMCTX_EXTRN_PSTATE))
+               ==                              (CPUMCTX_EXTRN_PC | CPUMCTX_EXTRN_PSTATE));
 
     pVCpu->cpum.GstCtx.Pc.u64   = pMsgHdr->Pc;
     pVCpu->cpum.GstCtx.fPState  = pMsgHdr->Cpsr;
 
     pVCpu->cpum.GstCtx.fExtrn &= ~(CPUMCTX_EXTRN_PC | CPUMCTX_EXTRN_PSTATE);
-}
-
-
-/**
- * State to pass between nemHCWinHandleMemoryAccess / nemR3WinWHvHandleMemoryAccess
- * and nemHCWinHandleMemoryAccessPageCheckerCallback.
- */
-typedef struct NEMHCWINHMACPCCSTATE
-{
-    /** Input: Write access. */
-    bool    fWriteAccess;
-    /** Output: Set if we did something. */
-    bool    fDidSomething;
-    /** Output: Set it we should resume. */
-    bool    fCanResume;
-} NEMHCWINHMACPCCSTATE;
-
-/**
- * @callback_method_impl{FNPGMPHYSNEMCHECKPAGE,
- *      Worker for nemR3WinHandleMemoryAccess; pvUser points to a
- *      NEMHCWINHMACPCCSTATE structure. }
- */
-NEM_TMPL_STATIC DECLCALLBACK(int)
-nemHCWinHandleMemoryAccessPageCheckerCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, PPGMPHYSNEMPAGEINFO pInfo, void *pvUser)
-{
-    NEMHCWINHMACPCCSTATE *pState = (NEMHCWINHMACPCCSTATE *)pvUser;
-    pState->fDidSomething = false;
-    pState->fCanResume    = false;
-
-    /* If A20 is disabled, we may need to make another query on the masked
-       page to get the correct protection information. */
-    uint8_t  u2State = pInfo->u2NemState;
-    RTGCPHYS GCPhysSrc = GCPhys;
-
-    /*
-     * Consolidate current page state with actual page protection and access type.
-     * We don't really consider downgrades here, as they shouldn't happen.
-     */
-    int rc;
-    switch (u2State)
-    {
-        case NEM_WIN_PAGE_STATE_UNMAPPED:
-        case NEM_WIN_PAGE_STATE_NOT_SET:
-            if (pInfo->fNemProt == NEM_PAGE_PROT_NONE)
-            {
-                Log4(("nemHCWinHandleMemoryAccessPageCheckerCallback: %RGp - #1\n", GCPhys));
-                return VINF_SUCCESS;
-            }
-
-            /* Don't bother remapping it if it's a write request to a non-writable page. */
-            if (   pState->fWriteAccess
-                && !(pInfo->fNemProt & NEM_PAGE_PROT_WRITE))
-            {
-                Log4(("nemHCWinHandleMemoryAccessPageCheckerCallback: %RGp - #1w\n", GCPhys));
-                return VINF_SUCCESS;
-            }
-
-            /* Map the page. */
-            rc = nemHCNativeSetPhysPage(pVM,
-                                        pVCpu,
-                                        GCPhysSrc & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK,
-                                        GCPhys & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK,
-                                        pInfo->fNemProt,
-                                        &u2State,
-                                        true /*fBackingState*/);
-            pInfo->u2NemState = u2State;
-            Log4(("nemHCWinHandleMemoryAccessPageCheckerCallback: %RGp - synced => %s + %Rrc\n",
-                  GCPhys, g_apszPageStates[u2State], rc));
-            pState->fDidSomething = true;
-            pState->fCanResume    = true;
-            return rc;
-
-        case NEM_WIN_PAGE_STATE_READABLE:
-            if (   !(pInfo->fNemProt & NEM_PAGE_PROT_WRITE)
-                && (pInfo->fNemProt & (NEM_PAGE_PROT_READ | NEM_PAGE_PROT_EXECUTE)))
-            {
-                Log4(("nemHCWinHandleMemoryAccessPageCheckerCallback: %RGp - #2\n", GCPhys));
-                return VINF_SUCCESS;
-            }
-
-            break;
-
-        case NEM_WIN_PAGE_STATE_WRITABLE:
-            if (pInfo->fNemProt & NEM_PAGE_PROT_WRITE)
-            {
-                if (pInfo->u2OldNemState == NEM_WIN_PAGE_STATE_WRITABLE)
-                    Log4(("nemHCWinHandleMemoryAccessPageCheckerCallback: %RGp - #3a\n", GCPhys));
-                else
-                {
-                    pState->fCanResume = true;
-                    Log4(("nemHCWinHandleMemoryAccessPageCheckerCallback: %RGp - #3b (%s -> %s)\n",
-                          GCPhys, g_apszPageStates[pInfo->u2OldNemState], g_apszPageStates[u2State]));
-                }
-                return VINF_SUCCESS;
-            }
-            break;
-
-        default:
-            AssertLogRelMsgFailedReturn(("u2State=%#x\n", u2State), VERR_NEM_IPE_4);
-    }
-
-    /*
-     * Unmap and restart the instruction.
-     * If this fails, which it does every so often, just unmap everything for now.
-     */
-    /** @todo figure out whether we mess up the state or if it's WHv.   */
-    STAM_REL_PROFILE_START(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
-    HRESULT hrc = WHvUnmapGpaRange(pVM->nem.s.hPartition, GCPhys, X86_PAGE_SIZE);
-    STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
-    if (SUCCEEDED(hrc))
-    {
-        pState->fDidSomething = true;
-        pState->fCanResume    = true;
-        pInfo->u2NemState = NEM_WIN_PAGE_STATE_UNMAPPED;
-        STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPage);
-        uint32_t cMappedPages = ASMAtomicDecU32(&pVM->nem.s.cMappedPages); NOREF(cMappedPages);
-        Log5(("NEM GPA unmapped/exit: %RGp (was %s, cMappedPages=%u)\n", GCPhys, g_apszPageStates[u2State], cMappedPages));
-        return VINF_SUCCESS;
-    }
-    STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
-    LogRel(("nemHCWinHandleMemoryAccessPageCheckerCallback/unmap: GCPhysDst=%RGp %s hrc=%Rhrc (%#x)\n",
-            GCPhys, g_apszPageStates[u2State], hrc, hrc));
-    return VERR_NEM_UNMAP_PAGES_FAILED;
 }
 
 
@@ -1741,7 +2190,7 @@ DECLINLINE(void) nemR3WinSetGReg(PVMCPU pVCpu, uint8_t uReg, bool f64BitReg, boo
     if (f64BitReg)
         pVCpu->cpum.GstCtx.aGRegs[uReg].x = fSignExtend ? (int64_t)u64Val : u64Val;
     else
-        pVCpu->cpum.GstCtx.aGRegs[uReg].w = fSignExtend ? (int32_t)u64Val : u64Val; /** @todo Does this clear the upper half on real hardware? */
+        pVCpu->cpum.GstCtx.aGRegs[uReg].x = (uint64_t)(fSignExtend ? (int32_t)u64Val : (uint32_t)u64Val);
 
     /* Mark the register as not extern anymore. */
     switch (uReg)
@@ -1775,9 +2224,9 @@ DECLINLINE(void) nemR3WinSetGReg(PVMCPU pVCpu, uint8_t uReg, bool f64BitReg, boo
  */
 DECLINLINE(uint64_t) nemR3WinGetGReg(PVMCPU pVCpu, uint8_t uReg)
 {
-    AssertReturn(uReg <= ARMV8_AARCH64_REG_ZR, 0);
+    AssertReturn(uReg <= ARMV8_A64_REG_XZR, 0);
 
-    if (uReg == ARMV8_AARCH64_REG_ZR)
+    if (uReg == ARMV8_A64_REG_XZR)
         return 0;
 
     /** @todo Import the register if extern. */
@@ -1797,63 +2246,29 @@ DECLINLINE(uint64_t) nemR3WinGetGReg(PVMCPU pVCpu, uint8_t uReg)
  * @sa      nemHCWinHandleMessageMemory
  */
 NEM_TMPL_STATIC VBOXSTRICTRC
-nemR3WinHandleExitMemory(PVMCC pVM, PVMCPUCC pVCpu, WHV_RUN_VP_EXIT_CONTEXT const *pExit)
+nemR3WinHandleExitMemory(PVMCC pVM, PVMCPUCC pVCpu, MY_WHV_RUN_VP_EXIT_CONTEXT const *pExit)
 {
     uint64_t const uHostTsc = ASMReadTSC();
     Assert(pExit->MemoryAccess.Header.InterceptAccessType != 3);
 
     /*
-     * Ask PGM for information about the given GCPhys.  We need to check if we're
-     * out of sync first.
-     */
-    WHV_INTERCEPT_MESSAGE_HEADER const *pHdr = &pExit->MemoryAccess.Header;
-    NEMHCWINHMACPCCSTATE State = { pExit->MemoryAccess.Header.InterceptAccessType == WHvMemoryAccessWrite, false, false };
-    PGMPHYSNEMPAGEINFO   Info;
-    int rc = PGMPhysNemPageInfoChecker(pVM, pVCpu, pExit->MemoryAccess.Gpa, State.fWriteAccess, &Info,
-                                       nemHCWinHandleMemoryAccessPageCheckerCallback, &State);
-    if (RT_SUCCESS(rc))
-    {
-        if (Info.fNemProt & (  pExit->MemoryAccess.Header.InterceptAccessType == WHvMemoryAccessWrite
-                             ? NEM_PAGE_PROT_WRITE : NEM_PAGE_PROT_READ))
-        {
-            if (State.fCanResume)
-            {
-                Log4(("MemExit/%u: %08RX64: %RGp (=>%RHp) %s fProt=%u%s%s%s; restarting (%s)\n",
-                      pVCpu->idCpu, pHdr->Pc,
-                      pExit->MemoryAccess.Gpa, Info.HCPhys, g_apszPageStates[Info.u2NemState], Info.fNemProt,
-                      Info.fHasHandlers ? " handlers" : "", Info.fZeroPage    ? " zero-pg" : "",
-                      State.fDidSomething ? "" : " no-change", g_apszHvInterceptAccessTypes[pExit->MemoryAccess.Header.InterceptAccessType]));
-                EMHistoryAddExit(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_NEM, NEMEXITTYPE_MEMORY_ACCESS),
-                                 pHdr->Pc, uHostTsc);
-                return VINF_SUCCESS;
-            }
-        }
-        Log4(("MemExit/%u: %08RX64: %RGp (=>%RHp) %s fProt=%u%s%s%s; emulating (%s)\n",
-              pVCpu->idCpu, pHdr->Pc,
-              pExit->MemoryAccess.Gpa, Info.HCPhys, g_apszPageStates[Info.u2NemState], Info.fNemProt,
-              Info.fHasHandlers ? " handlers" : "", Info.fZeroPage    ? " zero-pg" : "",
-              State.fDidSomething ? "" : " no-change", g_apszHvInterceptAccessTypes[pExit->MemoryAccess.Header.InterceptAccessType]));
-    }
-    else
-        Log4(("MemExit/%u: %08RX64: %RGp rc=%Rrc%s; emulating (%s)\n",
-              pVCpu->idCpu, pHdr->Pc,
-              pExit->MemoryAccess.Gpa, rc, State.fDidSomething ? " modified-backing" : "",
-              g_apszHvInterceptAccessTypes[pExit->MemoryAccess.Header.InterceptAccessType]));
-
-    /*
      * Emulate the memory access, either access handler or special memory.
      */
+    WHV_INTERCEPT_MESSAGE_HEADER const *pHdr = &pExit->MemoryAccess.Header;
     PCEMEXITREC pExitRec = EMHistoryAddExit(pVCpu,
                                               pExit->MemoryAccess.Header.InterceptAccessType == WHvMemoryAccessWrite
                                             ? EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_WRITE)
                                             : EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_READ),
                                             pHdr->Pc, uHostTsc);
-    //nemR3WinCopyStateFromArmHeader(pVCpu, &pExit->MemoryAccess.Header);
-    rc = nemHCWinCopyStateFromHyperV(pVM, pVCpu, IEM_CPUMCTX_EXTRN_MUST_MASK);
+    nemR3WinCopyStateFromArmHeader(pVCpu, &pExit->MemoryAccess.Header);
+    RT_NOREF_PV(pExitRec);
+    int rc = nemHCWinCopyStateFromHyperV(pVM, pVCpu, IEM_CPUMCTX_EXTRN_MUST_MASK);
     AssertRCReturn(rc, rc);
 
+#ifdef LOG_ENABLED
     uint8_t const cbInstr = pExit->MemoryAccess.InstructionByteCount;
     RTGCPTR const GCPtrVa = pExit->MemoryAccess.Gva;
+#endif
     RTGCPHYS const GCPhys = pExit->MemoryAccess.Gpa;
     uint64_t const uIss   = pExit->MemoryAccess.Syndrome;
     bool fIsv        = RT_BOOL(uIss & ARMV8_EC_ISS_DATA_ABRT_ISV);
@@ -1869,36 +2284,211 @@ nemR3WinHandleExitMemory(PVMCC pVM, PVMCPUCC pVCpu, WHV_RUN_VP_EXIT_CONTEXT cons
 
     RT_NOREF(fL2Fault);
 
-    AssertReturn(fIsv, VERR_NOT_SUPPORTED); /** @todo Implement using IEM when this should occur. */
-
-    EMHistoryAddExit(pVCpu,
-                     fWrite
-                     ? EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_WRITE)
-                     : EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_READ),
-                     pVCpu->cpum.GstCtx.Pc.u64, ASMReadTSC());
-
-    VBOXSTRICTRC rcStrict = VINF_SUCCESS;
-    uint64_t u64Val = 0;
-    if (fWrite)
+    VBOXSTRICTRC rcStrict;
+    if (fIsv)
     {
-        u64Val = nemR3WinGetGReg(pVCpu, uReg);
-        rcStrict = PGMPhysWrite(pVM, GCPhys, &u64Val, cbAcc, PGMACCESSORIGIN_HM);
-        Log4(("MmioExit/%u: %08RX64: WRITE %RGp LB %u, %.*Rhxs -> rcStrict=%Rrc\n",
-              pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhys, cbAcc, cbAcc,
-              &u64Val, VBOXSTRICTRC_VAL(rcStrict) ));
+        EMHistoryAddExit(pVCpu,
+                         fWrite
+                         ? EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_WRITE)
+                         : EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_READ),
+                         pVCpu->cpum.GstCtx.Pc.u64, ASMReadTSC());
+
+        uint64_t u64Val = 0;
+        if (fWrite)
+        {
+            u64Val = nemR3WinGetGReg(pVCpu, uReg);
+            rcStrict = PGMPhysWrite(pVM, GCPhys, &u64Val, cbAcc, PGMACCESSORIGIN_HM);
+            Log4(("MmioExit/%u: %08RX64: WRITE %RGp LB %u, %.*Rhxs -> rcStrict=%Rrc\n",
+                  pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhys, cbAcc, cbAcc,
+                  &u64Val, VBOXSTRICTRC_VAL(rcStrict) ));
+        }
+        else
+        {
+            rcStrict = PGMPhysRead(pVM, GCPhys, &u64Val, cbAcc, PGMACCESSORIGIN_HM);
+            Log4(("MmioExit/%u: %08RX64: READ %RGp LB %u -> %.*Rhxs rcStrict=%Rrc\n",
+                  pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhys, cbAcc, cbAcc,
+                  &u64Val, VBOXSTRICTRC_VAL(rcStrict) ));
+            if (rcStrict == VINF_SUCCESS)
+                nemR3WinSetGReg(pVCpu, uReg, f64BitReg, fSignExtend, u64Val);
+        }
     }
     else
     {
-        rcStrict = PGMPhysRead(pVM, GCPhys, &u64Val, cbAcc, PGMACCESSORIGIN_HM);
-        Log4(("MmioExit/%u: %08RX64: READ %RGp LB %u -> %.*Rhxs rcStrict=%Rrc\n",
-              pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhys, cbAcc, cbAcc,
-              &u64Val, VBOXSTRICTRC_VAL(rcStrict) ));
+        /** @todo Our UEFI firmware accesses the flash region with the following instruction
+         *        when the NVRAM actually contains data:
+         *             ldrb w9, [x6, #-0x0001]!
+         *        This is too complicated for the hardware so the ISV bit is not set. Until there
+         *        is a proper IEM implementation we just handle this here for now to avoid annoying
+         *        users too much.
+         */
+        /* The following ASSUMES that the vCPU state is completely synced. */
+
+        /* Read instruction. */
+        RTGCPTR GCPtrPage = pVCpu->cpum.GstCtx.Pc.u64 & ~(RTGCPTR)GUEST_PAGE_OFFSET_MASK;
+        const void *pvPageR3 = NULL;
+        PGMPAGEMAPLOCK  PageMapLock;
+
+        rcStrict = PGMPhysGCPtr2CCPtrReadOnly(pVCpu, GCPtrPage, &pvPageR3, &PageMapLock);
         if (rcStrict == VINF_SUCCESS)
-            nemR3WinSetGReg(pVCpu, uReg, f64BitReg, fSignExtend, u64Val);
+        {
+            uint32_t u32Instr = *(uint32_t *)((uint8_t *)pvPageR3 + (pVCpu->cpum.GstCtx.Pc.u64 - GCPtrPage));
+            PGMPhysReleasePageMappingLock(pVCpu->pVMR3, &PageMapLock);
+
+            DISSTATE Dis;
+            rcStrict = DISInstrWithPrefetchedBytes((uintptr_t)pVCpu->cpum.GstCtx.Pc.u64, DISCPUMODE_ARMV8_A64,  0 /*fFilter - none */,
+                                                   &u32Instr, sizeof(u32Instr), NULL, NULL, &Dis, NULL);
+            if (rcStrict == VINF_SUCCESS)
+            {
+                if (   Dis.pCurInstr->uOpcode == OP_ARMV8_A64_LDRB
+                    && Dis.aParams[0].armv8.enmType == kDisArmv8OpParmReg
+                    && Dis.aParams[0].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_32Bit
+                    && Dis.aParams[1].armv8.enmType == kDisArmv8OpParmAddrInGpr
+                    && Dis.aParams[1].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_64Bit
+                    && (Dis.aParams[1].fUse & DISUSE_PRE_INDEXED))
+                {
+                    /* The fault address is already the final address. */
+                    uint8_t bVal = 0;
+                    rcStrict = PGMPhysRead(pVM, GCPhys, &bVal, 1, PGMACCESSORIGIN_HM);
+                    Log4(("MmioExit/%u: %08RX64: READ %#RGp LB %u -> %.*Rhxs rcStrict=%Rrc\n",
+                          pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhys, sizeof(bVal), sizeof(bVal),
+                          &bVal, VBOXSTRICTRC_VAL(rcStrict) ));
+                    if (rcStrict == VINF_SUCCESS)
+                    {
+                        nemR3WinSetGReg(pVCpu, Dis.aParams[0].armv8.Op.Reg.idReg, false /*f64BitReg*/, false /*fSignExtend*/, bVal);
+                        /* Update the indexed register. */
+                        pVCpu->cpum.GstCtx.aGRegs[Dis.aParams[1].armv8.Op.Reg.idReg].x += Dis.aParams[1].armv8.u.offBase;
+                    }
+                }
+                /*
+                 * Seeing the following with the Windows 11/ARM TPM driver:
+                 *     %fffff800e5342888 48 25 45 29             ldp w8, w9, [x10, #+0x0028]
+                 */
+                else if (   Dis.pCurInstr->uOpcode == OP_ARMV8_A64_LDP
+                         && Dis.aParams[0].armv8.enmType == kDisArmv8OpParmReg
+                         && Dis.aParams[0].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_32Bit
+                         && Dis.aParams[1].armv8.enmType == kDisArmv8OpParmReg
+                         && Dis.aParams[1].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_32Bit
+                         && Dis.aParams[2].armv8.enmType == kDisArmv8OpParmAddrInGpr
+                         && Dis.aParams[2].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_64Bit)
+                {
+                    /** @todo This is tricky to handle if the first register read returns something else than VINF_SUCCESS... */
+                    /* The fault address is already the final address. */
+                    uint32_t u32Val1 = 0;
+                    uint32_t u32Val2 = 0;
+                    rcStrict = PGMPhysRead(pVM, GCPhys, &u32Val1, sizeof(u32Val1), PGMACCESSORIGIN_HM);
+                    if (rcStrict == VINF_SUCCESS)
+                        rcStrict = PGMPhysRead(pVM, GCPhys + sizeof(uint32_t), &u32Val2, sizeof(u32Val2), PGMACCESSORIGIN_HM);
+                    Log4(("MmioExit/%u: %08RX64: READ %#RGp LB %u -> %.*Rhxs %.*Rhxs rcStrict=%Rrc\n",
+                          pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhys, 2 * sizeof(uint32_t), sizeof(u32Val1),
+                          &u32Val1, sizeof(u32Val2), &u32Val2, VBOXSTRICTRC_VAL(rcStrict) ));
+                    if (rcStrict == VINF_SUCCESS)
+                    {
+                        nemR3WinSetGReg(pVCpu, Dis.aParams[0].armv8.Op.Reg.idReg, false /*f64BitReg*/, false /*fSignExtend*/, u32Val1);
+                        nemR3WinSetGReg(pVCpu, Dis.aParams[1].armv8.Op.Reg.idReg, false /*f64BitReg*/, false /*fSignExtend*/, u32Val2);
+                    }
+                }
+                else
+                    AssertFailedReturn(VERR_NOT_SUPPORTED);
+            }
+        }
     }
 
     if (rcStrict == VINF_SUCCESS)
         pVCpu->cpum.GstCtx.Pc.u64 += sizeof(uint32_t); /** @todo Why is InstructionByteCount always 0? */
+
+    return rcStrict;
+}
+
+
+/**
+ * Deals with memory access exits (WHvRunVpExitReasonMemoryAccess).
+ *
+ * @returns Strict VBox status code.
+ * @param   pVM             The cross context VM structure.
+ * @param   pVCpu           The cross context per CPU structure.
+ * @param   pExit           The VM exit information to handle.
+ * @sa      nemHCWinHandleMessageMemory
+ */
+NEM_TMPL_STATIC VBOXSTRICTRC
+nemR3WinHandleExitHypercall(PVMCC pVM, PVMCPUCC pVCpu, MY_WHV_RUN_VP_EXIT_CONTEXT const *pExit)
+{
+    VBOXSTRICTRC rcStrict = VINF_SUCCESS;
+
+    /** @todo Raise exception to EL1 if PSCI not configured. */
+    /** @todo Need a generic mechanism here to pass this to, GIM maybe?. */
+    uint32_t uFunId = pExit->Hypercall.Immediate;
+    bool fHvc64 = RT_BOOL(uFunId & ARM_SMCCC_FUNC_ID_64BIT); RT_NOREF(fHvc64);
+    uint32_t uEntity = ARM_SMCCC_FUNC_ID_ENTITY_GET(uFunId);
+    uint32_t uFunNum = ARM_SMCCC_FUNC_ID_NUM_GET(uFunId);
+    if (uEntity == ARM_SMCCC_FUNC_ID_ENTITY_STD_SEC_SERVICE)
+    {
+        switch (uFunNum)
+        {
+            case ARM_PSCI_FUNC_ID_PSCI_VERSION:
+                nemR3WinSetGReg(pVCpu, ARMV8_A64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, ARM_PSCI_FUNC_ID_PSCI_VERSION_SET(1, 2));
+                break;
+            case ARM_PSCI_FUNC_ID_SYSTEM_OFF:
+                rcStrict = VMR3PowerOff(pVM->pUVM);
+                break;
+            case ARM_PSCI_FUNC_ID_SYSTEM_RESET:
+            case ARM_PSCI_FUNC_ID_SYSTEM_RESET2:
+            {
+                bool fHaltOnReset;
+                int rc = CFGMR3QueryBool(CFGMR3GetChild(CFGMR3GetRoot(pVM), "PDM"), "HaltOnReset", &fHaltOnReset);
+                if (RT_SUCCESS(rc) && fHaltOnReset)
+                {
+                    Log(("nemHCLnxHandleExitHypercall: Halt On Reset!\n"));
+                    rcStrict = VINF_EM_HALT;
+                }
+                else
+                {
+                    /** @todo pVM->pdm.s.fResetFlags = fFlags; */
+                    VM_FF_SET(pVM, VM_FF_RESET);
+                    rcStrict = VINF_EM_RESET;
+                }
+                break;
+            }
+            case ARM_PSCI_FUNC_ID_CPU_ON:
+            {
+                uint64_t u64TgtCpu      = pExit->Hypercall.X[1];
+                RTGCPHYS GCPhysExecAddr = pExit->Hypercall.X[2];
+                uint64_t u64CtxId       = pExit->Hypercall.X[3];
+                VMMR3CpuOn(pVM, u64TgtCpu & 0xff, GCPhysExecAddr, u64CtxId);
+                nemR3WinSetGReg(pVCpu, ARMV8_A64_REG_X0, true /*f64BitReg*/, false /*fSignExtend*/, ARM_PSCI_STS_SUCCESS);
+                break;
+            }
+            case ARM_PSCI_FUNC_ID_PSCI_FEATURES:
+            {
+                uint32_t u32FunNum = (uint32_t)pExit->Hypercall.X[1];
+                switch (u32FunNum)
+                {
+                    case ARM_PSCI_FUNC_ID_PSCI_VERSION:
+                    case ARM_PSCI_FUNC_ID_SYSTEM_OFF:
+                    case ARM_PSCI_FUNC_ID_SYSTEM_RESET:
+                    case ARM_PSCI_FUNC_ID_SYSTEM_RESET2:
+                    case ARM_PSCI_FUNC_ID_CPU_ON:
+                        nemR3WinSetGReg(pVCpu, ARMV8_A64_REG_X0,
+                                        false /*f64BitReg*/, false /*fSignExtend*/,
+                                        (uint64_t)ARM_PSCI_STS_SUCCESS);
+                        break;
+                    default:
+                        nemR3WinSetGReg(pVCpu, ARMV8_A64_REG_X0,
+                                        false /*f64BitReg*/, false /*fSignExtend*/,
+                                        (uint64_t)ARM_PSCI_STS_NOT_SUPPORTED);
+                }
+                break;
+            }
+            default:
+                nemR3WinSetGReg(pVCpu, ARMV8_A64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, (uint64_t)ARM_PSCI_STS_NOT_SUPPORTED);
+        }
+    }
+    else
+        nemR3WinSetGReg(pVCpu, ARMV8_A64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, (uint64_t)ARM_PSCI_STS_NOT_SUPPORTED);
+
+    /** @todo What to do if immediate is != 0? */
+
+    if (rcStrict == VINF_SUCCESS)
+        pVCpu->cpum.GstCtx.Pc.u64 += sizeof(uint32_t);
 
     return rcStrict;
 }
@@ -1913,7 +2503,7 @@ nemR3WinHandleExitMemory(PVMCC pVM, PVMCPUCC pVCpu, WHV_RUN_VP_EXIT_CONTEXT cons
  * @param   pExit           The VM exit information to handle.
  * @sa      nemHCWinHandleMessageUnrecoverableException
  */
-NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExitUnrecoverableException(PVMCC pVM, PVMCPUCC pVCpu, WHV_RUN_VP_EXIT_CONTEXT const *pExit)
+NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExitUnrecoverableException(PVMCC pVM, PVMCPUCC pVCpu, MY_WHV_RUN_VP_EXIT_CONTEXT const *pExit)
 {
 #if 0
     /*
@@ -1947,14 +2537,16 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExitUnrecoverableException(PVMCC pVM,
  * @param   pExit           The VM exit information to handle.
  * @sa      nemHCWinHandleMessage
  */
-NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExit(PVMCC pVM, PVMCPUCC pVCpu, WHV_RUN_VP_EXIT_CONTEXT const *pExit)
+NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExit(PVMCC pVM, PVMCPUCC pVCpu, MY_WHV_RUN_VP_EXIT_CONTEXT const *pExit)
 {
-    int rc = nemHCWinCopyStateFromHyperV(pVM, pVCpu, CPUMCTX_EXTRN_ALL);
-    AssertRCReturn(rc, rc);
-
 #ifdef LOG_ENABLED
     if (LogIs3Enabled())
+    {
+        int rc = nemHCWinCopyStateFromHyperV(pVM, pVCpu, CPUMCTX_EXTRN_ALL);
+        AssertRCReturn(rc, rc);
+
         nemR3WinLogState(pVM, pVCpu);
+    }
 #endif
 
     switch (pExit->ExitReason)
@@ -1966,6 +2558,22 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExit(PVMCC pVM, PVMCPUCC pVCpu, WHV_R
         case WHvRunVpExitReasonCanceled:
             Log4(("CanceledExit/%u\n", pVCpu->idCpu));
             return VINF_SUCCESS;
+
+        case WHvRunVpExitReasonHypercall:
+            return nemR3WinHandleExitHypercall(pVM, pVCpu, pExit);
+
+        case 0x8001000c: /* WHvRunVpExitReasonArm64Reset */
+        {
+            if (pExit->Arm64Reset.ResetType == WHV_ARM64_RESET_CONTEXT_TYPE_POWER_OFF)
+                return VMR3PowerOff(pVM->pUVM);
+            else if (pExit->Arm64Reset.ResetType == WHV_ARM64_RESET_CONTEXT_TYPE_RESET)
+            {
+                VM_FF_SET(pVM, VM_FF_RESET);
+                return VINF_EM_RESET;
+            }
+            else
+                AssertLogRelFailedReturn(VERR_NEM_IPE_3);
+        }
 
         case WHvRunVpExitReasonUnrecoverableException:
             STAM_REL_COUNTER_INC(&pVCpu->nem.s.StatExitUnrecoverable);
@@ -1986,45 +2594,14 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExit(PVMCC pVM, PVMCPUCC pVCpu, WHV_R
 }
 
 
-VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
+VMMR3_INT_DECL(VBOXSTRICTRC) NEMR3RunGC(PVM pVM, PVMCPU pVCpu)
 {
+    Assert(VM_IS_NEM_ENABLED(pVM));
     LogFlow(("NEM/%u: %08RX64 pstate=%#08RX64 <=\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc, pVCpu->cpum.GstCtx.fPState));
 #ifdef LOG_ENABLED
     if (LogIs3Enabled())
         nemR3WinLogState(pVM, pVCpu);
 #endif
-
-    if (RT_UNLIKELY(!pVCpu->nem.s.fIdRegsSynced))
-    {
-        /*
-         * Sync the guest ID registers which are per VM once (they are readonly and stay constant during VM lifetime).
-         * Need to do it here and not during the init because loading a saved state might change the ID registers from what
-         * done in the call to CPUMR3PopulateFeaturesByIdRegisters().
-         */
-        PCCPUMIDREGS pIdRegsGst = NULL;
-        int rc = CPUMR3QueryGuestIdRegs(pVM, &pIdRegsGst);
-        AssertRCReturn(rc, rc);
-
-        WHV_REGISTER_NAME  aenmNames[12];
-        WHV_REGISTER_VALUE aValues[12];
-
-        uint32_t iReg = 0;
-#define ADD_REG64(a_enmName, a_uValue) do { \
-            aenmNames[iReg]      = (a_enmName); \
-            aValues[iReg].Reg128.High64 = 0; \
-            aValues[iReg].Reg64  = (a_uValue); \
-            iReg++; \
-        } while (0)
-
-
-        ADD_REG64(WHvArm64RegisterIdAa64Mmfr0El1, pIdRegsGst->u64RegIdAa64Mmfr0El1);
-#undef ADD_REG64
-
-        //HRESULT hrc = WHvSetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, aenmNames, iReg, aValues);
-        //AssertReturn(SUCCEEDED(hrc), VERR_NEM_IPE_9);
-
-        pVCpu->nem.s.fIdRegsSynced = true;
-    }
 
     /*
      * Try switch to NEM runloop state.
@@ -2038,6 +2615,22 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
         return VINF_SUCCESS;
     }
 
+    if (pVCpu->nem.s.fSyncCntvRegs)
+    {
+        static const WHV_REGISTER_NAME s_aNames[2] = { WHvArm64RegisterCntvCtlEl0, WHvArm64RegisterCntvCvalEl0 };
+        WHV_REGISTER_VALUE aRegs[RT_ELEMENTS(s_aNames)];
+        aRegs[0].Reg64 = pVCpu->cpum.GstCtx.CntvCtlEl0;
+        aRegs[1].Reg64 = pVCpu->cpum.GstCtx.CntvCValEl0;
+
+        HRESULT hrc = WHvSetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, s_aNames, RT_ELEMENTS(s_aNames), aRegs);
+        AssertLogRelMsgReturn(SUCCEEDED(hrc),
+                              ("WHvSetVirtualProcessorRegisters(%p, 0,{CNTV_CTL_EL0, CNTV_CVAL_EL0}, 2,) -> %Rhrc (Last=%#x/%u)\n",
+                               pVM->nem.s.hPartition, pVCpu->idCpu, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                              , VERR_NEM_IPE_9);
+        pVCpu->nem.s.fSyncCntvRegs = false;
+    }
+
+
     /*
      * The run loop.
      *
@@ -2045,36 +2638,9 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
      * everything every time.  This will be optimized later.
      */
     const bool      fSingleStepping     = DBGFIsStepping(pVCpu);
-//    const uint32_t  fCheckVmFFs         = !fSingleStepping ? VM_FF_HP_R0_PRE_HM_MASK
-//                                                           : VM_FF_HP_R0_PRE_HM_STEP_MASK;
-//    const uint32_t  fCheckCpuFFs        = !fSingleStepping ? VMCPU_FF_HP_R0_PRE_HM_MASK : VMCPU_FF_HP_R0_PRE_HM_STEP_MASK;
     VBOXSTRICTRC    rcStrict            = VINF_SUCCESS;
     for (unsigned iLoop = 0;; iLoop++)
     {
-        /*
-         * Pending interrupts or such?  Need to check and deal with this prior
-         * to the state syncing.
-         */
-#if 0
-        if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_FIQ | VMCPU_FF_UPDATE_IRQ))
-        {
-            /* Try inject interrupt. */
-            rcStrict = nemHCWinHandleInterruptFF(pVM, pVCpu, &pVCpu->nem.s.fDesiredInterruptWindows);
-            if (rcStrict == VINF_SUCCESS)
-            { /* likely */ }
-            else
-            {
-                LogFlow(("NEM/%u: breaking: nemHCWinHandleInterruptFF -> %Rrc\n", pVCpu->idCpu, VBOXSTRICTRC_VAL(rcStrict) ));
-                STAM_REL_COUNTER_INC(&pVCpu->nem.s.StatBreakOnStatus);
-                break;
-            }
-        }
-#endif
-
-        /* Ensure that Hyper-V has the whole state. */
-        int rc2 = nemHCWinCopyStateToHyperV(pVM, pVCpu);
-        AssertRCReturn(rc2, rc2);
-
         /*
          * Poll timers and run for a bit.
          *
@@ -2091,19 +2657,21 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
         {
             if (VMCPU_CMPXCHG_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC_NEM_WAIT, VMCPUSTATE_STARTED_EXEC_NEM))
             {
-#if 0 //def LOG_ENABLED
+                /* Ensure that Hyper-V has the whole state. */
+                int rc2 = nemHCWinCopyStateToHyperV(pVM, pVCpu);
+                AssertRCReturn(rc2, rc2);
+
+#ifdef LOG_ENABLED
                 if (LogIsFlowEnabled())
                 {
-                    static const WHV_REGISTER_NAME s_aNames[6] = { WHvX64RegisterCs, WHvX64RegisterRip, WHvX64RegisterRflags,
-                                                                   WHvX64RegisterSs, WHvX64RegisterRsp, WHvX64RegisterCr0 };
-                    WHV_REGISTER_VALUE aRegs[RT_ELEMENTS(s_aNames)] = { {{0, 0} } };
+                    static const WHV_REGISTER_NAME s_aNames[2] = { WHvArm64RegisterPc, WHvArm64RegisterPstate };
+                    WHV_REGISTER_VALUE aRegs[RT_ELEMENTS(s_aNames)] = { { { {0, 0} } } };
                     WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, s_aNames, RT_ELEMENTS(s_aNames), aRegs);
-                    LogFlow(("NEM/%u: Entry @ %04x:%08RX64 IF=%d EFL=%#RX64 SS:RSP=%04x:%08RX64 cr0=%RX64\n",
-                             pVCpu->idCpu, aRegs[0].Segment.Selector, aRegs[1].Reg64, RT_BOOL(aRegs[2].Reg64 & X86_EFL_IF),
-                             aRegs[2].Reg64, aRegs[3].Segment.Selector, aRegs[4].Reg64, aRegs[5].Reg64));
+                    LogFlow(("NEM/%u: Entry @ %08RX64 pstate=%#RX64\n", pVCpu->idCpu, aRegs[0].Reg64, aRegs[1].Reg64));
                 }
 #endif
-                WHV_RUN_VP_EXIT_CONTEXT ExitReason = {0};
+
+                MY_WHV_RUN_VP_EXIT_CONTEXT ExitReason = {0};
                 TMNotifyStartOfExecution(pVM, pVCpu);
 
                 HRESULT hrc = WHvRunVirtualProcessor(pVM->nem.s.hPartition, pVCpu->idCpu, &ExitReason, sizeof(ExitReason));
@@ -2111,10 +2679,29 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
                 VMCPU_CMPXCHG_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC_NEM, VMCPUSTATE_STARTED_EXEC_NEM_WAIT);
                 TMNotifyEndOfExecution(pVM, pVCpu, ASMReadTSC());
 #ifdef LOG_ENABLED
-                LogFlow(("NEM/%u: Exit  @ @todo Reason=%#x\n", pVCpu->idCpu, ExitReason.ExitReason));
+                if (LogIsFlowEnabled())
+                {
+                    static const WHV_REGISTER_NAME s_aNames[2] = { WHvArm64RegisterPc, WHvArm64RegisterPstate };
+                    WHV_REGISTER_VALUE aRegs[RT_ELEMENTS(s_aNames)] = { { { {0, 0} } } };
+                    WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, s_aNames, RT_ELEMENTS(s_aNames), aRegs);
+                    LogFlow(("NEM/%u: Exit @ %08RX64 pstate=%#RX64 Reason=%#x\n",
+                             pVCpu->idCpu, aRegs[0].Reg64, aRegs[1].Reg64, ExitReason.ExitReason));
+                }
 #endif
                 if (SUCCEEDED(hrc))
                 {
+                    /* Always sync the CNTV_CTL_EL0/CNTV_CVAL_EL0 registers, just like we do on macOS. */
+                    static const WHV_REGISTER_NAME s_aNames[2] = { WHvArm64RegisterCntvCtlEl0, WHvArm64RegisterCntvCvalEl0 };
+                    WHV_REGISTER_VALUE aRegs[RT_ELEMENTS(s_aNames)] = { { { {0, 0} } } };
+                    hrc = WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, s_aNames, RT_ELEMENTS(s_aNames), aRegs);
+                    AssertLogRelMsgReturn(SUCCEEDED(hrc),
+                                          ("WHvGetVirtualProcessorRegisters(%p, 0,{CNTV_CTL_EL0, CNTV_CVAL_EL0}, 2,) -> %Rhrc (Last=%#x/%u)\n",
+                                           pVM->nem.s.hPartition, pVCpu->idCpu, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                                          , VERR_NEM_IPE_9);
+
+                    pVCpu->cpum.GstCtx.CntvCtlEl0  = aRegs[0].Reg64;
+                    pVCpu->cpum.GstCtx.CntvCValEl0 = aRegs[1].Reg64;
+
                     /*
                      * Deal with the message.
                      */
@@ -2123,7 +2710,7 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
                     { /* hopefully likely */ }
                     else
                     {
-                        LogFlow(("NEM/%u: breaking: nemHCWinHandleMessage -> %Rrc\n", pVCpu->idCpu, VBOXSTRICTRC_VAL(rcStrict) ));
+                        LogFlow(("NEM/%u: breaking: nemR3WinHandleExit -> %Rrc\n", pVCpu->idCpu, VBOXSTRICTRC_VAL(rcStrict) ));
                         STAM_REL_COUNTER_INC(&pVCpu->nem.s.StatBreakOnStatus);
                         break;
                     }
@@ -2199,9 +2786,34 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
     }
 
 #if 0
-    LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 => %Rrc\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel,
-             pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags.u, VBOXSTRICTRC_VAL(rcStrict) ));
+    UINT32 cbWritten;
+    WHV_ARM64_LOCAL_INTERRUPT_CONTROLLER_STATE IntrState;
+    HRESULT hrc = WHvGetVirtualProcessorState(pVM->nem.s.hPartition, pVCpu->idCpu, WHvVirtualProcessorStateTypeInterruptControllerState2,
+                                              &IntrState, sizeof(IntrState), &cbWritten);
+    AssertLogRelMsgReturn(SUCCEEDED(hrc),
+                          ("WHvGetVirtualProcessorState(%p, %u,WHvVirtualProcessorStateTypeInterruptControllerState2,) -> %Rhrc (Last=%#x/%u)\n",
+                           pVM->nem.s.hPartition, pVCpu->idCpu, hrc, RTNtLastStatusValue(), RTNtLastErrorValue())
+                          , VERR_NEM_GET_REGISTERS_FAILED);
+    LogFlowFunc(("IntrState: cbWritten=%u\n"));
+    for (uint32_t i = 0; i < RT_ELEMENTS(IntrState.BankedInterruptState); i++)
+    {
+        WHV_ARM64_INTERRUPT_STATE *pState = &IntrState.BankedInterruptState[i];
+        LogFlowFunc(("IntrState: Intr %u:\n"
+                     "    Enabled=%RTbool\n"
+                     "    EdgeTriggered=%RTbool\n"
+                     "    Asserted=%RTbool\n"
+                     "    SetPending=%RTbool\n"
+                     "    Active=%RTbool\n"
+                     "    Direct=%RTbool\n"
+                     "    GicrIpriorityrConfigured=%u\n"
+                     "    GicrIpriorityrActive=%u\n",
+                     i, pState->Enabled, pState->EdgeTriggered, pState->Asserted, pState->SetPending, pState->Active, pState->Direct,
+                     pState->GicrIpriorityrConfigured, pState->GicrIpriorityrActive));
+    }
 #endif
+
+    LogFlow(("NEM/%u: %08RX64 pstate=%#08RX64 => %Rrc\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64,
+             pVCpu->cpum.GstCtx.fPState, VBOXSTRICTRC_VAL(rcStrict) ));
     return rcStrict;
 }
 
@@ -2214,19 +2826,38 @@ VMMR3_INT_DECL(bool) NEMR3CanExecuteGuest(PVM pVM, PVMCPU pVCpu)
 }
 
 
-bool nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
+VMMR3_INT_DECL(int) NEMR3Halt(PVM pVM, PVMCPU pVCpu)
+{
+    Assert(EMGetState(pVCpu) == EMSTATE_WAIT_SIPI);
+
+    /*
+     * Force the vCPU to get out of the SIPI state and into the normal runloop
+     * as Hyper-V doesn't cause VM exits for PSCI calls so we wouldn't notice when
+     * when the guest brings APs online.
+     * Instead we force the EMT to run the vCPU through Hyper-V which manages the state.
+     */
+    RT_NOREF(pVM);
+    EMSetState(pVCpu, EMSTATE_HALTED);
+    return VINF_EM_RESCHEDULE;
+}
+
+
+DECLHIDDEN(bool) nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 {
     NOREF(pVM); NOREF(pVCpu); NOREF(fEnable);
     return false;
 }
 
 
-void nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
+DECLHIDDEN(void) nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
 {
     Log8(("nemR3NativeNotifyFF: canceling %u\n", pVCpu->idCpu));
-    HRESULT hrc = WHvCancelRunVirtualProcessor(pVM->nem.s.hPartition, pVCpu->idCpu, 0);
-    AssertMsg(SUCCEEDED(hrc), ("WHvCancelRunVirtualProcessor -> hrc=%Rhrc\n", hrc));
-    RT_NOREF_PV(hrc);
+    if (pVM->nem.s.fCreatedEmts)
+    {
+        HRESULT hrc = WHvCancelRunVirtualProcessor(pVM->nem.s.hPartition, pVCpu->idCpu, 0);
+        AssertMsg(SUCCEEDED(hrc), ("WHvCancelRunVirtualProcessor -> hrc=%Rhrc\n", hrc));
+        RT_NOREF_PV(hrc);
+    }
     RT_NOREF_PV(fFlags);
 }
 
@@ -2449,39 +3080,11 @@ VMMR3_INT_DECL(int) NEMR3PhysMmio2QueryAndResetDirtyBitmap(PVM pVM, RTGCPHYS GCP
 VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, void *pvPages, uint32_t fFlags,
                                                      uint8_t *pu2State, uint32_t *puNemRange)
 {
-    Log5(("nemR3NativeNotifyPhysRomRegisterEarly: %RGp LB %RGp pvPages=%p fFlags=%#x\n", GCPhys, cb, pvPages, fFlags));
+    RT_NOREF(pVM, GCPhys, cb, pvPages, fFlags, puNemRange);
+
+    Log5(("NEMR3NotifyPhysRomRegisterEarly: %RGp LB %RGp pvPages=%p fFlags=%#x\n", GCPhys, cb, pvPages, fFlags));
     *pu2State   = UINT8_MAX;
     *puNemRange = 0;
-
-#if 0 /* Let's not do this after all.  We'll protection change notifications for each page and if not we'll map them lazily. */
-    RTGCPHYS const cPages = cb >> X86_PAGE_SHIFT;
-    for (RTGCPHYS iPage = 0; iPage < cPages; iPage++, GCPhys += X86_PAGE_SIZE)
-    {
-        const void *pvPage;
-        int rc = nemR3NativeGCPhys2R3PtrReadOnly(pVM, GCPhys, &pvPage);
-        if (RT_SUCCESS(rc))
-        {
-            HRESULT hrc = WHvMapGpaRange(pVM->nem.s.hPartition, (void *)pvPage, GCPhys, X86_PAGE_SIZE,
-                                         WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagExecute);
-            if (SUCCEEDED(hrc))
-            { /* likely */ }
-            else
-            {
-                LogRel(("nemR3NativeNotifyPhysRomRegisterEarly: GCPhys=%RGp hrc=%Rhrc (%#x) Last=%#x/%u\n",
-                        GCPhys, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
-                return VERR_NEM_INIT_FAILED;
-            }
-        }
-        else
-        {
-            LogRel(("nemR3NativeNotifyPhysRomRegisterEarly: GCPhys=%RGp rc=%Rrc\n", GCPhys, rc));
-            return rc;
-        }
-    }
-    RT_NOREF_PV(fFlags);
-#else
-    RT_NOREF(pVM, GCPhys, cb, pvPages, fFlags);
-#endif
     return VINF_SUCCESS;
 }
 
@@ -2521,7 +3124,7 @@ VMMR3_INT_DECL(void) NEMR3NotifySetA20(PVMCPU pVCpu, bool fEnabled)
 }
 
 
-void nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb)
+DECLHIDDEN(void) nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb)
 {
     Log5(("nemHCNativeNotifyHandlerPhysicalRegister: %RGp LB %RGp enmKind=%d\n", GCPhys, cb, enmKind));
     NOREF(pVM); NOREF(enmKind); NOREF(GCPhys); NOREF(cb);
@@ -2551,8 +3154,8 @@ VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalDeregister(PVMCC pVM, PGMPHYSHANDLE
 }
 
 
-void nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
-                                            RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM)
+DECLHIDDEN(void) nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
+                                                        RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM)
 {
     Log5(("nemHCNativeNotifyHandlerPhysicalModify: %RGp LB %RGp -> %RGp enmKind=%d fRestoreAsRAM=%d\n",
           GCPhysOld, cb, GCPhysNew, enmKind, fRestoreAsRAM));
@@ -2560,167 +3163,15 @@ void nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKin
 }
 
 
-/**
- * Worker that maps pages into Hyper-V.
- *
- * This is used by the PGM physical page notifications as well as the memory
- * access VMEXIT handlers.
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   pVCpu           The cross context virtual CPU structure of the
- *                          calling EMT.
- * @param   GCPhysSrc       The source page address.
- * @param   GCPhysDst       The hyper-V destination page.  This may differ from
- *                          GCPhysSrc when A20 is disabled.
- * @param   fPageProt       NEM_PAGE_PROT_XXX.
- * @param   pu2State        Our page state (input/output).
- * @param   fBackingChanged Set if the page backing is being changed.
- * @thread  EMT(pVCpu)
- */
-NEM_TMPL_STATIC int nemHCNativeSetPhysPage(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhysSrc, RTGCPHYS GCPhysDst,
-                                           uint32_t fPageProt, uint8_t *pu2State, bool fBackingChanged)
-{
-    /*
-     * Looks like we need to unmap a page before we can change the backing
-     * or even modify the protection.  This is going to be *REALLY* efficient.
-     * PGM lends us two bits to keep track of the state here.
-     */
-    RT_NOREF(pVCpu);
-    uint8_t const u2OldState = *pu2State;
-    uint8_t const u2NewState = fPageProt & NEM_PAGE_PROT_WRITE ? NEM_WIN_PAGE_STATE_WRITABLE
-                             : fPageProt & NEM_PAGE_PROT_READ  ? NEM_WIN_PAGE_STATE_READABLE : NEM_WIN_PAGE_STATE_UNMAPPED;
-    if (   fBackingChanged
-        || u2NewState != u2OldState)
-    {
-        if (u2OldState > NEM_WIN_PAGE_STATE_UNMAPPED)
-        {
-            STAM_REL_PROFILE_START(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
-            HRESULT hrc = WHvUnmapGpaRange(pVM->nem.s.hPartition, GCPhysDst, X86_PAGE_SIZE);
-            STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
-            if (SUCCEEDED(hrc))
-            {
-                *pu2State = NEM_WIN_PAGE_STATE_UNMAPPED;
-                STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPage);
-                uint32_t cMappedPages = ASMAtomicDecU32(&pVM->nem.s.cMappedPages); NOREF(cMappedPages);
-                if (u2NewState == NEM_WIN_PAGE_STATE_UNMAPPED)
-                {
-                    Log5(("NEM GPA unmapped/set: %RGp (was %s, cMappedPages=%u)\n",
-                          GCPhysDst, g_apszPageStates[u2OldState], cMappedPages));
-                    return VINF_SUCCESS;
-                }
-            }
-            else
-            {
-                STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
-                LogRel(("nemHCNativeSetPhysPage/unmap: GCPhysDst=%RGp hrc=%Rhrc (%#x) Last=%#x/%u\n",
-                        GCPhysDst, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
-                return VERR_NEM_INIT_FAILED;
-            }
-        }
-    }
-
-    /*
-     * Writeable mapping?
-     */
-    if (fPageProt & NEM_PAGE_PROT_WRITE)
-    {
-        void *pvPage;
-        int rc = nemR3NativeGCPhys2R3PtrWriteable(pVM, GCPhysSrc, &pvPage);
-        if (RT_SUCCESS(rc))
-        {
-            HRESULT hrc = WHvMapGpaRange(pVM->nem.s.hPartition, pvPage, GCPhysDst, X86_PAGE_SIZE,
-                                         WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagExecute | WHvMapGpaRangeFlagWrite);
-            if (SUCCEEDED(hrc))
-            {
-                *pu2State = NEM_WIN_PAGE_STATE_WRITABLE;
-                STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPage);
-                uint32_t cMappedPages = ASMAtomicIncU32(&pVM->nem.s.cMappedPages); NOREF(cMappedPages);
-                Log5(("NEM GPA mapped/set: %RGp %s (was %s, cMappedPages=%u)\n",
-                      GCPhysDst, g_apszPageStates[u2NewState], g_apszPageStates[u2OldState], cMappedPages));
-                return VINF_SUCCESS;
-            }
-            STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPageFailed);
-            LogRel(("nemHCNativeSetPhysPage/writable: GCPhysDst=%RGp hrc=%Rhrc (%#x) Last=%#x/%u\n",
-                    GCPhysDst, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
-            return VERR_NEM_INIT_FAILED;
-        }
-        LogRel(("nemHCNativeSetPhysPage/writable: GCPhysSrc=%RGp rc=%Rrc\n", GCPhysSrc, rc));
-        return rc;
-    }
-
-    if (fPageProt & NEM_PAGE_PROT_READ)
-    {
-        const void *pvPage;
-        int rc = nemR3NativeGCPhys2R3PtrReadOnly(pVM, GCPhysSrc, &pvPage);
-        if (RT_SUCCESS(rc))
-        {
-            STAM_REL_PROFILE_START(&pVM->nem.s.StatProfMapGpaRangePage, a);
-            HRESULT hrc = WHvMapGpaRange(pVM->nem.s.hPartition, (void *)pvPage, GCPhysDst, X86_PAGE_SIZE,
-                                         WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagExecute);
-            STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfMapGpaRangePage, a);
-            if (SUCCEEDED(hrc))
-            {
-                *pu2State = NEM_WIN_PAGE_STATE_READABLE;
-                STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPage);
-                uint32_t cMappedPages = ASMAtomicIncU32(&pVM->nem.s.cMappedPages); NOREF(cMappedPages);
-                Log5(("NEM GPA mapped/set: %RGp %s (was %s, cMappedPages=%u)\n",
-                      GCPhysDst, g_apszPageStates[u2NewState], g_apszPageStates[u2OldState], cMappedPages));
-                return VINF_SUCCESS;
-            }
-            STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPageFailed);
-            LogRel(("nemHCNativeSetPhysPage/readonly: GCPhysDst=%RGp hrc=%Rhrc (%#x) Last=%#x/%u\n",
-                    GCPhysDst, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
-            return VERR_NEM_INIT_FAILED;
-        }
-        LogRel(("nemHCNativeSetPhysPage/readonly: GCPhysSrc=%RGp rc=%Rrc\n", GCPhysSrc, rc));
-        return rc;
-    }
-
-    /* We already unmapped it above. */
-    *pu2State = NEM_WIN_PAGE_STATE_UNMAPPED;
-    return VINF_SUCCESS;
-}
-
-
-NEM_TMPL_STATIC int nemHCJustUnmapPageFromHyperV(PVMCC pVM, RTGCPHYS GCPhysDst, uint8_t *pu2State)
-{
-    if (*pu2State <= NEM_WIN_PAGE_STATE_UNMAPPED)
-    {
-        Log5(("nemHCJustUnmapPageFromHyperV: %RGp == unmapped\n", GCPhysDst));
-        *pu2State = NEM_WIN_PAGE_STATE_UNMAPPED;
-        return VINF_SUCCESS;
-    }
-
-    STAM_REL_PROFILE_START(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
-    HRESULT hrc = WHvUnmapGpaRange(pVM->nem.s.hPartition, GCPhysDst & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK, X86_PAGE_SIZE);
-    STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
-    if (SUCCEEDED(hrc))
-    {
-        STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPage);
-        uint32_t cMappedPages = ASMAtomicDecU32(&pVM->nem.s.cMappedPages); NOREF(cMappedPages);
-        *pu2State = NEM_WIN_PAGE_STATE_UNMAPPED;
-        Log5(("nemHCJustUnmapPageFromHyperV: %RGp => unmapped (total %u)\n", GCPhysDst, cMappedPages));
-        return VINF_SUCCESS;
-    }
-    STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
-    LogRel(("nemHCJustUnmapPageFromHyperV(%RGp): failed! hrc=%Rhrc (%#x) Last=%#x/%u\n",
-            GCPhysDst, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
-    return VERR_NEM_IPE_6;
-}
-
-
-int nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
-                                       PGMPAGETYPE enmType, uint8_t *pu2State)
+DECLHIDDEN(int) nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+                                                   PGMPAGETYPE enmType, uint8_t *pu2State)
 {
     Log5(("nemHCNativeNotifyPhysPageAllocated: %RGp HCPhys=%RHp fPageProt=%#x enmType=%d *pu2State=%d\n",
           GCPhys, HCPhys, fPageProt, enmType, *pu2State));
-    RT_NOREF_PV(HCPhys); RT_NOREF_PV(enmType);
+    RT_NOREF(pVM, GCPhys, HCPhys, fPageProt, enmType, pu2State);
 
-    int rc;
-    RT_NOREF_PV(fPageProt);
-    rc = nemHCJustUnmapPageFromHyperV(pVM, GCPhys, pu2State);
-    return rc;
+    AssertFailed();
+    return VINF_SUCCESS;
 }
 
 
@@ -2729,24 +3180,18 @@ VMM_INT_DECL(void) NEMHCNotifyPhysPageProtChanged(PVMCC pVM, RTGCPHYS GCPhys, RT
 {
     Log5(("NEMHCNotifyPhysPageProtChanged: %RGp HCPhys=%RHp fPageProt=%#x enmType=%d *pu2State=%d\n",
           GCPhys, HCPhys, fPageProt, enmType, *pu2State));
-    Assert(VM_IS_NEM_ENABLED(pVM));
-    RT_NOREF(HCPhys, enmType, pvR3);
-
-    RT_NOREF_PV(fPageProt);
-    nemHCJustUnmapPageFromHyperV(pVM, GCPhys, pu2State);
+    RT_NOREF(pVM, GCPhys, HCPhys, pvR3, fPageProt, enmType, pu2State);
 }
 
 
 VMM_INT_DECL(void) NEMHCNotifyPhysPageChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhysPrev, RTHCPHYS HCPhysNew,
                                               RTR3PTR pvNewR3, uint32_t fPageProt, PGMPAGETYPE enmType, uint8_t *pu2State)
 {
-    Log5(("nemHCNativeNotifyPhysPageChanged: %RGp HCPhys=%RHp->%RHp pvNewR3=%p fPageProt=%#x enmType=%d *pu2State=%d\n",
-          GCPhys, HCPhysPrev, HCPhysNew, pvNewR3, fPageProt, enmType, *pu2State));
-    Assert(VM_IS_NEM_ENABLED(pVM));
-    RT_NOREF(HCPhysPrev, HCPhysNew, pvNewR3, enmType);
+    Log5(("NEMHCNotifyPhysPageChanged: %RGp HCPhys=%RHp->%RHp fPageProt=%#x enmType=%d *pu2State=%d\n",
+          GCPhys, HCPhysPrev, HCPhysNew, fPageProt, enmType, *pu2State));
+    RT_NOREF(pVM, GCPhys, HCPhysPrev, HCPhysNew, pvNewR3, fPageProt, enmType, pu2State);
 
-    RT_NOREF_PV(fPageProt);
-    nemHCJustUnmapPageFromHyperV(pVM, GCPhys, pu2State);
+    AssertFailed();
 }
 
 
@@ -2767,10 +3212,6 @@ VMM_INT_DECL(uint32_t) NEMHCGetFeatures(PVMCC pVM)
 /** @page pg_nem_win_aarmv8 NEM/win - Native Execution Manager, Windows.
  *
  * Open questions:
- *     - Why can't one read and write WHvArm64RegisterId*
- *     - WHvArm64RegisterDbgbcr0El1 is not readable?
- *     - Getting notified about system register reads/writes (GIC)?
  *     - InstructionByteCount and InstructionBytes for unmapped GPA exit are zero...
- *     - Handling of (vTimer) interrupts, how is WHvRequestInterrupt() supposed to be used?
  */
 

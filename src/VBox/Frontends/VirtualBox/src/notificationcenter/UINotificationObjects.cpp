@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -84,6 +84,9 @@
 #include "CUpdateAgent.h"
 #include "CVRDEServer.h"
 #include "CVRDEServerInfo.h"
+#ifdef VBOX_WITH_DRAG_AND_DROP
+# include "CDnDTarget.h"
+#endif
 
 /* Other VBox stuff: */
 #ifdef VBOX_WS_NIX
@@ -495,10 +498,10 @@ void UINotificationMessage::cannotMountImage(const QString &strMachineName, cons
 void UINotificationMessage::cannotSendACPIToMachine()
 {
     createMessage(
-        QApplication::translate("UIMessageCenter", "Can't send ACPI shutdown ..."),
+        QApplication::translate("UIMessageCenter", "Can't send shutdown signal ..."),
         QApplication::translate("UIMessageCenter", "You are trying to shut down the guest with the ACPI power button. "
                                                    "This is currently not possible because the guest does not support "
-                                                   "software shutdown."));
+                                                   "software shut down."));
 }
 
 /* static */
@@ -692,6 +695,15 @@ void UINotificationMessage::cannotAcquireStorageControllerParameter(const CStora
     createMessage(
         QApplication::translate("UIMessageCenter", "Storage controller failure ..."),
         QApplication::translate("UIMessageCenter", "Failed to acquire storage controller parameter.") +
+        UIErrorString::formatErrorInfo(comStorageController));
+}
+
+/* static */
+void UINotificationMessage::cannotChangeStorageControllerParameter(const CStorageController &comStorageController)
+{
+    createMessage(
+        QApplication::translate("UIMessageCenter", "Storage controller failure ..."),
+        QApplication::translate("UIMessageCenter", "Failed to change storage controller parameter.") +
         UIErrorString::formatErrorInfo(comStorageController));
 }
 
@@ -1193,8 +1205,8 @@ void UINotificationMessage::cannotResumeMachine(const CConsole &comConsole)
 void UINotificationMessage::cannotACPIShutdownMachine(const CConsole &comConsole)
 {
     createMessage(
-        QApplication::translate("UIMessageCenter", "Can't shutdown machine ..."),
-        QApplication::translate("UIMessageCenter", "Failed to send the ACPI Power Button press event to the virtual machine "
+        QApplication::translate("UIMessageCenter", "Can't shut down machine ..."),
+        QApplication::translate("UIMessageCenter", "Failed to send the ACPI power button press event to the virtual machine "
                                                    "<b>%1</b>.").arg(CConsole(comConsole).GetMachine().GetName()) +
         UIErrorString::formatErrorInfo(comConsole));
 }
@@ -1809,6 +1821,24 @@ void UINotificationMessage::cannotToggleVRDEServer(const CVRDEServer &comServer,
         UIErrorString::formatErrorInfo(comServer));
 }
 
+#ifdef VBOX_WITH_DRAG_AND_DROP
+/* static */
+void UINotificationMessage::cannotDropDataToGuest(const CDnDTarget &comDndTarget)
+{
+    createMessage(
+        QApplication::translate("UIMessageCenter", "Can't drop data to guest ..."),
+        UIErrorString::formatErrorInfo(comDndTarget));
+}
+
+/* static */
+void UINotificationMessage::cannotDropDataToGuest(const CProgress &comProgress)
+{
+    createMessage(
+        QApplication::translate("UIMessageCenter", "Can't drop data to guest ..."),
+        UIErrorString::formatErrorInfo(comProgress));
+}
+#endif /* VBOX_WITH_DRAG_AND_DROP */
+
 UINotificationMessage::UINotificationMessage(const QString &strName,
                                              const QString &strDetails,
                                              const QString &strInternalName,
@@ -2031,9 +2061,11 @@ CProgress UINotificationProgressMediumMove::createProgress(COMResult &comResult)
 *********************************************************************************************************************************/
 
 UINotificationProgressMediumResize::UINotificationProgressMediumResize(const CMedium &comMedium,
-                                                                       qulonglong uSize)
+                                                                       qulonglong uOldSize,
+                                                                       qulonglong uNewSize)
     : m_comMedium(comMedium)
-    , m_uTo(uSize)
+    , m_uFrom(uOldSize)
+    , m_uTo(uNewSize)
 {
 }
 
@@ -4317,6 +4349,9 @@ UINotificationProgressVsdFormValueSet::UINotificationProgressVsdFormValueSet(con
     : m_enmType(KFormValueType_Boolean)
     , m_comValue(comValue)
     , m_fBool(fBool)
+    , m_iChoice(0)
+    , m_iInteger(0)
+    , m_iInteger64(0)
 {
 }
 
@@ -4324,7 +4359,11 @@ UINotificationProgressVsdFormValueSet::UINotificationProgressVsdFormValueSet(con
                                                                              const QString &strString)
     : m_enmType(KFormValueType_String)
     , m_comValue(comValue)
+    , m_fBool(false)
     , m_strString(strString)
+    , m_iChoice(0)
+    , m_iInteger(0)
+    , m_iInteger64(0)
 {
 }
 
@@ -4332,7 +4371,10 @@ UINotificationProgressVsdFormValueSet::UINotificationProgressVsdFormValueSet(con
                                                                              int iChoice)
     : m_enmType(KFormValueType_Choice)
     , m_comValue(comValue)
+    , m_fBool(false)
     , m_iChoice(iChoice)
+    , m_iInteger(0)
+    , m_iInteger64(0)
 {
 }
 
@@ -4340,7 +4382,10 @@ UINotificationProgressVsdFormValueSet::UINotificationProgressVsdFormValueSet(con
                                                                              int iInteger)
     : m_enmType(KFormValueType_RangedInteger)
     , m_comValue(comValue)
+    , m_fBool(false)
+    , m_iChoice(0)
     , m_iInteger(iInteger)
+    , m_iInteger64(0)
 {
 }
 
@@ -4348,6 +4393,9 @@ UINotificationProgressVsdFormValueSet::UINotificationProgressVsdFormValueSet(con
                                                                              qlonglong iInteger64)
     : m_enmType(KFormValueType_RangedInteger64)
     , m_comValue(comValue)
+    , m_fBool(false)
+    , m_iChoice(0)
+    , m_iInteger(0)
     , m_iInteger64(iInteger64)
 {
 }
@@ -4658,27 +4706,47 @@ void UINotificationProgressNewVersionChecker::sltHandleProgressFinished()
     if (m_comUpdateHost.isNull() && !m_comUpdateHost.isOk())
         return;
 
-    bool const fUpdateAvailable = m_comUpdateHost.GetState() == KUpdateState_Available; /** @todo Handle other states. */
+    KUpdateState enmState = m_comUpdateHost.GetState();
     if (!m_comUpdateHost.isOk())
         return;
 
-    if (fUpdateAvailable)
+    switch (enmState)
     {
-        QString strVersion = m_comUpdateHost.GetVersion();
-        if (!m_comUpdateHost.isOk())
-            return;
-
-        QString strURL = m_comUpdateHost.GetDownloadUrl();
-        if (!m_comUpdateHost.isOk())
-            return;
-
-        UINotificationMessage::showUpdateSuccess(strVersion, strURL);
+        case KUpdateState_Available:
+        {
+            QString strVersion = m_comUpdateHost.GetVersion();
+            if (!m_comUpdateHost.isOk())
+                return;
+            QString strURL = m_comUpdateHost.GetDownloadUrl();
+            if (!m_comUpdateHost.isOk())
+                return;
+            UINotificationMessage::showUpdateSuccess(strVersion, strURL);
+            break;
+        }
+        case KUpdateState_NotAvailable:
+        {
+            if (m_fForcedCall)
+                UINotificationMessage::showUpdateNotFound();
+            break;
+        }
+        case KUpdateState_Invalid:
+        case KUpdateState_Error:
+        case KUpdateState_Max:
+            /* Error cases are handled not here: */
+            break;
+        case KUpdateState_Downloading:
+        case KUpdateState_Downloaded:
+        case KUpdateState_Installing:
+        case KUpdateState_Installed:
+        case KUpdateState_UserInteraction:
+        case KUpdateState_Canceled:
+        case KUpdateState_Maintenance:
+            /* These cases are not yet implemented in Main: */
+            break;
+        default:
+            break;
     }
-    else
-    {
-        if (m_fForcedCall)
-            UINotificationMessage::showUpdateNotFound();
-    }
+
 #endif /* VBOX_WITH_UPDATE_AGENT */
 }
 

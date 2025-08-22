@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -81,6 +81,7 @@ typedef struct DRVMAINKEYBOARD
 
 Keyboard::Keyboard()
     : mParent(NULL)
+    , menmLeds(PDMKEYBLEDS_NONE)
 {
 }
 
@@ -91,7 +92,6 @@ Keyboard::~Keyboard()
 HRESULT Keyboard::FinalConstruct()
 {
     RT_ZERO(mpDrv);
-    menmLeds = PDMKEYBLEDS_NONE;
     return BaseFinalConstruct();
 }
 
@@ -125,6 +125,8 @@ HRESULT Keyboard::init(Console *aParent)
     unconst(mEventSource).createObject();
     HRESULT hrc = mEventSource->init();
     AssertComRCReturnRC(hrc);
+
+    menmLeds = PDMKEYBLEDS_NONE;
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();

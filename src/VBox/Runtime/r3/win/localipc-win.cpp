@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -208,8 +208,7 @@ static int rtLocalIpcWinCreateSession(PRTLOCALIPCSESSIONINT *ppSession, HANDLE h
         SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" L"0x0012019b"   L";;;" SDDL_EVERYONE SDDL_ACE_END
 static NTSTATUS rtLocalIpcBuildDacl(PACL pDacl, bool fServer)
 {
-    static SID_IDENTIFIER_AUTHORITY s_NtAuth    = SECURITY_NT_AUTHORITY;
-    static SID_IDENTIFIER_AUTHORITY s_WorldAuth = SECURITY_WORLD_SID_AUTHORITY;
+    static SID_IDENTIFIER_AUTHORITY s_NtAuth = SECURITY_NT_AUTHORITY;
     union
     {
         SID     Sid;

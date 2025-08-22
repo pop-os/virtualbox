@@ -8,7 +8,7 @@
         VirtualBox.xidl.
 -->
 <!--
-    Copyright (C) 2009-2024 Oracle and/or its affiliates.
+    Copyright (C) 2009-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -71,7 +71,7 @@ along with this program; if not, see &lt;https://www.gnu.org/licenses&gt;.
 SPDX-License-Identifier: GPL-3.0-only
 """
 
-__version__ = "$Revision: 164831 $";
+__version__ = "$Revision: 170187 $";
 
 
 

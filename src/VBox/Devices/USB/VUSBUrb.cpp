@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -564,7 +564,8 @@ static DECLCALLBACK(void) vusbMsgFreeUrb(PVUSBURB pUrb)
     if (    pUrb->enmState == VUSBURBSTATE_CANCELLED
         &&  !pUrb->pVUsb->pvFreeCtx)
     {
-        LogFlow(("vusbMsgFreeUrb: Freeing orphan: %p (pUrb=%p)\n", pExtra, pUrb));
+        LogFlow(("vusbMsgFreeUrb: Freeing orphan: %p/%p (pUrb=%p)\n", pExtra, pExtra->Urb.pbData, pUrb));
+        RTMemFree(pExtra->Urb.pbData);
         RTMemFree(pExtra);
     }
     else
@@ -590,6 +591,8 @@ void vusbMsgFreeExtraData(PVUSBCTRLEXTRA pExtra)
         pExtra->Urb.enmState = VUSBURBSTATE_FREE;
         if (pExtra->Urb.pszDesc)
             RTStrFree(pExtra->Urb.pszDesc);
+        Assert(pExtra->Urb.pbData);
+        RTMemFree(pExtra->Urb.pbData);
         RTMemFree(pExtra);
     }
     else
@@ -612,41 +615,48 @@ static PVUSBCTRLEXTRA vusbMsgAllocExtraData(PVUSBURB pUrb)
      * to be expanded but almost certainly wastes 4K or more memory.
      */
     const size_t cbMax = _2K + sizeof(VUSBSETUP);
-    pExtra = (PVUSBCTRLEXTRA)RTMemAllocZ(RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[cbMax]));
+    pExtra = (PVUSBCTRLEXTRA)RTMemAllocZ(sizeof(VUSBCTRLEXTRA));
     if (pExtra)
     {
-        pExtra->enmStage = CTLSTAGE_SETUP;
-        //pExtra->fOk = false;
-        pExtra->pMsg = (PVUSBSETUP)pExtra->Urb.abData;
-        pExtra->pbCur = (uint8_t *)(pExtra->pMsg + 1);
-        //pExtra->cbLeft = 0;
-        pExtra->cbMax = cbMax;
+        pExtra->Urb.pbData = (uint8_t *)RTMemAllocZ(cbMax);
+        if (pExtra->Urb.pbData) {
+            pExtra->enmStage = CTLSTAGE_SETUP;
+            //pExtra->fOk = false;
+            pExtra->pMsg = (PVUSBSETUP)pExtra->Urb.pbData;
+            pExtra->pbCur = (uint8_t *)(pExtra->pMsg + 1);
+            //pExtra->cbLeft = 0;
+            pExtra->cbMax = cbMax;
 
-        //pExtra->Urb.Dev.pvProxyUrb = NULL;
-        pExtra->Urb.u32Magic = VUSBURB_MAGIC;
-        pExtra->Urb.enmState = VUSBURBSTATE_ALLOCATED;
-        pExtra->Urb.fCompleting = false;
+            //pExtra->Urb.Dev.pvProxyUrb = NULL;
+            pExtra->Urb.u32Magic = VUSBURB_MAGIC;
+            pExtra->Urb.enmState = VUSBURBSTATE_ALLOCATED;
+            pExtra->Urb.fCompleting = false;
 #ifdef LOG_ENABLED
-        RTStrAPrintf(&pExtra->Urb.pszDesc, "URB %p msg->%p", &pExtra->Urb, pUrb);
+            RTStrAPrintf(&pExtra->Urb.pszDesc, "URB %p msg->%p", &pExtra->Urb, pUrb);
 #endif
-        pExtra->Urb.pVUsb = &pExtra->VUsbExtra;
-        //pExtra->Urb.pVUsb->pCtrlUrb = NULL;
-        //pExtra->Urb.pVUsb->pNext = NULL;
-        //pExtra->Urb.pVUsb->ppPrev = NULL;
-        pExtra->Urb.pVUsb->pUrb = &pExtra->Urb;
-        pExtra->Urb.pVUsb->pDev = pUrb->pVUsb->pDev;
-        pExtra->Urb.pVUsb->pfnFree = vusbMsgFreeUrb;
-        pExtra->Urb.pVUsb->pvFreeCtx = &pExtra->Urb;
-        //pExtra->Urb.Hci = {0};
-        //pExtra->Urb.Dev.pvProxyUrb = NULL;
-        pExtra->Urb.DstAddress = pUrb->DstAddress;
-        pExtra->Urb.EndPt = pUrb->EndPt;
-        pExtra->Urb.enmType = VUSBXFERTYPE_MSG;
-        pExtra->Urb.enmDir = VUSBDIRECTION_INVALID;
-        //pExtra->Urb.fShortNotOk = false;
-        pExtra->Urb.enmStatus = VUSBSTATUS_INVALID;
-        //pExtra->Urb.cbData = 0;
-        vusbUrbAssert(&pExtra->Urb);
+            pExtra->Urb.pVUsb = &pExtra->VUsbExtra;
+            //pExtra->Urb.pVUsb->pCtrlUrb = NULL;
+            //pExtra->Urb.pVUsb->pNext = NULL;
+            //pExtra->Urb.pVUsb->ppPrev = NULL;
+            pExtra->Urb.pVUsb->pUrb = &pExtra->Urb;
+            pExtra->Urb.pVUsb->pDev = pUrb->pVUsb->pDev;
+            pExtra->Urb.pVUsb->pfnFree = vusbMsgFreeUrb;
+            pExtra->Urb.pVUsb->pvFreeCtx = &pExtra->Urb;
+            //pExtra->Urb.Hci = {0};
+            //pExtra->Urb.Dev.pvProxyUrb = NULL;
+            pExtra->Urb.DstAddress = pUrb->DstAddress;
+            pExtra->Urb.EndPt = pUrb->EndPt;
+            pExtra->Urb.enmType = VUSBXFERTYPE_MSG;
+            pExtra->Urb.enmDir = VUSBDIRECTION_INVALID;
+            //pExtra->Urb.fShortNotOk = false;
+            pExtra->Urb.enmStatus = VUSBSTATUS_INVALID;
+            //pExtra->Urb.cbData = 0;
+            pExtra->Urb.cbDataAllocated = cbMax;
+            vusbUrbAssert(&pExtra->Urb);
+        } else {
+            RTMemFree(pExtra);
+            pExtra = NULL;
+        }
     }
     return pExtra;
 }
@@ -683,25 +693,36 @@ static bool vusbMsgSetup(PVUSBPIPE pPipe, const void *pvBuf, uint32_t cbBuf)
     PVUSBSETUP pOldSetup = pExtra->pMsg;
     uint32_t   cbClean = sizeof(VUSBSETUP) + pOldSetup->wLength;
     cbClean = RT_MIN(cbClean, pExtra->cbMax);
-    memset(pExtra->Urb.abData, 0, cbClean);
+    memset(pExtra->Urb.pbData, 0, cbClean);
 
     /*
      * Check if we've got an cancelled message URB. Allocate a new one in that case.
      */
     if (pExtra->Urb.enmState == VUSBURBSTATE_CANCELLED)
     {
-        void *pvNew = RTMemDup(pExtra, RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[pExtra->cbMax]));
-        if (!pvNew)
+        /* Duplicate the control data... */
+        void *pvNewCtrl = RTMemDup(pExtra, sizeof(VUSBCTRLEXTRA));
+        if (!pvNewCtrl)
         {
-            Log(("vusbMsgSetup: out of memory!!! cbReq=%zu\n", RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[pExtra->cbMax])));
+            Log(("vusbMsgSetup: out of memory (ctrl)!!! cbReq=%zu\n", sizeof(VUSBCTRLEXTRA)));
+            return false;
+        }
+        /* ... and the user data, too. */
+        void *pvNewData = RTMemDup(pExtra->Urb.pbData, pExtra->cbMax);
+        if (!pvNewData)
+        {
+            Log(("vusbMsgSetup: out of memory (data)!!! cbReq=%u\n", pExtra->cbMax));
+            RTMemFree(pvNewCtrl);
             return false;
         }
         pExtra->Urb.pVUsb->pvFreeCtx = NULL;
-        LogFlow(("vusbMsgSetup: Replacing canceled pExtra=%p with %p.\n", pExtra, pvNew));
-        pPipe->pCtrl = pExtra = (PVUSBCTRLEXTRA)pvNew;
+        LogFlow(("vusbMsgSetup: Replacing canceled pExtra=%p with %p.\n", pExtra, pvNewCtrl));
+        LogFlow(("vusbMsgSetup: Replacing canceled pExtra->Urb.pbData=%p with %p.\n", pExtra->Urb.pbData, pvNewData));
+        pPipe->pCtrl = pExtra = (PVUSBCTRLEXTRA)pvNewCtrl;
+        pExtra->Urb.pbData = (uint8_t *)pvNewData;
         pExtra->Urb.pVUsb = &pExtra->VUsbExtra;
         pExtra->Urb.pVUsb->pUrb = &pExtra->Urb;
-        pExtra->pMsg = (PVUSBSETUP)pExtra->Urb.abData;
+        pExtra->pMsg = (PVUSBSETUP)pExtra->Urb.pbData;
         pExtra->Urb.enmState = VUSBURBSTATE_ALLOCATED;
         pExtra->Urb.fCompleting = false;
     }
@@ -712,24 +733,17 @@ static bool vusbMsgSetup(PVUSBPIPE pPipe, const void *pvBuf, uint32_t cbBuf)
     if (pExtra->cbMax < cbBuf + pSetupIn->wLength)
     {
         uint32_t cbReq = RT_ALIGN_32(cbBuf + pSetupIn->wLength, 64);
-        PVUSBCTRLEXTRA pNew = (PVUSBCTRLEXTRA)RTMemReallocZ(pExtra,
-                                                            RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[pExtra->cbMax]),
-                                                            RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[cbReq]));
+        uint8_t *pNew = (uint8_t *)RTMemReallocZ(pExtra->Urb.pbData, pExtra->cbMax, cbReq);
         if (!pNew)
         {
-            Log(("vusbMsgSetup: out of memory!!! cbReq=%u %zu\n",
-                 cbReq, RT_UOFFSETOF_DYN(VUSBCTRLEXTRA, Urb.abData[cbReq])));
+            Log(("vusbMsgSetup: out of memory!!! cbReq=%u\n", cbReq));
             return false;
         }
-        if (pExtra != pNew) /* (parfait is wrong about pNew leak here) */
+        if (pExtra->Urb.pbData != pNew) /* (parfait is wrong about pNew leak here) */
         {
             LogFunc(("Reallocated %u -> %u\n", pExtra->cbMax, cbReq));
-            pNew->pMsg = (PVUSBSETUP)pNew->Urb.abData;
-            pExtra = pNew;
-            pPipe->pCtrl = pExtra;
-            pExtra->Urb.pVUsb = &pExtra->VUsbExtra;
-            pExtra->Urb.pVUsb->pUrb = &pExtra->Urb;
-            pExtra->Urb.pVUsb->pvFreeCtx = &pExtra->Urb;
+            pExtra->Urb.pbData = pNew;
+            pExtra->pMsg = (PVUSBSETUP)pExtra->Urb.pbData;
         }
 
         pExtra->cbMax = cbReq;
@@ -908,7 +922,7 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
             }
 
             /* Store setup details, return DNR if corrupt */
-            if (!vusbMsgSetup(pPipe, pUrb->abData, pUrb->cbData))
+            if (!vusbMsgSetup(pPipe, pUrb->pbData, pUrb->cbData))
             {
                 pUrb->enmState = VUSBURBSTATE_REAPED;
                 pUrb->enmStatus = VUSBSTATUS_DNR;
@@ -996,7 +1010,7 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
             {
                 /* put data received from the device. */
                 const uint32_t cbRead = RT_MIN(pUrb->cbData, pExtra->cbLeft);
-                memcpy(pUrb->abData, pExtra->pbCur, cbRead);
+                memcpy(pUrb->pbData, pExtra->pbCur, cbRead);
 
                 /* advance */
                 pExtra->pbCur += cbRead;
@@ -1016,7 +1030,7 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
                 /* get data for sending when completed. */
                 AssertStmt((ssize_t)pUrb->cbData <= pExtra->cbMax - (pExtra->pbCur - pbData), /* paranoia: checked above */
                            pUrb->cbData = pExtra->cbMax - (uint32_t)RT_MIN(pExtra->pbCur - pbData, pExtra->cbMax));
-                memcpy(pExtra->pbCur, pUrb->abData, pUrb->cbData);
+                memcpy(pExtra->pbCur, pUrb->pbData, pUrb->cbData);
 
                 /* advance */
                 pExtra->pbCur += pUrb->cbData;
@@ -1357,7 +1371,26 @@ static void vusbUrbCompletion(PVUSBURB pUrb)
 }
 
 /**
- * The worker for vusbUrbCancel() which is executed on the I/O thread.
+ * The worker for URB cancellation which is executed on the I/O thread.
+ * Cancels a URB with CRC failure.
+ *
+ * Cancelling a URB is a tricky thing. The USBProxy backend can not
+ * cancel it immediately and we must keep the URB around until it's ripe
+ * and can be reaped the normal way. However, we must complete the URB
+ * now, before leaving this function. This is not nice. sigh.
+ *
+ * This function will cancel the URB if it's in-flight and complete
+ * it. The device will in its pfnCancel method be given the chance to
+ * say that the URB doesn't need reaping and should be unlinked.
+ *
+ * An URB which is in the cancel state after pfnCancel will remain in that
+ * state and in the async list until its reaped. When it's finally reaped
+ * it will be unlinked and freed without doing any completion.
+ *
+ * There are different modes of canceling an URB. When devices are being
+ * disconnected etc., they will be completed with an error (CRC). However,
+ * when the HC needs to temporarily halt communication with a device, the
+ * URB/TD must be left alone if possible.
  *
  * @returns IPRT status code.
  * @param   pUrb        The URB to cancel.
@@ -1419,51 +1452,6 @@ DECLHIDDEN(int) vusbUrbCancelWorker(PVUSBURB pUrb, CANCELMODE enmMode)
     }
     return VINF_SUCCESS;
 }
-
-/**
- * Cancels an URB with CRC failure.
- *
- * Cancelling an URB is a tricky thing. The USBProxy backend can not
- * all cancel it and we must keep the URB around until it's ripe and
- * can be reaped the normal way. However, we must complete the URB
- * now, before leaving this function. This is not nice. sigh.
- *
- * This function will cancel the URB if it's in-flight and complete
- * it. The device will in its pfnCancel method be given the chance to
- * say that the URB doesn't need reaping and should be unlinked.
- *
- * An URB which is in the cancel state after pfnCancel will remain in that
- * state and in the async list until its reaped. When it's finally reaped
- * it will be unlinked and freed without doing any completion.
- *
- * There are different modes of canceling an URB. When devices are being
- * disconnected etc., they will be completed with an error (CRC). However,
- * when the HC needs to temporarily halt communication with a device, the
- * URB/TD must be left alone if possible.
- *
- * @param   pUrb        The URB to cancel.
- * @param   mode        The way the URB should be canceled.
- */
-void vusbUrbCancel(PVUSBURB pUrb, CANCELMODE mode)
-{
-    int rc = vusbDevIoThreadExecSync(pUrb->pVUsb->pDev, (PFNRT)vusbUrbCancelWorker, 2, pUrb, mode);
-    AssertRC(rc);
-}
-
-
-/**
- * Async version of vusbUrbCancel() - doesn't wait for the cancelling to be complete.
- */
-void vusbUrbCancelAsync(PVUSBURB pUrb, CANCELMODE mode)
-{
-    /* Don't try to cancel the URB when completion is in progress at the moment. */
-    if (!ASMAtomicXchgBool(&pUrb->fCompleting, true))
-    {
-        int rc = vusbDevIoThreadExec(pUrb->pVUsb->pDev, 0 /* fFlags */, (PFNRT)vusbUrbCancelWorker, 2, pUrb, mode);
-        AssertRC(rc);
-    }
-}
-
 
 /**
  * Deals with a ripe URB (i.e. after reaping it).

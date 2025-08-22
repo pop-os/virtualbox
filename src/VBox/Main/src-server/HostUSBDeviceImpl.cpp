@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2005-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2023,7 +2023,7 @@ bool HostUSBDevice::i_setState(HostUSBDeviceState aNewState,
          * The final state.
          */
         case kHostUSBDeviceState_PhysDetached:
-            switch (mUniState)
+            switch (aNewState)
             {
                 case kHostUSBDeviceState_Unsupported:
                 case kHostUSBDeviceState_UsedByHost:

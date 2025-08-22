@@ -3,7 +3,7 @@
  * VBoxNetAdp-win.cpp - NDIS6 Host-only Networking Driver, Windows-specific code.
  */
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1780,11 +1780,11 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinRegister(PDRIVER_OBJECT pDriverObject, PUNI
 {
     NDIS_MINIPORT_DRIVER_CHARACTERISTICS MChars;
 
-    NdisZeroMemory(&MChars, sizeof (MChars));
+    NdisZeroMemory(&MChars, sizeof(MChars));
 
-    MChars.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_DRIVER_CHARACTERISTICS;
-    MChars.Header.Size = sizeof(NDIS_MINIPORT_DRIVER_CHARACTERISTICS);
-    MChars.Header.Revision = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_1;
+    MChars.Header.Type     = NDIS_OBJECT_TYPE_MINIPORT_DRIVER_CHARACTERISTICS;
+    MChars.Header.Size     = NDIS_SIZEOF_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_2;
+    MChars.Header.Revision = NDIS_MINIPORT_DRIVER_CHARACTERISTICS_REVISION_2;
 
     MChars.MajorNdisVersion = VBOXNETADP_VERSION_NDIS_MAJOR;
     MChars.MinorNdisVersion = VBOXNETADP_VERSION_NDIS_MINOR;

@@ -5,7 +5,7 @@ rem Windows NT batch script for preparing for signing submission.
 rem
 
 rem
-rem Copyright (C) 2018-2024 Oracle and/or its affiliates.
+rem Copyright (C) 2018-2025 Oracle and/or its affiliates.
 rem
 rem This file is part of VirtualBox base platform packages, as
 rem available from https://www.virtualbox.org.
@@ -90,7 +90,7 @@ goto argument_loop
 
 :opt_a
 if ".%~2" == "."            goto syntax_error_missing_value
-if not "%2" == "x86" if not "%2" == "amd64" goto syntax_error_unknown_arch
+if not "%2" == "x86" if not "%2" == "amd64" if not "%2" == "arm64" goto syntax_error_unknown_arch
 set _MY_OPT_ARCH=%~2
 goto argument_loop_next_with_value
 
@@ -114,7 +114,7 @@ echo This script creates a .cab file containing all drivers needing blessing fro
 echo Microsoft to run on recent Windows 10 installations.
 echo .
 echo Usage: PackDriversForSubmission.cmd [-b bindir] [-p pdbdir] [--no-main] [-n/--no-pdb] [-e expack]
-echo           [-x/--no-extpack] [-g/--ga/--additions] [-o output.cab] [-p output.ddf] [-a x86/amd64]
+echo           [-x/--no-extpack] [-g/--ga/--additions] [-o output.cab] [-p output.ddf] [-a x86/amd64/arm64]
 echo .
 echo Warning! This script should normally be invoked from the repack directory w/o any parameters.
 goto end_failed
@@ -278,15 +278,18 @@ echo .Set DestinationDir=VMMR0>>                                                
 echo .\VMMR0.inf VMMR0.inf>>                                                            "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_BINDIR%\VMMR0.r0 VMMR0.r0>>                                               "%_MY_OPT_DDF_FILE%"
 if "%_MY_OPT_WITH_PDB%" == "1" echo %_MY_OPT_PDBDIR%\VMMR0.pdb VMMR0.pdb>>              "%_MY_OPT_DDF_FILE%"
+rem For win.arm64: skip VBoxDDR0 (officially would need checking VBOX_WITH_MINIMAL_R0)
+if "%_MY_OPT_ARCH%" == "arm64" goto skip_vboxddr0
 echo %_MY_OPT_BINDIR%\VBoxDDR0.r0 VBoxDDR0.r0>>                                         "%_MY_OPT_DDF_FILE%"
 if "%_MY_OPT_WITH_PDB%" == "1" echo %_MY_OPT_PDBDIR%\VBoxDDR0.pdb VBoxDDR0.pdb>>        "%_MY_OPT_DDF_FILE%"
+:skip_vboxddr0
 :skip_main_package
 
 if "%_MY_OPT_WITH_EXTPACK%" == "0" goto no_extpack_ddf
 echo .Set DestinationDir=VBoxExtPackPuel>>                                              "%_MY_OPT_DDF_FILE%"
 echo .\VBoxExtPackPuel.inf VBoxExtPackPuel.inf>>                                        "%_MY_OPT_DDF_FILE%"
 rem echo %_MY_EXTPACK_DIR%\win.%_MY_OPT_ARCH%\VBoxEhciR0.r0 VBoxEhciR0.r0>>                 "%_MY_OPT_DDF_FILE%"
-echo %_MY_EXTPACK_DIR%\win.%_MY_OPT_ARCH%\VBoxNvmeR0.r0 VBoxNvmeR0.r0>>                 "%_MY_OPT_DDF_FILE%"
+rem echo %_MY_EXTPACK_DIR%\win.%_MY_OPT_ARCH%\VBoxNvmeR0.r0 VBoxNvmeR0.r0>>                 "%_MY_OPT_DDF_FILE%" Part of the base package now
 rem echo %_MY_EXTPACK_DIR%\win.%_MY_OPT_ARCH%\VBoxPciRawR0.r0 VBoxPciRawR0.r0>>             "%_MY_OPT_DDF_FILE%"
 :no_extpack_ddf
 
@@ -301,17 +304,17 @@ echo %_MY_OPT_GADIR%\VBoxMouse.sys>>                                            
 rem VBoxVideo files are excluded from attestation signing.
 rem echo %_MY_OPT_GADIR%\VBoxVideo.inf>>                                                    "%_MY_OPT_DDF_FILE%"
 rem echo %_MY_OPT_GADIR%\VBoxVideo.sys>>                                                    "%_MY_OPT_DDF_FILE%"
+rem echo %_MY_OPT_GADIR%\VBoxDisp.dll>>                                                     "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxWddm.inf>>                                                     "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxWddm.sys>>                                                     "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxDX.dll>>                                                       "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\VBoxDisp.dll>>                                                     "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxDispD3D.dll>>                                                  "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxNine.dll>>                                                     "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxSVGA.dll>>                                                     "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxGL.dll>>                                                       "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxMRXNP.dll>>                                                    "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxSF.sys>>                                                       "%_MY_OPT_DDF_FILE%"
-if ".%_MY_OPT_ARCH%" == ".x86" goto skip_amd64_files
+if not ".%_MY_OPT_ARCH%" == ".amd64" goto skip_amd64_files
 echo %_MY_OPT_GADIR%\VBoxDX-x86.dll>>                                                   "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxDispD3D-x86.dll>>                                              "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxNine-x86.dll>>                                                 "%_MY_OPT_DDF_FILE%"

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -54,7 +54,7 @@
 #include "UIVirtualBoxEventHandler.h"
 
 /* COM includes: */
-#include "CConsole.h"
+#include "CEventSource.h"
 #include "CGuest.h"
 #include "CPerformanceCollector.h"
 #include "CPerformanceMetric.h"
@@ -1082,7 +1082,7 @@ UIVMActivityMonitor::UIVMActivityMonitor(EmbedTo enmEmbedding, QWidget *pParent,
     , m_pMainLayout(0)
     , m_enmEmbedding(enmEmbedding)
 {
-    uiCommon().setHelpKeyword(this, "vm-activity-session-information");
+    uiCommon().setHelpKeyword(this, "tk_vm-activity-session-information" /* help keyword */);
     setContextMenuPolicy(Qt::CustomContextMenu);
     connect(this, &UIVMActivityMonitor::customContextMenuRequested,
             this, &UIVMActivityMonitor::sltCreateContextMenu);
@@ -1106,13 +1106,13 @@ void UIVMActivityMonitor::sltRetranslateUI()
     m_iMaximumLabelLength = qMax(m_iMaximumLabelLength, m_strRAMInfoLabelFree.length());
     m_strRAMInfoLabelUsed = QApplication::translate("UIVMInformationDialog", "Used");
     m_iMaximumLabelLength = qMax(m_iMaximumLabelLength, m_strRAMInfoLabelUsed.length());
-    m_strNetworkInfoLabelReceived = QApplication::translate("UIVMInformationDialog", "Receive Rate");
+    m_strNetworkInfoLabelReceived = QApplication::translate("UIVMInformationDialog", "Download Rate");
     m_iMaximumLabelLength = qMax(m_iMaximumLabelLength, m_strNetworkInfoLabelReceived.length());
-    m_strNetworkInfoLabelTransmitted = QApplication::translate("UIVMInformationDialog", "Transmit Rate");
+    m_strNetworkInfoLabelTransmitted = QApplication::translate("UIVMInformationDialog", "Upload Rate");
     m_iMaximumLabelLength = qMax(m_iMaximumLabelLength, m_strNetworkInfoLabelTransmitted.length());
-    m_strNetworkInfoLabelReceivedTotal = QApplication::translate("UIVMInformationDialog", "Total Received");
+    m_strNetworkInfoLabelReceivedTotal = QApplication::translate("UIVMInformationDialog", "Total Downloaded");
     m_iMaximumLabelLength = qMax(m_iMaximumLabelLength, m_strNetworkInfoLabelReceivedTotal.length());
-    m_strNetworkInfoLabelTransmittedTotal = QApplication::translate("UIVMInformationDialog", "Total Transmitted");
+    m_strNetworkInfoLabelTransmittedTotal = QApplication::translate("UIVMInformationDialog", "Total Uploaded");
     m_iMaximumLabelLength = qMax(m_iMaximumLabelLength, m_strNetworkInfoLabelReceivedTotal.length());
     m_strDiskIOInfoLabelTitle = QApplication::translate("UIVMInformationDialog", "Disk IO");
     m_iMaximumLabelLength = qMax(m_iMaximumLabelLength, m_strDiskIOInfoLabelTitle.length());
@@ -1349,11 +1349,30 @@ void UIVMActivityMonitorLocal::openSession()
     m_comSession = UILocalMachineStuff::openSession(m_comMachine.GetId(), KLockType_Shared);
     AssertReturnVoid(!m_comSession.isNull());
 
-    CConsole comConsole = m_comSession.GetConsole();
-    AssertReturnVoid(!comConsole.isNull());
-    m_comGuest = comConsole.GetGuest();
+    m_comConsole = m_comSession.GetConsole();
+    AssertReturnVoid(!m_comConsole.isNull());
+    m_comGuest = m_comConsole.GetGuest();
 
-    m_comMachineDebugger = comConsole.GetDebugger();
+    m_comMachineDebugger = m_comConsole.GetDebugger();
+
+    QVector<KVBoxEventType> eventTypes;
+    eventTypes << KVBoxEventType_OnAdditionsStateChanged;
+
+    m_pQtConsoleListener.createObject();
+    m_pQtConsoleListener->init(new UIMainEventListener, this);
+    m_comConsoleListener = CEventListener(m_pQtConsoleListener);
+
+    /* Register event listener for CProgress event source: */
+    m_comConsole.GetEventSource().RegisterListener(m_comConsoleListener, eventTypes, FALSE /* active? */);
+
+    /* Register event sources in their listeners as well: */
+    m_pQtConsoleListener->getWrapped()->registerSource(m_comConsole.GetEventSource(), m_comConsoleListener);
+
+
+
+    connect(m_pQtConsoleListener->getWrapped(), &UIMainEventListener::sigAdditionsChange,
+            this, &UIVMActivityMonitorLocal::sltGuestAdditionsStateChange);
+
 }
 
 void UIVMActivityMonitorLocal::obtainDataAndUpdate()
@@ -1400,10 +1419,6 @@ void UIVMActivityMonitorLocal::obtainDataAndUpdate()
         UIMonitorCommon::getVMMExitCount(m_comMachineDebugger, cTotalVMExits);
         updateVMExitMetric(cTotalVMExits);
     }
-    /* In case of Manager UI we don't get addition state chage event, since it needs a new session etc.
-    * thus we check explicitly: */
-    if (uiCommon().uiType() == UIType_ManagerUI && m_iTimeStep % 5 == 0)
-        guestAdditionsStateChange();
 }
 
 void UIVMActivityMonitorLocal::sltMachineStateChange(const QUuid &uId)
@@ -1436,7 +1451,7 @@ QString UIVMActivityMonitorLocal::defaultMachineFolder() const
         return QString();
 }
 
-void UIVMActivityMonitorLocal::guestAdditionsStateChange()
+void UIVMActivityMonitorLocal::sltGuestAdditionsStateChange()
 {
     bool fGuestAdditionsAvailable = guestAdditionsAvailable("6.1");
     if (m_fGuestAdditionsAvailable == fGuestAdditionsAvailable)
@@ -1447,16 +1462,30 @@ void UIVMActivityMonitorLocal::guestAdditionsStateChange()
 
 void UIVMActivityMonitorLocal::sltClearCOMData()
 {
+    if (!m_comConsole.isNull() && m_comConsole.isOk() && m_comConsole.GetEventSource().isOk())
+    {
+        if (!m_pQtConsoleListener.isNull())
+        {
+            m_pQtConsoleListener->getWrapped()->unregisterSources();
+            m_pQtConsoleListener.setNull();
+        }
+        if (gpGlobalSession->isVBoxSVCAvailable())
+            m_comConsole.GetEventSource().UnregisterListener(m_comConsoleListener);
+    }
+
     if (!m_comSession.isNull())
     {
         m_comSession.UnlockMachine();
         m_comSession.detach();
     }
+    if (!m_comConsole.isNull())
+        m_comConsole.detach();
 }
 
 void UIVMActivityMonitorLocal::reset()
 {
     m_fGuestAdditionsAvailable = false;
+    m_fCOMPerformanceCollectorConfigured = false;
     setEnabled(false);
 
     if (m_pTimer)
@@ -1580,8 +1609,8 @@ void UIVMActivityMonitorLocal::prepareMetrics()
 
     /* Network metric: */
     UIMetric networkMetric("B", m_iMaximumQueueSize);
-    networkMetric.setDataSeriesName(0, "Receive Rate");
-    networkMetric.setDataSeriesName(1, "Transmit Rate");
+    networkMetric.setDataSeriesName(0, "Download Rate");
+    networkMetric.setDataSeriesName(1, "Upload Rate");
     networkMetric.setAutoUpdateMaximum(true);
     m_metrics.insert(Metric_Type_Network_InOut, networkMetric);
 
@@ -1627,7 +1656,7 @@ bool UIVMActivityMonitorLocal::guestAdditionsAvailable(const char *pszMinimumVer
 
 void UIVMActivityMonitorLocal::enableDisableGuestAdditionDependedWidgets(bool fEnable)
 {
-    /* Configure performace monitor: */
+    /* Configure performance monitor: */
     if (fEnable)
         configureCOMPerformanceCollector();
     for (QMap<Metric_Type, UIMetric>::const_iterator iterator =  m_metrics.begin();
@@ -2116,7 +2145,6 @@ void UIVMActivityMonitorCloud::reset()
     resetDiskIOReadInfoLabel();
 
     update();
-    //sltClearCOMData();
 }
 
 void UIVMActivityMonitorCloud::start()
@@ -2281,13 +2309,13 @@ void UIVMActivityMonitorCloud::prepareMetrics()
 
     /* Network in metric: */
     UIMetric networkInMetric("B", m_iMaximumQueueSize);
-    networkInMetric.setDataSeriesName(0, "Receive Rate");
+    networkInMetric.setDataSeriesName(0, "Download Rate");
     networkInMetric.setAutoUpdateMaximum(true);
     m_metrics.insert(Metric_Type_Network_In, networkInMetric);
 
     /* Network out metric: */
     UIMetric networkOutMetric("B", m_iMaximumQueueSize);
-    networkOutMetric.setDataSeriesName(0, "Transmit Rate");
+    networkOutMetric.setDataSeriesName(0, "Upload Rate");
     networkOutMetric.setAutoUpdateMaximum(true);
     m_metrics.insert(Metric_Type_Network_Out, networkOutMetric);
 

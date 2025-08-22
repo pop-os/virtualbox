@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -78,6 +78,10 @@ if !defined(VBOX_ONLY_BUILD) || defined(VBOX_ONLY_EXTPACKS)
  VBoxTpG_SOURCES = \
  	VBoxTpG.cpp \
  	scmstream.cpp
+
+ BLDPROGS += VBoxEditElf
+ VBoxEditElf_TEMPLATE = VBoxAdvBldProg
+ VBoxEditElf_SOURCES  = VBoxEditElf.cpp
 endif
 
 ifeq ($(KBUILD_TARGET),win)
@@ -94,6 +98,7 @@ ifneq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),solaris.sparc64)
  BLDPROGS += VBoxDef2LazyLoad
 endif
 VBoxDef2LazyLoad_TEMPLATE = VBoxBldProg
+VBoxDef2LazyLoad_DEFS     = TARGET_$(toupper $(KBUILD_TARGET_ARCH))
 VBoxDef2LazyLoad_SOURCES  = VBoxDef2LazyLoad.cpp
 
 ifeq ($(KBUILD_TARGET),win)

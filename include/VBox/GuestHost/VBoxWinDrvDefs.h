@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,7 +42,8 @@
 
 #include <iprt/utf16.h>
 
-/* If not defined explicitly, use the given / current target architecture. */
+/** If not defined explicitly, use the given / current target architecture.
+ *  Note! Do *not* change the casing here, as this will be used for string comparison. */
 #ifndef VBOXWINDRVINF_NATIVE_ARCH_STR /* For cross testing and testcases. */
 # if defined(RT_ARCH_AMD64)
 #  define VBOXWINDRVINF_NATIVE_ARCH_STR     "AMD64"
@@ -61,7 +62,8 @@
 /** Defines a string which emits the decoration separator (UTF-16 version). */
 #define VBOXWINDRVINF_DECORATION_SEP_UTF16_STR L"."
 
-/** Defines a string which emits the bulld target's native architeture, e.g. "NTAMD64". */
+/** Defines a string which emits the bulld target's native architeture, e.g. "NTAMD64".
+ *  Note! Do *not* change the casing here, as this will be used for string comparison. */
 #define VBOXWINDRVINF_NT_NATIVE_ARCH_STR "NT" VBOXWINDRVINF_NATIVE_ARCH_STR
 
 /** Defines a string which emits the bulld target's native architeture, e.g. ".NTAMD64". */

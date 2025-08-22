@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -107,6 +107,14 @@ private:
     HRESULT getLoopbackIp6(LONG *aLoopbackIp6);
     HRESULT setLoopbackIp6(LONG aLoopbackIp6);
     HRESULT getPortForwardRules6(std::vector<com::Utf8Str> &aPortForwardRules6);
+    HRESULT setLocalhostReachable(BOOL fLocalhostReachable);
+    HRESULT getLocalhostReachable(BOOL *pfLocalhostReachable);
+    HRESULT setForwardBroadcast(BOOL fForwardBroadcast);
+    HRESULT getForwardBroadcast(BOOL *pfForwardBroadcast);
+    HRESULT setNatMTU(ULONG uMTU);
+    HRESULT getNatMTU(ULONG *puMTU);
+    HRESULT setNatMRU(ULONG uMRU);
+    HRESULT getNatMRU(ULONG *puMRU);
 
     // wrapped INATNetwork methods
     HRESULT addLocalMapping(const com::Utf8Str &aHostid,

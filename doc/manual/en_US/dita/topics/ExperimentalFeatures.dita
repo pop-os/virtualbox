@@ -4,36 +4,25 @@
   <title>Experimental Features</title>
   
   <body>
-    <p> Some <ph conkeyref="vbox-conkeyref-phrases/product-name"/> features are labeled as experimental. Such features are provided on an "as-is" basis and are not formally supported. However, feedback and suggestions about such features are welcome. A comprehensive list of experimental features is as follows: </p>
+    <p>These <ph conkeyref="vbox-conkeyref-phrases/product-name"/> features are considered experimental and are not covered by Oracle Premier Support. However, feedback and suggestions about the features are welcome.</p>
     <ul>
       <li>
-        <p>
-          Hardware 3D acceleration support for Windows, Linux, and
-          Oracle Solaris guests
-        </p>
+        <p><xref href="windows-arm-hosts-exp.dita"/></p>
       </li>
       <li>
-        <p>
-          Mac OS X guests (macOS hosts only)
-        </p>
+        <p><xref href="macosxguests.dita"/></p>
       </li>
       <li>
-        <p>
-          ICH9 chipset emulation
-        </p>
+        <p><xref href="cd-passthrough.dita"/></p>
       </li>
       <li>
-        <p>
-          Host CD/DVD drive passthrough
-        </p>
+        <p><xref href="pcspeaker_passthrough.dita"/></p>
       </li>
       <li>
-        <p>
-          Support of iSCSI using internal networking
-        </p>
+        <p><xref href="virtio-scsi.dita"/></p>
       </li>
       <li>
-        <p> Using <ph conkeyref="vbox-conkeyref-phrases/product-name"/> and Hyper-V on the same host </p>
+        <p><xref href="iscsi-intnet.dita"/></p>
       </li>
     </ul>
   </body>

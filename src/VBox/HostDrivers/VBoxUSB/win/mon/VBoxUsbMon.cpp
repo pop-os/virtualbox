@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -77,7 +77,7 @@
  * applying existing filters.
  *
  * Newly arrived USB devices are intercepted early in their PnP enumeration
- * through the hooked bus driver dispatch routine. Devices which satisty the
+ * through the hooked bus driver dispatch routine. Devices which satisfy the
  * filter matching criteria are morphed (see above) such that VBoxUSB.sys loads
  * for them before any default driver does.
  *

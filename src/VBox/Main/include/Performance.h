@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -66,7 +66,7 @@ namespace pm
     class CircularBuffer
     {
     public:
-        CircularBuffer() : mData(0), mLength(0), mEnd(0), mWrapped(false) {};
+        CircularBuffer() : mData(0), mLength(0), mEnd(0), mSequenceNumber(0), mWrapped(false) {};
         ~CircularBuffer() { if (mData) RTMemFree(mData); };
         void init(ULONG length);
         ULONG length();
@@ -208,7 +208,7 @@ namespace pm
     {
     public:
         CollectorGuestRequest()
-            : mCGuest(0) {};
+            : mCGuest(NULL), mDebugName(NULL) {};
         virtual ~CollectorGuestRequest() {};
         void setGuest(CollectorGuest *aGuest) { mCGuest = aGuest; };
         CollectorGuest *getGuest() { return mCGuest; };

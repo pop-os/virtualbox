@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -27,10 +27,29 @@
 
 SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
+
+#
+# Somewhat generic disassembler program.
+#
+# It used to be called tstDisasm-2 and is still used by the tests in this
+# makefile, which is why it is placed here.
+#
+PROGRAMS += VBoxDisasm
+VBoxDisasm_TEMPLATE   = VBoxR3Tool
+VBoxDisasm_DEFS       = IN_DIS
+VBoxDisasm_SOURCES    = \
+	VBoxDisasm.cpp
+VBoxDisasm_LIBS       = \
+	$(PATH_STAGE_LIB)/DisasmR3$(VBOX_SUFF_LIB) \
+	$(LIB_RUNTIME)
+
 ifdef VBOX_WITH_TESTCASES
 
 
  if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+  #
+  # x86/amd64 testcase.
+  #
   PROGRAMS             += tstDisasm-1
   tstDisasm-1_TEMPLATE  = VBoxR3TstExe
   tstDisasm-1_DEFS      = IN_DIS
@@ -50,17 +69,7 @@ ifdef VBOX_WITH_TESTCASES
  endif
 
 
- PROGRAMS += tstDisasm-2
- tstDisasm-2_TEMPLATE   = VBoxR3TstExe
- tstDisasm-2_DEFS       = IN_DIS
- tstDisasm-2_SOURCES    = \
- 	tstDisasm-2.cpp
- tstDisasm-2_LIBS       = \
- 	$(PATH_STAGE_LIB)/DisasmR3$(VBOX_SUFF_LIB) \
- 	$(LIB_RUNTIME)
-
-
- ifeq ($(KBUILD_TARGET_ARCH),arm64)
+ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), darwin.arm64) ## @todo make this compile on win.arm64. Trouble with ';' and feats.
   #
   # tstDisasmArmv8-1 assembly files -> .cpp
   #
@@ -68,7 +77,6 @@ ifdef VBOX_WITH_TESTCASES
   TST_DISASM_ARMV8_1_SOURCES := \
   	tstDisasmArmv8_1=tstDisasmArmv8-1-asm.S
 
-  TST_DISASM_ARMV8_1_NAMES := $(foreach cert,$(VBOX_SVC_CERTS),$(firstword $(subst =,$(SP),$(cert))))
   TST_DISASM_ARMV8_1_PATH_SOURCES := $(PATH_SUB_CURRENT)
 
   $$(TST_DISASM_ARMV8_1_FILE): $(MAKEFILE_CURRENT) \
@@ -79,7 +87,7 @@ ifdef VBOX_WITH_TESTCASES
 	$(QUIET)$(APPEND) -n "$@" \
         	'' \
         	'#include "tstDisasmArmv8-1-tests.h"' \
-                ''
+               ''
 	$(foreach source,$(TST_DISASM_ARMV8_1_SOURCES), $(NLTAB)$(VBOX_BIN2C) -ascii --append \
 		"$(firstword $(subst =,$(SP),$(source)))" \
 		"$(TST_DISASM_ARMV8_1_PATH_SOURCES)/$(lastword $(subst =,$(SP),$(source)))" \
@@ -139,7 +147,7 @@ ifdef VBOX_WITH_TESTCASES
   	tstBin-4.bin \
   	tstBin-5.bin \
   	tstBin-6.bin
-  #	$(PATH_STAGE_BIN)/testcase/tstDisasm-2$(SUFF_EXEC)
+  #	$(PATH_STAGE_BIN)/tool/VBoxDisasm$(SUFF_EXEC)
  endif
  VBOX_DISAS_TESTS_BINARIES_NOT_16BIT := \
  	tstBinFnstsw-1.bin
@@ -181,17 +189,17 @@ ifdef VBOX_WITH_TESTCASES
  		$(VBOX_DISAS_TESTS_BUILD:.asm=-32-disas.asm) \
  		$(VBOX_DISAS_TESTS_BUILD:.asm=-64-disas.asm))
 
- $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_BUILD:.asm=-16-disas.asm)): $$(subst -disas.asm,.bin,$$@) $$(tstDisasm-2_1_STAGE_TARGET) | $$(dir $$@)
+ $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_BUILD:.asm=-16-disas.asm)): $$(subst -disas.asm,.bin,$$@) $$(VBoxDisasm_1_STAGE_TARGET) | $$(dir $$@)
 	@$(ECHO) "Generating: $(@F) from $(<F)"
-	$(REDIRECT) -E VBOX_LOG_DEST=nofile -o $@ -- $(tstDisasm-2_1_STAGE_TARGET) --style=yasm --cpumode=16 $<
+	$(REDIRECT) -E VBOX_LOG_DEST=nofile -o $@ -- $(VBoxDisasm_1_STAGE_TARGET) --style=yasm --cpumode=16 $<
 
- $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_BUILD:.asm=-32-disas.asm)): $$(subst -disas.asm,.bin,$$@) $$(tstDisasm-2_1_STAGE_TARGET) | $$(dir $$@)
+ $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_BUILD:.asm=-32-disas.asm)): $$(subst -disas.asm,.bin,$$@) $$(VBoxDisasm_1_STAGE_TARGET) | $$(dir $$@)
 	@$(ECHO) "Generating: $(@F) from $(<F)"
-	$(REDIRECT) -E VBOX_LOG_DEST=nofile -o $@ -- $(tstDisasm-2_1_STAGE_TARGET) --style=yasm --cpumode=32 $<
+	$(REDIRECT) -E VBOX_LOG_DEST=nofile -o $@ -- $(VBoxDisasm_1_STAGE_TARGET) --style=yasm --cpumode=32 $<
 
- $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_BUILD:.asm=-64-disas.asm)): $$(subst -disas.asm,.bin,$$@) $$(tstDisasm-2_1_STAGE_TARGET) | $$(dir $$@)
+ $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_BUILD:.asm=-64-disas.asm)): $$(subst -disas.asm,.bin,$$@) $$(VBoxDisasm_1_STAGE_TARGET) | $$(dir $$@)
 	@$(ECHO) "Generating: $(@F) from $(<F)"
-	$(REDIRECT) -E VBOX_LOG_DEST=nofile -o $@ -- $(tstDisasm-2_1_STAGE_TARGET) --style=yasm --cpumode=64 $<
+	$(REDIRECT) -E VBOX_LOG_DEST=nofile -o $@ -- $(VBoxDisasm_1_STAGE_TARGET) --style=yasm --cpumode=64 $<
 
 
  VBOX_DISAS_TEST_CLEAN += $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, \
@@ -228,33 +236,33 @@ ifdef VBOX_WITH_TESTCASES
  # Generate the rules for the 'invalid' tests.
  VBOX_DISAS_TESTS += $(foreach test, $(VBOX_DISAS_TESTS_INVALID:.asm=), $(test)-16.tst $(test)-32.tst $(test)-64.tst)
 
- $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_INVALID:.asm=-16.tst)): $$(patsubst %.tst,%.bin,$$@) $$(tstDisasm-2_1_STAGE_TARGET) | $$(dir $$@)
+ $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_INVALID:.asm=-16.tst)): $$(patsubst %.tst,%.bin,$$@) $$(VBoxDisasm_1_STAGE_TARGET) | $$(dir $$@)
 	@$(ECHO) "TESTING: $(@F) [--undef-op=all]"
 	@$(RM) -f $@
-	$(REDIRECT) -E VBOX_LOG_DEST=nofile -- $(tstDisasm-2_1_STAGE_TARGET) --undef-op=all --cpumode=16 $<
+	$(REDIRECT) -E VBOX_LOG_DEST=nofile -- $(VBoxDisasm_1_STAGE_TARGET) --undef-op=all --cpumode=16 $<
 	@$(APPEND) $@ "done"
 	@$(ECHO) " PASSED:  $(@F) [--undef-op=all]"
 
- $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_INVALID:.asm=-32.tst)): $$(patsubst %.tst,%.bin,$$@) $$(tstDisasm-2_1_STAGE_TARGET) | $$(dir $$@)
+ $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_INVALID:.asm=-32.tst)): $$(patsubst %.tst,%.bin,$$@) $$(VBoxDisasm_1_STAGE_TARGET) | $$(dir $$@)
 	@$(ECHO) "TESTING: $(@F) [--undef-op=all]"
 	@$(RM) -f $@
-	$(REDIRECT) -E VBOX_LOG_DEST=nofile -- $(tstDisasm-2_1_STAGE_TARGET) --undef-op=all --cpumode=32 $<
+	$(REDIRECT) -E VBOX_LOG_DEST=nofile -- $(VBoxDisasm_1_STAGE_TARGET) --undef-op=all --cpumode=32 $<
 	@$(APPEND) $@ "done"
 	@$(ECHO) " PASSED:  $(@F) [--undef-op=all]"
 
- $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_INVALID:.asm=-64.tst)): $$(patsubst %.tst,%.bin,$$@) $$(tstDisasm-2_1_STAGE_TARGET) | $$(dir $$@)
+ $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS_INVALID:.asm=-64.tst)): $$(patsubst %.tst,%.bin,$$@) $$(VBoxDisasm_1_STAGE_TARGET) | $$(dir $$@)
 	@$(ECHO) "TESTING: $(@F) [--undef-op=all]"
 	@$(RM) -f $@
-	$(REDIRECT) -E VBOX_LOG_DEST=nofile -- $(tstDisasm-2_1_STAGE_TARGET) --undef-op=all --cpumode=64 $<
+	$(REDIRECT) -E VBOX_LOG_DEST=nofile -- $(VBoxDisasm_1_STAGE_TARGET) --undef-op=all --cpumode=64 $<
 	@$(APPEND) $@ "done"
 	@$(ECHO) " PASSED:  $(@F) [--undef-op=all]"
 
 
  # Generate the rules for the binary tests.
  define def_vbox_disas_binary_rules
-  $(outbase).asm: $(full_binary) $$$$(tstDisasm-2_1_STAGE_TARGET) | $(VBOX_DISAS_TEST_OUT_DIR)/
+  $(outbase).asm: $(full_binary) $$$$(VBoxDisasm_1_STAGE_TARGET) | $(VBOX_DISAS_TEST_OUT_DIR)/
 	@$$(ECHO) "Generating: $$(@F) from $$(<F)"
-	$$(REDIRECT) -E VBOX_LOG_DEST=nofile -o $$@ -- $$(tstDisasm-2_1_STAGE_TARGET) --style=yasm --cpumode=$(bits) --undef-op=db $$<
+	$$(REDIRECT) -E VBOX_LOG_DEST=nofile -o $$@ -- $$(VBoxDisasm_1_STAGE_TARGET) --style=yasm --cpumode=$(bits) --undef-op=db $$<
 
   $(outbase).bin + $(outbase).lst: $(outbase).asm
 	@$$(ECHO) "Re-assembling: $$(<F) into $$(@F)"

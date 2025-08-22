@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1083,7 +1083,9 @@ VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RT
         }
         else
         {
+#ifdef VBOX_VMM_TARGET_X86
             Assert(WalkGst.enmType != PGMPTWALKGSTTYPE_INVALID);
+#endif
             Assert(!Walk.fSucceeded);
             cbPrev = 0; /* ignore error. */
 
@@ -1092,6 +1094,7 @@ VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RT
              * is not present 512 times!
              */
             uint64_t cPagesCanSkip;
+#ifdef VBOX_VMM_TARGET_X86
             switch (Walk.uLevel)
             {
                 case 1:
@@ -1140,13 +1143,58 @@ VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RT
                 GCPtr += (RTGCPTR)cPagesCanSkip << X86_PT_PAE_SHIFT;
                 continue;
             }
+
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+
+            /** @todo Sketch, needs creating proper defines for constants in armv8.h and using these
+             * instead of hardcoding these here. */
+            switch (Walk.uLevel)
+            {
+                case 0:
+                case 1:
+                    cPagesCanSkip = (512 - ((GCPtr >> 21) & 0x1ff)) * 512
+                                  - ((GCPtr >> 12) & 0x1ff);
+                    Assert(!((GCPtr + ((RTGCPTR)cPagesCanSkip << 12)) & (RT_BIT_64(21) - 1)));
+                    break;
+                case 2:
+                    cPagesCanSkip = 512 - ((GCPtr >> 12) & 0x1ff);
+                    Assert(!((GCPtr + ((RTGCPTR)cPagesCanSkip << 12)) & (RT_BIT_64(12) - 1)));
+                    break;
+                case 3:
+                    /* page level, use cIncPages */
+                    cPagesCanSkip = 1;
+                    break;
+                default:
+                    AssertMsgFailed(("%d\n", Walk.uLevel));
+                    cPagesCanSkip = 0;
+                    break;
+            }
+
+            if (cPages <= cPagesCanSkip)
+                break;
+            fFullWalk = true;
+            if (cPagesCanSkip >= cIncPages)
+            {
+                cPages -= cPagesCanSkip;
+                GCPtr += (RTGCPTR)cPagesCanSkip << 12;
+                continue;
+            }
+#else
+# error "port me"
+#endif
         }
 
         /* advance to the next page. */
         if (cPages <= cIncPages)
             break;
         cPages -= cIncPages;
+#ifdef VBOX_VMM_TARGET_X86
         GCPtr += (RTGCPTR)cIncPages << X86_PT_PAE_SHIFT;
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+        GCPtr += (RTGCPTR)cIncPages << 12;
+#else
+# error "port me"
+#endif
 
         /* Yield the PGM lock every now and then. */
         if (!--cYieldCountDown)
@@ -1246,6 +1294,7 @@ static uint64_t pgmR3DumpHierarchyCalcRange(PPGMR3DUMPHIERARCHYSTATE pState, uin
     return iBase << cShift;
 }
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
 
 /**
  * Maps/finds the shadow page.
@@ -2171,6 +2220,8 @@ static int pgmR3DumpHierarchyShwDoIt(PPGMR3DUMPHIERARCHYSTATE pState, uint64_t c
     return rc;
 }
 
+#endif /* !VBOX_WITH_ONLY_PGM_NEM_MODE */
+
 
 /**
  * dbgfR3PagingDumpEx worker.
@@ -2194,12 +2245,17 @@ VMMR3_INT_DECL(int) PGMR3DumpHierarchyShw(PVM pVM, uint64_t cr3, uint32_t fFlags
     AssertReturn(!(fFlags & (DBGFPGDMP_FLAGS_CURRENT_MODE | DBGFPGDMP_FLAGS_CURRENT_CR3)), VERR_INVALID_PARAMETER);
     AssertReturn(fFlags & DBGFPGDMP_FLAGS_SHADOW, VERR_INVALID_PARAMETER);
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     PGMR3DUMPHIERARCHYSTATE State;
     pgmR3DumpHierarchyInitState(&State, pVM, fFlags, u64FirstAddr, u64LastAddr, pHlp);
     PGM_LOCK_VOID(pVM);
     int rc = pgmR3DumpHierarchyShwDoIt(&State, cr3, cMaxDepth);
     PGM_UNLOCK(pVM);
     return rc;
+#else
+    RT_NOREF(pVM, cr3, fFlags, u64FirstAddr, u64LastAddr, cMaxDepth, pHlp);
+    return VINF_SUCCESS;
+#endif
 }
 
 

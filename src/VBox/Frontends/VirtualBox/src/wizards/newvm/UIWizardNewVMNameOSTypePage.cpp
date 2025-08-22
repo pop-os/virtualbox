@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -91,10 +91,13 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegularExpression( "(Wi.*10.*64)|(W10.*64)",          QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Windows10") },
     { QRegularExpression( "(Wi.*10.*32)|(W10.*32)",          QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Windows10") },
     { QRegularExpression( "(Wi.*11)|(W11)",                  QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Windows11") },
+    { QRegularExpression( "(Wi.*11)|(W11)",                  QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_ARM64("Windows11") },
     { QRegularExpression(  "Wi.*3.*1",                       QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Windows31") },
     /* Set Windows 10 as default for "Windows". */
     { QRegularExpression(  "Wi.*64",                         QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Windows10") },
     { QRegularExpression(  "Wi.*32",                         QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Windows10") },
+    /* Set Windows 11 as default for "Windows" on ARM. */
+    { QRegularExpression(  "Wi.*",                           QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_ARM64("Windows11") },
     /* ReactOS wants to be considered as Windows 2003 */
     { QRegularExpression(  "Reac.*",                         QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Windows2003") },
 
@@ -187,8 +190,12 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegularExpression("((kinetic)|(kudu)).*64",                                              QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_ARM64("Ubuntu22") },
     { QRegularExpression("((lunar)|(lobster)).*64",                                             QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Ubuntu23") },
     { QRegularExpression("((lunar)|(lobster)).*64",                                             QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_ARM64("Ubuntu23") },
+    { QRegularExpression("((mantic)|(minotaur)).*64",                                           QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Ubuntu231") },
+    { QRegularExpression("((mantic)|(minotaur)).*64",                                           QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_ARM64("Ubuntu231") },
     { QRegularExpression("((noble)|(numbat)).*64",                                              QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Ubuntu24_LTS") },
     { QRegularExpression("((noble)|(numbat)).*64",                                              QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_ARM64("Ubuntu24_LTS") },
+    { QRegularExpression("((oracular)|(oriole)).*64",                                           QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Ubuntu24") },
+    { QRegularExpression("((oracular)|(oriole)).*64",                                           QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_ARM64("Ubuntu24") },
     { QRegularExpression("sarge.*32",                         QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Debian31") },
     { QRegularExpression("^etch.*64",                         QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Debian4") },
     { QRegularExpression("debian.*4.*64",                     QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Debian4") },
@@ -295,7 +302,6 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegularExpression("((Or)|(oel)|(^ol)).*64",            QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X64("Oracle") },
     { QRegularExpression("((Or)|(oel)|(^ol)).*32",            QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Oracle") },
     { QRegularExpression("((Or)|(oel)|(^ol)).*64",            QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_ARM64("Oracle") },
-    { QRegularExpression("((Or)|(oel)|(^ol)).*32",            QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_ARM32("Oracle") },
     { QRegularExpression("Knoppix",                           QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Linux26") },
     { QRegularExpression("Dsl",                               QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Linux24") },
     { QRegularExpression("((Lin)|(lnx)).*2.?2",               QRegularExpression::CaseInsensitiveOption), GUEST_OS_ID_STR_X86("Linux22") },
@@ -453,11 +459,8 @@ bool UIWizardNewVMNameOSTypeCommon::cleanupMachineFolder(UIWizardNewVM *pWizard,
     return true;
 }
 
-bool UIWizardNewVMNameOSTypeCommon::checkISOFile(UINameAndSystemEditor *pNameAndSystemEditor)
+bool UIWizardNewVMNameOSTypeCommon::checkISOFile(const QString &strPath)
 {
-    if (!pNameAndSystemEditor)
-        return false;
-    const QString &strPath = pNameAndSystemEditor->ISOImagePath();
     if (strPath.isNull() || strPath.isEmpty())
         return true;
     QFileInfo fileInfo(strPath);
@@ -466,10 +469,28 @@ bool UIWizardNewVMNameOSTypeCommon::checkISOFile(UINameAndSystemEditor *pNameAnd
     return true;
 }
 
-UIWizardNewVMNameOSTypePage::UIWizardNewVMNameOSTypePage()
-    : m_pNameAndSystemLayout(0)
+void UIWizardNewVMNameOSTypeCommon::setUnattendedCheckBoxEnable(QCheckBox *pUnattendedCheckBox,
+                                                                const QString &strISOPath, bool fIsUnattendedInstallSupported)
+{
+    AssertReturnVoid(pUnattendedCheckBox);
+
+    if (!fIsUnattendedInstallSupported)
+    {
+        pUnattendedCheckBox->setEnabled(false);
+        pUnattendedCheckBox->setChecked(false);
+    }
+    else
+    {
+        pUnattendedCheckBox->setEnabled(UIWizardNewVMNameOSTypeCommon::checkISOFile(strISOPath));
+        pUnattendedCheckBox->setChecked(true);
+    }
+}
+
+UIWizardNewVMNameOSTypePage::UIWizardNewVMNameOSTypePage(const QString strHelpKeyword /* = QString() */)
+    : UINativeWizardPage(strHelpKeyword)
+    , m_pNameAndSystemLayout(0)
     , m_pNameAndSystemEditor(0)
-    , m_pSkipUnattendedCheckBox(0)
+    , m_pUnattendedCheckBox(0)
     , m_pNameOSTypeLabel(0)
     , m_pInfoLabel(0)
 {
@@ -512,18 +533,20 @@ void UIWizardNewVMNameOSTypePage::createConnections()
         connect(m_pNameAndSystemEditor, &UINameAndSystemEditor::sigOSFamilyChanged, this, &UIWizardNewVMNameOSTypePage::sltGuestOSFamilyChanged);
         connect(m_pNameAndSystemEditor, &UINameAndSystemEditor::sigEditionChanged, this, &UIWizardNewVMNameOSTypePage::sltSelectedEditionChanged);
     }
-    if (m_pSkipUnattendedCheckBox)
-        connect(m_pSkipUnattendedCheckBox, &QCheckBox::toggled, this, &UIWizardNewVMNameOSTypePage::sltSkipUnattendedInstallChanged);
+    if (m_pUnattendedCheckBox)
+        connect(m_pUnattendedCheckBox, &QCheckBox::toggled, this, &UIWizardNewVMNameOSTypePage::sltUnattendedInstallEnableChanged);
 }
 
 bool UIWizardNewVMNameOSTypePage::isComplete() const
 {
+    UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
+    AssertReturn(pWizard, false);
     markWidgets();
     if (m_pNameAndSystemEditor->name().isEmpty())
         return false;
-    if (QDir(m_pNameAndSystemEditor->fullPath()).exists())
+    if (!isMachineFolderUnique())
         return false;
-    return UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor);
+    return UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor->ISOImagePath());
 }
 
 void UIWizardNewVMNameOSTypePage::sltNameChanged(const QString &strNewName)
@@ -546,6 +569,7 @@ void UIWizardNewVMNameOSTypePage::sltNameChanged(const QString &strNewName)
 void UIWizardNewVMNameOSTypePage::sltPathChanged(const QString &strNewPath)
 {
     Q_UNUSED(strNewPath);
+    emit completeChanged();
     UIWizardNewVMNameOSTypeCommon::composeMachineFilePath(m_pNameAndSystemEditor, wizardWindow<UIWizardNewVM>());
 }
 
@@ -559,19 +583,15 @@ void UIWizardNewVMNameOSTypePage::sltOsTypeChanged()
 
 void UIWizardNewVMNameOSTypePage::sltRetranslateUI()
 {
-    setTitle(UIWizardNewVM::tr("Virtual machine Name and Operating System"));
+    setTitle(UIWizardNewVM::tr("Virtual machine name and operating system"));
 
     if (m_pNameOSTypeLabel)
-        m_pNameOSTypeLabel->setText(UIWizardNewVM::tr("Please choose a descriptive name and destination folder for the new "
-                                                      "virtual machine. The name you choose will be used throughout VirtualBox "
-                                                      "to identify this machine. Additionally, you can select an ISO image which "
-                                                      "may be used to install the guest operating system."));
+        m_pNameOSTypeLabel->setText(UIWizardNewVM::tr("The ISO image is used to install the operating system on the VM."));
 
-    if (m_pSkipUnattendedCheckBox)
+    if (m_pUnattendedCheckBox)
     {
-        m_pSkipUnattendedCheckBox->setText(UIWizardNewVM::tr("&Skip Unattended Installation"));
-        m_pSkipUnattendedCheckBox->setToolTip(UIWizardNewVM::tr("When checked, the unattended install is disabled and the selected ISO "
-                                                                "is mounted on the vm."));
+        m_pUnattendedCheckBox->setText(UIWizardNewVM::tr("&Proceed with Unattended Installation"));
+        m_pUnattendedCheckBox->setToolTip(UIWizardNewVM::tr("The ISO is attached to the VM, so you can install the OS automatically"));
     }
 
     if (m_pNameAndSystemLayout && m_pNameAndSystemEditor)
@@ -600,24 +620,24 @@ void UIWizardNewVMNameOSTypePage::updateInfoLabel()
     if (m_pNameAndSystemEditor->ISOImagePath().isEmpty())
         strMessage = UIWizardNewVM::tr("No ISO image is selected, the guest OS will need to be installed manually.");
     else if (pWizard->detectedOSTypeId().isEmpty())
-        strMessage = UIWizardNewVM::tr("OS type cannot be determined from the selected ISO, "
-                                       "the guest OS will need to be installed manually.");
+        strMessage = UIWizardNewVM::tr("VirtualBox can't install an OS from the selected ISO. OS cannot be determined, the guest OS will need to be installed manually.");
     else if (!pWizard->detectedOSTypeId().isEmpty())
     {
         QString strType = gpGlobalSession->guestOSTypeManager().getDescription(pWizard->detectedOSTypeId());
         if (!pWizard->isUnattendedInstallSupported())
             strMessage = UIWizardNewVM::tr("Detected OS type: %1. %2")
                                            .arg(strType)
-                                           .arg(UIWizardNewVM::tr("This OS type cannot be installed unattendedly. "
-                                                                  "The install needs to be started manually."));
+                .arg(UIWizardNewVM::tr("This OS can't be installed using Unattended Installation. "
+                                       "The installation needs to be done manually."));
+
         else if (pWizard->skipUnattendedInstall())
             strMessage = UIWizardNewVM::tr("You have selected to skip unattended guest OS install, "
                                            "the guest OS will need to be installed manually.");
         else
             strMessage = UIWizardNewVM::tr("Detected OS type: %1. %2")
                                            .arg(strType)
-                                           .arg(UIWizardNewVM::tr("This OS type can be installed unattendedly. "
-                                                                  "The install will start after this wizard is closed."));
+                                           .arg(UIWizardNewVM::tr("VirtualBox will install the OS using an unattended installation when the VM is created. "
+                                                                  "Supply the required information in the following steps."));
     }
 
     const QIcon icon = UIIconPool::iconSet(":/session_info_16px.png");
@@ -631,28 +651,19 @@ void UIWizardNewVMNameOSTypePage::initializePage()
 {
     UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
     AssertReturnVoid(pWizard);
+    AssertReturnVoid(m_pNameAndSystemEditor);
 
     sltRetranslateUI();
 
     /* Initialize this page's widgets etc: */
-    {
-        if (m_pNameAndSystemEditor)
-        {
-            m_pNameAndSystemEditor->setFocus();
-            setEditionSelectorEnabled();
-        }
-        setSkipCheckBoxEnable();
-    }
+    m_pNameAndSystemEditor->setFocus();
+    setEditionAndOSTypeSelectorsEnabled();
+    UIWizardNewVMNameOSTypeCommon::setUnattendedCheckBoxEnable(m_pUnattendedCheckBox,
+                                                               m_pNameAndSystemEditor->ISOImagePath(), isUnattendedInstallSupported());
 
     /* Initialize some of the wizard's parameters: */
-    {
-        if (m_pNameAndSystemEditor)
-        {
-            pWizard->setGuestOSFamilyId(m_pNameAndSystemEditor->familyId());
-            pWizard->setGuestOSTypeId(m_pNameAndSystemEditor->typeId());
-            /* Vm name, folder, file path etc. will be initilized by composeMachineFilePath: */
-        }
-    }
+    pWizard->setGuestOSFamilyId(m_pNameAndSystemEditor->familyId());
+    pWizard->setGuestOSTypeId(m_pNameAndSystemEditor->typeId());
 }
 
 bool UIWizardNewVMNameOSTypePage::validatePage()
@@ -685,15 +696,15 @@ void UIWizardNewVMNameOSTypePage::sltISOPathChanged(const QString &strPath)
          m_pNameAndSystemEditor->setEditionNameAndIndices(pWizard->detectedWindowsImageNames(),
                                                           pWizard->detectedWindowsImageIndices());
 
-    setSkipCheckBoxEnable();
-    setEditionSelectorEnabled();
+    UIWizardNewVMNameOSTypeCommon::setUnattendedCheckBoxEnable(m_pUnattendedCheckBox,
+                                                               m_pNameAndSystemEditor->ISOImagePath(),
+                                                               isUnattendedInstallSupported());
+    setEditionAndOSTypeSelectorsEnabled();
     updateInfoLabel();
 
     /* Disable OS type selector(s) to prevent user from changing guest OS type manually: */
     if (m_pNameAndSystemEditor)
     {
-        m_pNameAndSystemEditor->setOSTypeStuffEnabled(!fOsTypeFixed);
-
         /* Redetect the OS type using the name if detection or the step above failed: */
         if (!fOsTypeFixed)
             sltNameChanged(m_pNameAndSystemEditor->name());
@@ -717,12 +728,19 @@ void UIWizardNewVMNameOSTypePage::sltSelectedEditionChanged(ulong uEditionIndex)
     UIWizardNewVMNameOSTypeCommon::guessOSTypeDetectedOSTypeString(m_pNameAndSystemEditor, pWizard->detectedOSTypeId());
 }
 
-void UIWizardNewVMNameOSTypePage::sltSkipUnattendedInstallChanged(bool fSkip)
+void UIWizardNewVMNameOSTypePage::sltUnattendedInstallEnableChanged(bool fEnable)
 {
     AssertReturnVoid(wizardWindow<UIWizardNewVM>());
     m_userModifiedParameters << "SkipUnattendedInstall";
-    wizardWindow<UIWizardNewVM>()->setSkipUnattendedInstall(fSkip);
-    setEditionSelectorEnabled();
+    wizardWindow<UIWizardNewVM>()->setSkipUnattendedInstall(!fEnable);
+    /* Override OS type selectors when unattended is enabled: */
+    if (fEnable)
+    {
+        UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
+        UIWizardNewVMNameOSTypeCommon::guessOSTypeDetectedOSTypeString(m_pNameAndSystemEditor,
+                                                                       pWizard->detectedOSTypeId());
+    }
+    setEditionAndOSTypeSelectorsEnabled();
     updateInfoLabel();
 }
 
@@ -748,10 +766,13 @@ QWidget *UIWizardNewVMNameOSTypePage::createNameOSTypeWidgets()
             if (m_pNameAndSystemEditor)
                 m_pNameAndSystemLayout->addWidget(m_pNameAndSystemEditor, 0, 0, 1, 2);
 
-            /* Prepare Skip Unattended checkbox: */
-            m_pSkipUnattendedCheckBox = new QCheckBox;
-            if (m_pSkipUnattendedCheckBox)
-                m_pNameAndSystemLayout->addWidget(m_pSkipUnattendedCheckBox, 1, 1);
+            /* Prepare Unattended checkbox: */
+            m_pUnattendedCheckBox = new QCheckBox;
+            if (m_pUnattendedCheckBox)
+            {
+                m_pNameAndSystemLayout->addWidget(m_pUnattendedCheckBox, 1, 1);
+                m_pUnattendedCheckBox->setChecked(false);
+            }
             m_pInfoLabel = new QIRichTextLabel(pContainerWidget);
             if (m_pInfoLabel)
                 m_pNameAndSystemLayout->addWidget(m_pInfoLabel, 2, 1);
@@ -766,34 +787,19 @@ void UIWizardNewVMNameOSTypePage::markWidgets() const
 {
     if (m_pNameAndSystemEditor)
     {
-        m_pNameAndSystemEditor->markNameEditor(m_pNameAndSystemEditor->name().isEmpty(),
-                                               UIWizardNewVM::tr("Guest machine name cannot be empty"),
-                                               UIWizardNewVM::tr("Guest machine name is valid"));
-        m_pNameAndSystemEditor->markNameEditor((QDir(m_pNameAndSystemEditor->fullPath()).exists()),
-                                               UIWizardNewVM::tr("Guest machine path is not unique"),
-                                               UIWizardNewVM::tr("Guest machine name is valid"));
-        m_pNameAndSystemEditor->markImageEditor(!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor),
+        if (m_pNameAndSystemEditor->name().isEmpty())
+            m_pNameAndSystemEditor->markNameEditor(m_pNameAndSystemEditor->name().isEmpty(),
+                                                   UIWizardNewVM::tr("Virtual machine name cannot be empty"),
+                                                   UIWizardNewVM::tr("Virtual machine name is valid"));
+        else
+            m_pNameAndSystemEditor->markNameEditor(!isMachineFolderUnique(),
+                                                   UIWizardNewVM::tr("Virtual machine path is not unique"),
+                                                   UIWizardNewVM::tr("Virtual machine name is valid"));
+
+        m_pNameAndSystemEditor->markImageEditor(!UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor->ISOImagePath()),
                                                 UIWizardNewVM::tr("Invalid file path or unreadable file"),
                                                 UIWizardNewVM::tr("File path is valid"));
     }
-}
-
-void UIWizardNewVMNameOSTypePage::setSkipCheckBoxEnable()
-{
-    AssertReturnVoid(m_pSkipUnattendedCheckBox && m_pNameAndSystemEditor);
-    const QString &strPath = m_pNameAndSystemEditor->ISOImagePath();
-    if (strPath.isEmpty())
-    {
-        m_pSkipUnattendedCheckBox->setEnabled(false);
-        return;
-    }
-    if (!isUnattendedInstallSupported())
-    {
-        m_pSkipUnattendedCheckBox->setEnabled(false);
-        return;
-    }
-
-    m_pSkipUnattendedCheckBox->setEnabled(UIWizardNewVMNameOSTypeCommon::checkISOFile(m_pNameAndSystemEditor));
 }
 
 bool UIWizardNewVMNameOSTypePage::isUnattendedEnabled() const
@@ -810,11 +816,33 @@ bool UIWizardNewVMNameOSTypePage::isUnattendedInstallSupported() const
     return pWizard->isUnattendedInstallSupported();
 }
 
-
-void  UIWizardNewVMNameOSTypePage::setEditionSelectorEnabled()
+void  UIWizardNewVMNameOSTypePage::setEditionAndOSTypeSelectorsEnabled()
 {
-    if (!m_pNameAndSystemEditor || !m_pSkipUnattendedCheckBox)
+    UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
+    AssertReturnVoid(pWizard);
+    if (!m_pNameAndSystemEditor || !m_pUnattendedCheckBox)
         return;
     m_pNameAndSystemEditor->setEditionSelectorEnabled(   !m_pNameAndSystemEditor->isEditionsSelectorEmpty()
-                                                      && !m_pSkipUnattendedCheckBox->isChecked());
+                                                      && m_pUnattendedCheckBox->isChecked());
+    /* Disable OS type, version, subtype selectors if unattended is enabled: */
+    if (pWizard->isUnattendedEnabled())
+        m_pNameAndSystemEditor->setOSTypeStuffEnabled(false);
+    else
+        m_pNameAndSystemEditor->setOSTypeStuffEnabled(true);
+
+}
+
+bool UIWizardNewVMNameOSTypePage::isMachineFolderUnique() const
+{
+    UIWizardNewVM *pWizard = wizardWindow<UIWizardNewVM>();
+    AssertReturn(pWizard, false);
+
+    if (QDir(m_pNameAndSystemEditor->fullPath()).exists())
+    {
+        /* Make sure that existing machine folder has not been created during this intantiation of the wizard.
+         * This can happen, for example, when we come back to this page (via Back button): */
+        if (pWizard->createdMachineFolder() != m_pNameAndSystemEditor->fullPath())
+            return false;
+    }
+    return true;
 }

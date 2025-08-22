@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -239,7 +239,7 @@ RTEXITCODE handleUnregisterVM(HandlerArg *a)
         CHECK_ERROR_RET(machine, DeleteConfig(ComSafeArrayAsInParam(aMedia), pProgress.asOutParam()),
                         RTEXITCODE_FAILURE);
 
-        hrc = showProgress(pProgress);
+        showProgress(pProgress);
         CHECK_PROGRESS_ERROR_RET(pProgress, (Misc::tr("Machine delete failed")), RTEXITCODE_FAILURE);
     }
     else
@@ -252,9 +252,10 @@ RTEXITCODE handleUnregisterVM(HandlerArg *a)
         {
             IMedium *pMedium = aMedia[i];
             if (pMedium)
-                hrc = pMedium->Close();
+                pMedium->Close();
         }
-        hrc = S_OK; /** @todo r=andy Why overwriting the result from closing the medium above? */
+
+        hrc = S_OK; /* See comment above, so just set success here. */
     }
     return RTEXITCODE_SUCCESS;
 }
@@ -546,7 +547,7 @@ RTEXITCODE handleMoveVM(HandlerArg *a)
                                Bstr(pszType).raw(),
                                progress.asOutParam()),
                         RTEXITCODE_FAILURE);
-        hrc = showProgress(progress);
+        showProgress(progress);
         CHECK_PROGRESS_ERROR_RET(progress, (Misc::tr("Move VM failed")), RTEXITCODE_FAILURE);
 
         sessionMachine.setNull();
@@ -593,7 +594,7 @@ static int parseCloneOptions(const char *psz, com::SafeArray<CloneOptions_T> *op
         size_t len;
         const char *pszComma = strchr(psz, ',');
         if (pszComma)
-            len = pszComma - psz;
+            len = (size_t)(pszComma - psz);
         else
             len = strlen(psz);
         if (len > 0)
@@ -758,7 +759,7 @@ RTEXITCODE handleCloneVM(HandlerArg *a)
                                         ComSafeArrayAsInParam(options),
                                         progress.asOutParam()),
                     RTEXITCODE_FAILURE);
-    hrc = showProgress(progress);
+    showProgress(progress);
     CHECK_PROGRESS_ERROR_RET(progress, (Misc::tr("Clone VM failed")), RTEXITCODE_FAILURE);
 
     if (fRegister)
@@ -941,7 +942,7 @@ RTEXITCODE handleStartVM(HandlerArg *a)
                                     ProgressErrorInfo info(progress);
                                     com::GluePrintErrorInfo(info);
                                 }
-                                hrc = iRc;
+                                hrc = (HRESULT)iRc;
                             }
                         }
                     }
@@ -1685,47 +1686,58 @@ static RTEXITCODE handleSharedFolderAdd(HandlerArg *a)
     /*
      * Done parsing, do some work.
      */
-    ComPtr<IMachine> ptrMachine;
-    CHECK_ERROR2I_RET(a->virtualBox, FindMachine(Bstr(pszMachineName).raw(), ptrMachine.asOutParam()), RTEXITCODE_FAILURE);
-    AssertReturn(ptrMachine.isNotNull(), RTEXITCODE_FAILURE);
-
     HRESULT hrc;
-    if (fTransient)
+    if (!strcmp(pszMachineName, "global"))
     {
-        /* open an existing session for the VM */
-        CHECK_ERROR2I_RET(ptrMachine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
-
-        /* get the session machine */
-        ComPtr<IMachine> ptrSessionMachine;
-        CHECK_ERROR2I_RET(a->session, COMGETTER(Machine)(ptrSessionMachine.asOutParam()), RTEXITCODE_FAILURE);
-
-        /* get the session console */
-        ComPtr<IConsole> ptrConsole;
-        CHECK_ERROR2I_RET(a->session, COMGETTER(Console)(ptrConsole.asOutParam()), RTEXITCODE_FAILURE);
-        if (ptrConsole.isNull())
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, Misc::tr("Machine '%s' is not currently running."), pszMachineName);
-
-        CHECK_ERROR2(hrc, ptrConsole, CreateSharedFolder(Bstr(pszName).raw(), Bstr(szAbsHostPath).raw(),
-                                                         fWritable, fAutoMount, Bstr(pszAutoMountPoint).raw()));
-        a->session->UnlockMachine();
+        if (fTransient)
+            return errorSyntax(Misc::tr("Invalid option: global and transient both specified"));
+        ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+        CHECK_ERROR2(hrc, pVirtualBox, CreateSharedFolder(Bstr(pszName).raw(), Bstr(szAbsHostPath).raw(),
+                                                          fWritable, fAutoMount, Bstr(pszAutoMountPoint).raw()));
     }
     else
     {
-        /* open a session for the VM */
-        CHECK_ERROR2I_RET(ptrMachine, LockMachine(a->session, LockType_Write), RTEXITCODE_FAILURE);
+        ComPtr<IMachine> ptrMachine;
+        CHECK_ERROR2I_RET(a->virtualBox, FindMachine(Bstr(pszMachineName).raw(), ptrMachine.asOutParam()), RTEXITCODE_FAILURE);
+        AssertReturn(ptrMachine.isNotNull(), RTEXITCODE_FAILURE);
 
-        /* get the mutable session machine */
-        ComPtr<IMachine> ptrSessionMachine;
-        CHECK_ERROR2I_RET(a->session, COMGETTER(Machine)(ptrSessionMachine.asOutParam()), RTEXITCODE_FAILURE);
-
-        CHECK_ERROR2(hrc, ptrSessionMachine, CreateSharedFolder(Bstr(pszName).raw(), Bstr(szAbsHostPath).raw(),
-                                                                fWritable, fAutoMount, Bstr(pszAutoMountPoint).raw()));
-        if (SUCCEEDED(hrc))
+        if (fTransient)
         {
-            CHECK_ERROR2(hrc, ptrSessionMachine, SaveSettings());
-        }
+            /* open an existing session for the VM */
+            CHECK_ERROR2I_RET(ptrMachine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
 
-        a->session->UnlockMachine();
+            /* get the session machine */
+            ComPtr<IMachine> ptrSessionMachine;
+            CHECK_ERROR2I_RET(a->session, COMGETTER(Machine)(ptrSessionMachine.asOutParam()), RTEXITCODE_FAILURE);
+
+            /* get the session console */
+            ComPtr<IConsole> ptrConsole;
+            CHECK_ERROR2I_RET(a->session, COMGETTER(Console)(ptrConsole.asOutParam()), RTEXITCODE_FAILURE);
+            if (ptrConsole.isNull())
+                return RTMsgErrorExit(RTEXITCODE_FAILURE, Misc::tr("Machine '%s' is not currently running."), pszMachineName);
+
+            CHECK_ERROR2(hrc, ptrConsole, CreateSharedFolder(Bstr(pszName).raw(), Bstr(szAbsHostPath).raw(),
+                                                             fWritable, fAutoMount, Bstr(pszAutoMountPoint).raw()));
+            a->session->UnlockMachine();
+        }
+        else
+        {
+            /* open a session for the VM */
+            CHECK_ERROR2I_RET(ptrMachine, LockMachine(a->session, LockType_Write), RTEXITCODE_FAILURE);
+
+            /* get the mutable session machine */
+            ComPtr<IMachine> ptrSessionMachine;
+            CHECK_ERROR2I_RET(a->session, COMGETTER(Machine)(ptrSessionMachine.asOutParam()), RTEXITCODE_FAILURE);
+
+            CHECK_ERROR2(hrc, ptrSessionMachine, CreateSharedFolder(Bstr(pszName).raw(), Bstr(szAbsHostPath).raw(),
+                                                                    fWritable, fAutoMount, Bstr(pszAutoMountPoint).raw()));
+            if (SUCCEEDED(hrc))
+            {
+                CHECK_ERROR2(hrc, ptrSessionMachine, SaveSettings());
+            }
+
+            a->session->UnlockMachine();
+        }
     }
 
     return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
@@ -1783,45 +1795,53 @@ static RTEXITCODE handleSharedFolderRemove(HandlerArg *a)
     /*
      * Done parsing, do some real work.
      */
-    ComPtr<IMachine> ptrMachine;
-    CHECK_ERROR2I_RET(a->virtualBox, FindMachine(Bstr(pszMachineName).raw(), ptrMachine.asOutParam()), RTEXITCODE_FAILURE);
-    AssertReturn(ptrMachine.isNotNull(), RTEXITCODE_FAILURE);
-
     HRESULT hrc;
-    if (fTransient)
+    if (!strcmp(pszMachineName, "global"))
     {
-        /* open an existing session for the VM */
-        CHECK_ERROR2I_RET(ptrMachine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
-        /* get the session machine */
-        ComPtr<IMachine> ptrSessionMachine;
-        CHECK_ERROR2I_RET(a->session, COMGETTER(Machine)(ptrSessionMachine.asOutParam()), RTEXITCODE_FAILURE);
-        /* get the session console */
-        ComPtr<IConsole> ptrConsole;
-        CHECK_ERROR2I_RET(a->session, COMGETTER(Console)(ptrConsole.asOutParam()), RTEXITCODE_FAILURE);
-        if (ptrConsole.isNull())
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, Misc::tr("Machine '%s' is not currently running.\n"), pszMachineName);
-
-        CHECK_ERROR2(hrc, ptrConsole, RemoveSharedFolder(Bstr(pszName).raw()));
-
-        a->session->UnlockMachine();
+        ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+        CHECK_ERROR2(hrc, pVirtualBox, RemoveSharedFolder(Bstr(pszName).raw()));
     }
     else
     {
-        /* open a session for the VM */
-        CHECK_ERROR2I_RET(ptrMachine, LockMachine(a->session, LockType_Write), RTEXITCODE_FAILURE);
+        ComPtr<IMachine> ptrMachine;
+        CHECK_ERROR2I_RET(a->virtualBox, FindMachine(Bstr(pszMachineName).raw(), ptrMachine.asOutParam()), RTEXITCODE_FAILURE);
+        AssertReturn(ptrMachine.isNotNull(), RTEXITCODE_FAILURE);
 
-        /* get the mutable session machine */
-        ComPtr<IMachine> ptrSessionMachine;
-        CHECK_ERROR2I_RET(a->session, COMGETTER(Machine)(ptrSessionMachine.asOutParam()), RTEXITCODE_FAILURE);
-
-        CHECK_ERROR2(hrc, ptrSessionMachine, RemoveSharedFolder(Bstr(pszName).raw()));
-
-        /* commit and close the session */
-        if (SUCCEEDED(hrc))
+        if (fTransient)
         {
-            CHECK_ERROR2(hrc, ptrSessionMachine, SaveSettings());
+            /* open an existing session for the VM */
+            CHECK_ERROR2I_RET(ptrMachine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+            /* get the session machine */
+            ComPtr<IMachine> ptrSessionMachine;
+            CHECK_ERROR2I_RET(a->session, COMGETTER(Machine)(ptrSessionMachine.asOutParam()), RTEXITCODE_FAILURE);
+            /* get the session console */
+            ComPtr<IConsole> ptrConsole;
+            CHECK_ERROR2I_RET(a->session, COMGETTER(Console)(ptrConsole.asOutParam()), RTEXITCODE_FAILURE);
+            if (ptrConsole.isNull())
+                return RTMsgErrorExit(RTEXITCODE_FAILURE, Misc::tr("Machine '%s' is not currently running.\n"), pszMachineName);
+
+            CHECK_ERROR2(hrc, ptrConsole, RemoveSharedFolder(Bstr(pszName).raw()));
+
+            a->session->UnlockMachine();
         }
-        a->session->UnlockMachine();
+        else
+        {
+            /* open a session for the VM */
+            CHECK_ERROR2I_RET(ptrMachine, LockMachine(a->session, LockType_Write), RTEXITCODE_FAILURE);
+
+            /* get the mutable session machine */
+            ComPtr<IMachine> ptrSessionMachine;
+            CHECK_ERROR2I_RET(a->session, COMGETTER(Machine)(ptrSessionMachine.asOutParam()), RTEXITCODE_FAILURE);
+
+            CHECK_ERROR2(hrc, ptrSessionMachine, RemoveSharedFolder(Bstr(pszName).raw()));
+
+            /* commit and close the session */
+            if (SUCCEEDED(hrc))
+            {
+                CHECK_ERROR2(hrc, ptrSessionMachine, SaveSettings());
+            }
+            a->session->UnlockMachine();
+        }
     }
 
     return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
@@ -2006,7 +2026,6 @@ RTEXITCODE handleExtPack(HandlerArg *a)
     RTGETOPTSTATE   GetState;
     RTGETOPTUNION   ValueUnion;
     int             ch;
-    HRESULT         hrc = S_OK;
 
     if (!strcmp(a->argv[0], "install"))
     {
@@ -2095,7 +2114,7 @@ RTEXITCODE handleExtPack(HandlerArg *a)
         }
         ComPtr<IProgress> ptrProgress;
         CHECK_ERROR2I_RET(ptrExtPackFile, Install(fReplace, NULL, ptrProgress.asOutParam()), RTEXITCODE_FAILURE);
-        hrc = showProgress(ptrProgress);
+        showProgress(ptrProgress);
         CHECK_PROGRESS_ERROR_RET(ptrProgress, (Misc::tr("Failed to install \"%s\""), szPath), RTEXITCODE_FAILURE);
 
         RTPrintf(Misc::tr("Successfully installed \"%ls\".\n"), bstrName.raw());
@@ -2136,7 +2155,7 @@ RTEXITCODE handleExtPack(HandlerArg *a)
         Bstr bstrName(pszName);
         ComPtr<IProgress> ptrProgress;
         CHECK_ERROR2I_RET(ptrExtPackMgr, Uninstall(bstrName.raw(), fForced, NULL, ptrProgress.asOutParam()), RTEXITCODE_FAILURE);
-        hrc = showProgress(ptrProgress);
+        showProgress(ptrProgress);
         CHECK_PROGRESS_ERROR_RET(ptrProgress, (Misc::tr("Failed to uninstall \"%s\""), pszName), RTEXITCODE_FAILURE);
 
         RTPrintf(Misc::tr("Successfully uninstalled \"%s\".\n"), pszName);
@@ -2707,7 +2726,7 @@ static RTEXITCODE handleUnattendedInstall(HandlerArg *a)
                             ProgressErrorInfo info(ptrProgress);
                             com::GluePrintErrorInfo(info);
                         }
-                        hrc = iRc;
+                        hrc = (HRESULT)iRc;
                     }
                 }
             }

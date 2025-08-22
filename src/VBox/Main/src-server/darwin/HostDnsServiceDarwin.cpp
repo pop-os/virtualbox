@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2004-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -37,7 +37,6 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <SystemConfiguration/SCDynamicStore.h>
 
-#include <iprt/sanitized/string>
 #include <vector>
 #include "../HostDnsService.h"
 
@@ -45,7 +44,12 @@
 struct HostDnsServiceDarwin::Data
 {
     Data()
-        : m_fStop(false) { }
+        : m_store(NULL)
+        , m_DnsWatcher(NULL)
+        , m_RunLoopRef(NULL)
+        , m_SourceStop(NULL)
+        , m_fStop(false)
+        , m_evtStop(NIL_RTSEMEVENT) { }
 
     SCDynamicStoreRef m_store;
     CFRunLoopSourceRef m_DnsWatcher;
@@ -109,11 +113,16 @@ void HostDnsServiceDarwin::uninit(void)
     HostDnsServiceBase::uninit();
 
     CFRelease(m->m_SourceStop);
+    m->m_SourceStop = NULL;
     CFRelease(m->m_RunLoopRef);
+    m->m_RunLoopRef = NULL;
     CFRelease(m->m_DnsWatcher);
+    m->m_DnsWatcher = NULL;
     CFRelease(m->m_store);
+    m->m_store = NULL;
 
     RTSemEventDestroy(m->m_evtStop);
+    m->m_evtStop = NIL_RTSEMEVENT;
 }
 
 int HostDnsServiceDarwin::monitorThreadShutdown(RTMSINTERVAL uTimeoutMs)
@@ -125,6 +134,7 @@ int HostDnsServiceDarwin::monitorThreadShutdown(RTMSINTERVAL uTimeoutMs)
         CFRunLoopSourceSignal(m->m_SourceStop);
         CFRunLoopStop(m->m_RunLoopRef);
 
+        grab.release(); /* bird 2025-01-31: May deadlock otherwise since hostDnsServiceStoreCallback takes the lock. */
         RTSemEventWait(m->m_evtStop, uTimeoutMs);
     }
 
@@ -157,7 +167,7 @@ int HostDnsServiceDarwin::monitorThreadProc(void)
     onMonitorThreadInitDone();
 
     /* Trigger initial update. */
-    int vrc = updateInfo();
+    int vrc = updateInfo(); /** @todo r=bird: Not holding the lock here, unlike what hostDnsServiceStoreCallback does... */
     AssertRC(vrc); /* Not fatal in release builds. */  /** @todo r=bird: The function always returns VINF_SUCCESS. */
 
     while (!ASMAtomicReadBool(&m->m_fStop))
@@ -173,10 +183,25 @@ int HostDnsServiceDarwin::monitorThreadProc(void)
     return VINF_SUCCESS;
 }
 
+DECLINLINE(bool) queryCFStringAsUtf8Str(CFStringRef hRefSrc, com::Utf8Str &a_rDst, size_t cbMax)
+{
+    a_rDst.reserve(_1K);
+    if (!CFStringGetCString(hRefSrc, a_rDst.mutableRaw(), (CFIndex)a_rDst.capacity(), kCFStringEncodingUTF8))
+    {
+        a_rDst.reserve(cbMax);
+        if (!CFStringGetCString(hRefSrc, a_rDst.mutableRaw(), (CFIndex)a_rDst.capacity(), kCFStringEncodingUTF8))
+            return false;
+    }
+    RTStrPurgeEncoding(a_rDst.mutableRaw()); /* paranoia */
+    a_rDst.jolt();
+    return true;
+}
+
+
 int HostDnsServiceDarwin::updateInfo(void)
 {
     CFPropertyListRef propertyRef = SCDynamicStoreCopyValue(m->m_store, kStateNetworkGlobalDNSKey);
-    /**
+    /*
      * # scutil
      * \> get State:/Network/Global/DNS
      * \> d.show
@@ -193,64 +218,41 @@ int HostDnsServiceDarwin::updateInfo(void)
      *   }
      * }
      */
-
     if (!propertyRef)
         return VINF_SUCCESS;
+    CFDictionaryRef const propertyAsDictRef = static_cast<CFDictionaryRef>(propertyRef);
 
     HostDnsInformation info;
-    CFStringRef domainNameRef = (CFStringRef)CFDictionaryGetValue(static_cast<CFDictionaryRef>(propertyRef), CFSTR("DomainName"));
-    if (domainNameRef)
-    {
-        const char *pszDomainName = CFStringGetCStringPtr(domainNameRef, CFStringGetSystemEncoding());
-        if (pszDomainName)
-            info.domain = pszDomainName;
-    }
+    com::Utf8Str       strTmp;
 
-    CFArrayRef serverArrayRef = (CFArrayRef)CFDictionaryGetValue(static_cast<CFDictionaryRef>(propertyRef),
-                                                                 CFSTR("ServerAddresses"));
+    CFStringRef const domainNameRef = (CFStringRef)CFDictionaryGetValue(propertyAsDictRef, CFSTR("DomainName"));
+    if (domainNameRef)
+        if (queryCFStringAsUtf8Str(domainNameRef, strTmp, _16K))
+            info.domain = strTmp;
+
+    CFArrayRef const serverArrayRef = (CFArrayRef)CFDictionaryGetValue(propertyAsDictRef, CFSTR("ServerAddresses"));
     if (serverArrayRef)
     {
         CFIndex const cItems = CFArrayGetCount(serverArrayRef);
         for (CFIndex i = 0; i < cItems; ++i)
         {
-            CFStringRef serverAddressRef = (CFStringRef)CFArrayGetValueAtIndex(serverArrayRef, i);
-            if (!serverArrayRef)
-                continue;
-
-            /** @todo r=bird: This code is messed up as CFStringGetCStringPtr is documented
-             *  to return NULL even if the string is valid.   Furthermore, we must have
-             *  UTF-8 - some joker might decide latin-1 is better here for all we know
-             *  and we'll end up with evil invalid UTF-8 sequences. */
-            const char *pszServerAddress = CFStringGetCStringPtr(serverAddressRef, CFStringGetSystemEncoding());
-            if (!pszServerAddress)
-                continue;
-
-            /** @todo r=bird: Why on earth are we using std::string and not Utf8Str?   */
-            info.servers.push_back(std::string(pszServerAddress));
+            CFStringRef const serverAddressRef = (CFStringRef)CFArrayGetValueAtIndex(serverArrayRef, i);
+            if (serverAddressRef)
+                if (queryCFStringAsUtf8Str(serverAddressRef, strTmp, _16K))
+                    info.servers.push_back(strTmp);
         }
     }
 
-    CFArrayRef searchArrayRef = (CFArrayRef)CFDictionaryGetValue(static_cast<CFDictionaryRef>(propertyRef),
-                                                                 CFSTR("SearchDomains"));
+    CFArrayRef const searchArrayRef = (CFArrayRef)CFDictionaryGetValue(propertyAsDictRef, CFSTR("SearchDomains"));
     if (searchArrayRef)
     {
         CFIndex const cItems = CFArrayGetCount(searchArrayRef);
         for (CFIndex i = 0; i < cItems; ++i)
         {
             CFStringRef searchStringRef = (CFStringRef)CFArrayGetValueAtIndex(searchArrayRef, i);
-            if (!searchArrayRef)
-                continue;
-
-            /** @todo r=bird: This code is messed up as CFStringGetCStringPtr is documented
-             *  to return NULL even if the string is valid.   Furthermore, we must have
-             *  UTF-8 - some joker might decide latin-1 is better here for all we know
-             *  and we'll end up with evil invalid UTF-8 sequences. */
-            const char *pszSearchString = CFStringGetCStringPtr(searchStringRef, CFStringGetSystemEncoding());
-            if (!pszSearchString)
-                continue;
-
-            /** @todo r=bird: Why on earth are we using std::string and not Utf8Str?   */
-            info.searchList.push_back(std::string(pszSearchString));
+            if (searchStringRef)
+                if (queryCFStringAsUtf8Str(searchStringRef, strTmp, _64K))
+                    info.searchList.push_back(strTmp);
         }
     }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -33,46 +33,37 @@
 
 /* GUI includes: */
 #include "QIGraphicsView.h"
+#include "UIExtraDataDefs.h"
 
 /* Forward declarations: */
-class UITools;
+class UIToolsModel;
 
 /** QIGraphicsView extension used as VM Tools-pane view. */
 class UIToolsView : public QIGraphicsView
 {
     Q_OBJECT;
 
-signals:
-
-    /** Notifies listeners about resize. */
-    void sigResized();
-
 public:
 
     /** Constructs a Tools-view passing @a pParent to the base-class.
-      * @param  pParent  Brings the Tools-container to embed into. */
-    UIToolsView(UITools *pParent);
+      * @param  enmClass  Brings the tool class.
+      * @param  pModel    Brings the tools model reference. */
+    UIToolsView(QWidget *pParent, UIToolClass enmClass, UIToolsModel *pModel);
+    /** Destructs a Tools-view. */
+    virtual ~UIToolsView();
 
     /** @name General stuff.
       * @{ */
-        /** Returns the Tools reference. */
-        UITools *tools() const { return m_pTools; }
-    /** @} */
-
-public slots:
-
-    /** @name General stuff.
-      * @{ */
-        /** Handles focus change to @a pFocusItem. */
-        void sltFocusChanged();
+        /** Returns the tools model reference. */
+        UIToolsModel *model() const { return m_pModel; }
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
-        /** Handles minimum width @a iHint change. */
-        void sltMinimumWidthHintChanged(int iHint);
-        /** Handles minimum height @a iHint change. */
-        void sltMinimumHeightHintChanged(int iHint);
+        /** Calculates and returns minimum size-hint. */
+        virtual QSize minimumSizeHint() const RT_OVERRIDE;
+        /** Calculates and returns size-hint. */
+        virtual QSize sizeHint() const  RT_OVERRIDE;
     /** @} */
 
 protected:
@@ -91,34 +82,59 @@ private slots:
        void sltRetranslateUI();
     /** @} */
 
+   /** @name Layout stuff.
+     * @{ */
+       /** Handles minimum width @a iHint change. */
+       void sltMinimumWidthHintChanged(int iHint);
+       /** Handles minimum height @a iHint change. */
+       void sltMinimumHeightHintChanged(int iHint);
+   /** @} */
+
 private:
 
     /** @name Prepare/Cleanup cascade.
       * @{ */
         /** Prepares all. */
         void prepare();
+        /** Prepares this. */
+        void prepareThis();
         /** Prepares palette. */
         void preparePalette();
+        /** Prepares connections. */
+        void prepareConnections();
+
+        /** Cleanups connections. */
+        void cleanupConnections();
+        /** Cleanups all. */
+        void cleanup();
     /** @} */
 
     /** @name General stuff.
       * @{ */
         /** Updates scene rectangle. */
         void updateSceneRect();
+
+#ifndef VBOX_WS_MAC
+        /** Returns a number shifter per 10% from @a i1 to @a i2. */
+        static int iShift10(int i1, int i2);
+#endif
     /** @} */
 
     /** @name General stuff.
       * @{ */
-        /** Holds the Tools-pane reference. */
-        UITools *m_pTools;
+        /** Holds the tool class. */
+        UIToolClass  m_enmClass;
+
+        /** Holds the tools model reference. */
+        UIToolsModel *m_pModel;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
         /** Holds the minimum width hint. */
-        int m_iMinimumWidthHint;
+        int  m_iMinimumWidthHint;
         /** Holds the minimum height hint. */
-        int m_iMinimumHeightHint;
+        int  m_iMinimumHeightHint;
     /** @} */
 };
 

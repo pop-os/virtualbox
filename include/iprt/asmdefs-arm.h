@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,6 +40,19 @@
 #endif
 
 #include <iprt/cdefs.h>
+#ifdef ASM_FORMAT_PE
+# include <iprt/formats/pecoff.h>
+#endif
+
+/* Quick hack for #defines from pecoff.h */
+#define UINT8_C(v)      v
+#define UINT16_C(v)     v
+#define UINT32_C(v)     v
+#define UINT64_C(v)     v
+#define INT8_C(v)       v
+#define INT16_C(v)      v
+#define INT32_C(v)      v
+#define INT64_C(v)      v
 
 
 #if !defined(RT_ARCH_ARM64) && !defined(RT_ARCH_ARM32)
@@ -152,17 +165,18 @@
 # define NAME(a_SymbolC)    a_SymbolC
 #endif
 
-#ifndef RT_OS_WINDOWS
+
 /**
  * Returns the page address of the given symbol (used with the adrp instruction primarily).
  *
  * @returns Page aligned address of the given symbol
  * @param   a_Symbol    The symbol to get the page address from.
  */
-#if defined(__clang__)
+#if defined(ASM_FORMAT_MACHO) || defined(ASM_FORMAT_PE)
 # define PAGE(a_Symbol) a_Symbol ## @PAGE
-#elif defined(__GNUC__)
+#elif defined(ASM_FORMAT_ELF)
 # define PAGE(a_Symbol) a_Symbol
+# define PAGE_GOT(a_Symbol) :got: ## a_Symbol
 #else
 # error "Port me!"
 #endif
@@ -173,15 +187,14 @@
  * @returns Page offset of the given symbol inside a page.
  * @param   a_Symbol    The symbol to get the page offset from.
  */
-#if defined(__clang__)
+#if defined(ASM_FORMAT_MACHO) || defined(ASM_FORMAT_PE)
 # define PAGEOFF(a_Symbol) a_Symbol ## @PAGEOFF
-#elif defined(__GNUC__)
+#elif defined(ASM_FORMAT_ELF)
 # define PAGEOFF(a_Symbol) :lo12: ## a_Symbol
+# define PAGEOFF_GOT(a_Symbol) :got_lo12: ## a_Symbol
 #else
 # error "Port me!"
 #endif
-
-#endif /* RT_OS_WINDOWS */
 
 
 /**
@@ -190,6 +203,13 @@
  * @param   a_Name      The unmangled symbol name.
  */
 .macro BEGINPROC, a_Name
+#if defined(ASM_FORMAT_PE)
+        .def            NAME(\a_Name)
+        .scl            IMAGE_SYM_CLASS_EXTERNAL
+        .type           IMAGE_SYM_DTYPE_FUNCTION << N_BTSHFT
+        .endef
+#endif
+        .globl          NAME(\a_Name)
 NAME(\a_Name):
 .endm
 
@@ -204,9 +224,48 @@ NAME(\a_Name):
         .private_extern NAME(\a_Name)
 #elif defined(ASM_FORMAT_ELF)
         .hidden         NAME(\a_Name)
+#elif defined(ASM_FORMAT_PE)
+        .def            NAME(\a_Name)
+        .scl            IMAGE_SYM_CLASS_EXTERNAL
+        .type           IMAGE_SYM_DTYPE_FUNCTION << N_BTSHFT
+        .endef
 #endif
         .globl          NAME(\a_Name)
 NAME(\a_Name):
+.endm
+
+
+/**
+ * Starts an exported procedure.
+ *
+ * @param   a_Name      The unmangled symbol name.
+ */
+.macro BEGINPROC_EXPORTED, a_Name
+#ifdef ASM_FORMAT_MACHO
+        //.private_extern NAME(\a_Name)
+#elif defined(ASM_FORMAT_ELF)
+        //.hidden         NAME(\a_Name)
+#elif defined(ASM_FORMAT_PE)
+        .pushsection    .drectve
+        .string "-export:\a_Name"
+        .popsection
+        .def            NAME(\a_Name)
+        .scl            IMAGE_SYM_CLASS_EXTERNAL
+        .type           IMAGE_SYM_DTYPE_FUNCTION << N_BTSHFT
+        .endef
+#endif
+        .globl          NAME(\a_Name)
+NAME(\a_Name):
+.endm
+
+
+/**
+ * Ends a procedure.
+ *
+ * @param   a_Name      The unmangled symbol name.
+ */
+.macro ENDPROC, a_Name
+NAME(\a_Name)\()_EndProc:
 .endm
 
 

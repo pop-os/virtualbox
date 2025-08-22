@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -73,13 +73,13 @@ int main()
 
     uint64_t cbTotal;
     rc = RTSystemQueryTotalRam(&cbTotal);
-    RTTestIPrintf(RTTESTLVL_ALWAYS, "Total RAM: %'RU64 Bytes (%RU64 KB, %RU64 MB)\n",
-                  cbTotal, cbTotal / _1K, cbTotal / _1M);
+    RTTestIPrintf(RTTESTLVL_ALWAYS, "Total RAM: %'RU64 Bytes (%RU64 KB, %RU64 MB), rc=%Rrc\n",
+                  cbTotal, cbTotal / _1K, cbTotal / _1M, rc);
 
     uint64_t cbAvailable;
     rc = RTSystemQueryAvailableRam(&cbAvailable);
-    RTTestIPrintf(RTTESTLVL_ALWAYS, "Available RAM: %'RU64 Bytes (%RU64 KB, %RU64 MB)\n",
-                  cbAvailable, cbAvailable / _1K, cbAvailable / _1M);
+    RTTestIPrintf(RTTESTLVL_ALWAYS, "Available RAM: %'RU64 Bytes (%RU64 KB, %RU64 MB), rc=%Rrc\n",
+                  cbAvailable, cbAvailable / _1K, cbAvailable / _1M, rc);
 
     /*
      * Check that unsupported stuff is terminated correctly.
@@ -137,30 +137,33 @@ int main()
             RTTestIFailed("level=%d: rc=%Rrc when specifying exactly right buffer length (%zu)\n", i, rc, cchInfo + 1);
     }
 
-#if defined RT_OS_WINDOWS
+#ifdef RT_OS_WINDOWS
     RTTestISub("Windows Features");
     struct
     {
         const char    *pszDesc;
         RTSYSNTFEATURE enmFeature;
-        int            rc;
     } s_aNtFeatures[] =
     {
-        { "Core Isolation (Memory Integrity)", RTSYSNTFEATURE_CORE_ISOLATION_MEMORY_INTEGRITY, VINF_SUCCESS }
+        { "Core Isolation (Memory Integrity)", RTSYSNTFEATURE_CORE_ISOLATION_MEMORY_INTEGRITY },
     };
 
     for (size_t i = 0; i < RT_ELEMENTS(s_aNtFeatures); i++)
     {
         RTTestIPrintf(RTTESTLVL_ALWAYS, "Testing '%s': ", s_aNtFeatures[i].pszDesc);
-        bool fEnabled = false;
-        int rcTst = RTSystemQueryNtFeatureEnabled(s_aNtFeatures[i].enmFeature, &fEnabled);
-        if (RT_SUCCESS(rcTst))
+        bool       fEnabled = true;
+        int  const rcTst    = RTSystemQueryNtFeatureEnabled(s_aNtFeatures[i].enmFeature, &fEnabled);
+        if (rcTst == VINF_SUCCESS)
             RTTestIPrintf(RTTESTLVL_ALWAYS, "%s", fEnabled ? "ENABLED\n" : "DISABLED\n");
-        else if (rc == VERR_NOT_SUPPORTED) /* Don't freak out on older (host) OSes which don't have this feature. */
-            RTTestIPrintf(RTTESTLVL_ALWAYS, "SKIPPED (not supported)\n");
         else
-            RTTestIPrintf(RTTESTLVL_ALWAYS, "ERROR (%Rrc)\n", rcTst);
-        RTTESTI_CHECK_RC(rcTst, s_aNtFeatures[i].rc);
+        {
+            if (rcTst == VERR_NOT_SUPPORTED) /* Don't freak out on older (host) OSes which don't have this feature. */
+                RTTestIPrintf(RTTESTLVL_ALWAYS, "SKIPPED (not supported)\n");
+            else
+                RTTestIFailed("%s: %Rrc, expected VINF_SUCCESS or VERR_NOT_SUPPORTED", s_aNtFeatures[i].pszDesc, rcTst);
+            if (fEnabled)
+                RTTestIFailed("%s: fEnabled set on failure", s_aNtFeatures[i].pszDesc);
+        }
     }
 #endif
 

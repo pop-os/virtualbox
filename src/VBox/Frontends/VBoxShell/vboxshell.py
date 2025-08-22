@@ -43,7 +43,7 @@ from __future__ import print_function
 
 __copyright__ = \
 """
-Copyright (C) 2009-2024 Oracle and/or its affiliates.
+Copyright (C) 2009-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -63,7 +63,7 @@ along with this program; if not, see <https://www.gnu.org/licenses>.
 
 SPDX-License-Identifier: GPL-3.0-only
 """
-__version__ = "$Revision: 164827 $"
+__version__ = "$Revision: 170187 $"
 
 
 import gc
@@ -1015,7 +1015,6 @@ def infoCmd(ctx, args):
         print("  HPET [HPETEnabled]: %s" % (asState(mach.platform.x86.HPETEnabled)))
 
     print("  Hardware 3d acceleration [accelerate3DEnabled]: " + asState(mach.graphicsAdapter.isFeatureEnabled(ctx['const'].GraphicsFeature_Acceleration3D)))
-    print("  Hardware 2d video acceleration [accelerate2DVideoEnabled]: " + asState(mach.graphicsAdapter.isFeatureEnabled(ctx['const'].GraphicsFeature_Acceleration2DVideo)))
     print("  Use universal time [RTCUseUTC]: %s" % (asState(mach.platform.RTCUseUTC)))
     audioAdp = mach.audioSettings.adapter
     if audioAdp.enabled:
@@ -1618,9 +1617,9 @@ def hostCmd(ctx, _args):
     props = vbox.systemProperties
     print("Machines: %s" % (colPath(ctx, props.defaultMachineFolder)))
 
-    #print("Global shared folders:")
-    #for ud in ctx['global'].getArray(vbox, 'sharedFolders'):
-    #    printSf(ctx, sf)
+    print("Global shared folders:")
+    for sf in ctx['global'].getArray(vbox, 'sharedFolders'):
+        printSf(ctx, sf)
     host = vbox.host
     cnt = host.processorCount
     print(colCat(ctx, "Processors:"))
@@ -2647,9 +2646,10 @@ def shareFolderCmd(ctx, args):
         print("usage: shareFolder <vmname|uuid> <path> <name> <writable|persistent>")
         return 0
 
-    mach = argsToMach(ctx, args)
-    if mach is None:
-        return 0
+    if args[1] != 'global':
+        mach = argsToMach(ctx, args)
+        if mach is None:
+            return 0
     path = args[2]
     name = args[3]
     writable = False
@@ -2660,7 +2660,9 @@ def shareFolderCmd(ctx, args):
                 writable = True
             if cur_arg == 'persistent':
                 persistent = True
-    if persistent:
+    if args[1] == 'global':
+        ctx['vb'].createSharedFolder(name, path, writable)
+    elif persistent:
         cmdClosedVm(ctx, mach, lambda ctx, mach, args: mach.createSharedFolder(name, path, writable), [])
     else:
         cmdExistingVm(ctx, mach, 'guestlambda', [lambda ctx, mach, console, args: console.createSharedFolder(name, path, writable)])
@@ -2671,18 +2673,26 @@ def unshareFolderCmd(ctx, args):
         print("usage: unshareFolder <vmname|uuid> <name>")
         return 0
 
-    mach = argsToMach(ctx, args)
-    if mach is None:
-        return 0
+    if args[1] != 'global':
+        mach = argsToMach(ctx, args)
+        if mach is None:
+            return 0
     name = args[2]
     found = False
-    for sharedfolder in ctx['global'].getArray(mach, 'sharedFolders'):
-        if sharedfolder.name == name:
-            cmdClosedVm(ctx, mach, lambda ctx, mach, args: mach.removeSharedFolder(name), [])
-            found = True
-            break
-    if not found:
-        cmdExistingVm(ctx, mach, 'guestlambda', [lambda ctx, mach, console, args: console.removeSharedFolder(name)])
+    if args[1] == 'global':
+        for sharedfolder in ctx['global'].getArray(ctx['vb'], 'sharedFolders'):
+            if sharedfolder.name == name:
+                ctx['vb'].removeSharedFolder(name)
+                found = True
+                break
+    else:
+        for sharedfolder in ctx['global'].getArray(mach, 'sharedFolders'):
+            if sharedfolder.name == name:
+                cmdClosedVm(ctx, mach, lambda ctx, mach, args: mach.removeSharedFolder(name), [])
+                found = True
+                break
+        if not found:
+            cmdExistingVm(ctx, mach, 'guestlambda', [lambda ctx, mach, console, args: console.removeSharedFolder(name)])
     return 0
 
 

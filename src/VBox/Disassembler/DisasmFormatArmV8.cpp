@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -69,10 +69,20 @@ static const char g_aszArmV8RegFpHalf[32][4] =
     "h0\0",  "h1\0",  "h2\0",  "h3\0",  "h4\0",  "h5\0",  "h6\0",  "h7\0",  "h8\0",  "h9\0",  "h10",  "h11",  "h12",  "h13",  "h14",  "h15",
     "h16",   "h17",   "h18",   "h19",   "h20",   "h21",   "h22",   "h23",   "h24",   "h25",   "h26",  "h27",  "h28",  "h29",  "h30",  "h31"
 };
+static const char g_aszArmV8RegSimdScalar8Bit[32][4] =
+{
+    "b0\0",  "b1\0",  "b2\0",  "b3\0",  "b4\0",  "b5\0",  "b6\0",  "b7\0",  "b8\0",  "b9\0",  "b10",  "b11",  "b12",  "b13",  "b14",  "b15",
+    "b16",   "b17",   "b18",   "b19",   "b20",   "b21",   "b22",   "b23",   "b24",   "b25",   "b26",  "b27",  "b28",  "b29",  "b30",  "b31"
+};
 static const char g_aszArmV8RegSimdScalar128Bit[32][4] =
 {
     "q0\0",  "q1\0",  "q2\0",  "q3\0",  "q4\0",  "q5\0",  "q6\0",  "q7\0",  "q8\0",  "q9\0",  "q10",  "q11",  "q12",  "q13",  "q14",  "q15",
     "q16",   "q17",   "q18",   "q19",   "q20",   "q21",   "q22",   "q23",   "q24",   "q25",   "q26",  "q27",  "q28",  "q29",  "q30",  "q31"
+};
+static const char g_aszArmV8RegSimdVector[32][4] =
+{
+    "v0\0",  "v1\0",  "v2\0",  "v3\0",  "v4\0",  "v5\0",  "v6\0",  "v7\0",  "v8\0",  "v9\0",  "v10",  "v11",  "v12",  "v13",  "v14",  "v15",
+    "v16",   "v17",   "v18",   "v19",   "v20",   "v21",   "v22",   "v23",   "v24",   "v25",   "v26",  "v27",  "v28",  "v29",  "v30",  "v31"
 };
 static const char g_aszArmV8Cond[16][3] =
 {
@@ -93,6 +103,18 @@ static const char *g_apszArmV8PState[] =
     /* kDisArmv8InstrPState_SVCRZA   */ "svcrza",
     /* kDisArmv8InstrPState_SVCRSMZA */ "svcrsmza",
     /* kDisArmv8InstrPState_TCO      */ "tco"
+};
+static const char g_aszArmV8VecRegType[9][4] =
+{
+    /* kDisOpParamArmV8VecRegType_None */ "\0\0\0",
+    /* kDisOpParamArmV8VecRegType_8B   */ "8B\0",
+    /* kDisOpParamArmV8VecRegType_16B  */ "16B",
+    /* kDisOpParamArmV8VecRegType_4H   */ "4H\0",
+    /* kDisOpParamArmV8VecRegType_8H   */ "8H\0",
+    /* kDisOpParamArmV8VecRegType_2S   */ "2S\0",
+    /* kDisOpParamArmV8VecRegType_4S   */ "4S\0",
+    /* kDisOpParamArmV8VecRegType_1D   */ "1D\0",
+    /* kDisOpParamArmV8VecRegType_2D   */ "2D\0"
 };
 
 
@@ -338,65 +360,100 @@ static const struct
  *
  * @returns Pointer to the register name.
  * @param   pDis        The disassembler state.
- * @param   pParam      The parameter.
+ * @param   enmRegType  The register type.
+ * @param   idReg       The register ID.
  * @param   pcchReg     Where to store the length of the name.
  */
-DECLINLINE(const char *) disasmFormatArmV8Reg(PCDISSTATE pDis, PCDISOPPARAMARMV8REG pReg, size_t *pcchReg)
+DECLINLINE(const char *) disasmFormatArmV8Reg(PCDISSTATE pDis, uint8_t enmRegType, uint8_t idReg, size_t *pcchReg)
 {
     RT_NOREF_PV(pDis);
 
-    switch (pReg->enmRegType)
+    switch (enmRegType)
     {
         case kDisOpParamArmV8RegType_Gpr_32Bit:
         {
-            Assert(pReg->idReg < RT_ELEMENTS(g_aszArmV8RegGen32));
-            const char *psz = g_aszArmV8RegGen32[pReg->idReg];
+            AssertStmt(idReg < RT_ELEMENTS(g_aszArmV8RegGen32), idReg = RT_ELEMENTS(g_aszArmV8RegGen32) - 1);
+            const char *psz = g_aszArmV8RegGen32[idReg];
             *pcchReg = 2 + !!psz[2];
             return psz;
         }
         case kDisOpParamArmV8RegType_Gpr_64Bit:
         {
-            Assert(pReg->idReg < RT_ELEMENTS(g_aszArmV8RegGen64));
-            const char *psz = g_aszArmV8RegGen64[pReg->idReg];
+            AssertStmt(idReg < RT_ELEMENTS(g_aszArmV8RegGen64), idReg = RT_ELEMENTS(g_aszArmV8RegGen64) - 1);
+            const char *psz = g_aszArmV8RegGen64[idReg];
             *pcchReg = 2 + !!psz[2];
             return psz;
         }
         case kDisOpParamArmV8RegType_FpReg_Single:
         {
             Assert(pDis->armv8.enmFpType != kDisArmv8InstrFpType_Invalid);
-            Assert(pReg->idReg < RT_ELEMENTS(g_aszArmV8RegFpSingle));
-            const char *psz = g_aszArmV8RegFpSingle[pReg->idReg];
+            Assert(idReg < RT_ELEMENTS(g_aszArmV8RegFpSingle));
+            const char *psz = g_aszArmV8RegFpSingle[idReg];
             *pcchReg = 2 + !!psz[2];
             return psz;
         }
         case kDisOpParamArmV8RegType_FpReg_Double:
         {
             Assert(pDis->armv8.enmFpType != kDisArmv8InstrFpType_Invalid);
-            Assert(pReg->idReg < RT_ELEMENTS(g_aszArmV8RegFpDouble));
-            const char *psz = g_aszArmV8RegFpDouble[pReg->idReg];
+            Assert(idReg < RT_ELEMENTS(g_aszArmV8RegFpDouble));
+            const char *psz = g_aszArmV8RegFpDouble[idReg];
             *pcchReg = 2 + !!psz[2];
             return psz;
         }
         case kDisOpParamArmV8RegType_FpReg_Half:
         {
             Assert(pDis->armv8.enmFpType != kDisArmv8InstrFpType_Invalid);
-            Assert(pReg->idReg < RT_ELEMENTS(g_aszArmV8RegFpHalf));
-            const char *psz = g_aszArmV8RegFpHalf[pReg->idReg];
+            Assert(idReg < RT_ELEMENTS(g_aszArmV8RegFpHalf));
+            const char *psz = g_aszArmV8RegFpHalf[idReg];
+            *pcchReg = 2 + !!psz[2];
+            return psz;
+        }
+        case kDisOpParamArmV8RegType_Simd_Scalar_8Bit:
+        {
+            Assert(idReg < RT_ELEMENTS(g_aszArmV8RegSimdScalar8Bit));
+            const char *psz = g_aszArmV8RegSimdScalar8Bit[idReg];
+            *pcchReg = 2 + !!psz[2];
+            return psz;
+        }
+        case kDisOpParamArmV8RegType_Simd_Scalar_16Bit:
+        {
+            Assert(idReg < RT_ELEMENTS(g_aszArmV8RegFpHalf));
+            const char *psz = g_aszArmV8RegFpHalf[idReg];
+            *pcchReg = 2 + !!psz[2];
+            return psz;
+        }
+        case kDisOpParamArmV8RegType_Simd_Scalar_32Bit:
+        {
+            Assert(idReg < RT_ELEMENTS(g_aszArmV8RegFpSingle));
+            const char *psz = g_aszArmV8RegFpSingle[idReg];
             *pcchReg = 2 + !!psz[2];
             return psz;
         }
         case kDisOpParamArmV8RegType_Simd_Scalar_64Bit:
         {
             /* Using the floating point double register names here. */
-            Assert(pReg->idReg < RT_ELEMENTS(g_aszArmV8RegFpDouble));
-            const char *psz = g_aszArmV8RegFpDouble[pReg->idReg];
+            Assert(idReg < RT_ELEMENTS(g_aszArmV8RegFpDouble));
+            const char *psz = g_aszArmV8RegFpDouble[idReg];
             *pcchReg = 2 + !!psz[2];
             return psz;
         }
         case kDisOpParamArmV8RegType_Simd_Scalar_128Bit:
         {
-            Assert(pReg->idReg < RT_ELEMENTS(g_aszArmV8RegSimdScalar128Bit));
-            const char *psz = g_aszArmV8RegSimdScalar128Bit[pReg->idReg];
+            Assert(idReg < RT_ELEMENTS(g_aszArmV8RegSimdScalar128Bit));
+            const char *psz = g_aszArmV8RegSimdScalar128Bit[idReg];
+            *pcchReg = 2 + !!psz[2];
+            return psz;
+        }
+        case kDisOpParamArmV8RegType_Sp:
+        {
+            *pcchReg = 2;
+            return "sp";
+        }
+        case kDisOpParamArmV8RegType_Simd_Vector:
+        case kDisOpParamArmV8RegType_Simd_Vector_Group:
+        {
+            Assert(idReg < RT_ELEMENTS(g_aszArmV8RegSimdVector));
+            const char *psz = g_aszArmV8RegSimdVector[idReg];
             *pcchReg = 2 + !!psz[2];
             return psz;
         }
@@ -405,6 +462,24 @@ DECLINLINE(const char *) disasmFormatArmV8Reg(PCDISSTATE pDis, PCDISOPPARAMARMV8
             *pcchReg = 0;
             return NULL;
     }
+}
+
+
+/**
+ * Gets the vector register type for the given parameter.
+ *
+ * @returns Pointer to the register type.
+ * @param   enmVecType  THe vector type.
+ * @param   pcchType    Where to store the length of the type.
+ */
+DECLINLINE(const char *) disasmFormatArmV8VecRegType(uint8_t enmVecType, size_t *pcchType)
+{
+    Assert(   enmVecType != kDisOpParamArmV8VecRegType_None
+           && enmVecType < RT_ELEMENTS(g_aszArmV8VecRegType));
+
+    const char *psz = g_aszArmV8VecRegType[enmVecType];
+    *pcchType = 2 + !!psz[2];
+    return psz;
 }
 
 
@@ -461,6 +536,50 @@ static const char *disasmFormatArmV8SysReg(PCDISSTATE pDis, PCDISOPPARAM pParam,
 
     pachTmp[idx++] = '_';
     pachTmp[idx++] = '0' + (idSysReg & 0x7);
+    pachTmp[idx]   = '\0';
+    *pcchReg = idx;
+    return pachTmp;
+}
+
+
+/**
+ * Formats an unknown system instruction designation.
+ *
+ * @returns Pointer to the register name.
+ * @param   pParam      The parameter.
+ * @param   pachTmp     Pointer to temporary string storage when building
+ *                      the register name.
+ * @param   pcchReg     Where to store the length of the name.
+ */
+static const char *disasmFormatArmV8SysIns(PCDISOPPARAM pParam, char *pachTmp, size_t *pcchReg)
+{
+    /* Generate  #<op1>,<CRn>,<CRm>,#<op2> identifier. */
+    uint32_t const idSysIns = pParam->armv8.Op.idSysReg;
+    uint8_t idx = 0;
+    pachTmp[idx++] = 'S';
+    pachTmp[idx++] = '1';
+    pachTmp[idx++] = '_';
+    pachTmp[idx++] = '0' + ARMV8_AARCH64_SYSREG_ID_GET_OP1(idSysIns);
+    pachTmp[idx++] = '_';
+    pachTmp[idx++] = 'C';
+    uint8_t bTmp =  + ARMV8_AARCH64_SYSREG_ID_GET_CRN(idSysIns);
+    if (bTmp >= 10)
+    {
+        pachTmp[idx++] = '1' + (bTmp - 10);
+        bTmp -= 10;
+    }
+    pachTmp[idx++] = '0' + bTmp;
+    pachTmp[idx++] = '_';
+    pachTmp[idx++] = 'C';
+    bTmp =  + ARMV8_AARCH64_SYSREG_ID_GET_CRM(idSysIns);
+    if (bTmp >= 10)
+    {
+        pachTmp[idx++] = '1' + (bTmp - 10);
+        bTmp -= 10;
+    }
+    pachTmp[idx++] = '0' + bTmp;
+    pachTmp[idx++] = '_';
+    pachTmp[idx++] = '0' + ARMV8_AARCH64_SYSREG_ID_GET_OP2(idSysIns);
     pachTmp[idx]   = '\0';
     *pcchReg = idx;
     return pachTmp;
@@ -669,6 +788,7 @@ DISDECL(size_t) DISFormatArmV8Ex(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, u
          */
         RTINTPTR off;
         char szSymbol[128];
+        uint32_t cSkippedParams = 0;
         for (uint32_t i = 0; i < RT_ELEMENTS(pDis->aParams); i++)
         {
             PCDISOPPARAM pParam = &pDis->aParams[i];
@@ -677,7 +797,7 @@ DISDECL(size_t) DISFormatArmV8Ex(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, u
             if (pParam->armv8.enmType == kDisArmv8OpParmNone)
                 break;
 
-            if (i > 0)
+            if (i > cSkippedParams)
                 PUT_C(',');
             PUT_C(' '); /** @todo Make the indenting configurable. */
 
@@ -728,24 +848,24 @@ DISDECL(size_t) DISFormatArmV8Ex(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, u
                     {
                         offDisplacement = (int8_t)pParam->uValue;
                         if (fFlags & DIS_FMT_FLAGS_RELATIVE_BRANCH)
-                            PUT_NUM_S8(offDisplacement * sizeof(uint32_t));
+                            PUT_NUM_S8(offDisplacement);
                     }
                     else if (pParam->fUse & DISUSE_IMMEDIATE16_REL)
                     {
                         offDisplacement = (int16_t)pParam->uValue;
                         if (fFlags & DIS_FMT_FLAGS_RELATIVE_BRANCH)
-                            PUT_NUM_S16(offDisplacement * sizeof(uint32_t));
+                            PUT_NUM_S16(offDisplacement);
                     }
                     else
                     {
                         offDisplacement = (int32_t)pParam->uValue;
                         if (fFlags & DIS_FMT_FLAGS_RELATIVE_BRANCH)
-                            PUT_NUM_S32(offDisplacement * sizeof(uint32_t));
+                            PUT_NUM_S32(offDisplacement);
                     }
                     if (fFlags & DIS_FMT_FLAGS_RELATIVE_BRANCH)
                         PUT_SZ(" ; (");
 
-                    RTUINTPTR uTrgAddr = pDis->uInstrAddr + (offDisplacement * sizeof(uint32_t));
+                    RTUINTPTR uTrgAddr = pDis->uInstrAddr + offDisplacement;
                     if (   pDis->uCpuMode == DISCPUMODE_ARMV8_A32
                         || pDis->uCpuMode == DISCPUMODE_ARMV8_T32)
                         PUT_NUM_32(uTrgAddr);
@@ -767,9 +887,74 @@ DISDECL(size_t) DISFormatArmV8Ex(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, u
                 {
                     Assert(!(pParam->fUse & (DISUSE_DISPLACEMENT8 | DISUSE_DISPLACEMENT16 | DISUSE_DISPLACEMENT32 | DISUSE_DISPLACEMENT64 | DISUSE_RIPDISPLACEMENT32)));
 
-                    size_t cchReg;
-                    const char *pszReg = disasmFormatArmV8Reg(pDis, &pParam->armv8.Op.Reg, &cchReg);
-                    PUT_STR(pszReg, cchReg);
+                    if (pParam->armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Simd_Vector_Group)
+                    {
+                        PUT_C('{');
+
+                        Assert(   pParam->armv8.Op.Reg.cRegs > 0
+                               && pParam->armv8.Op.Reg.cRegs <= 4);
+                        Assert(pParam->armv8.Op.Reg.enmVecType != kDisOpParamArmV8VecRegType_None);
+
+                        for (uint8_t idReg = pParam->armv8.Op.Reg.idReg; idReg < (pParam->armv8.Op.Reg.idReg + pParam->armv8.Op.Reg.cRegs); idReg++)
+                        {
+                            if (idReg > pParam->armv8.Op.Reg.idReg)
+                                PUT_C(',');
+                            PUT_C(' '); /** @todo Make the indenting configurable. */
+
+                            size_t cchTmp;
+                            const char *pszTmp = disasmFormatArmV8Reg(pDis, kDisOpParamArmV8RegType_Simd_Vector_Group,
+                                                                      idReg % RT_ELEMENTS(g_aszArmV8RegSimdVector), &cchTmp);
+                            PUT_STR(pszTmp, cchTmp);
+                            PUT_C('.');
+                            pszTmp = disasmFormatArmV8VecRegType(pParam->armv8.Op.Reg.enmVecType, &cchTmp);
+                            PUT_STR(pszTmp, cchTmp);
+                        }
+
+                        PUT_C('}');
+                    }
+                    else if (pParam->armv8.Op.Reg.cRegs > 1)
+                    {
+                        /** @todo r=bird: must consider how to prevent out of bounds issues here due
+                         *        to idReg exceeding the register tables.  I've fixed the GPR ones in
+                         *        disasmFormatArmV8Reg since questionable RCWSCASP++ decoding may
+                         *        lead 31 + 1 there.  Haven't checked the other uses. */
+                        for (uint8_t idReg = pParam->armv8.Op.Reg.idReg;
+                             idReg < (pParam->armv8.Op.Reg.idReg + pParam->armv8.Op.Reg.cRegs);
+                             idReg++)
+                        {
+                            if (idReg > pParam->armv8.Op.Reg.idReg)
+                                PUT_C(',');
+                            PUT_C(' '); /** @todo Make the indenting configurable. */
+
+                            size_t cchTmp;
+                            const char *pszTmp = disasmFormatArmV8Reg(pDis, pParam->armv8.Op.Reg.enmRegType,
+                                                                      idReg, &cchTmp);
+                            PUT_STR(pszTmp, cchTmp);
+
+                            if (   pParam->armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Simd_Vector
+                                && pParam->armv8.Op.Reg.enmVecType != kDisOpParamArmV8VecRegType_None)
+                            {
+                                PUT_C('.');
+                                pszTmp = disasmFormatArmV8VecRegType(pParam->armv8.Op.Reg.enmVecType, &cchTmp);
+                                PUT_STR(pszTmp, cchTmp);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        size_t cchTmp;
+                        const char *pszTmp = disasmFormatArmV8Reg(pDis, pParam->armv8.Op.Reg.enmRegType,
+                                                                  pParam->armv8.Op.Reg.idReg, &cchTmp);
+                        PUT_STR(pszTmp, cchTmp);
+
+                        if (   pParam->armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Simd_Vector
+                            && pParam->armv8.Op.Reg.enmVecType != kDisOpParamArmV8VecRegType_None)
+                        {
+                            PUT_C('.');
+                            pszTmp = disasmFormatArmV8VecRegType(pParam->armv8.Op.Reg.enmVecType, &cchTmp);
+                            PUT_STR(pszTmp, cchTmp);
+                        }
+                    }
                     break;
                 }
                 case kDisArmv8OpParmSysReg:
@@ -782,25 +967,70 @@ DISDECL(size_t) DISFormatArmV8Ex(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, u
                     PUT_STR(pszReg, cchReg);
                     break;
                 }
+                case kDisArmv8OpParmSysIns:
+                {
+                    Assert(pParam->fUse == DISUSE_REG_SYSTEM);
+
+                    size_t cchReg;
+                    char   achTmp[32];
+                    const char *pszReg = disasmFormatArmV8SysIns(pParam, &achTmp[0], &cchReg);
+                    PUT_STR(pszReg, cchReg);
+                    break;
+                }
+                case kDisArmv8OpParmSysInsExtraStr:
+                {
+                    Assert(pParam->fUse == DISUSE_REG_SYSTEM);
+                    /* HACK! The decoded system instruction option string is found following the instruction. */
+                    /** @todo this isn't elegant.   */
+                    const char * const psz = strchr(pOp->pszOpcode, '\0') + 1;
+                    if (*psz)
+                        PUT_PSZ(psz);
+                    else
+                    {
+                        /* If the string is empty, there is no option parameter and we need to
+                           skip a parameter, undoing 1 or two output characters emitted above. */
+                        uint32_t const cchToUnput = i == cSkippedParams ? 1 : 2;
+                        Assert(cchDst >= cchToUnput);
+                        pszDst -= cchToUnput;
+                        cchDst -= cchToUnput;
+                        cSkippedParams++;
+                    }
+                    break;
+                }
                 case kDisArmv8OpParmAddrInGpr:
                 {
                     Assert(   (pParam->fUse & (DISUSE_PRE_INDEXED | DISUSE_POST_INDEXED))
                            != (DISUSE_PRE_INDEXED | DISUSE_POST_INDEXED));
-                    Assert(   (   RT_BOOL(pParam->fUse & (DISUSE_PRE_INDEXED | DISUSE_POST_INDEXED))
-                               != RT_BOOL(pParam->fUse & DISUSE_INDEX))
-                           || !(pParam->fUse & (DISUSE_PRE_INDEXED | DISUSE_POST_INDEXED | DISUSE_INDEX)));
 
                     PUT_C('[');
 
                     size_t cchReg;
-                    const char *pszReg = disasmFormatArmV8Reg(pDis, &pParam->armv8.Op.Reg, &cchReg);
+                    const char *pszReg = disasmFormatArmV8Reg(pDis, pParam->armv8.Op.Reg.enmRegType,
+                                                              pParam->armv8.Op.Reg.idReg, &cchReg);
                     PUT_STR(pszReg, cchReg);
 
                     if (pParam->fUse & DISUSE_POST_INDEXED)
                     {
                         Assert(pParam->armv8.enmExtend == kDisArmv8OpParmExtendNone);
-                        PUT_SZ("], #");
-                        PUT_NUM_S16(pParam->armv8.u.offBase);
+                        PUT_C(']');
+                        if (pParam->fUse & DISUSE_INDEX)
+                        {
+                            PUT_SZ(", ");
+
+                            pszReg = disasmFormatArmV8Reg(pDis, pParam->armv8.GprIndex.enmRegType,
+                                                          pParam->armv8.GprIndex.idReg, &cchReg);
+                            PUT_STR(pszReg, cchReg);
+                        }
+                        else if (   pParam->armv8.u.offBase
+                                 || (pParam->fUse & (DISUSE_POST_INDEXED | DISUSE_PRE_INDEXED)))
+                        {
+                            PUT_SZ(", #");
+                            if (   pParam->armv8.u.offBase >= INT16_MIN
+                                && pParam->armv8.u.offBase <= INT16_MAX)
+                                PUT_NUM_S16(pParam->armv8.u.offBase);
+                            else
+                                PUT_NUM_S32(pParam->armv8.u.offBase);
+                        }
                     }
                     else
                     {
@@ -808,13 +1038,19 @@ DISDECL(size_t) DISFormatArmV8Ex(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, u
                         {
                             PUT_SZ(", ");
 
-                            pszReg = disasmFormatArmV8Reg(pDis, &pParam->armv8.GprIndex, &cchReg);
+                            pszReg = disasmFormatArmV8Reg(pDis, pParam->armv8.GprIndex.enmRegType,
+                                                          pParam->armv8.GprIndex.idReg, &cchReg);
                             PUT_STR(pszReg, cchReg);
                         }
-                        else if (pParam->armv8.u.offBase)
+                        else if (   pParam->armv8.u.offBase
+                                 || (pParam->fUse & (DISUSE_POST_INDEXED | DISUSE_PRE_INDEXED)))
                         {
                             PUT_SZ(", #");
-                            PUT_NUM_S16(pParam->armv8.u.offBase);
+                            if (   pParam->armv8.u.offBase >= INT16_MIN
+                                && pParam->armv8.u.offBase <= INT16_MAX)
+                                PUT_NUM_S16(pParam->armv8.u.offBase);
+                            else
+                                PUT_NUM_S32(pParam->armv8.u.offBase);
                         }
 
                         if (pParam->armv8.enmExtend != kDisArmv8OpParmExtendNone)
@@ -883,6 +1119,30 @@ DISDECL(size_t) DISFormatArmV8Ex(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, u
                     case kDisArmv8OpParmExtendRor:
                         PUT_SZ("ROR #");
                         break;
+                    case kDisArmv8OpParmExtendUxtB:
+                        PUT_SZ("UXTB #");
+                        break;
+                    case kDisArmv8OpParmExtendUxtH:
+                        PUT_SZ("UXTH #");
+                        break;
+                    case kDisArmv8OpParmExtendUxtW:
+                        PUT_SZ("UXTW #");
+                        break;
+                    case kDisArmv8OpParmExtendUxtX:
+                        PUT_SZ("UXTX #");
+                        break;
+                    case kDisArmv8OpParmExtendSxtB:
+                        PUT_SZ("SXTB #");
+                        break;
+                    case kDisArmv8OpParmExtendSxtH:
+                        PUT_SZ("SXTH #");
+                        break;
+                    case kDisArmv8OpParmExtendSxtW:
+                        PUT_SZ("SXTW #");
+                        break;
+                    case kDisArmv8OpParmExtendSxtX:
+                        PUT_SZ("SXTX #");
+                        break;
                     default:
                         AssertFailed();
                 }
@@ -902,8 +1162,7 @@ DISDECL(size_t) DISFormatArmV8Ex(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, u
         PUT_STR(g_szSpaces, cchPadding);
 
         /* comment? */
-        if (fFlags & (DIS_FMT_FLAGS_BYTES_RIGHT | DIS_FMT_FLAGS_ADDR_RIGHT))
-            PUT_SZ(";");
+        PUT_SZ(";");
 
         /*
          * The address?

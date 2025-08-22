@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,8 +42,8 @@
 #include <iprt/semaphore.h>
 #include <iprt/cpp/utils.h>
 #include <iprt/utf16.h>
+#include <iprt/err.h>
 #ifdef RT_OS_WINDOWS
-# include <iprt/err.h>
 # include <iprt/ldr.h>
 # include <msi.h>
 # include <WbemIdl.h>
@@ -60,6 +60,10 @@
 uint32_t VirtualBoxClient::g_cInstances = 0;
 
 LONG VirtualBoxClient::s_cUnnecessaryAtlModuleLocks = 0;
+
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+extern TrackedObjectsCollector gTrackedObjectsCollector;
+#endif
 
 #ifdef VBOX_WITH_MAIN_NLS
 
@@ -201,6 +205,37 @@ HRESULT VirtualBoxClient::init()
             throw i_investigateVirtualBoxObjectCreationFailure(hrc);
 #else
             throw hrc;
+#endif
+
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+        /////////////// Try to start Object tracker thread as earlier as possible ///////////////
+        {
+            int vrc = VERR_GENERAL_FAILURE;
+            if (gTrackedObjectsCollector.init())
+            {
+                try
+                {
+                    mData.m_objectTrackerTask = new ObjectTracker();
+                    if (mData.m_objectTrackerTask->init()) // some init procedure
+                        vrc = mData.m_objectTrackerTask->createThread(); // mData->m_objectTrackerTask1 is not consumed
+                }
+                catch (...)
+                {
+                    LogRel(("Exception during starting the Object tracker thread\n"));
+                    if (mData.m_objectTrackerTask)
+                    {
+                        delete mData.m_objectTrackerTask;
+                        mData.m_objectTrackerTask = NULL;
+                    }
+                    vrc = VERR_UNEXPECTED_EXCEPTION;
+                }
+            }
+
+            if (RT_SUCCESS(vrc))
+                LogRel(("Successfully started the Object tracker thread\n"));
+            else
+                LogRel(("Failed to start the Object tracker thread (%Rrc)\n", vrc));
+        }
 #endif
 
         /* VirtualBox error return is postponed to method calls, fetch it. */
@@ -593,6 +628,17 @@ void VirtualBoxClient::uninit()
         return;
     }
 
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+    if (mData.m_objectTrackerTask)
+    {
+        LogRel(("FRONTEND: Terminating the object tracker...\n"));
+
+        mData.m_objectTrackerTask->finish();//set the termination flag in the thread
+        delete mData.m_objectTrackerTask;//waiting thread termination is going in the m_objectTrackerTask destructor
+        gTrackedObjectsCollector.uninit();
+    }
+#endif
+
 #ifdef VBOX_WITH_MAIN_NLS
     i_unregisterEventListener();
 #endif
@@ -616,7 +662,7 @@ void VirtualBoxClient::uninit()
         mData.m_pTrComponent = NULL;
     }
 #endif
-    mData.m_pToken.setNull();
+
     mData.m_pVirtualBox.setNull();
 
     ASMAtomicDecU32(&g_cInstances);
@@ -751,7 +797,6 @@ DECLCALLBACK(int) VirtualBoxClient::SVCWatcherThread(RTTHREAD ThreadSelf,
                  * restart attempts in some wedged config can cause high CPU
                  * and disk load. */
                 ComPtr<IVirtualBox> pVirtualBox;
-                ComPtr<IToken> pToken;
                 hrc = pVirtualBox.createLocalObject(CLSID_VirtualBox);
                 if (FAILED(hrc))
                     cMillies = 3 * VBOXCLIENT_DEFAULT_INTERVAL;
@@ -763,7 +808,6 @@ DECLCALLBACK(int) VirtualBoxClient::SVCWatcherThread(RTTHREAD ThreadSelf,
                         /* Update the VirtualBox reference, there's a working
                          * VBoxSVC again from now on. */
                         pThis->mData.m_pVirtualBox = pVirtualBox;
-                        pThis->mData.m_pToken = pToken;
 #ifdef VBOX_WITH_MAIN_NLS
                         /* update language using new instance of IVirtualBox in case the language settings was changed */
                         pThis->i_reloadApiLanguage();

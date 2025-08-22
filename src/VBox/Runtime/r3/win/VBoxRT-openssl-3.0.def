@@ -6,7 +6,7 @@
 ;
 
 ;
-; Copyright (C) 2009-2024 Oracle and/or its affiliates.
+; Copyright (C) 2009-2025 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -282,7 +282,9 @@
     EC_POINT_free
     EC_POINT_clear_free
     EC_POINT_set_affine_coordinates
+    EC_POINT_set_affine_coordinates_GFp
     EC_POINT_get_affine_coordinates
+    EC_POINT_get_affine_coordinates_GFp
     EC_POINT_add
     EC_POINTs_mul
     EC_POINT_mul

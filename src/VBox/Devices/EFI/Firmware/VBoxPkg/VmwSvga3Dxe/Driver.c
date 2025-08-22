@@ -2,7 +2,7 @@
   This driver is a sample implementation of the Graphics Output Protocol for
   the VMware SVGA 3 video controller.
 
-  Copyright (c) 2023 - 2024, Oracle and/or its affiliates.<BR>
+  Copyright (c) 2023 - 2025, Oracle and/or its affiliates.
   Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.<BR>
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
@@ -21,6 +21,22 @@ EFI_DRIVER_BINDING_PROTOCOL  gVmwSvga3VideoDriverBinding = {
   NULL
 };
 
+static
+EFI_STATUS
+VmwSvga3VideoControllerPciIdsSupported (
+  IN PCI_TYPE00                   *Pci
+  )
+{
+  if (   Pci->Hdr.ClassCode[1] == PCI_CLASS_DISPLAY_VGA
+      && (   (   Pci->Hdr.VendorId == PCI_VENDOR_ID_VMWARE
+              && Pci->Hdr.DeviceId == PCI_DEVICE_ID_VMWARE_SVGA3)
+          || (   Pci->Hdr.VendorId == PCI_VENDOR_ID_VBOX
+              && Pci->Hdr.DeviceId == PCI_DEVICE_ID_VBOX_SVGA))) {
+    return EFI_SUCCESS;
+  }
+
+  return EFI_UNSUPPORTED;
+}
 
 /**
   Check if this device is supported.
@@ -79,9 +95,8 @@ VmwSvga3VideoControllerDriverSupported (
     goto Done;
   }
 
-  if (   Pci.Hdr.ClassCode[1] == PCI_CLASS_DISPLAY_VGA
-      && Pci.Hdr.VendorId == PCI_VENDOR_ID_VMWARE
-      && Pci.Hdr.DeviceId == PCI_DEVICE_ID_VMWARE_SVGA3) {
+  Status = VmwSvga3VideoControllerPciIdsSupported(&Pci);
+  if (!EFI_ERROR (Status)) {
     DEBUG ((DEBUG_INFO, "VmwSvga3Video: SVGA3 detected\n"));
     Status = EFI_SUCCESS;
   }
@@ -177,12 +192,14 @@ VmwSvga3VideoControllerDriverStart (
   //
   // Check whether this a supported device
   //
-  if (   Pci.Hdr.ClassCode[1] != PCI_CLASS_DISPLAY_VGA
-      || Pci.Hdr.VendorId != PCI_VENDOR_ID_VMWARE
-      || Pci.Hdr.DeviceId != PCI_DEVICE_ID_VMWARE_SVGA3) {
+  Status = VmwSvga3VideoControllerPciIdsSupported(&Pci);
+  if (EFI_ERROR (Status)) {
     Status = EFI_DEVICE_ERROR;
     goto ClosePciIo;
   }
+
+  Private->VendorId = Pci.Hdr.VendorId;
+  Private->DeviceId = Pci.Hdr.DeviceId;
 
   //
   // Save original PCI attributes

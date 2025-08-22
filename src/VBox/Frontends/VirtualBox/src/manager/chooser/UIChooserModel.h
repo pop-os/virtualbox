@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -63,18 +63,15 @@ class UIChooserModel : public UIChooserAbstractModel
 
 signals:
 
-    /** @name Tool stuff.
-      * @{ */
-        /** Notifies listeners about tool popup-menu request for certain @a position and optionally machine @a pItem. */
-        void sigToolMenuRequested(const QPoint &position, UIVirtualMachineItem *pItem);
-    /** @} */
-
     /** @name Selection stuff.
       * @{ */
         /** Notifies listeners about selection changed. */
         void sigSelectionChanged();
         /** Notifies listeners about selection invalidated. */
         void sigSelectionInvalidated();
+
+        /** Notifies listeners about navigation list change. */
+        void sigNavigationListChanged();
 
         /** Notifies listeners about group toggling started. */
         void sigToggleStarted();
@@ -117,11 +114,6 @@ public:
 
         /** Returns item at @a position, taking into account possible @a deviceTransform. */
         QGraphicsItem *itemAt(const QPointF &position, const QTransform &deviceTransform = QTransform()) const;
-
-        /** Handles tool button click for certain @a pItem. */
-        void handleToolButtonClick(UIChooserItem *pItem);
-        /** Handles pin button click for certain @a pItem. */
-        void handlePinButtonClick(UIChooserItem *pItem);
     /** @} */
 
     /** @name Selection stuff.
@@ -152,8 +144,6 @@ public:
 
         /** Returns whether group item is selected. */
         bool isGroupItemSelected() const;
-        /** Returns whether global item is selected. */
-        bool isGlobalItemSelected() const;
         /** Returns whether machine item is selected. */
         bool isMachineItemSelected() const;
         /** Returns whether local machine item is selected. */
@@ -192,6 +182,8 @@ public:
       * @{ */
         /** Returns a list of navigation-items. */
         const QList<UIChooserItem*> &navigationItems() const;
+        /** Returns whether navigation list empty. */
+        bool isNavigationListEmpty() const;
         /** Removes @a pItem from navigation list. */
         void removeFromNavigationItems(UIChooserItem *pItem);
         /** Updates navigation list. */
@@ -239,8 +231,6 @@ public:
         void sortSelectedGroupItem();
         /** Changes current machine item to the one with certain @a uId. */
         void setCurrentMachineItem(const QUuid &uId);
-        /** Sets global tools item to be the current one. */
-        void setCurrentGlobalItem();
 
         /** Defines current @a pDragObject. */
         void setCurrentDragObject(QDrag *pDragObject);
@@ -253,9 +243,6 @@ public:
       * @{ */
         /** Updates layout. */
         void updateLayout();
-
-        /** Defines global item height @a iHint. */
-        void setGlobalItemHeightHint(int iHint);
     /** @} */
 
 public slots:
@@ -329,6 +316,25 @@ protected slots:
     /** @} */
 
 private slots:
+
+    /** @name General stuff.
+      * @{ */
+        /** Handles request to commit data. */
+        void sltHandleCommitData();
+    /** @} */
+
+    /** @name General stuff.
+      * @{ */
+        /** Handles signal about experience-mode being changed. */
+        void sltHandleSettingsExpertModeChange();
+        /** Handles CVirtualBox event about state change for machine with @a uId. */
+        void sltHandleMachineStateChange(const QUuid &uId);
+        /** Handles signal about selection changed. */
+        void sltHandleSelectionChanged();
+
+        /** Handles signal about context-menu being shown. */
+        void sltUpdateContextMenu();
+    /** @} */
 
     /** @name Selection stuff.
       * @{ */
@@ -432,9 +438,6 @@ private:
         bool processDragMoveEvent(QGraphicsSceneDragDropEvent *pEvent);
         /** Processes drag leave @a pEvent. */
         bool processDragLeaveEvent(QGraphicsSceneDragDropEvent *pEvent);
-
-        /** Applies the global item height hint. */
-        void applyGlobalItemHeightHint();
     /** @} */
 
     /** @name General stuff.
@@ -487,9 +490,6 @@ private:
         int              m_iScrollingTokenSize;
         /** Holds whether drag scrolling is in progress. */
         bool             m_fIsScrollingInProgress;
-
-        /** Holds the global item height hint. */
-        int  m_iGlobalItemHeightHint;
     /** @} */
 
     /** @name Cloud stuff.

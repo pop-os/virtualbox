@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -63,7 +63,8 @@ typedef uint8_t IEMMODE;
                                                     | CPUMCTX_EXTRN_SPSR \
                                                     | CPUMCTX_EXTRN_ELR \
                                                     | CPUMCTX_EXTRN_SP \
-                                                    | CPUMCTX_EXTRN_PSTATE )
+                                                    | CPUMCTX_EXTRN_PSTATE \
+                                                    | CPUMCTX_EXTRN_SCTLR_TCR_TTBR )
 /** The CPUMCTX_EXTRN_XXX mask needed when injecting an exception/interrupt.
  * IEM will import missing bits, callers are encouraged to make these registers
  * available prior to injection calls if fetching state anyway.  */
@@ -81,6 +82,11 @@ typedef uint8_t IEMMODE;
  * @note ASSUMES execution engine has checked for instruction breakpoints
  *       during decoding. */
 #define IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK    (  IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK ) /** @todo */
+
+
+/** Placeholder.
+ * @todo this should probably be shared/generic. */
+#define IEMTARGETCPU_DYNAMIC                        UINT32_C(0)
 
 /** @} */
 

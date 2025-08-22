@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -44,6 +44,7 @@
 #include <poll.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include <fcntl.h>
 
@@ -160,7 +161,7 @@ static int monitorSymlinkedDir(int iInotifyFd, char szRealResolvConf[PATH_MAX], 
             && strchr(szRealResolvConf, '/'))
         {
             /* Cut of the filename part. We only need that for deletion checks and such. */
-            size_t const offFilename = strrchr(szRealResolvConf, '/') - &szRealResolvConf[0];
+            size_t const offFilename = (size_t)(strrchr(szRealResolvConf, '/') - &szRealResolvConf[0]);
             *poffFilename = offFilename + 1;
             szRealResolvConf[offFilename] = '\0';
 

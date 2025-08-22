@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -48,7 +48,11 @@
 
 RTDECL(void) RTSortShell(void *pvArray, size_t cElements, size_t cbElement, PFNRTSORTCMP pfnCmp, void *pvUser)
 {
+#ifdef IN_RING3
+    Assert(cbElement <= _32K);
+#else
     Assert(cbElement <= 128);
+#endif
 
     /* Anything worth sorting? */
     if (cElements < 2)

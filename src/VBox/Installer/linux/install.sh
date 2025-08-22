@@ -4,7 +4,7 @@
 # VirtualBox linux installation script
 
 #
-# Copyright (C) 2007-2024 Oracle and/or its affiliates.
+# Copyright (C) 2007-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -300,6 +300,9 @@ if [ "$ACTION" = "install" ]; then
         test -e $INSTALLATION_DIR/VBoxNetNAT     && chmod 4511 $INSTALLATION_DIR/VBoxNetNAT
 
         ln -sf $INSTALLATION_DIR/VBoxVMM.so   $INSTALLATION_DIR/components/VBoxVMM.so
+        if [ -f $INSTALLATION_DIR/VBoxVMMArm.so ]; then
+            ln -sf $INSTALLATION_DIR/VBoxVMMArm.so $INSTALLATION_DIR/components/VBoxVMMArm.so
+        fi
         ln -sf $INSTALLATION_DIR/VBoxRT.so    $INSTALLATION_DIR/components/VBoxRT.so
 
         chmod go-w $INSTALLATION_DIR
@@ -308,6 +311,10 @@ if [ "$ACTION" = "install" ]; then
     # This binaries need to be suid root in any case, even if not hardened
     test -e $INSTALLATION_DIR/VBoxNetAdpCtl && chmod 4511 $INSTALLATION_DIR/VBoxNetAdpCtl
     test -e $INSTALLATION_DIR/VBoxVolInfo && chmod 4511 $INSTALLATION_DIR/VBoxVolInfo
+
+    # Make sure the .autoreg file exists and has the current date so that
+    # the user's compreg.dat files are updated.
+    touch "$INSTALLATION_DIR/.autoreg"
 
     # Write the configuration.  Needs to be done before the vboxdrv service is
     # started.
@@ -380,27 +387,29 @@ if [ "$ACTION" = "install" ]; then
         ln -sf VBoxAudioTest /usr/bin/vboxaudiotest > /dev/null 2>&1
     fi
 
-    # Icons
-    cur=`pwd`
-    cd $INSTALLATION_DIR/icons
-    for i in *; do
-        cd $i
-        if [ -d /usr/share/icons/hicolor/$i ]; then
-            for j in *; do
-                if expr "$j" : "virtualbox\..*" > /dev/null; then
-                    dst=apps
-                else
-                    dst=mimetypes
-                fi
-                if [ -d /usr/share/icons/hicolor/$i/$dst ]; then
-                    ln -s $INSTALLATION_DIR/icons/$i/$j /usr/share/icons/hicolor/$i/$dst/$j
-                    echo /usr/share/icons/hicolor/$i/$dst/$j >> $CONFIG_DIR/$CONFIG_FILES
-                fi
-            done
-        fi
-        cd -
-    done
-    cd $cur
+    # Icons (if FE/Qt is included)
+    if [ -d $INSTALLATION_DIR/icons ]; then
+        cur=`pwd`
+        cd $INSTALLATION_DIR/icons
+        for i in *; do
+            cd $i
+            if [ -d /usr/share/icons/hicolor/$i ]; then
+                for j in *; do
+                    if expr "$j" : "virtualbox\..*" > /dev/null; then
+                        dst=apps
+                    else
+                        dst=mimetypes
+                    fi
+                    if [ -d /usr/share/icons/hicolor/$i/$dst ]; then
+                        ln -s $INSTALLATION_DIR/icons/$i/$j /usr/share/icons/hicolor/$i/$dst/$j
+                        echo /usr/share/icons/hicolor/$i/$dst/$j >> $CONFIG_DIR/$CONFIG_FILES
+                    fi
+                done
+            fi
+            cd -
+        done
+        cd $cur
+    fi
 
     # Update the MIME database
     update-mime-database /usr/share/mime 2>/dev/null

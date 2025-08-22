@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -355,7 +355,10 @@ HRESULT Session::assignMachine(const ComPtr<IMachine> &aMachine,
         AssertComRCReturn(hrc, hrc);
 
         hrc = mConsole->initWithMachine(aMachine, mControl, aLockType);
-        AssertComRCReturn(hrc, hrc);
+        if (hrc != VBOX_E_PLATFORM_ARCH_NOT_SUPPORTED)
+            AssertComRCReturn(hrc, hrc);
+        else
+            return hrc;
     }
     else
         mRemoteMachine = aMachine;
@@ -772,7 +775,7 @@ HRESULT Session::onVRDEServerChange(BOOL aRestart)
 #endif
 }
 
-HRESULT Session::onRecordingStateChange(BOOL aEnable, ComPtr<IProgress> &aProgress)
+HRESULT Session::onRecordingStateChange(RecordingState_T aState, ComPtr<IProgress> &aProgress)
 {
     LogFlowThisFunc(("\n"));
 
@@ -782,14 +785,14 @@ HRESULT Session::onRecordingStateChange(BOOL aEnable, ComPtr<IProgress> &aProgre
 #ifndef VBOX_COM_INPROC_API_CLIENT
     AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
-    return mConsole->i_onRecordingStateChange(aEnable, aProgress);
+    return mConsole->i_onRecordingStateChange(aState, aProgress);
 #else
-    RT_NOREF(aEnable, aProgress);
+    RT_NOREF(aState, aProgress);
     return S_OK;
 #endif
 }
 
-HRESULT Session::onRecordingScreenStateChange(BOOL aEnable, ULONG aScreen)
+HRESULT Session::onRecordingScreenStateChange(RecordingState_T aState, ULONG aScreen)
 {
     LogFlowThisFunc(("\n"));
 
@@ -799,9 +802,9 @@ HRESULT Session::onRecordingScreenStateChange(BOOL aEnable, ULONG aScreen)
 #ifndef VBOX_COM_INPROC_API_CLIENT
     AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
-    return mConsole->i_onRecordingScreenStateChange(aEnable, aScreen);
+    return mConsole->i_onRecordingScreenStateChange(aState, aScreen);
 #else
-    RT_NOREF(aEnable, aScreen);
+    RT_NOREF(aState, aScreen);
     return S_OK;
 #endif
 }

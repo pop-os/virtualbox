@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1310,9 +1310,6 @@ static int rtHttpServerClientMain(PRTHTTPSERVERCLIENT pClient, RTMSINTERVAL msTi
         }
 
         LogFlowFunc(("Reading client request ...\n"));
-
-        tsLastReadMs = RTTimeMilliTS();
-        cWaitMs      = 200;  /* All consequtive waits do busy waiting for now. */
 
         char  *pszReq      = szReq;
         size_t cbRead;

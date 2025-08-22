@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -74,6 +74,7 @@ public:
     bool fAskDeleteConfirmation;
     bool fShowHumanReadableSizes;
     bool fShowHiddenObjects;
+    bool fAllowInteractiveColumnWidths;
 
 private:
 
@@ -116,8 +117,6 @@ private slots:
     void sltPanelActionToggled(bool fChecked);
     void sltReceieveNewFileOperation(const CProgress &comProgress, const QString &strTableName);
     void sltFileOperationComplete(QUuid progressId);
-    void sltHandleHidePanel(UIDialogPanel *pPanel);
-    void sltHandleShowPanel(UIDialogPanel *pPanel);
     void sltCommitDataSignalReceived();
     void sltFileTableSelectionChanged(bool fHasSelection);
     void sltCurrentTabChanged(int iIndex);
@@ -135,26 +134,14 @@ private:
 
     /** Saves list of panels and file manager options to the extra data. */
     void saveOptions();
-    /** Show the panels that have been visible the last time file manager is closed. */
-    void restorePanelVisibility();
     /** Loads file manager options. This should be done before widget creation
      *  since some widgets are initilized with these options */
     void loadOptions();
-    void hidePanel(UIDialogPanel *panel);
-    void showPanel(UIDialogPanel *panel);
-    /** Makes sure escape key is assigned to only a single widget. This is done by checking
-        several things in the following order:
-        - when there are no more panels visible assign it to the parent dialog
-        - grab it from the dialog as soon as a panel becomes visible again
-        - assign it to the most recently "unhidden" panel */
-    void manageEscapeShortCut();
     void copyToGuest();
     void copyToHost();
     template<typename T>
     QStringList               getFsObjInfoStringList(const T &fsObjectInfo) const;
     void                      appendLog(const QString &strLog, const QString &strMachineName, FileManagerLogType eLogType);
-    void                      savePanelVisibility();
-
     void setMachines(const QVector<QUuid> &machineIDs, const QUuid &lastSelectedMachineId = QUuid());
     void removeTabs(const QVector<QUuid> &machineIdsToRemove);
     void addTabs(const QVector<QUuid> &machineIdsToAdd);

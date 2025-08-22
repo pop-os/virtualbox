@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -154,6 +154,10 @@ typedef enum
     VMHALTMETHOD_1,
     /** The first go at a more global approach. */
     VMHALTMETHOD_GLOBAL_1,
+#if defined(VBOX_VMM_TARGET_ARMV8) && defined(RT_OS_WINDOWS) && defined(RT_ARCH_ARM64)
+    /** NEM takes over halting. */
+    VMHALTMETHOD_NEM,
+#endif
     /** The end of valid methods. (not inclusive of course) */
     VMHALTMETHOD_END,
     /** The usual 32-bit max value. */

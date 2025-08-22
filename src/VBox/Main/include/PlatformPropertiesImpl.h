@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -132,10 +132,11 @@ private:
     /** Flag set to \c true if this instance handles platform properties
      *  for the host, or set to \c false for guests. */
     bool const             mfIsHost;
-
-    // Data
-
-    settings::PlatformProperties *m;
+    /** Configurable data. */
+    struct
+    {
+        bool               fExclusiveHwVirt;
+    } mData;
 };
 
 #endif /* !MAIN_INCLUDED_PlatformPropertiesImpl_h */

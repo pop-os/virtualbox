@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -44,6 +44,8 @@
 
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 # include <iprt/asm-amd64-x86.h>
+#elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+# include <iprt/asm-arm.h>
 #endif
 #include <iprt/assert.h>
 #include <iprt/err.h>
@@ -118,6 +120,7 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
         return fReturn;
     }
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) /* Not required in ARM as we don't support pre W10 kernels. */
     /*
      * Fallback approach for pre W10 kernels.
      *
@@ -145,18 +148,16 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
     bool            fPending;
     RTCCUINTREG     fSavedFlags  = ASMIntDisableFlags();
 
-#ifdef RT_ARCH_X86
+# ifdef RT_ARCH_X86
     PKPCR       pPcr   = (PKPCR)__readfsdword(RT_UOFFSETOF(KPCR,SelfPcr));
     uint8_t    *pbPrcb = (uint8_t *)pPcr->Prcb;
 
-#elif defined(RT_ARCH_AMD64)
+# elif defined(RT_ARCH_AMD64)
     /* HACK ALERT! The offset is from windbg/vista64. */
     PKPCR       pPcr   = (PKPCR)__readgsqword(RT_UOFFSETOF(KPCR,Self));
     uint8_t    *pbPrcb = (uint8_t *)pPcr->CurrentPrcb;
 
-#else
-# error "port me"
-#endif
+# endif
 
     /* Check QuantumEnd. */
     if (cbQuantumEnd == 1)
@@ -182,6 +183,10 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 
     ASMSetFlags(fSavedFlags);
     return fPending;
+#else
+    AssertFailed();
+    return false;
+#endif
 }
 
 

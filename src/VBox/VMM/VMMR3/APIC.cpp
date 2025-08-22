@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -32,13 +32,14 @@
 #define LOG_GROUP LOG_GROUP_DEV_APIC
 #include <VBox/log.h>
 #include "APICInternal.h"
-#include <VBox/vmm/apic.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/ssm.h>
-#include <VBox/vmm/vm.h>
+#ifndef VBOX_DEVICE_STRUCT_TESTCASE
+# include <VBox/vmm/vm.h>
+#endif
 
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
@@ -216,41 +217,18 @@ static void apicR3SetCpuIdFeatureLevel(PVM pVM, PDMAPICMODE enmMode)
 
 
 /**
- * Receives an INIT IPI.
- *
- * @param   pVCpu   The cross context virtual CPU structure.
+ * @interface_method_impl{PDMAPICBACKEND,pfnHvSetCompatMode}
  */
-VMMR3_INT_DECL(void) APICR3InitIpi(PVMCPU pVCpu)
+DECLCALLBACK(int) apicR3HvSetCompatMode(PVM pVM, bool fHyperVCompatMode)
 {
-    VMCPU_ASSERT_EMT(pVCpu);
-    LogFlow(("APIC%u: APICR3InitIpi\n", pVCpu->idCpu));
-    apicInitIpi(pVCpu);
-}
-
-
-/**
- * Sets whether Hyper-V compatibility mode (MSR interface) is enabled or not.
- *
- * This mode is a hybrid of xAPIC and x2APIC modes, some caveats:
- * 1. MSRs are used even ones that are missing (illegal) in x2APIC like DFR.
- * 2. A single ICR is used by the guest to send IPIs rather than 2 ICR writes.
- * 3. It is unclear what the behaviour will be when invalid bits are set,
- *    currently we follow x2APIC behaviour of causing a \#GP.
- *
- * @param   pVM                 The cross context VM structure.
- * @param   fHyperVCompatMode   Whether the compatibility mode is enabled.
- */
-VMMR3_INT_DECL(void) APICR3HvSetCompatMode(PVM pVM, bool fHyperVCompatMode)
-{
-    Assert(pVM);
     PAPIC pApic = VM_TO_APIC(pVM);
+    if (pApic->fHyperVCompatMode ^ fHyperVCompatMode)
+        LogRel(("APIC: %s Hyper-V x2APIC compatibility mode\n", fHyperVCompatMode ? "Enabling" : "Disabling"));
+
     pApic->fHyperVCompatMode = fHyperVCompatMode;
-
-    if (fHyperVCompatMode)
-        LogRel(("APIC: Enabling Hyper-V x2APIC compatibility mode\n"));
-
     int rc = CPUMR3MsrRangesInsert(pVM, &g_MsrRange_x2Apic);
     AssertLogRelRC(rc);
+    return rc;
 }
 
 
@@ -976,7 +954,7 @@ static DECLCALLBACK(int) apicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         PCAPICCPU pApicCpu = VMCPU_TO_APICCPU(pVCpu);
 
         /* Update interrupts from the pending-interrupts bitmaps to the IRR. */
-        APICUpdatePendingInterrupts(pVCpu);
+        PDMApicUpdatePendingInterrupts(pVCpu);
 
         /* Save the auxiliary data. */
         pHlp->pfnSSMPutU64(pSSM, pApicCpu->uApicBaseMsr);
@@ -1138,7 +1116,7 @@ static DECLCALLBACK(void) apicR3TimerCallback(PPDMDEVINS pDevIns, TMTIMERHANDLE 
     {
         uint8_t uVector = XAPIC_LVT_GET_VECTOR(uLvtTimer);
         Log2(("APIC%u: apicR3TimerCallback: Raising timer interrupt. uVector=%#x\n", pVCpu->idCpu, uVector));
-        apicPostInterrupt(pVCpu, uVector, XAPICTRIGGERMODE_EDGE, 0 /* uSrcTag */);
+        apicPostInterrupt(pVCpu, uVector, XAPICTRIGGERMODE_EDGE, false /* fAutoEoi */, 0 /* uSrcTag */);
     }
 
     XAPICTIMERMODE enmTimerMode = XAPIC_LVT_GET_TIMER_MODE(uLvtTimer);
@@ -1222,7 +1200,7 @@ static void apicR3TermState(PVM pVM)
     /* Unmap and free the PIB. */
     if (pApic->pvApicPibR3 != NIL_RTR3PTR)
     {
-        size_t const cPages = pApic->cbApicPib >> HOST_PAGE_SHIFT;
+        size_t const cPages = pApic->cbApicPib >> HOST_PAGE_SHIFT_DYNAMIC;
         if (cPages == 1)
             SUPR3PageFreeEx(pApic->pvApicPibR3, cPages);
         else
@@ -1269,8 +1247,8 @@ static int apicR3InitState(PVM pVM)
      */
     Assert(pApic->pvApicPibR3 == NIL_RTR3PTR);
     Assert(pApic->pvApicPibR0 == NIL_RTR0PTR);
-    pApic->cbApicPib        = RT_ALIGN_Z(pVM->cCpus * sizeof(APICPIB), HOST_PAGE_SIZE);
-    size_t const cHostPages = pApic->cbApicPib >> HOST_PAGE_SHIFT;
+    pApic->cbApicPib        = RT_ALIGN_Z(pVM->cCpus * sizeof(APICPIB), HOST_PAGE_SIZE_DYNAMIC);
+    size_t const cHostPages = pApic->cbApicPib >> HOST_PAGE_SHIFT_DYNAMIC;
     if (cHostPages == 1)
     {
         SUPPAGE SupApicPib;
@@ -1315,7 +1293,9 @@ static int apicR3InitState(PVM pVM)
             Assert(pVCpu->idCpu == idCpu);
             Assert(pApicCpu->pvApicPageR3 == NIL_RTR3PTR);
             Assert(pApicCpu->pvApicPageR0 == NIL_RTR0PTR);
+#ifndef VMM_HOST_PAGE_SIZE_DYNAMIC
             AssertCompile(sizeof(XAPICPAGE) <= HOST_PAGE_SIZE);
+#endif
             pApicCpu->cbApicPage = sizeof(XAPICPAGE);
             int rc = SUPR3PageAllocEx(1 /* cHostPages */, 0 /* fFlags */, &pApicCpu->pvApicPageR3, &pApicCpu->pvApicPageR0,
                                       &SupApicPage);
@@ -1439,6 +1419,7 @@ DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE p
     {
         case PDMAPICMODE_NONE:
             LogRel(("APIC: APIC maximum mode configured as 'None', effectively disabled/not-present!\n"));
+            RT_FALL_THROUGH();
         case PDMAPICMODE_APIC:
         case PDMAPICMODE_X2APIC:
             break;
@@ -1468,7 +1449,10 @@ DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE p
     /*
      * Register the APIC with PDM.
      */
-    rc = PDMDevHlpApicRegister(pDevIns);
+    rc = PDMDevHlpIcRegister(pDevIns);
+    AssertLogRelRCReturn(rc, rc);
+
+    rc = PDMApicRegisterBackend(pVM, PDMAPICBACKENDTYPE_VBOX, &g_ApicBackend);
     AssertLogRelRCReturn(rc, rc);
 
     /*
@@ -1584,7 +1568,7 @@ DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE p
         APIC_REG_COUNTER(&pApicCpu->StatLvtTimerWrite, "%u/LvtTimerWrite",  "Number of times the LVT timer is written.");
 
         APIC_PROF_COUNTER(&pApicCpu->StatUpdatePendingIntrs,
-                                                       "/PROF/CPU%u/APIC/UpdatePendingInterrupts", "Profiling of APICUpdatePendingInterrupts");
+                                                       "/PROF/CPU%u/APIC/UpdatePendingInterrupts", "Profiling of apicUpdatePendingInterrupts");
         APIC_PROF_COUNTER(&pApicCpu->StatPostIntr,     "/PROF/CPU%u/APIC/PostInterrupt",  "Profiling of APICPostInterrupt");
 #endif
     }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -105,7 +105,7 @@ static int parseImportOptions(const char *psz, com::SafeArray<ImportOptions_T> *
         size_t len;
         const char *pszComma = strchr(psz, ',');
         if (pszComma)
-            len = pszComma - psz;
+            len = (size_t)(pszComma - psz);
         else
             len = strlen(psz);
         if (len > 0)
@@ -1409,6 +1409,7 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_CloudInstanceMetadata:
                         case VirtualSystemDescriptionType_CloudInstanceFreeFormTags:
                         case VirtualSystemDescriptionType_CloudImageFreeFormTags:
+                        case VirtualSystemDescriptionType_NVRAM:
                             /** @todo  VirtualSystemDescriptionType_Miscellaneous? */
                             break;
 
@@ -1463,7 +1464,7 @@ static int parseExportOptions(const char *psz, com::SafeArray<ExportOptions_T> *
         size_t len;
         const char *pszComma = strchr(psz, ',');
         if (pszComma)
-            len = pszComma - psz;
+            len = (size_t)(pszComma - psz);
         else
             len = strlen(psz);
         if (len > 0)
@@ -2055,7 +2056,8 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
                                          ComSafeArrayAsOutParam(aVBoxValues),
                                          ComSafeArrayAsOutParam(aExtraConfigValues)));
 
-                Utf8Str flagCloudLaunchInstance(Bstr(aVBoxValues[0]).raw());
+                BSTR const pValue0 = aVBoxValues[0]; /* gcc 13.3.0 gets confused by Bstr(aVBoxValues[0]). */
+                Utf8Str flagCloudLaunchInstance(Bstr(pValue0).raw());
                 retTypes.setNull(); aRefs.setNull(); aOvfValues.setNull(); aVBoxValues.setNull(); aExtraConfigValues.setNull();
 
                 if (flagCloudLaunchInstance.equals("true"))

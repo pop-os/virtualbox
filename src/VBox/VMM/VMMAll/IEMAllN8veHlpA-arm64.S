@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -80,7 +80,7 @@ BEGINPROC_HIDDEN iemNativeTbEntry
         /* Set BP to point to the old BP stack address */
         add     x29, sp, #(IEMNATIVE_FRAME_SAVE_REG_SIZE - 16)
         /* Allocate the variable area from SP. */
-        sub     sp, sp, #IEMNATIVE_FRAME_VAR_SIZE
+        sub     sp, sp, #(IEMNATIVE_FRAME_VAR_SIZE + IEMNATIVE_FRAME_ALIGN_SIZE)
         /* Load the fixed register values from parameters. */
         mov     IEMNATIVE_REG_FIXED_PVMCPU_ASM,   x0
         mov     IEMNATIVE_REG_FIXED_PCPUMCTX_ASM, x1

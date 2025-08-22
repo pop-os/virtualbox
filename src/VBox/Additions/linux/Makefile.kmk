@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -33,9 +33,6 @@ include $(KBUILD_PATH)/subheader.kmk
 #
 include $(PATH_SUB_CURRENT)/sharedfolders/Makefile.kmk
 include $(PATH_SUB_CURRENT)/drm/Makefile.kmk
-ifdef VBOX_WITH_LIGHTDM_GREETER
- include $(PATH_SUB_CURRENT)/lightdm-greeter/Makefile.kmk
-endif
 
 
 #
@@ -140,8 +137,7 @@ ifdef VBOX_WITH_WAYLAND_ADDITIONS
 endif
 
 VBOX_LNX_ADD_STRIP_SBIN += \
-	VBoxService \
-	$(if $(VBOX_WITH_LIGHTDM_GREETER),vbox-greeter)
+	VBoxService
 
 VBOX_LNX_ADD_STRIP_MOD = \
 	$(if $(VBOX_WITH_PAM),pam_vbox.so,) \
@@ -192,11 +188,6 @@ VBOX_LNX_ADD_DBG_FILES := \
 	$(addprefix $(VBOX_LNX_ADD_DBG_LIB_DIR),$(VBOX_LNX_ADD_STRIP_LIB)) \
 	$(addprefix $(VBOX_LNX_ADD_DBG_OTHER_DIR),$(VBOX_LNX_ADD_STRIP_MOD))
 
-ifdef VBOX_WITH_LIGHTDM_GREETER_PACKING
- VBOX_LNX_ADD_INST_FILES += \
- 	$(addprefix $(VBOX_LNX_ADD_INST_SBIN_DIR),vbox-greeter)
-endif
-
 # Cleanup of the installer directory files
 OTHER_CLEAN += $(VBOX_LNX_ADD_INST_FILES) $(VBOX_LNX_ADD_DBG_FILES)
 
@@ -204,22 +195,22 @@ OTHER_CLEAN += $(VBOX_LNX_ADD_INST_FILES) $(VBOX_LNX_ADD_DBG_FILES)
 $(addprefix $(VBOX_LNX_ADD_DBG_BIN_DIR),$(VBOX_LNX_ADD_STRIP_BIN)): \
 		$(VBOX_LNX_ADD_DBG_BIN_DIR)% : $(PATH_STAGE_BIN)/additions/% | $$(dir $$@)
 	$(call MSG_TOOL,copydbg,$<,$@)
-	$(QUIET)objcopy --only-keep-debug $< $@
+	$(QUIET)$(VBOX_OBJCOPY) --only-keep-debug $< $@
 
 $(addprefix $(VBOX_LNX_ADD_DBG_SBIN_DIR),$(VBOX_LNX_ADD_STRIP_SBIN)): \
 		$(VBOX_LNX_ADD_DBG_SBIN_DIR)% : $(PATH_STAGE_BIN)/additions/% | $$(dir $$@)
 	$(call MSG_TOOL,copydbg,$<,$@)
-	$(QUIET)objcopy --only-keep-debug $< $@
+	$(QUIET)$(VBOX_OBJCOPY) --only-keep-debug $< $@
 
 $(addprefix $(VBOX_LNX_ADD_DBG_LIB_DIR),$(VBOX_LNX_ADD_STRIP_LIB)): \
 		$(VBOX_LNX_ADD_DBG_LIB_DIR)% : $(PATH_STAGE_BIN)/additions/% | $$(dir $$@)
 	$(call MSG_TOOL,copydbg,$<,$@)
-	$(QUIET)objcopy --only-keep-debug $< $@
+	$(QUIET)$(VBOX_OBJCOPY) --only-keep-debug $< $@
 
 $(addprefix $(VBOX_LNX_ADD_DBG_OTHER_DIR),$(VBOX_LNX_ADD_STRIP_MOD)): \
 		$(VBOX_LNX_ADD_DBG_OTHER_DIR)% : $(PATH_STAGE_BIN)/additions/% | $$(dir $$@)
 	$(call MSG_TOOL,copydbg,$<,$@)
-	$(QUIET)objcopy --only-keep-debug $< $@
+	$(QUIET)$(VBOX_OBJCOPY) --only-keep-debug $< $@
 
 # pattern rule for stripping and copying the VBOX_LNX_ADD_STRIP_BIN files to the installation directory
 $(addprefix $(VBOX_LNX_ADD_INST_BIN_DIR),$(VBOX_LNX_ADD_STRIP_BIN)): \
@@ -228,7 +219,7 @@ $(addprefix $(VBOX_LNX_ADD_INST_BIN_DIR),$(VBOX_LNX_ADD_STRIP_BIN)): \
 		| $$(dir $$@)
 	$(call MSG_INST_FILE,$<,$@)
 	$(QUIET)$(INSTALL) -m 0755 $(if $(VBOX_DO_STRIP),-s,) $< $@
-	$(QUIET)objcopy --add-gnu-debuglink=$(subst $(VBOX_LNX_ADD_INST_BIN_DIR),$(VBOX_LNX_ADD_DBG_BIN_DIR),$@) $@
+	$(QUIET)$(VBOX_OBJCOPY) --add-gnu-debuglink=$(subst $(VBOX_LNX_ADD_INST_BIN_DIR),$(VBOX_LNX_ADD_DBG_BIN_DIR),$@) $@
 
 # pattern rule for stripping and copying the VBOX_LNX_ADD_STRIP_SBIN files to the installation directory
 $(addprefix $(VBOX_LNX_ADD_INST_SBIN_DIR), \
@@ -238,7 +229,7 @@ $(addprefix $(VBOX_LNX_ADD_INST_SBIN_DIR), \
 		| $$(dir $$@)
 	$(call MSG_INST_FILE,$<,$@)
 	$(QUIET)$(INSTALL) -m 0755 $(if $(VBOX_DO_STRIP),-s,) $< $@
-	$(QUIET)objcopy --add-gnu-debuglink=$(subst $(VBOX_LNX_ADD_INST_SBIN_DIR),$(VBOX_LNX_ADD_DBG_SBIN_DIR),$@) $@
+	$(QUIET)$(VBOX_OBJCOPY) --add-gnu-debuglink=$(subst $(VBOX_LNX_ADD_INST_SBIN_DIR),$(VBOX_LNX_ADD_DBG_SBIN_DIR),$@) $@
 
 # pattern rule for stripping and copying vbox-greeter to the installation directory
 $(addprefix $(VBOX_LNX_ADD_INST_SBIN_DIR),vbox-greeter): \
@@ -254,7 +245,7 @@ $(addprefix $(VBOX_LNX_ADD_INST_LIB_DIR),$(VBOX_LNX_ADD_STRIP_LIB)): \
 		| $$(dir $$@)
 	$(call MSG_INST_FILE,$<,$@)
 	$(QUIET)$(INSTALL) -m 0755 $(if $(VBOX_DO_STRIP),-s,) $< $@
-	$(QUIET)objcopy --add-gnu-debuglink=$(subst $(VBOX_LNX_ADD_INST_LIB_DIR),$(VBOX_LNX_ADD_DBG_LIB_DIR),$@) $@
+	$(QUIET)$(VBOX_OBJCOPY) --add-gnu-debuglink=$(subst $(VBOX_LNX_ADD_INST_LIB_DIR),$(VBOX_LNX_ADD_DBG_LIB_DIR),$@) $@
 
 # pattern rule for stripping and copying the VBOX_LNX_ADD_STRIP_MOD files to the installation directory
 $(addprefix $(VBOX_LNX_ADD_INST_OTHER_DIR),$(VBOX_LNX_ADD_STRIP_MOD)): \
@@ -263,7 +254,7 @@ $(addprefix $(VBOX_LNX_ADD_INST_OTHER_DIR),$(VBOX_LNX_ADD_STRIP_MOD)): \
 		| $$(dir $$@)
 	$(call MSG_INST_FILE,$<,$@)
 	$(QUIET)$(INSTALL) -m 0755 $(if $(VBOX_DO_STRIP),-s,) $< $@
-	$(QUIET)objcopy --add-gnu-debuglink=$(subst $(VBOX_LNX_ADD_INST_OTHER_DIR),$(VBOX_LNX_ADD_DBG_OTHER_DIR),$@) $@
+	$(QUIET)$(VBOX_OBJCOPY) --add-gnu-debuglink=$(subst $(VBOX_LNX_ADD_INST_OTHER_DIR),$(VBOX_LNX_ADD_DBG_OTHER_DIR),$@) $@
 
 # pattern rule for stripping and copying the VBOX_LNX_ADD_STRIP_OBJ files to the installation directory
 $(addprefix $(VBOX_LNX_ADD_INST_OTHER_DIR),$(VBOX_LNX_ADD_STRIP_OBJ)): \
@@ -272,7 +263,7 @@ $(addprefix $(VBOX_LNX_ADD_INST_OTHER_DIR),$(VBOX_LNX_ADD_STRIP_OBJ)): \
 ifeq ($(VBOX_DO_STRIP),)
 	$(QUIET)$(INSTALL) -m 0644 $< $@
 else # strip to temp file because of umask.
-	$(QUIET)objcopy --strip-unneeded -R .comment $< $@.tmp
+	$(QUIET)$(VBOX_OBJCOPY) --strip-unneeded -R .comment $< $@.tmp
 	$(QUIET)$(INSTALL) -m 0644 $@.tmp $@
 	$(QUIET)$(RM) -f -- $@.tmp
 endif
@@ -315,7 +306,6 @@ lnx_add_inst-noexec_INSTTYPE = stage
 lnx_add_inst-noexec_SOURCES  = \
 	$(VBOX_REL_X11_ADD_INST)vboxclient.desktop \
 	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \
-	$(if $(VBOX_WITH_LIGHTDM_GREETER_PACKING),lightdm-greeter/vbox-greeter.desktop,) \
 	selinux-fedora/vbox_x11.pp \
 	selinux-fedora/vbox_accel.pp
 
@@ -337,11 +327,6 @@ LnxAdd-scripts_SOURCES  = \
 	$(VBOX_REL_LNX_ADD_INST)deffiles
 LnxAdd-scripts_EXEC_SOURCES  = \
 	$(VBOX_REL_LNX_INST_SRC)routines.sh
-
-ifdef VBOX_WITH_LIGHTDM_GREETER_PACKING
- LnxAdd-scripts_EXEC_SOURCES += \
- 	$(VBOX_REL_LNX_ADD_INST)module-autologon.sh=>installer/module-autologon
-endif
 
 
 #
@@ -405,13 +390,13 @@ $(VBOX_LNX_ADD_ARCHIVE.$(KBUILD_TARGET_ARCH)): \
 	$(QUIET)$(MKDIR) -p $(@D)
 	$(QUIET)$(CHMOD) 0755 $(VBOX_LNX_ADD_ARCH_INST_DIRS)
 ifdef VBOX_USE_PBZIP2
-	$(QUIET)tar --dereference --owner 0 --group 0 -cRf $(patsubst %.bz2,%,$@) \
+	$(QUIET)$(VBOX_GTAR) --dereference --owner 0 --group 0 -cRf $(patsubst %.bz2,%,$@) \
 		-C $(VBOX_LNX_ADD_INST_OUT_DIR) \
 		LICENSE bin init lib other sbin src \
 		$(if $(filter $(KBUILD_TYPE),debug),debug)
 	$(QUIET)pbzip2 $(patsubst %.bz2,%,$@)
 else
-	$(QUIET)tar --dereference --owner 0 --group 0 --ignore-failed-read -cjRf $@ \
+	$(QUIET)$(VBOX_GTAR) --dereference --owner 0 --group 0 --ignore-failed-read -cjRf $@ \
  		-C $(VBOX_LNX_ADD_INST_OUT_DIR) \
  		LICENSE bin init lib other sbin src \
  		$(if $(filter $(KBUILD_TYPE),debug),debug)
@@ -430,12 +415,12 @@ $(PATH_STAGE_BIN)/additions/VBoxGuestAdditions-dbg.tar.bz2: \
 	$(QUIET)$(MKDIR) -p $(@D)
 	$(QUIET)$(CHMOD) 0755 $(VBOX_LNX_ADD_DBG_DIRS)
 ifdef VBOX_USE_PBZIP2
-	$(QUIET)tar --dereference --owner 0 --group 0 -cRf $(patsubst %.bz2,%,$@) \
+	$(QUIET)$(VBOX_GTAR) --dereference --owner 0 --group 0 -cRf $(patsubst %.bz2,%,$@) \
 		-C $(VBOX_LNX_ADD_INST_DBG_DIR) \
 		bin lib sbin
 	$(QUIET)pbzip2 $(patsubst %.bz2,%,$@)
 else
-	$(QUIET)tar --dereference --owner 0 --group 0 --ignore-failed-read -cjRf $@ \
+	$(QUIET)$(VBOX_GTAR) --dereference --owner 0 --group 0 --ignore-failed-read -cjRf $@ \
  		-C $(VBOX_LNX_ADD_INST_DBG_DIR) \
  		bin lib sbin
 endif

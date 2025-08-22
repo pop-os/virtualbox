@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -30,6 +30,8 @@
 #include "PlatformARMImpl.h"
 #include "PlatformImpl.h"
 #include "LoggingNew.h"
+
+#include "AutoStateDep.h"
 
 #include <VBox/settings.h>
 
@@ -238,9 +240,14 @@ void PlatformARM::i_copyFrom(PlatformARM *aThat)
  */
 HRESULT PlatformARM::i_loadSettings(const settings::PlatformARM &data)
 {
-    RT_NOREF(data);
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.hrc());
 
-    /* Nothing here yet. */
+    AutoReadLock mlock(mMachine COMMA_LOCKVAL_SRC_POS);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    // simply copy
+    m->bd.assignCopy(&data);
     return S_OK;
 }
 
@@ -254,9 +261,13 @@ HRESULT PlatformARM::i_loadSettings(const settings::PlatformARM &data)
  */
 HRESULT PlatformARM::i_saveSettings(settings::PlatformARM &data)
 {
-    RT_NOREF(data);
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.hrc());
 
-    /* Nothing here yet. */
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    data = *m->bd.data();
+
     return S_OK;
 }
 
@@ -265,5 +276,65 @@ HRESULT PlatformARM::i_applyDefaults(GuestOSType *aOsType)
     RT_NOREF(aOsType);
 
     /* Nothing here yet. */
+    return S_OK;
+}
+
+HRESULT PlatformARM::getCPUProperty(CPUPropertyTypeARM_T aProperty, BOOL *aValue)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    switch (aProperty)
+    {
+        case CPUPropertyTypeARM_HWVirt:
+            *aValue = m->bd->fNestedHWVirt;
+            break;
+
+        case CPUPropertyTypeARM_GICITS:
+            *aValue = m->bd->fGicIts;
+            break;
+
+        default:
+            return E_INVALIDARG;
+    }
+    return S_OK;
+}
+
+HRESULT PlatformARM::setCPUProperty(CPUPropertyTypeARM_T aProperty, BOOL aValue)
+{
+    /* sanity */
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.hrc());
+
+    /* the machine needs to be mutable */
+    AutoMutableStateDependency adep(mMachine);
+    if (FAILED(adep.hrc())) return adep.hrc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    switch (aProperty)
+    {
+        case CPUPropertyTypeARM_HWVirt:
+        {
+            m->bd.backup();
+            m->bd->fNestedHWVirt = !!aValue;
+            break;
+        }
+
+        case CPUPropertyTypeARM_GICITS:
+        {
+            m->bd.backup();
+            m->bd->fGicIts = !!aValue;
+            break;
+        }
+
+        default:
+            return E_INVALIDARG;
+    }
+
+    alock.release();
+
+    AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);
+    mMachine->i_setModified(Machine::IsModified_Platform);
+
     return S_OK;
 }

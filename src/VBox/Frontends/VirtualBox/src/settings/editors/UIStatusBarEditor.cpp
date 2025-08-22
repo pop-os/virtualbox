@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -505,7 +505,7 @@ void UIStatusBarEditorWidget::setStatusBarConfiguration(const QList<IndicatorTyp
 void UIStatusBarEditorWidget::sltRetranslateUI()
 {
     /* Translate widget itself: */
-    setToolTip(tr("Allows to modify VM status-bar contents."));
+    setToolTip(tr("Configure the virtual machine status bar"));
 
     /* Translate close-button if necessary: */
     if (!m_fStartedFromVMSettings && m_pButtonClose)

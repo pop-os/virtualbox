@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -39,7 +39,7 @@
 #include <VBox/vmm/nem.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/hm_vmx.h>
@@ -519,6 +519,29 @@ DECLINLINE(int) nemR3DarwinHvSts2Rc(hv_return_t hrc)
 }
 
 
+/** Puts a name to a hypervisor framework status code. */
+static const char *nemR3DarwinHvStatusName(hv_return_t hrc)
+{
+    switch (hrc)
+    {
+        RT_CASE_RET_STR(HV_SUCCESS);
+        RT_CASE_RET_STR(HV_ERROR);
+        RT_CASE_RET_STR(HV_BUSY);
+        RT_CASE_RET_STR(HV_BAD_ARGUMENT);
+#ifdef HV_ILLEGAL_GUEST_STATE
+        RT_CASE_RET_STR(HV_ILLEGAL_GUEST_STATE);
+#endif
+        RT_CASE_RET_STR(HV_NO_RESOURCES);
+        RT_CASE_RET_STR(HV_NO_DEVICE);
+#ifdef HV_DENIED
+        RT_CASE_RET_STR(HV_DENIED);
+#endif
+        RT_CASE_RET_STR(HV_UNSUPPORTED);
+    }
+    return "";
+}
+
+
 /**
  * Unmaps the given guest physical address range (page aligned).
  *
@@ -553,8 +576,7 @@ DECLINLINE(int) nemR3DarwinUnmap(PVM pVM, RTGCPHYS GCPhys, size_t cb, uint8_t *p
     }
 
     STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
-    LogRel(("nemR3DarwinUnmap(%RGp): failed! hrc=%#x\n",
-            GCPhys, hrc));
+    LogRel(("nemR3DarwinUnmap(%RGp): failed! hrc=%#x (%s)\n", GCPhys, hrc, nemR3DarwinHvStatusName(hrc)));
     return VERR_NEM_IPE_6;
 }
 
@@ -1858,10 +1880,15 @@ static int nemR3DarwinExportGuestState(PVMCC pVM, PVMCPUCC pVCpu, PVMXTRANSIENT 
         Assert(pVCpu->nem.s.fCtxChanged & HM_CHANGED_GUEST_APIC_TPR);
         vmxHCExportGuestApicTpr(pVCpu, pVmxTransient);
 
-        rc = APICGetTpr(pVCpu, &pVmxTransient->u8GuestTpr, NULL /*pfPending*/, NULL /*pu8PendingIntr*/);
-        AssertRC(rc);
+        if (   PDMHasApic(pVCpu->CTX_SUFF(pVM))
+            && PDMApicIsEnabled(pVCpu))
+        {
+            rc = PDMApicGetTpr(pVCpu, &pVmxTransient->u8GuestTpr, NULL /*pfPending*/, NULL /*pu8PendingIntr*/);
+            AssertRC(rc);
 
-        WRITE_GREG(HV_X86_TPR, pVmxTransient->u8GuestTpr);
+            WRITE_GREG(HV_X86_TPR, pVmxTransient->u8GuestTpr);
+        }
+
         ASMAtomicUoAndU64(&pVCpu->nem.s.fCtxChanged, ~HM_CHANGED_GUEST_APIC_TPR);
     }
 
@@ -2972,20 +2999,7 @@ static DECLCALLBACK(void) nemR3DarwinInfoLbr(PVM pVM, PCDBGFINFOHLP pHlp, const 
 }
 
 
-/**
- * Try initialize the native API.
- *
- * This may only do part of the job, more can be done in
- * nemR3NativeInitAfterCPUM() and nemR3NativeInitCompleted().
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   fFallback       Whether we're in fallback mode or use-NEM mode. In
- *                          the latter we'll fail if we cannot initialize.
- * @param   fForced         Whether the HMForced flag is set and we should
- *                          fail if we cannot initialize.
- */
-int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
+DECLHIDDEN(int) nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
 {
     AssertReturn(!pVM->nem.s.fCreatedVm, VERR_WRONG_ORDER);
 
@@ -3070,7 +3084,8 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                     pVM->nem.s.fCreatedAsid = true;
                 }
                 else
-                    LogRel(("NEM: Failed to create ASID for VM (hrc=%#x), continuing...\n", pVM->nem.s.uVmAsid));
+                    LogRel(("NEM: Failed to create ASID for VM (hrc=%#x / %s), continuing...\n",
+                            hrc, nemR3DarwinHvStatusName(hrc)));
             }
             pVM->nem.s.fCreatedVm = true;
 
@@ -3101,7 +3116,7 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
         }
         else
             rc = RTErrInfoSetF(pErrInfo, VERR_NEM_INIT_FAILED,
-                               "hv_vm_create() failed: %#x", hrc);
+                               "hv_vm_create() failed: %#x (%s)", hrc, nemR3DarwinHvStatusName(hrc));
     }
 
     /*
@@ -3137,7 +3152,8 @@ static DECLCALLBACK(int) nemR3DarwinNativeInitVCpuOnEmt(PVM pVM, PVMCPU pVCpu, V
     hv_return_t hrc = hv_vcpu_create(&pVCpu->nem.s.hVCpuId, HV_VCPU_DEFAULT);
     if (hrc != HV_SUCCESS)
         return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
-                          "Call to hv_vcpu_create failed on vCPU %u: %#x (%Rrc)", idCpu, hrc, nemR3DarwinHvSts2Rc(hrc));
+                          "Call to hv_vcpu_create failed on vCPU %u: %#x (%s / %Rrc)",
+                          idCpu, hrc, nemR3DarwinHvStatusName(hrc), nemR3DarwinHvSts2Rc(hrc));
 
     if (idCpu == 0)
     {
@@ -3256,13 +3272,7 @@ static DECLCALLBACK(int) nemR3DarwinNativeInitTprShadowing(PVM pVM, PVMCPU pVCpu
 }
 
 
-/**
- * This is called after CPUMR3Init is done.
- *
- * @returns VBox status code.
- * @param   pVM                 The VM handle..
- */
-int nemR3NativeInitAfterCPUM(PVM pVM)
+DECLHIDDEN(int) nemR3NativeInitAfterCPUM(PVM pVM)
 {
     /*
      * Validate sanity.
@@ -3299,25 +3309,22 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
 }
 
 
-int nemR3NativeInitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+DECLHIDDEN(int) nemR3NativeInitCompletedRing3(PVM pVM)
 {
-    if (enmWhat == VMINITCOMPLETED_RING3)
+    /* Now that PDM is initialized the APIC state is known in order to enable the TPR shadowing feature on all EMTs. */
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        /* Now that PDM is initialized the APIC state is known in order to enable the TPR shadowing feature on all EMTs. */
-        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-        {
-            PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
 
-            int rc = VMR3ReqCallWait(pVM, idCpu, (PFNRT)nemR3DarwinNativeInitTprShadowing, 2, pVM, pVCpu);
-            if (RT_FAILURE(rc))
-                return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS, "Setting up TPR shadowing failed: %Rrc", rc);
-        }
+        int rc = VMR3ReqCallWait(pVM, idCpu, (PFNRT)nemR3DarwinNativeInitTprShadowing, 2, pVM, pVCpu);
+        if (RT_FAILURE(rc))
+            return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS, "Setting up TPR shadowing failed: %Rrc", rc);
     }
     return VINF_SUCCESS;
 }
 
 
-int nemR3NativeTerm(PVM pVM)
+DECLHIDDEN(int) nemR3NativeTerm(PVM pVM)
 {
     /*
      * Delete the VM.
@@ -3368,7 +3375,7 @@ int nemR3NativeTerm(PVM pVM)
     {
         hv_return_t hrc = hv_vm_destroy();
         if (hrc != HV_SUCCESS)
-            LogRel(("NEM: hv_vm_destroy() failed with %#x\n", hrc));
+            LogRel(("NEM: hv_vm_destroy() failed with %#x (%s)\n", hrc, nemR3DarwinHvStatusName(hrc)));
 
         pVM->nem.s.fCreatedVm = false;
     }
@@ -3376,25 +3383,13 @@ int nemR3NativeTerm(PVM pVM)
 }
 
 
-/**
- * VM reset notification.
- *
- * @param   pVM         The cross context VM structure.
- */
-void nemR3NativeReset(PVM pVM)
+DECLHIDDEN(void) nemR3NativeReset(PVM pVM)
 {
     RT_NOREF(pVM);
 }
 
 
-/**
- * Reset CPU due to INIT IPI or hot (un)plugging.
- *
- * @param   pVCpu       The cross context virtual CPU structure of the CPU being
- *                      reset.
- * @param   fInitIpi    Whether this is the INIT IPI or hot (un)plugging case.
- */
-void nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
+DECLHIDDEN(void) nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
 {
     RT_NOREF(fInitIpi);
     ASMAtomicUoOrU64(&pVCpu->nem.s.fCtxChanged, HM_CHANGED_ALL_GUEST);
@@ -3708,7 +3703,7 @@ static hv_return_t nemR3DarwinRunGuest(PVM pVM, PVMCPU pVCpu, PVMXTRANSIENT pVmx
 
         if (pVmxTransient->u8GuestTpr != (uint8_t)u64Tpr)
         {
-            int rc = APICSetTpr(pVCpu, (uint8_t)u64Tpr);
+            int rc = PDMApicSetTpr(pVCpu, (uint8_t)u64Tpr);
             AssertRC(rc);
             ASMAtomicUoOrU64(&pVCpu->nem.s.fCtxChanged, HM_CHANGED_GUEST_APIC_TPR);
         }
@@ -3836,8 +3831,8 @@ static VBOXSTRICTRC nemR3DarwinRunGuestNormal(PVM pVM, PVMCPU pVCpu)
         }
         else
         {
-            AssertLogRelMsgFailedReturn(("hv_vcpu_run()) failed for CPU #%u: %#x %u\n",
-                                        pVCpu->idCpu, hrc, vmxHCCheckGuestState(pVCpu, &pVCpu->nem.s.VmcsInfo)),
+            AssertLogRelMsgFailedReturn(("hv_vcpu_run()) failed for CPU #%u: %#x (%s) %u\n", pVCpu->idCpu, hrc,
+                                         nemR3DarwinHvStatusName(hrc), vmxHCCheckGuestState(pVCpu, &pVCpu->nem.s.VmcsInfo)),
                                         VERR_NEM_IPE_0);
         }
     } /* the run loop */
@@ -4065,8 +4060,8 @@ static VBOXSTRICTRC nemR3DarwinRunGuestDebug(PVM pVM, PVMCPU pVCpu)
         }
         else
         {
-            AssertLogRelMsgFailedReturn(("hv_vcpu_run()) failed for CPU #%u: %#x %u\n",
-                                        pVCpu->idCpu, hrc, vmxHCCheckGuestState(pVCpu, &pVCpu->nem.s.VmcsInfo)),
+            AssertLogRelMsgFailedReturn(("hv_vcpu_run()) failed for CPU #%u: %#x (%s) %u\n", pVCpu->idCpu, hrc,
+                                         nemR3DarwinHvStatusName(hrc), vmxHCCheckGuestState(pVCpu, &pVCpu->nem.s.VmcsInfo)),
                                         VERR_NEM_IPE_0);
         }
     } /* the run loop */
@@ -4091,8 +4086,9 @@ static VBOXSTRICTRC nemR3DarwinRunGuestDebug(PVM pVM, PVMCPU pVCpu)
 }
 
 
-VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
+VMMR3_INT_DECL(VBOXSTRICTRC) NEMR3RunGC(PVM pVM, PVMCPU pVCpu)
 {
+    Assert(VM_IS_NEM_ENABLED(pVM));
     LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 <=\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags.u));
 #ifdef LOG_ENABLED
     if (LogIs3Enabled())
@@ -4117,7 +4113,7 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
     if (   !pVCpu->nem.s.fUseDebugLoop
         && !nemR3DarwinAnyExpensiveProbesEnabled()
         && !DBGFIsStepping(pVCpu)
-        && !pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledInt3Breakpoints)
+        && !pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledSwBreakpoints)
         rcStrict = nemR3DarwinRunGuestNormal(pVM, pVCpu);
     else
         rcStrict = nemR3DarwinRunGuestDebug(pVM, pVCpu);
@@ -4194,7 +4190,7 @@ VMMR3_INT_DECL(bool) NEMR3CanExecuteGuest(PVM pVM, PVMCPU pVCpu)
 }
 
 
-bool nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
+DECLHIDDEN(bool) nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 {
     VMCPU_ASSERT_EMT(pVCpu);
     bool fOld = pVCpu->nem.s.fSingleInstruction;
@@ -4204,15 +4200,14 @@ bool nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 }
 
 
-void nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
+DECLHIDDEN(void) nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
 {
     LogFlowFunc(("pVM=%p pVCpu=%p fFlags=%#x\n", pVM, pVCpu, fFlags));
-
     RT_NOREF(pVM, fFlags);
 
     hv_return_t hrc = hv_vcpu_interrupt(&pVCpu->nem.s.hVCpuId, 1);
     if (hrc != HV_SUCCESS)
-        LogRel(("NEM: hv_vcpu_interrupt(%u, 1) failed with %#x\n", pVCpu->nem.s.hVCpuId, hrc));
+        LogRel(("NEM: hv_vcpu_interrupt(%u, 1) failed with %#x (%s)\n", pVCpu->nem.s.hVCpuId, hrc, nemR3DarwinHvStatusName(hrc)));
 }
 
 
@@ -4442,15 +4437,15 @@ VMMR3_INT_DECL(void) NEMR3NotifySetA20(PVMCPU pVCpu, bool fEnabled)
 }
 
 
-void nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb)
+DECLHIDDEN(void) nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb)
 {
     Log5(("nemHCNativeNotifyHandlerPhysicalRegister: %RGp LB %RGp enmKind=%d\n", GCPhys, cb, enmKind));
     NOREF(pVM); NOREF(enmKind); NOREF(GCPhys); NOREF(cb);
 }
 
 
-void nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
-                                            RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM)
+DECLHIDDEN(void) nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
+                                                        RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM)
 {
     Log5(("nemHCNativeNotifyHandlerPhysicalModify: %RGp LB %RGp -> %RGp enmKind=%d fRestoreAsRAM=%d\n",
           GCPhysOld, cb, GCPhysNew, enmKind, fRestoreAsRAM));
@@ -4458,8 +4453,8 @@ void nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKin
 }
 
 
-int nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
-                                       PGMPAGETYPE enmType, uint8_t *pu2State)
+DECLHIDDEN(int) nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+                                                   PGMPAGETYPE enmType, uint8_t *pu2State)
 {
     Log5(("nemHCNativeNotifyPhysPageAllocated: %RGp HCPhys=%RHp fPageProt=%#x enmType=%d *pu2State=%d\n",
           GCPhys, HCPhys, fPageProt, enmType, *pu2State));

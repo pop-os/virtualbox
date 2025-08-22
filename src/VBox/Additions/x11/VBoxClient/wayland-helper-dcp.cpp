@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -117,10 +117,10 @@ typedef struct
         vbcl::Waitable<volatile SHCLFORMAT>     uFmt;
 
         /** Clipboard buffer which contains requested data. */
-        vbcl::Waitable<volatile uint64_t>       pvClipboardBuf;
+        vbcl::Waitable<volatile uint64_t>       pvDataBuf;
 
         /** Size of clipboard buffer. */
-        vbcl::Waitable<volatile uint32_t>       cbClipboardBuf;
+        vbcl::Waitable<volatile uint32_t>       cbDataBuf;
     } clip;
 } vbox_wl_dcp_session_t;
 
@@ -180,8 +180,8 @@ struct vbcl_wl_dcp_write_ctx
 /** Helper context. */
 static vbox_wl_dcp_ctx_t g_DcpCtx;
 
-static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join2_cb(vbcl_wl_session_type_t enmSessionType, void *pvUser);
-static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join3_cb(vbcl_wl_session_type_t enmSessionType, void *pvUser);
+static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_clip_hg_report_join2_cb(vbcl_wl_session_type_t enmSessionType, void *pvUser);
+static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_clip_hg_report_join3_cb(vbcl_wl_session_type_t enmSessionType, void *pvUser);
 
 
 /**********************************************************************************************************************************
@@ -472,7 +472,7 @@ static void vbcl_wayland_hlp_dcp_session_release(vbox_wl_dcp_session_t *pSession
         }
     }
 
-    pvData = (void *)pSession->clip.pvClipboardBuf.reset();
+    pvData = (void *)pSession->clip.pvDataBuf.reset();
     if (RT_VALID_PTR(pvData))
         RTMemFree(pvData);
 }
@@ -488,8 +488,8 @@ static void vbcl_wayland_hlp_dcp_session_init(vbox_wl_dcp_session_t *pSession)
 
     pSession->clip.fFmts.init(VBOX_SHCL_FMT_NONE, VBCL_WAYLAND_VALUE_WAIT_TIMEOUT_MS);
     pSession->clip.uFmt.init(VBOX_SHCL_FMT_NONE, VBCL_WAYLAND_VALUE_WAIT_TIMEOUT_MS);
-    pSession->clip.pvClipboardBuf.init(0, VBCL_WAYLAND_DATA_WAIT_TIMEOUT_MS);
-    pSession->clip.cbClipboardBuf.init(0, VBCL_WAYLAND_DATA_WAIT_TIMEOUT_MS);
+    pSession->clip.pvDataBuf.init(0, VBCL_WAYLAND_DATA_WAIT_TIMEOUT_MS);
+    pSession->clip.cbDataBuf.init(0, VBCL_WAYLAND_DATA_WAIT_TIMEOUT_MS);
 }
 
 /**
@@ -771,8 +771,8 @@ static int vbcl_wayland_hlp_dcp_receive_offer(
             rc = VBoxMimeConvNativeToVBox(pszMimeType, pvBuf, cbBuf, &pvBufOut, &cbBufOut);
             if (RT_SUCCESS(rc))
             {
-                pCtx->Session.clip.pvClipboardBuf.set((uint64_t)pvBufOut);
-                pCtx->Session.clip.cbClipboardBuf.set((uint64_t)cbBufOut);
+                pCtx->Session.clip.pvDataBuf.set((uint64_t)pvBufOut);
+                pCtx->Session.clip.cbDataBuf.set((uint64_t)cbBufOut);
             }
 
             RTMemFree(pvBuf);
@@ -1019,7 +1019,7 @@ static void vbcl_wayland_hlp_dcp_data_source_send(
     priv.fd = fd;
 
     rc = vbcl_wayland_session_join(&pCtx->Session.Base,
-                                   &vbcl_wayland_hlp_dcp_hg_clip_report_join3_cb,
+                                   &vbcl_wayland_hlp_dcp_clip_hg_report_join3_cb,
                                    &priv);
 
     VBClLogVerbose(5, "vbcl_wayland_hlp_dcp_data_source_send, rc=%Rrc\n", rc);
@@ -1213,7 +1213,7 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_event_loop(RTTHREAD hThreadSelf, v
                 if (pCtx->fSendToGuest.reset())
                 {
                     rc = vbcl_wayland_session_join(&pCtx->Session.Base,
-                                                   &vbcl_wayland_hlp_dcp_hg_clip_report_join2_cb,
+                                                   &vbcl_wayland_hlp_dcp_clip_hg_report_join2_cb,
                                                    NULL);
                 }
 
@@ -1267,20 +1267,20 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_probe(void)
 }
 
 /**
- * @interface_method_impl{VBCLWAYLANDHELPER,pfnInit}
+ * @interface_method_impl{VBCLWAYLANDHELPER_CLIPBOARD,pfnInit}
  */
-RTDECL(int) vbcl_wayland_hlp_dcp_init(void)
+RTDECL(int) vbcl_wayland_hlp_dcp_clip_init(void)
 {
     vbcl_wayland_hlp_dcp_reset_ctx(&g_DcpCtx, false /* fShutdown */);
     vbcl_wayland_session_init(&g_DcpCtx.Session.Base);
 
-    return VBClClipboardThreadStart(&g_DcpCtx.Thread, vbcl_wayland_hlp_dcp_event_loop, "wl-dcp", &g_DcpCtx);
+    return vbcl_wayland_thread_start(&g_DcpCtx.Thread, vbcl_wayland_hlp_dcp_event_loop, "wl-dcp", &g_DcpCtx);
 }
 
 /**
- * @interface_method_impl{VBCLWAYLANDHELPER,pfnTerm}
+ * @interface_method_impl{VBCLWAYLANDHELPER_CLIPBOARD,pfnTerm}
  */
-RTDECL(int) vbcl_wayland_hlp_dcp_term(void)
+RTDECL(int) vbcl_wayland_hlp_dcp_clip_term(void)
 {
     int rc;
     int rcThread = 0;
@@ -1300,17 +1300,17 @@ RTDECL(int) vbcl_wayland_hlp_dcp_term(void)
 }
 
 /**
- * @interface_method_impl{VBCLWAYLANDHELPER,pfnSetClipboardCtx}
+ * @interface_method_impl{VBCLWAYLANDHELPER_CLIPBOARD,pfnSetClipboardCtx}
  */
-static DECLCALLBACK(void) vbcl_wayland_hlp_dcp_set_clipboard_ctx(PVBGLR3SHCLCMDCTX pCtx)
+static DECLCALLBACK(void) vbcl_wayland_hlp_dcp_clip_set_ctx(PVBGLR3SHCLCMDCTX pCtx)
 {
     g_DcpCtx.pClipboardCtx = pCtx;
 }
 
 /**
- * @interface_method_impl{VBCLWAYLANDHELPER,pfnPopup}
+ * @interface_method_impl{VBCLWAYLANDHELPER_CLIPBOARD,pfnPopup}
  */
-static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_popup(void)
+static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_clip_popup(void)
 {
     return VINF_SUCCESS;
 }
@@ -1333,7 +1333,7 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_popup(void)
  *                              a consistency check.
  * @param   pvUser              User data (Wayland I/O context).
  */
-static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join3_cb(
+static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_clip_hg_report_join3_cb(
     vbcl_wl_session_type_t enmSessionType, void *pvUser)
 {
     struct vbcl_wl_dcp_write_ctx *pPriv = (struct vbcl_wl_dcp_write_ctx *)pvUser;
@@ -1355,10 +1355,10 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join3_cb(
             g_DcpCtx.Session.clip.uFmt.set(VBoxMimeConvGetIdByMime(pPriv->sMimeType));
 
             /* Wait for data in requested format. */
-            pvBuf = (void *)g_DcpCtx.Session.clip.pvClipboardBuf.wait();
-            cbBuf = g_DcpCtx.Session.clip.cbClipboardBuf.wait();
-            if (   cbBuf != g_DcpCtx.Session.clip.cbClipboardBuf.defaults()
-                && pvBuf != (void *)g_DcpCtx.Session.clip.pvClipboardBuf.defaults())
+            pvBuf = (void *)g_DcpCtx.Session.clip.pvDataBuf.wait();
+            cbBuf = g_DcpCtx.Session.clip.cbDataBuf.wait();
+            if (   cbBuf != g_DcpCtx.Session.clip.cbDataBuf.defaults()
+                && pvBuf != (void *)g_DcpCtx.Session.clip.pvDataBuf.defaults())
             {
                 void *pvBufOut;
                 size_t cbOut;
@@ -1415,7 +1415,7 @@ static DECLCALLBACK(void) vbcl_wayland_hlp_dcp_send_offers(const char *pcszMimeT
  * incoming clipboard advertisements before sending any data to
  * other Wayland clients (this is needed in order to avoid feedback
  * loop from our own advertisements), (2) waits for the list of clipboard
- * formats available on the host side (set by vbcl_wayland_hlp_dcp_hg_clip_report_join_cb),
+ * formats available on the host side (set by vbcl_wayland_hlp_dcp_clip_hg_report_join_cb),
  * and (3) sends data offers for available host clipboard to other clients.
  *
  * @returns IPRT status code.
@@ -1423,7 +1423,7 @@ static DECLCALLBACK(void) vbcl_wayland_hlp_dcp_send_offers(const char *pcszMimeT
  *                              a consistency check.
  * @param   pvUser              User data (unused).
  */
-static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join2_cb(
+static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_clip_hg_report_join2_cb(
     vbcl_wl_session_type_t enmSessionType, void *pvUser)
 {
     int rc = (enmSessionType == VBCL_WL_CLIPBOARD_SESSION_TYPE_COPY_TO_GUEST)
@@ -1482,7 +1482,7 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join2_cb(
  *                              a consistency check.
  * @param   pvUser              User data (host clipboard formats).
  */
-static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join_cb(
+static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_clip_hg_report_join_cb(
     vbcl_wl_session_type_t enmSessionType, void *pvUser)
 {
     SHCLFORMATS *pfFmts = (SHCLFORMATS *)pvUser;
@@ -1515,8 +1515,8 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join_cb(
             if (RT_SUCCESS(rc))
             {
                 /* Set clipboard data to the session. */
-                g_DcpCtx.Session.clip.pvClipboardBuf.set((uint64_t)pvData);
-                g_DcpCtx.Session.clip.cbClipboardBuf.set((uint64_t)cbData);
+                g_DcpCtx.Session.clip.pvDataBuf.set((uint64_t)pvData);
+                g_DcpCtx.Session.clip.cbDataBuf.set((uint64_t)cbData);
             }
         }
         else
@@ -1528,9 +1528,9 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report_join_cb(
 }
 
 /**
- * @interface_method_impl{VBCLWAYLANDHELPER,pfnHGClipReport}
+ * @interface_method_impl{VBCLWAYLANDHELPER_CLIPBOARD,pfnHGClipReport}
  */
-static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report(SHCLFORMATS fFormats)
+static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_clip_hg_report(SHCLFORMATS fFormats)
 {
     int rc = VERR_NO_DATA;
 
@@ -1548,7 +1548,7 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report(SHCLFORMATS fFormat
 
             if (RT_SUCCESS(rc))
                 rc = vbcl_wayland_session_join(&g_DcpCtx.Session.Base,
-                                               vbcl_wayland_hlp_dcp_hg_clip_report_join_cb,
+                                               vbcl_wayland_hlp_dcp_clip_hg_report_join_cb,
                                                &fFormats);
         }
         else
@@ -1574,7 +1574,7 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_hg_clip_report(SHCLFORMATS fFormat
  *                              a consistency check.
  * @param   pvUser              User data (requested format).
  */
-static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_gh_clip_read_join_cb(
+static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_clip_gh_read_join_cb(
     vbcl_wl_session_type_t enmSessionType, void *pvUser)
 {
     SHCLFORMAT *puFmt = (SHCLFORMAT *)pvUser;
@@ -1594,10 +1594,10 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_gh_clip_read_join_cb(
         g_DcpCtx.Session.clip.uFmt.set(*puFmt);
 
         /* Wait for data in requested format. */
-        pvData = (void *)g_DcpCtx.Session.clip.pvClipboardBuf.wait();
-        cbData = g_DcpCtx.Session.clip.cbClipboardBuf.wait();
-        if (   cbData != g_DcpCtx.Session.clip.cbClipboardBuf.defaults()
-            && pvData != (void *)g_DcpCtx.Session.clip.pvClipboardBuf.defaults())
+        pvData = (void *)g_DcpCtx.Session.clip.pvDataBuf.wait();
+        cbData = g_DcpCtx.Session.clip.cbDataBuf.wait();
+        if (   cbData != g_DcpCtx.Session.clip.cbDataBuf.defaults()
+            && pvData != (void *)g_DcpCtx.Session.clip.pvDataBuf.defaults())
         {
             /* Send clipboard data to the host. */
             rc = VbglR3ClipboardWriteDataEx(g_DcpCtx.pClipboardCtx, *puFmt, pvData, cbData);
@@ -1610,29 +1610,41 @@ static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_gh_clip_read_join_cb(
 }
 
 /**
- * @interface_method_impl{VBCLWAYLANDHELPER,pfnGHClipRead}
+ * @interface_method_impl{VBCLWAYLANDHELPER_CLIPBOARD,pfnGHClipRead}
  */
-static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_gh_clip_read(SHCLFORMAT uFmt)
+static DECLCALLBACK(int) vbcl_wayland_hlp_dcp_clip_gh_read(SHCLFORMAT uFmt)
 {
     int rc;
 
     VBCL_LOG_CALLBACK;
 
     rc = vbcl_wayland_session_join(&g_DcpCtx.Session.Base,
-                                   &vbcl_wayland_hlp_dcp_gh_clip_read_join_cb,
+                                   &vbcl_wayland_hlp_dcp_clip_gh_read_join_cb,
                                    &uFmt);
     return rc;
 }
+
+static const VBCLWAYLANDHELPER_CLIPBOARD g_WaylandHelperDcpClip =
+{
+    vbcl_wayland_hlp_dcp_clip_init,             /* .pfnInit */
+    vbcl_wayland_hlp_dcp_clip_term,             /* .pfnTerm */
+    vbcl_wayland_hlp_dcp_clip_set_ctx,          /* .pfnSetClipboardCtx */
+    vbcl_wayland_hlp_dcp_clip_popup,            /* .pfnPopup */
+    vbcl_wayland_hlp_dcp_clip_hg_report,        /* .pfnHGClipReport */
+    vbcl_wayland_hlp_dcp_clip_gh_read,          /* .pfnGHClipRead */
+};
+
+static const VBCLWAYLANDHELPER_DND g_WaylandHelperDcpDnD =
+{
+    NULL,                                       /* .pfnInit */
+    NULL,                                       /* .pfnTerm */
+};
 
 /* Helper callbacks. */
 const VBCLWAYLANDHELPER g_WaylandHelperDcp =
 {
     "wayland-dcp",                              /* .pszName */
     vbcl_wayland_hlp_dcp_probe,                 /* .pfnProbe */
-    vbcl_wayland_hlp_dcp_init,                  /* .pfnInit */
-    vbcl_wayland_hlp_dcp_term,                  /* .pfnTerm */
-    vbcl_wayland_hlp_dcp_set_clipboard_ctx,     /* .pfnSetClipboardCtx */
-    vbcl_wayland_hlp_dcp_popup,                 /* .pfnPopup */
-    vbcl_wayland_hlp_dcp_hg_clip_report,        /* .pfnHGClipReport */
-    vbcl_wayland_hlp_dcp_gh_clip_read,          /* .pfnGHClipRead */
+    g_WaylandHelperDcpClip,                     /* .clip */
+    g_WaylandHelperDcpDnD,                      /* .dnd */
 };

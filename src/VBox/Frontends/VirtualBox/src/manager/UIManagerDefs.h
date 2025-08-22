@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -30,6 +30,18 @@
 #ifndef RT_WITHOUT_PRAGMA_ONCE
 # pragma once
 #endif
+
+
+/** Home tasks. */
+enum HomeTask
+{
+    HomeTask_Invalid,
+    HomeTask_Configure,
+    HomeTask_Create,
+    HomeTask_Open,
+    HomeTask_Import,
+    HomeTask_Export,
+};
 
 
 /** Virtual machine item types. */

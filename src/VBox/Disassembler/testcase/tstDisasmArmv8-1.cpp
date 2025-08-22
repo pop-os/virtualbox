@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -89,6 +89,9 @@ static const RTSCRIPTLEXTOKMATCH s_aMatches[] =
 {
     /* Begin of stuff which will get ignored in the semantic matching. */
     { RT_STR_TUPLE(".private_extern"),          RTSCRIPTLEXTOKTYPE_KEYWORD,    true,  0 },
+    { RT_STR_TUPLE(".cpu"),                     RTSCRIPTLEXTOKTYPE_KEYWORD,    true,  0 },
+    { RT_STR_TUPLE("generic+mte"),              RTSCRIPTLEXTOKTYPE_KEYWORD,    true,  0 },
+    { RT_STR_TUPLE("generic+the+d128"),         RTSCRIPTLEXTOKTYPE_KEYWORD,    true,  0 },
     { RT_STR_TUPLE("_testproca64"),             RTSCRIPTLEXTOKTYPE_KEYWORD,    true,  0 },
     { RT_STR_TUPLE("_testproca64_endproc"),     RTSCRIPTLEXTOKTYPE_KEYWORD,    true,  0 },
     { RT_STR_TUPLE(":"),                        RTSCRIPTLEXTOKTYPE_KEYWORD,    true,  0 },
@@ -99,6 +102,8 @@ static const RTSCRIPTLEXTOKMATCH s_aMatches[] =
     { RT_STR_TUPLE("["),                        RTSCRIPTLEXTOKTYPE_PUNCTUATOR, false, 0 },
     { RT_STR_TUPLE("]"),                        RTSCRIPTLEXTOKTYPE_PUNCTUATOR, false, 0 },
     { RT_STR_TUPLE("!"),                        RTSCRIPTLEXTOKTYPE_PUNCTUATOR, false, 0 },
+    { RT_STR_TUPLE("{"),                        RTSCRIPTLEXTOKTYPE_PUNCTUATOR, false, 0 },
+    { RT_STR_TUPLE("}"),                        RTSCRIPTLEXTOKTYPE_PUNCTUATOR, false, 0 },
     { NULL, 0,                                  RTSCRIPTLEXTOKTYPE_INVALID,    false, 0 }
 };
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -41,7 +41,6 @@
 /* GUI includes: */
 #include "UIChooserItem.h"
 #include "UIChooserItemGroup.h"
-#include "UIChooserItemGlobal.h"
 #include "UIChooserItemMachine.h"
 #include "UIChooserView.h"
 #include "UIChooserModel.h"
@@ -350,13 +349,6 @@ UIChooserItemGroup *UIChooserItem::toGroupItem()
     return pItem;
 }
 
-UIChooserItemGlobal *UIChooserItem::toGlobalItem()
-{
-    UIChooserItemGlobal *pItem = qgraphicsitem_cast<UIChooserItemGlobal*>(this);
-    AssertMsg(pItem, ("Trying to cast invalid item type to UIChooserItemGlobal!"));
-    return pItem;
-}
-
 UIChooserItemMachine *UIChooserItem::toMachineItem()
 {
     UIChooserItemMachine *pItem = qgraphicsitem_cast<UIChooserItemMachine*>(this);
@@ -394,18 +386,6 @@ QString UIChooserItem::description() const
 QString UIChooserItem::definition() const
 {
     return node()->definition();
-}
-
-bool UIChooserItem::isFavorite() const
-{
-    return node()->isFavorite();
-}
-
-void UIChooserItem::setFavorite(bool fFavorite)
-{
-    node()->setFavorite(fFavorite);
-    if (m_pParent)
-        m_pParent->toGroupItem()->updateFavorites();
 }
 
 int UIChooserItem::position() const

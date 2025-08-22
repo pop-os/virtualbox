@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -105,23 +105,6 @@ AssertCompileSize(CPUMSELREG, 24);
 /** Old type used for the hidden register part.
  * @deprecated  */
 typedef CPUMSELREG CPUMSELREGHID;
-
-/**
- * The sysenter register set.
- */
-typedef struct CPUMSYSENTER
-{
-    /** Ring 0 cs.
-     * This value +  8 is the Ring 0 ss.
-     * This value + 16 is the Ring 3 cs.
-     * This value + 24 is the Ring 3 ss.
-     */
-    uint64_t    cs;
-    /** Ring 0 eip. */
-    uint64_t    eip;
-    /** Ring 0 esp. */
-    uint64_t    esp;
-} CPUMSYSENTER;
 
 /** A general register (union). */
 typedef union CPUMCTXGREG

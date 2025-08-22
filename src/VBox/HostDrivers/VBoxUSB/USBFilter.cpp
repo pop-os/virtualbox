@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -544,6 +544,7 @@ DECLINLINE(const char *) usbfilterGetString(PCUSBFILTER pFilter, USBFILTERIDX en
 
             default:
                 AssertMsgFailed(("%d\n", pFilter->aFields[enmFieldIdx].enmMatch));
+                RT_FALL_THROUGH();
             case USBFILTERMATCH_IGNORE:
             case USBFILTERMATCH_PRESENT:
             case USBFILTERMATCH_NUM_EXACT:
@@ -576,6 +577,7 @@ DECLINLINE(int) usbfilterGetNum(PCUSBFILTER pFilter, USBFILTERIDX enmFieldIdx)
 
             default:
                 AssertMsgFailed(("%d\n", pFilter->aFields[enmFieldIdx].enmMatch));
+                RT_FALL_THROUGH();
             case USBFILTERMATCH_IGNORE:
             case USBFILTERMATCH_PRESENT:
             case USBFILTERMATCH_NUM_EXPRESSION:
@@ -594,12 +596,14 @@ DECLINLINE(int) usbfilterGetNum(PCUSBFILTER pFilter, USBFILTERIDX enmFieldIdx)
 /**
  * Performs simple pattern matching.
  *
- * @returns true on match and false on mismatch.
- * @param   pszExpr     The numeric expression.
+ * @returns \c true on match and \c false on mismatch.
+ * @param   pszExpr     The numeric expression. NULL is not okay.
  * @param   u16Value    The value to match.
  */
 static bool usbfilterMatchNumExpression(const char *pszExpr, uint16_t u16Value)
 {
+    AssertPtrReturn(pszExpr, false);
+
     /*
      * The string format is: "int:((<m>)|([<m>]-[<n>]))(,(<m>)|([<m>]-[<n>]))*"
      * where <m> and <n> are numbers in decimal, hex (0xNNN) or octal (0NNN).
@@ -702,12 +706,15 @@ static bool usbfilterMatchNumExpression(const char *pszExpr, uint16_t u16Value)
 /**
  * Performs simple pattern matching.
  *
- * @returns true on match and false on mismatch.
- * @param   pszPattern  The pattern to match against.
+ * @returns \c true on match and \c false on mismatch.
+ * @param   pszPattern  The pattern to match against. NULL is not okay.
  * @param   psz         The string to match.
  */
 static bool usbfilterMatchStringPattern(const char *pszPattern, const char *psz)
 {
+    AssertPtrReturn(pszPattern, false);
+    AssertPtrReturn(psz, false);
+
     char ch;
     while ((ch = *pszPattern++))
     {

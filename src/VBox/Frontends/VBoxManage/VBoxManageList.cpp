@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -399,6 +399,8 @@ static HRESULT listMedia(const ComPtr<IVirtualBox> pVirtualBox,
         ComPtr<IMedium> pMedium = aMedia[i];
 
         hrc = showMediumInfo(pVirtualBox, pMedium, pszParentUUIDStr, fOptLong);
+        if (FAILED(hrc)) /* Error message should be shown already */
+            break;
 
         RTPrintf("\n");
 
@@ -1023,7 +1025,7 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
     systemProperties->COMGETTER(MaxGuestCPUCount)(&ulValue);
     RTPrintf(List::tr("Maximum guest CPU count:         %u\n"), ulValue);
     systemProperties->COMGETTER(InfoVDSize)(&i64Value);
-    RTPrintf(List::tr("Virtual disk limit (info):       %lld Bytes\n", "" , i64Value), i64Value);
+    RTPrintf(List::tr("Virtual disk limit (info):       %lld Bytes\n", "" , (size_t)i64Value), i64Value);
 
 #if 0
     systemProperties->GetFreeDiskSpaceWarning(&i64Value);
@@ -1064,6 +1066,7 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
         case AudioDriverType_OSS:           psz = "OSS";                   break;
         case AudioDriverType_ALSA:          psz = "ALSA";                  break;
         case AudioDriverType_Pulse:         psz = "PulseAudio";            break;
+        /* Deprecated; not (ever) supported; leave this in for backwards compatibility. See @bugref{10845} */
         case AudioDriverType_WinMM:         psz = "WinMM";                 break;
         case AudioDriverType_DirectSound:   psz = "DirectSound";           break;
         case AudioDriverType_WAS:           psz = "Windows Audio Session"; break;
@@ -1278,7 +1281,7 @@ static HRESULT showDhcpConfig(ComPtr<IDHCPConfig> ptrConfig)
             }
         }
 
-    return S_OK;
+    return hrc;
 }
 
 
@@ -1561,7 +1564,7 @@ static HRESULT listScreenShotFormats(const ComPtr<IVirtualBox> &pVirtualBox)
     for (size_t i = 0; i < formats.size(); ++i)
     {
         uint32_t u32Format = (uint32_t)formats[i];
-        char szFormat[5];
+        unsigned char szFormat[5];
         szFormat[0] = RT_BYTE1(u32Format);
         szFormat[1] = RT_BYTE2(u32Format);
         szFormat[2] = RT_BYTE3(u32Format);
@@ -1976,7 +1979,7 @@ static HRESULT listHostDrives(const ComPtr<IVirtualBox> pVirtualBox, bool fOptLo
         LONG64 cbSize = 0;
         hrc = pHostDrive->COMGETTER(Size)(&cbSize);
         if (SUCCEEDED(hrc) && fOptLong)
-            RTPrintf(List::tr("Size:        %llu bytes (%Rhcb)\n", "", cbSize), cbSize, cbSize);
+            RTPrintf(List::tr("Size:        %llu bytes (%Rhcb)\n", "", (size_t)cbSize), cbSize, cbSize);
         else if (SUCCEEDED(hrc))
             RTPrintf(List::tr("Size:        %Rhcb\n"), cbSize);
         else
@@ -2710,7 +2713,6 @@ RTEXITCODE handleList(HandlerArg *a)
                 fOptMultiple = true;
                 if (enmOptCommand == kListNotSpecified)
                     break;
-                ch = enmOptCommand;
                 RT_FALL_THRU();
 
             case 'p':  /* --platform[-arch] */

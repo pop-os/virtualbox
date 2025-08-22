@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1415,7 +1415,7 @@ static VBOXSTRICTRC PortCmd_w(PPDMDEVINS pDevIns, PAHCI pThis, PAHCIPORT pAhciPo
 #endif
         }
     }
-    else if (!(u32Value & AHCI_PORT_CMD_FRE))
+    else
     {
         ahciLog(("%s: FIS receive disabled\n", __FUNCTION__));
         u32Value &= ~AHCI_PORT_CMD_FR;
@@ -4396,13 +4396,20 @@ static bool ahciR3ReqSubmit(PPDMDEVINS pDevIns, PAHCI pThis, PAHCICC pThisCC, PA
         pAhciReq->cbTransfer = cbBuf;
         if (RT_SUCCESS(rc))
         {
+            PDMMEDIAEXIOREQSCSITXDIR enmTxDir = PDMMEDIAEXIOREQSCSITXDIR_NONE;
             if (cbBuf && (pAhciReq->fFlags & AHCI_REQ_XFER_2_HOST))
+            {
                 pAhciPort->Led.Asserted.s.fReading = pAhciPort->Led.Actual.s.fReading = 1;
+                enmTxDir = PDMMEDIAEXIOREQSCSITXDIR_FROM_DEVICE;
+            }
             else if (cbBuf)
+            {
                 pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 1;
+                enmTxDir = PDMMEDIAEXIOREQSCSITXDIR_TO_DEVICE;
+            }
             rc = pAhciPortR3->pDrvMediaEx->pfnIoReqSendScsiCmd(pAhciPortR3->pDrvMediaEx, pAhciReq->hIoReq,
                                                              0, &pAhciReq->aATAPICmd[0], ATAPI_PACKET_SIZE,
-                                                             PDMMEDIAEXIOREQSCSITXDIR_UNKNOWN, NULL, cbBuf,
+                                                             enmTxDir, NULL, cbBuf,
                                                              &pAhciPort->abATAPISense[0], sizeof(pAhciPort->abATAPISense), NULL,
                                                              &pAhciReq->u8ScsiSts, 30 * RT_MS_1SEC);
         }

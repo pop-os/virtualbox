@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -427,7 +427,7 @@ static DECLCALLBACK(int) cfgmR3CreateDefault(PUVM pUVM, PVM pVM, PCVMMR3VTABLE p
     UPDATERC();
     rc = CFGMR3InsertString(pCfg,   "HardDiskDevice",       "piix3ide");
     UPDATERC();
-    rc = CFGMR3InsertString(pCfg,   "FloppyDevice",         "i82078");
+    rc = CFGMR3InsertString(pCfg,   "FloppyDevice",         "i82078");          UPDATERC();
     rc = CFGMR3InsertInteger(pCfg,  "IOAPIC", fIOAPIC);                         UPDATERC();
     RTUUID Uuid;
     RTUuidClear(&Uuid);
@@ -556,7 +556,7 @@ static DECLCALLBACK(int) cfgmR3CreateDefault(PUVM pUVM, PVM pVM, PCVMMR3VTABLE p
     rc = CFGMR3InsertInteger(pInst, "PCIFunctionNo",        0);                     UPDATERC();
     rc = CFGMR3InsertNode(pInst,    "Config", &pCfg);                               UPDATERC();
     rc = CFGMR3InsertInteger(pCfg,  "VRamSize",             8 * _1M);               UPDATERC();
-    rc = CFGMR3InsertInteger(pCfg,  "CustomVideoModes",     0);
+    rc = CFGMR3InsertInteger(pCfg,  "CustomVideoModes",     0);                     UPDATERC();
     rc = CFGMR3InsertInteger(pCfg,  "HeightReduction",      0);                     UPDATERC();
     //rc = CFGMR3InsertInteger(pCfg,  "MonitorCount",         1);                     UPDATERC();
 
@@ -882,8 +882,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     {
                         rc = EMR3SetExecutionPolicy(pUVM, EMEXECPOLICY_IEM_ALL, true); AssertReleaseRC(rc);
                         DBGFR3Info(pUVM, "cpumguest", "verbose", NULL);
-                        if (fPowerOn)
-                            rc = VMR3PowerOn(pUVM);
+
+                        rc = VMR3PowerOn(pUVM);
                         if (RT_SUCCESS(rc))
                         {
                             RTPrintf("info: VM is running\n");

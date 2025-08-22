@@ -7,7 +7,7 @@
  *  Common definitions
 -->
 <!--
-    Copyright (C) 2004-2024 Oracle and/or its affiliates.
+    Copyright (C) 2004-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -39,7 +39,7 @@
 <xsd:annotation>
   <xsd:documentation xml:lang="en">
     Oracle VirtualBox Settings Schema (common definitions).
-    Copyright (C) 2004-2024 Oracle and/or its affiliates.
+    Copyright (C) 2004-2025 Oracle and/or its affiliates.
   </xsd:documentation>
 </xsd:annotation>
 
@@ -570,6 +570,7 @@
         </xsd:all>
       </xsd:complexType>
     </xsd:element>
+    <xsd:element name="SharedFolders" type="TSharedFolders" minOccurs="0"/>
     <xsd:element name="USBDeviceFilters">
       <xsd:complexType>
         <xsd:sequence>
@@ -664,6 +665,10 @@
   <xsd:attribute name="enabled" type="xsd:boolean"/>
 </xsd:complexType>
 
+<xsd:complexType name="TGICITS">
+  <xsd:attribute name="enabled" type="xsd:boolean"/>
+</xsd:complexType>
+
 <xsd:complexType name="TAPIC">
   <xsd:attribute name="enabled" type="xsd:boolean"/>
 </xsd:complexType>
@@ -718,6 +723,12 @@
         <xsd:field xpath="@id"/>
       </xsd:unique>
     </xsd:element>
+  </xsd:sequence>
+</xsd:complexType>
+
+<xsd:complexType name="TCPUARM"> <!-- Contains the "arm" sub element of the CPU element. New since v1.21. -->
+  <xsd:sequence>
+    <xsd:element name="GICITS" type="TGICITS" minOccurs="0"/>
   </xsd:sequence>
 </xsd:complexType>
 
@@ -1072,6 +1083,7 @@
         <xsd:enumeration value="SolAudio"/> <!-- Solaris -->
         <xsd:enumeration value="WinMM"/> <!-- Windows -->
         <xsd:enumeration value="DirectSound"/> <!-- Windows -->
+        <xsd:enumeration value="WAS"/> <!-- Windows -->
       </xsd:restriction>
     </xsd:simpleType>
   </xsd:attribute>
@@ -1120,6 +1132,7 @@
   <xsd:attribute name="tcpsnd" type="xsd:unsignedInt"/>
   <xsd:attribute name="localhost-reachable" type="xsd:boolean" default="true"/>
   <xsd:attribute name="forward-broadcast" type="xsd:boolean" default="false" />
+  <xsd:attribute name="enable-tftp" type="xsd:boolean" default="false" />
 </xsd:complexType>
 
 <xsd:complexType name="TNetNATNetwork">
@@ -1528,6 +1541,9 @@
 </xsd:complexType>
 
 <xsd:complexType name="TPlatformARM"> <!-- new since v1.20. -->
+    <xsd:sequence>
+      <xsd:element name="CPU" type="TCPUARM" minOccurs="0"/>
+    </xsd:sequence>
 </xsd:complexType>
 
 <xsd:complexType name="TPlatform"> <!-- new since v1.20. -->
@@ -1537,6 +1553,7 @@
     <xsd:element name="RTC" type="TRTC" minOccurs="0"/>
     <xsd:element name="CPU" type="TCPU"/>
     <xsd:element name="x86" type="TPlatformX86" minOccurs="0"/>
+    <xsd:element name="arm" type="TPlatformARM" minOccurs="0"/>
   </xsd:all>
   <xsd:attribute name="architecture" type="TPlatformArchitecture" use="required"/>
 </xsd:complexType>

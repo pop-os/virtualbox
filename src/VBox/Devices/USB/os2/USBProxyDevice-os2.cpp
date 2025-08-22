@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -313,7 +313,7 @@ static DECLCALLBACK(int) usbProxyOs2AsyncThread(RTTHREAD Thread, void *pvProxyDe
              * Process the URB.
              */
             PVUSBURB pUrb = pUrbOs2->pUrb;
-            uint8_t *pbData = &pUrb->abData[0];
+            uint8_t *pbData = pUrb->pbData;
             ULONG cbData = pUrb->cbData;
             if (    (uintptr_t)pbData >= 0x20000000
                 ||  ((uintptr_t)pbData & 0xfff))
@@ -378,7 +378,7 @@ static DECLCALLBACK(int) usbProxyOs2AsyncThread(RTTHREAD Thread, void *pvProxyDe
 
             /* unbuffer */
             if (pbData == pvLow)
-                memcpy(pUrb->abData, pbData, pUrb->cbData);
+                memcpy(pUrb->pbData, pbData, pUrb->cbData);
 
             /* Convert rc to USB status code. */
             int orc = rc;

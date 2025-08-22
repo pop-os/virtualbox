@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2136,9 +2136,7 @@ HRESULT GuestProcess::terminate()
         /* Remove process from guest session list. Now only API clients
          * still can hold references to it. */
         AssertPtr(mSession);
-        int vrc2 = mSession->i_processUnregister(this);
-        if (RT_SUCCESS(vrc))
-            vrc = vrc2;
+        mSession->i_processUnregister(this);
     }
 
     LogFlowFuncLeaveRC(vrc);

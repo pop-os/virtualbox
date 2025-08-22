@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -41,44 +41,35 @@
 #include <VBox/param.h>
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/mm.h>
+#include <iprt/acpi.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
+#include <iprt/buildconfig.h>
 #include <iprt/string.h>
 #include <iprt/file.h>
 
-#ifdef VBOX_WITH_DYNAMIC_DSDT
-/* vbox.dsl - input to generate proper DSDT on the fly */
-# include <vboxdsl.hex>
-#else
 /* Statically compiled AML */
-# include <vboxaml.hex>
-# include <vboxssdt_standard.hex>
-# include <vboxssdt_cpuhotplug.hex>
-# ifdef VBOX_WITH_TPM
-#  include <vboxssdt_tpm.hex>
-# endif
+#include <vboxaml.hex>
+#ifdef VBOX_WITH_TPM
+# include <vboxssdt_tpm.hex>
 #endif
 
 #include "VBoxDD.h"
 
+/** The CPU suffixes being used for processor object names. */
+static const char g_achCpuSuff[] = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
 
-#ifdef VBOX_WITH_DYNAMIC_DSDT
-
-static int prepareDynamicDsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbDsdt)
-{
-  *ppvPtr = NULL;
-  *pcbDsdt = 0;
-  return 0;
-}
-
-static int cleanupDynamicDsdt(PPDMDEVINS pDevIns, void *pvPtr)
-{
-    return 0;
-}
-
-#else  /* VBOX_WITH_DYNAMIC_DSDT */
-
-static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
+/**
+ * Creates the SSDT exposing configured CPUs as processor objects.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns             The PDM device instance data.
+ * @param   ppabAml             Where to store the pointer to the buffer containing the ACPI table on success.
+ * @param   pcbAml              Where to store the size of the ACPI table in bytes on success.
+ *
+ * @note This replaces the old vbox-standard.dsl which was patched accordingly.
+ */
+static int acpiCreateCpuSsdt(PPDMDEVINS pDevIns, uint8_t **ppabAml, size_t *pcbAml)
 {
     PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
 
@@ -87,75 +78,62 @@ static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
     if (RT_FAILURE(rc))
         return rc;
 
-    /* Clear CPU objects at all, if needed */
     bool fShowCpu;
     rc = pHlp->pfnCFGMQueryBoolDef(pDevIns->pCfg, "ShowCpu", &fShowCpu, false);
     if (RT_FAILURE(rc))
         return rc;
 
+    /* Don't expose any CPU object if we are not required to. */
     if (!fShowCpu)
         cCpus = 0;
 
-    /*
-     * Now search AML for:
-     *  AML_PROCESSOR_OP            (UINT16) 0x5b83
-     * and replace whole block with
-     *  AML_NOOP_OP                 (UINT16) 0xa3
-     * for VCPU not configured
-     */
-    for (uint32_t i = 0; i < cbAml - 7; i++)
+    RTACPITBL hAcpiTbl;
+    rc = RTAcpiTblCreate(&hAcpiTbl, ACPI_TABLE_HDR_SIGNATURE_SSDT, 1, "VBOX  ", "VBOXCPUT", 2, "VBOX", RTBldCfgRevision());
+    if (RT_SUCCESS(rc))
     {
-        /*
-         * AML_PROCESSOR_OP
-         *
-         * DefProcessor := ProcessorOp PkgLength NameString ProcID PblkAddr PblkLen ObjectList
-         * ProcessorOp  := ExtOpPrefix 0x83
-         * ProcID       := ByteData
-         * PblkAddr     := DwordData
-         * PblkLen      := ByteData
-         */
-        if (pabAml[i] == 0x5b && pabAml[i+1] == 0x83)
+        RTAcpiTblScopeStart(hAcpiTbl, "\\_PR");
+        for (uint16_t i = 0; i < cCpus; i++)
         {
-            if (pabAml[i+3] != 'C' || pabAml[i+4] != 'P')
-                /* false alarm, not named starting CP */
-                continue;
-
-            /* Processor ID */
-            if (pabAml[i+7] < cCpus)
-              continue;
-
-            /* Will fill unwanted CPU block with NOOPs */
-            /*
-             * See 18.2.4 Package Length Encoding in ACPI spec
-             * for full format
-             */
-            uint32_t cBytes = pabAml[i + 2];
-            AssertReleaseMsg((cBytes >> 6) == 0,
-                             ("So far, we only understand simple package length"));
-
-            /* including AML_PROCESSOR_OP itself */
-            for (uint32_t j = 0; j < cBytes + 2; j++)
-                pabAml[i+j] = 0xa3;
-
-            /* Can increase i by cBytes + 1, but not really worth it */
+            uint8_t const cCpuSuff = RT_ELEMENTS(g_achCpuSuff);
+            RTAcpiTblProcessorStartF(hAcpiTbl, i /*bProcId*/, 0 /*u32PBlkAddr*/, 0 /*cbPBlk*/, "CP%c%c",
+                                     i < cCpuSuff ? 'U' : 'V',
+                                     g_achCpuSuff[i % cCpuSuff]);
+            rc = RTAcpiTblProcessorFinalize(hAcpiTbl);
+            if (RT_FAILURE(rc))
+                break;
         }
+        RTAcpiTblScopeFinalize(hAcpiTbl);
+
+        rc = RTAcpiTblFinalize(hAcpiTbl);
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTAcpiTblDumpToBufferA(hAcpiTbl, RTACPITBLTYPE_AML, ppabAml, pcbAml);
+            if (RT_FAILURE(rc))
+                rc = PDMDEV_SET_ERROR(pDevIns, rc, N_("ACPI error: Failed to dump CPU SSDT"));
+        }
+        else
+            rc = PDMDEV_SET_ERROR(pDevIns, rc, N_("ACPI error: Failed to finalize CPU SSDT"));
+
+        RTAcpiTblDestroy(hAcpiTbl);
     }
+    else
+        rc = PDMDEV_SET_ERROR(pDevIns, rc, N_("ACPI error: Failed to create CPU SSDT"));
 
-    /* now recompute checksum, whole file byte sum must be 0 */
-    pabAml[9] = 0;
-    uint8_t         bSum = 0;
-    for (uint32_t i = 0; i < cbAml; i++)
-      bSum = bSum + pabAml[i];
-    pabAml[9] = (uint8_t)(0 - bSum);
-
-    return VINF_SUCCESS;
+    return rc;
 }
 
+
 /**
- * Patch the CPU hot-plug SSDT version to
- * only contain the ACPI containers which may have a CPU
+ * Creates the SSDT exposing configured CPUs as processor objects - hotplug variant.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns             The PDM device instance data.
+ * @param   ppabAml             Where to store the pointer to the buffer containing the ACPI table on success.
+ * @param   pcbAml              Where to store the size of the ACPI table in bytes on success.
+ *
+ * @note This replaces the old vbox-cpuhotplug.dsl which was patched accordingly.
  */
-static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
+static int acpiCreateCpuHotplugSsdt(PPDMDEVINS pDevIns, uint8_t **ppabAml, size_t *pcbAml)
 {
     PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
 
@@ -164,127 +142,177 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
     if (RT_FAILURE(rc))
         return rc;
 
-    /*
-     * Now search AML for:
-     *  AML_DEVICE_OP               (UINT16) 0x5b82
-     * and replace whole block with
-     *  AML_NOOP_OP                 (UINT16) 0xa3
-     * for VCPU not configured
-     */
-    uint32_t idxAml = 0;
-    while (idxAml < cbAml - 7)
+    RTACPITBL hAcpiTbl;
+    rc = RTAcpiTblCreate(&hAcpiTbl, ACPI_TABLE_HDR_SIGNATURE_SSDT, 1, "VBOX  ", "VBOXCPUT", 2, "VBOX", RTBldCfgRevision());
+    if (RT_SUCCESS(rc))
     {
-        /*
-         * AML_DEVICE_OP
-         *
-         * DefDevice    := DeviceOp PkgLength NameString ObjectList
-         * DeviceOp     := ExtOpPrefix 0x82
-         */
-        if (pabAml[idxAml] == 0x5b && pabAml[idxAml+1] == 0x82)
+        uint8_t const cCpuSuff = RT_ELEMENTS(g_achCpuSuff);
+
+        /* Declare externals */
+        RTAcpiTblIfStart(hAcpiTbl);
+            RTAcpiTblIntegerAppend(hAcpiTbl, 0);
+
+            RTAcpiTblExternalAppend(hAcpiTbl, "CPUC", kAcpiObjType_Unknown, 0 /*cArgs*/);
+            RTAcpiTblExternalAppend(hAcpiTbl, "CPUL", kAcpiObjType_Unknown, 0 /*cArgs*/);
+            RTAcpiTblExternalAppend(hAcpiTbl, "CPEV", kAcpiObjType_Unknown, 0 /*cArgs*/);
+            RTAcpiTblExternalAppend(hAcpiTbl, "CPET", kAcpiObjType_Unknown, 0 /*cArgs*/);
+
+        RTAcpiTblIfFinalize(hAcpiTbl);
+
+        /* Define two helper methods. */
+
+        /* CPCK(Arg0) -> Boolean - Checks whether the CPU identified by the given indes is locked. */
+        RTAcpiTblMethodStart(hAcpiTbl, "CPCK", 1 /*cArgs*/, RTACPI_METHOD_F_NOT_SERIALIZED, 0 /*uSyncLvl*/);
+            RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Store);
+                RTAcpiTblArgOpAppend(hAcpiTbl, 0);
+                RTAcpiTblNameStringAppend(hAcpiTbl, "CPUC");
+
+            RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Return);
+                    RTAcpiTblBinaryOpAppend(hAcpiTbl, kAcpiBinaryOp_LEqual);
+                        RTAcpiTblNameStringAppend(hAcpiTbl, "CPUL");
+                        RTAcpiTblIntegerAppend(hAcpiTbl, 1);
+        RTAcpiTblMethodFinalize(hAcpiTbl);
+
+        /* CPLO(Arg0) -> Nothing - Unlocks the CPU identified by the given index. */
+        RTAcpiTblMethodStart(hAcpiTbl, "CPLO", 1 /*cArgs*/, RTACPI_METHOD_F_NOT_SERIALIZED, 0 /*uSyncLvl*/);
+            RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Store);
+                RTAcpiTblArgOpAppend(hAcpiTbl, 0);
+                RTAcpiTblNameStringAppend(hAcpiTbl, "CPUL");
+        RTAcpiTblMethodFinalize(hAcpiTbl);
+
+        /* Define all configured CPUs. */
+        RTAcpiTblScopeStart(hAcpiTbl, "\\_SB");
+        for (uint16_t i = 0; i < cCpus; i++)
         {
-            /* Check if the enclosed CPU device is configured. */
-            uint8_t *pabAmlPkgLength = &pabAml[idxAml+2];
-            uint32_t cBytes = 0;
-            uint32_t cLengthBytesFollow = pabAmlPkgLength[0] >> 6;
+            RTAcpiTblDeviceStartF(hAcpiTbl, "SC%c%c", i < cCpuSuff ? 'K' : 'L', g_achCpuSuff[i % cCpuSuff]);
 
-            if (cLengthBytesFollow == 0)
-            {
-                /* Simple package length */
-                cBytes = pabAmlPkgLength[0];
-            }
-            else
-            {
-                unsigned idxLengthByte = 1;
+                RTAcpiTblNameAppend(hAcpiTbl, "_HID");
+                    RTAcpiTblStringAppend(hAcpiTbl, "ACPI0004");
+                RTAcpiTblNameAppend(hAcpiTbl, "_UID");
+                    RTAcpiTblStringAppendF(hAcpiTbl, "SCKCP%c%c", i < cCpuSuff ? 'U' : 'V', g_achCpuSuff[i % cCpuSuff]);
 
-                cBytes = pabAmlPkgLength[0] & 0xF;
+                RTAcpiTblProcessorStartF(hAcpiTbl, i /*bProcId*/, 0 /*u32PBlkAddr*/, 0 /*cbPBlk*/, "CP%c%c",
+                                         i < cCpuSuff ? 'U' : 'V',
+                                         g_achCpuSuff[i % cCpuSuff]);
 
-                while (idxLengthByte <= cLengthBytesFollow)
-                {
-                    cBytes |= pabAmlPkgLength[idxLengthByte] << (4*idxLengthByte);
-                    idxLengthByte++;
-                }
-            }
+                    RTAcpiTblNameAppend(hAcpiTbl, "_HID");
+                        RTAcpiTblStringAppend(hAcpiTbl, "ACPI0007");
+                    RTAcpiTblNameAppend(hAcpiTbl, "_UID");
+                        RTAcpiTblIntegerAppend(hAcpiTbl, i);
+                    RTAcpiTblNameAppend(hAcpiTbl, "_PXM");
+                        RTAcpiTblIntegerAppend(hAcpiTbl, 0);
 
-            uint8_t *pabAmlDevName = &pabAmlPkgLength[cLengthBytesFollow+1];
-            uint8_t *pabAmlCpu     = &pabAmlDevName[4];
-            bool fCpuConfigured = false;
-            bool fCpuFound      = false;
+                    uint8_t abBufApic[8] = { 0x00, 0x08, (uint8_t)i, (uint8_t)i, 0, 0, 0, 0};
+                    RTAcpiTblNameAppend(hAcpiTbl, "APIC");
+                        RTAcpiTblBufferAppend(hAcpiTbl, &abBufApic[0], sizeof(abBufApic));
 
-            if ((pabAmlDevName[0] != 'S') || (pabAmlDevName[1] != 'C') || (pabAmlDevName[2] != 'K'))
-            {
-                /* false alarm, not named starting SCK */
-                idxAml++;
-                continue;
-            }
+                    /* _MAT Method. */
+                    RTAcpiTblMethodStart(hAcpiTbl, "_MAT", 0 /*cArgs*/, RTACPI_METHOD_F_SERIALIZED, 0 /*uSyncLvl*/);
+                        RTAcpiTblIfStart(hAcpiTbl);
+                            RTAcpiTblNameStringAppend(hAcpiTbl, "CPCK");
+                                RTAcpiTblIntegerAppend(hAcpiTbl, i);
 
-            for (uint32_t idxAmlCpu = 0; idxAmlCpu < cBytes - 7; idxAmlCpu++)
-            {
-                /*
-                 * AML_PROCESSOR_OP
-                 *
-                 * DefProcessor := ProcessorOp PkgLength NameString ProcID
-                                     PblkAddr PblkLen ObjectList
-                 * ProcessorOp  := ExtOpPrefix 0x83
-                 * ProcID       := ByteData
-                 * PblkAddr     := DwordData
-                 * PblkLen      := ByteData
-                 */
-                if ((pabAmlCpu[idxAmlCpu] == 0x5b) && (pabAmlCpu[idxAmlCpu+1] == 0x83))
-                {
-                    if ((pabAmlCpu[idxAmlCpu+4] != 'C') || (pabAmlCpu[idxAmlCpu+5] != 'P'))
-                        /* false alarm, not named starting CP */
-                        continue;
+                            RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Store);
+                                RTAcpiTblIntegerAppend(hAcpiTbl, 1);
+                                RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Index);
+                                    RTAcpiTblNameStringAppend(hAcpiTbl, "APIC");
+                                    RTAcpiTblIntegerAppend(hAcpiTbl, 4);
+                                    RTAcpiTblNullNameAppend(hAcpiTbl);
 
-                    fCpuFound = true;
+                        RTAcpiTblIfFinalize(hAcpiTbl);
+                        RTAcpiTblElseStart(hAcpiTbl);
+                        RTAcpiTblElseFinalize(hAcpiTbl);
 
-                    /* Processor ID */
-                    uint8_t const idAmlCpu = pabAmlCpu[idxAmlCpu + 8];
-                    if (idAmlCpu < cCpus)
+                        RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Return);
+                            RTAcpiTblNameStringAppend(hAcpiTbl, "APIC");
+                    RTAcpiTblMethodFinalize(hAcpiTbl);
+
+                    /* _STA Method. */
+                    RTAcpiTblMethodStart(hAcpiTbl, "_STA", 0 /*cArgs*/, RTACPI_METHOD_F_NOT_SERIALIZED, 0 /*uSyncLvl*/);
+                        RTAcpiTblIfStart(hAcpiTbl);
+                            RTAcpiTblNameStringAppend(hAcpiTbl, "CPCK");
+                                RTAcpiTblIntegerAppend(hAcpiTbl, i);
+
+                            RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Return);
+                                RTAcpiTblIntegerAppend(hAcpiTbl, 0xf);
+                        RTAcpiTblIfFinalize(hAcpiTbl);
+                        RTAcpiTblElseStart(hAcpiTbl);
+                            RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Return);
+                                RTAcpiTblIntegerAppend(hAcpiTbl, 0x0);
+                        RTAcpiTblElseFinalize(hAcpiTbl);
+                    RTAcpiTblMethodFinalize(hAcpiTbl);
+
+                    /* _EJ0 Method. */
+                    RTAcpiTblMethodStart(hAcpiTbl, "_EJ0", 1 /*cArgs*/, RTACPI_METHOD_F_NOT_SERIALIZED, 0 /*uSyncLvl*/);
+                        RTAcpiTblNameStringAppend(hAcpiTbl, "CPLO");
+                            RTAcpiTblIntegerAppend(hAcpiTbl, i);
+                        RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Return);
+                    RTAcpiTblMethodFinalize(hAcpiTbl);
+
+                RTAcpiTblProcessorFinalize(hAcpiTbl);
+
+            rc = RTAcpiTblDeviceFinalize(hAcpiTbl);
+            if (RT_FAILURE(rc))
+                break;
+        }
+
+        if (RT_SUCCESS(rc))
+        {
+            RTAcpiTblScopeFinalize(hAcpiTbl);
+
+            /* Now the _GPE scope where event processing takes place. */
+            RTAcpiTblScopeStart(hAcpiTbl, "\\_GPE");
+                RTAcpiTblMethodStart(hAcpiTbl, "_L01", 0 /*cArgs*/, RTACPI_METHOD_F_NOT_SERIALIZED, 0 /*uSyncLvl*/);
+
+                    RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Store);
+                        RTAcpiTblNameStringAppend(hAcpiTbl, "CPEV");
+                        RTAcpiTblLocalOpAppend(hAcpiTbl, 0);
+
+                    RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Store);
+                        RTAcpiTblNameStringAppend(hAcpiTbl, "CPET");
+                        RTAcpiTblLocalOpAppend(hAcpiTbl, 1);
+
+                    for (uint16_t i = 0; i < cCpus; i++)
                     {
-                        LogFlow(("CPU %u is configured\n", idAmlCpu));
-                        fCpuConfigured = true;
+                        RTAcpiTblIfStart(hAcpiTbl);
+                            RTAcpiTblBinaryOpAppend(hAcpiTbl, kAcpiBinaryOp_LEqual);
+                                RTAcpiTblLocalOpAppend(hAcpiTbl, 0);
+                                RTAcpiTblIntegerAppend(hAcpiTbl, i);
+
+                            RTAcpiTblStmtSimpleAppend(hAcpiTbl, kAcpiStmt_Notify);
+                                RTAcpiTblNameStringAppendF(hAcpiTbl, "\\_SB.SC%c%c.CP%c%c",
+                                                           i < cCpuSuff ? 'K' : 'L',
+                                                           g_achCpuSuff[i % cCpuSuff],
+                                                           i < cCpuSuff ? 'U' : 'V',
+                                                           g_achCpuSuff[i % cCpuSuff]);
+                                RTAcpiTblLocalOpAppend(hAcpiTbl, 1);
+                        rc = RTAcpiTblIfFinalize(hAcpiTbl);
+                        if (RT_FAILURE(rc))
+                            break;
                     }
-                    else
-                    {
-                        LogFlow(("CPU %u is not configured\n", idAmlCpu));
-                        fCpuConfigured = false;
-                    }
-                    break;
-                }
-            }
 
-            Assert(fCpuFound);
+                RTAcpiTblMethodFinalize(hAcpiTbl);
+            RTAcpiTblScopeFinalize(hAcpiTbl);
+        }
 
-            if (!fCpuConfigured)
-            {
-                /* Will fill unwanted CPU block with NOOPs */
-                /*
-                 * See 18.2.4 Package Length Encoding in ACPI spec
-                 * for full format
-                 */
-
-                /* including AML_DEVICE_OP itself */
-                for (uint32_t j = 0; j < cBytes + 2; j++)
-                    pabAml[idxAml+j] = 0xa3;
-            }
-
-            idxAml++;
+        rc = RTAcpiTblFinalize(hAcpiTbl);
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTAcpiTblDumpToBufferA(hAcpiTbl, RTACPITBLTYPE_AML, ppabAml, pcbAml);
+            if (RT_FAILURE(rc))
+                rc = PDMDEV_SET_ERROR(pDevIns, rc, N_("ACPI error: Failed to dump CPU SSDT"));
         }
         else
-            idxAml++;
+            rc = PDMDEV_SET_ERROR(pDevIns, rc, N_("ACPI error: Failed to finalize CPU SSDT"));
+
+        RTAcpiTblDestroy(hAcpiTbl);
     }
+    else
+        rc = PDMDEV_SET_ERROR(pDevIns, rc, N_("ACPI error: Failed to create CPU SSDT"));
 
-    /* now recompute checksum, whole file byte sum must be 0 */
-    pabAml[9] = 0;
-    uint8_t         bSum = 0;
-    for (uint32_t i = 0; i < cbAml; i++)
-      bSum = bSum + pabAml[i];
-    pabAml[9] = (uint8_t)(0 - bSum);
-
-    return VINF_SUCCESS;
+    return rc;
 }
 
-#endif /* VBOX_WITH_DYNAMIC_DSDT */
 
 /**
  * Loads an AML file if present in CFGM
@@ -366,9 +394,6 @@ static int acpiAmlLoadExternal(PPDMDEVINS pDevIns, const char *pcszCfgName, cons
 /** No docs, lazy coder. */
 int acpiPrepareDsdt(PPDMDEVINS pDevIns,  void **ppvPtr, size_t *pcbDsdt)
 {
-#ifdef VBOX_WITH_DYNAMIC_DSDT
-    return prepareDynamicDsdt(pDevIns, ppvPtr, pcbDsdt);
-#else
     uint8_t *pabAmlCodeDsdt = NULL;
     size_t cbAmlCodeDsdt = 0;
     int rc = acpiAmlLoadExternal(pDevIns, "DsdtFilePath", "DSDT", &pabAmlCodeDsdt, &cbAmlCodeDsdt);
@@ -387,25 +412,19 @@ int acpiPrepareDsdt(PPDMDEVINS pDevIns,  void **ppvPtr, size_t *pcbDsdt)
 
     if (RT_SUCCESS(rc))
     {
-        patchAml(pDevIns, pabAmlCodeDsdt, cbAmlCodeDsdt);
         *ppvPtr = pabAmlCodeDsdt;
         *pcbDsdt = cbAmlCodeDsdt;
     }
     return rc;
-#endif
 }
 
 /** No docs, lazy coder. */
 int acpiCleanupDsdt(PPDMDEVINS pDevIns, void *pvPtr)
 {
-#ifdef VBOX_WITH_DYNAMIC_DSDT
-    return cleanupDynamicDsdt(pDevIns, pvPtr);
-#else
     RT_NOREF1(pDevIns);
     if (pvPtr)
         RTMemFree(pvPtr);
     return VINF_SUCCESS;
-#endif
 }
 
 /** No docs, lazy coder. */
@@ -423,24 +442,9 @@ int acpiPrepareSsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbSsdt)
         if (RT_SUCCESS(rc))
         {
             if (fCpuHotPlug)
-            {
-                cbAmlCodeSsdt  = sizeof(AmlCodeSsdtCpuHotPlug);
-                pabAmlCodeSsdt = (uint8_t *)RTMemDup(AmlCodeSsdtCpuHotPlug, sizeof(AmlCodeSsdtCpuHotPlug));
-            }
+                rc = acpiCreateCpuHotplugSsdt(pDevIns, &pabAmlCodeSsdt, &cbAmlCodeSsdt);
             else
-            {
-                cbAmlCodeSsdt  = sizeof(AmlCodeSsdtStandard);
-                pabAmlCodeSsdt = (uint8_t *)RTMemDup(AmlCodeSsdtStandard, sizeof(AmlCodeSsdtStandard));
-            }
-            if (pabAmlCodeSsdt)
-            {
-                if (fCpuHotPlug)
-                    patchAmlCpuHotPlug(pDevIns, pabAmlCodeSsdt, cbAmlCodeSsdt);
-                else
-                    patchAml(pDevIns, pabAmlCodeSsdt, cbAmlCodeSsdt);
-            }
-            else
-                rc = VERR_NO_MEMORY;
+                rc = acpiCreateCpuSsdt(pDevIns, &pabAmlCodeSsdt, &cbAmlCodeSsdt);
         }
     }
     else if (RT_FAILURE(rc))
@@ -498,4 +502,3 @@ int acpiCleanupTpmSsdt(PPDMDEVINS pDevIns, void *pvPtr)
     return VINF_SUCCESS;
 }
 #endif
-

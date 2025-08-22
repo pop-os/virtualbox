@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -638,7 +638,7 @@ bool UIMachineSettingsStorage::createStorageController(const UISettingsCacheMach
         else
         {
             /* Save controller type: */
-            if (fSuccess)
+            // if (fSuccess)
             {
                 comController.SetControllerType(newControllerData.m_guiValue.m_enmType);
                 fSuccess = comController.isOk();
@@ -657,7 +657,7 @@ bool UIMachineSettingsStorage::createStorageController(const UISettingsCacheMach
                     || newControllerData.m_guiValue.m_enmBus == KStorageBus_VirtioSCSI))
             {
                 ULONG uNewPortCount = newControllerData.m_guiValue.m_uPortCount;
-                if (fSuccess)
+                // if (fSuccess)
                 {
                     uNewPortCount = qMax(uNewPortCount, comController.GetMinPortCount());
                     fSuccess = comController.isOk();
@@ -717,7 +717,7 @@ bool UIMachineSettingsStorage::updateStorageController(const UISettingsCacheMach
         else
         {
             /* Save controller type: */
-            if (fSuccess && newControllerData.m_guiValue.m_enmType != oldControllerData.m_guiValue.m_enmType)
+            if (/*fSuccess &&*/ newControllerData.m_guiValue.m_enmType != oldControllerData.m_guiValue.m_enmType)
             {
                 comController.SetControllerType(newControllerData.m_guiValue.m_enmType);
                 fSuccess = comController.isOk();
@@ -737,7 +737,7 @@ bool UIMachineSettingsStorage::updateStorageController(const UISettingsCacheMach
                     || newControllerData.m_guiValue.m_enmBus == KStorageBus_VirtioSCSI))
             {
                 ULONG uNewPortCount = newControllerData.m_guiValue.m_uPortCount;
-                if (fSuccess)
+                // if (fSuccess)
                 {
                     uNewPortCount = qMax(uNewPortCount, comController.GetMinPortCount());
                     fSuccess = comController.isOk();

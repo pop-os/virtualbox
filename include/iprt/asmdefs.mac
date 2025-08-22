@@ -3,7 +3,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2024 Oracle and/or its affiliates.
+; Copyright (C) 2006-2025 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -35,7 +35,7 @@
 
 ; Special hack for bs3kit.
 %ifdef RT_ASMDEFS_INC_FIRST_FILE
- %include "asmdefs-first.mac"
+ %include "asmdefs-first.mac" ; edk2-ignore-hack
 %endif
 
 %ifndef ___iprt_asmdefs_mac
@@ -751,10 +751,15 @@ ENDPROC_RAW NAME(%1)
 
 
 ;
-; Do OMF and Mach-O/Yasm segment definitions
+; Do OMF, Mach-O/Yasm and ELF/Yasm segment definitions.
 ;
-; Both format requires this to get the segment order right, in the Mach-O/Yasm case
-; it's only to make sure the .bss section ends up last (it's not declared here).
+; For OMF and Mach-O it is to get the segment order right. For Mach-O it's only
+; to make sure the .bss section ends up last (it's not declared here).
+;
+; Neither Mach-O nor ELF have data alignments propagated to the section
+; alignment, so we have to explictly set the .data section and .rodata/.text
+; alignments here to 16 bytes to ensure we can cope with most stuff.
+; TODO: Check what nasm does!
 ;
 %ifdef ASM_FORMAT_OMF
  %ifndef RT_NOINC_SEGMENTS
@@ -807,8 +812,22 @@ ENDPROC_RAW NAME(%1)
 
 %ifdef ASM_FORMAT_MACHO
  %ifdef __YASM__
-  section .text
-  section .data
+  %ifndef RT_NOINC_SEGMENTS
+   section .text
+   section .data   align=16
+   section .rodata align=16
+   section .text    ; Make the .text segment default and w/o attributes
+  %endif
+ %endif
+%endif
+
+%ifdef ASM_FORMAT_ELF
+ %ifdef __YASM__
+  %ifndef RT_NOINC_SEGMENTS
+   section .text align=16
+   section .data align=16
+   section .text    ; Make the .text segment default and w/o attributes (or stuc/endstruc will trigger warnings).
+  %endif
  %endif
 %endif
 

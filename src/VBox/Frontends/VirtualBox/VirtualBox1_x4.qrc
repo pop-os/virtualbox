@@ -46,6 +46,10 @@
         <file alias="cd_create_disabled_16px_x4.png">images/x4/cd_create_disabled_16px_x4.png</file>
         <file alias="cd_create_disabled_32px_x4.png">images/x4/cd_create_disabled_32px_x4.png</file>
         <file alias="cd_disabled_16px_x4.png">images/x4/cd_disabled_16px_x4.png</file>
+        <file alias="cd_edit_16px_x4.png">images/x4/cd_edit_16px_x4.png</file>
+        <file alias="cd_edit_32px_x4.png">images/x4/cd_edit_32px_x4.png</file>
+        <file alias="cd_edit_disabled_16px_x4.png">images/x4/cd_edit_disabled_16px_x4.png</file>
+        <file alias="cd_edit_disabled_32px_x4.png">images/x4/cd_edit_disabled_32px_x4.png</file>
         <file alias="cd_modify_16px_x4.png">images/x4/cd_modify_16px_x4.png</file>
         <file alias="cd_modify_32px_x4.png">images/x4/cd_modify_32px_x4.png</file>
         <file alias="cd_modify_disabled_16px_x4.png">images/x4/cd_modify_disabled_16px_x4.png</file>
@@ -54,6 +58,10 @@
         <file alias="cd_move_32px_x4.png">images/x4/cd_move_32px_x4.png</file>
         <file alias="cd_move_disabled_16px_x4.png">images/x4/cd_move_disabled_16px_x4.png</file>
         <file alias="cd_move_disabled_32px_x4.png">images/x4/cd_move_disabled_32px_x4.png</file>
+        <file alias="cd_open_16px_x4.png">images/x4/cd_open_16px_x4.png</file>
+        <file alias="cd_open_32px_x4.png">images/x4/cd_open_32px_x4.png</file>
+        <file alias="cd_open_disabled_16px_x4.png">images/x4/cd_open_disabled_16px_x4.png</file>
+        <file alias="cd_open_disabled_32px_x4.png">images/x4/cd_open_disabled_32px_x4.png</file>
         <file alias="cd_read_16px_x4.png">images/x4/cd_read_16px_x4.png</file>
         <file alias="cd_release_16px_x4.png">images/x4/cd_release_16px_x4.png</file>
         <file alias="cd_release_32px_x4.png">images/x4/cd_release_32px_x4.png</file>
@@ -485,9 +493,5 @@
         <file alias="hostkey_warning_16px_x4.png">images/x4/hostkey_warning_16px_x4.png</file>
         <file alias="ide_16px_x4.png">images/x4/ide_16px_x4.png</file>
         <file alias="ide_add_16px_x4.png">images/x4/ide_add_16px_x4.png</file>
-        <file alias="ide_add_disabled_16px_x4.png">images/x4/ide_add_disabled_16px_x4.png</file>
-        <file alias="ide_collapse_16px_x4.png">images/x4/ide_collapse_16px_x4.png</file>
-        <file alias="ide_expand_16px_x4.png">images/x4/ide_expand_16px_x4.png</file>
-        <file alias="import_16px_x4.png">images/x4/import_16px_x4.png</file>
     </qresource>
 </RCC>

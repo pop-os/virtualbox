@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -275,7 +275,7 @@ bool UIMachineSettingsAudio::saveData()
         else
         {
             /* Save whether audio is enabled: */
-            if (fSuccess && isMachineOffline() && newAudioData.m_fAudioEnabled != oldAudioData.m_fAudioEnabled)
+            if (/*fSuccess &&*/ isMachineOffline() && newAudioData.m_fAudioEnabled != oldAudioData.m_fAudioEnabled)
             {
                 comAdapter.SetEnabled(newAudioData.m_fAudioEnabled);
                 fSuccess = comAdapter.isOk();

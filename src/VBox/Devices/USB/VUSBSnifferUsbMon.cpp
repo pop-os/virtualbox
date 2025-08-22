@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -157,7 +157,7 @@ static DECLCALLBACK(int) vusbSnifferFmtUsbMonRecordEvent(PVUSBSNIFFERFMTINT pThi
         if (   (pUrb->enmType == VUSBXFERTYPE_CTRL || pUrb->enmType == VUSBXFERTYPE_MSG)
             && enmEvent == VUSBSNIFFEREVENT_SUBMIT)
         {
-            PVUSBSETUP pSetup = (PVUSBSETUP)pUrb->abData;
+            PVUSBSETUP pSetup = (PVUSBSETUP)pUrb->pbData;
 
             cch = RTStrPrintf(&aszLineBuf[0], sizeof(aszLineBuf), "s %02x %02x %04x %04x %04x ",
                               pSetup->bmRequestType, pSetup->bRequest, pSetup->wValue,

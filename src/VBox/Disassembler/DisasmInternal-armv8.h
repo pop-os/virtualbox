@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -55,13 +55,22 @@ typedef enum DISPARMPARSEIDX
     kDisParmParseImmRel,
     kDisParmParseImmAdr,
     kDisParmParseImmZero,
-    kDisParmParseReg,
-    kDisParmParseRegOff,
+    kDisParmParseGprZr,
+    kDisParmParseGprZr32,
+    kDisParmParseGprZr64,
+    kDisParmParseGprZr64PlusOne,
+    kDisParmParseGprSp,
+    kDisParmParseGprOff,
+    kDisParmParseVecReg,
+    kDisParmParseAddrGprSp,
+    kDisParmParseRegFixed31,
+    kDisParmParseGprCount,
     kDisParmParseImmsImmrN,
     kDisParmParseHw,
     kDisParmParseCond,
     kDisParmParsePState,
-    kDisParmParseCRnCRm,
+    kDisParmParseSysIns,
+    kDisParmParseSysInsExtraStr,
     kDisParmParseSysReg,
     kDisParmParseSh12,
     kDisParmParseImmTbz,
@@ -78,29 +87,29 @@ typedef enum DISPARMPARSEIDX
     kDisParmParseFpReg,
     kDisParmParseFpScale,
     kDisParmParseFpFixupFCvt,
+    kDisParmParseSimdRegSize,
+    kDisParmParseSimdRegSize32,
+    kDisParmParseSimdRegSize64,
+    kDisParmParseSimdRegSize128,
     kDisParmParseSimdRegScalar,
     kDisParmParseImmHImmB,
+    kDisParmParseSf,
+    kDisParmParseImmX16,
+    kDisParmParseSImmTags,
+    kDisParmParseLdrPacImm,
+    kDisParmParseLdrPacW,
+    kDisParmParseVecRegElemSize,
+    kDisParmParseVecQ,
+    kDisParmParseVecGrp,
+    kDisParmParseSimdLdStPostIndexImm,
     kDisParmParseMax
 } DISPARMPARSEIDX;
 /** @}  */
 
 
 /**
- * Opcode structure.
+ * Decoder step.
  */
-typedef struct DISARMV8OPCODE
-{
-    /** The value of the fixed bits of the instruction. */
-    uint32_t            fValue;
-    /** Special flags for the opcode. */
-    uint32_t            fFlags;
-    /** The generic opcode structure. */
-    DISOPCODE           Opc;
-} DISARMV8OPCODE;
-/** Pointer to a const opcode. */
-typedef const DISARMV8OPCODE *PCDISARMV8OPCODE;
-
-
 typedef struct DISARMV8INSNPARAM
 {
     /** The parser to use for the decode step. */
@@ -121,6 +130,25 @@ typedef const DISARMV8INSNPARAM *PCDISARMV8INSNPARAM;
 
 #define DIS_ARMV8_INSN_PARAM_UNSET        UINT8_MAX
 
+
+/**
+ * Opcode structure.
+ */
+typedef struct DISARMV8OPCODE
+{
+    /** The value of the fixed bits of the instruction. */
+    uint32_t            fValue;
+    /** Special flags for the opcode. */
+    uint32_t            fFlags;
+    /** Pointer to an alternative decoder overriding the default one for the instruction class. */
+    PCDISARMV8INSNPARAM paDecode;
+    /** The generic opcode structure. */
+    DISOPCODE           Opc;
+} DISARMV8OPCODE;
+/** Pointer to a const opcode. */
+typedef const DISARMV8OPCODE *PCDISARMV8OPCODE;
+
+
 /**
  * Opcode decode index.
  */
@@ -129,6 +157,7 @@ typedef enum DISARMV8OPCDECODE
     kDisArmV8OpcDecodeNop = 0,
     kDisArmV8OpcDecodeLookup,
     kDisArmV8OpcDecodeCollate,
+    kDisArmV8OpcDecodeBinaryLookupWithDefault,
     kDisArmV8OpcDecodeMax
 } DISARMV8OPCDECODE;
 
@@ -171,28 +200,22 @@ typedef struct DISARMV8INSNCLASS
 {
     /** Decoder header. */
     DISARMV8DECODEHDR       Hdr;
-    /** Pointer to the arry of opcodes. */
+    /** Pointer to the array of opcodes. */
     PCDISARMV8OPCODE        paOpcodes;
     /** The mask of fixed instruction bits. */
     uint32_t                fFixedInsn;
-    /** Some flags for this instruction class. */
-    uint32_t                fClass;
     /** Opcode decoder function. */
     DISARMV8OPCDECODE       enmOpcDecode;
     /** The mask of the bits relevant for decoding. */
     uint32_t                fMask;
     /** Number of bits to shift to get an index. */
     uint32_t                cShift;
-    /** Parameter types. */
-    DISARMV8OPPARM          aenmParamTypes[4];
     /** The array of decoding steps. */
     PCDISARMV8INSNPARAM     paParms;
 } DISARMV8INSNCLASS;
 /** Pointer to a constant instruction class descriptor. */
 typedef const DISARMV8INSNCLASS *PCDISARMV8INSNCLASS;
 
-/** The instruction class distinguishes between a 32-bit and 64-bit variant using the sf bit (bit 31). */
-#define DISARMV8INSNCLASS_F_SF                          RT_BIT_32(0)
 /** The N bit in an N:ImmR:ImmS bit vector must be 1 for 64-bit instruction variants. */
 #define DISARMV8INSNCLASS_F_N_FORCED_1_ON_64BIT         RT_BIT_32(1)
 /** The instruction class is using the 64-bit register encoding only. */
@@ -201,39 +224,23 @@ typedef const DISARMV8INSNCLASS *PCDISARMV8INSNCLASS;
 #define DISARMV8INSNCLASS_F_FORCED_32BIT                RT_BIT_32(3)
 
 
-#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_BEGIN(a_Name) \
-    static const DISARMV8OPCODE g_aArmV8A64Insn ## a_Name ## Opcodes[] = {
 #define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_DECODER(a_Name) \
+    static const DISARMV8INSNPARAM g_aArmV8A64Insn ## a_Name ## Decode[] = {
+#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_DECODER_ALTERNATIVE(a_Name) \
+        DIS_ARMV8_INSN_DECODE_TERM \
     }; \
     static const DISARMV8INSNPARAM g_aArmV8A64Insn ## a_Name ## Decode[] = {
-#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END_PARAMS_4(a_Name, a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift, \
-                                                        a_enmParamType1, a_enmParamType2, a_enmParamType3, a_enmParamType4) \
-    DIS_ARMV8_INSN_DECODE_TERM \
+#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_BEGIN(a_Name) \
+        DIS_ARMV8_INSN_DECODE_TERM \
+    }; \
+    static const DISARMV8OPCODE g_aArmV8A64Insn ## a_Name ## Opcodes[] = {
+#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END(a_Name, a_fFixedInsn, a_enmOpcDecode, a_fMask, a_cShift) \
     }; \
     static const DISARMV8INSNCLASS g_aArmV8A64Insn ## a_Name = { { kDisArmV8DecodeType_InsnClass, \
                                                                    RT_ELEMENTS(g_aArmV8A64Insn ## a_Name ## Opcodes) }, \
                                                                  & g_aArmV8A64Insn ## a_Name ## Opcodes[0], \
-                                                                 a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift, \
-                                                                 { a_enmParamType1, a_enmParamType2, a_enmParamType3, a_enmParamType4 }, \
+                                                                 a_fFixedInsn, a_enmOpcDecode, a_fMask, a_cShift, \
                                                                  & g_aArmV8A64Insn ## a_Name ## Decode[0] }
-#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END_PARAMS_3(a_Name, a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift, \
-                                                        a_enmParamType1, a_enmParamType2, a_enmParamType3) \
-    DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END_PARAMS_4(a_Name, a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift, \
-                                                    a_enmParamType1, a_enmParamType2, a_enmParamType3, kDisArmv8OpParmNone)
-#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END_PARAMS_2(a_Name, a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift, \
-                                                        a_enmParamType1, a_enmParamType2) \
-    DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END_PARAMS_3(a_Name, a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift, \
-                                                    a_enmParamType1, a_enmParamType2, kDisArmv8OpParmNone)
-#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END_PARAMS_1(a_Name, a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift, \
-                                                        a_enmParamType1) \
-    DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END_PARAMS_2(a_Name, a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift, \
-                                                    a_enmParamType1, kDisArmv8OpParmNone)
-#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END_PARAMS_0(a_Name, a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift) \
-    DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END_PARAMS_1(a_Name, a_fFixedInsn, a_fClass, a_enmOpcDecode, a_fMask, a_cShift, \
-                                                    kDisArmv8OpParmNone)
-
-#define DIS_ARMV8_DECODE_INSN_CLASS_DEFINE_END \
-    DIS_ARMV8_INSN_PARAM_NONE }
 
 /**
  * Decoder lookup table entry.

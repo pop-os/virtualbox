@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -221,6 +221,7 @@ typedef enum VMMDevRequestType
     VMMDevReq_NtBugCheck                 = 221,
     VMMDevReq_VideoUpdateMonitorPositions= 222,
     VMMDevReq_GetMouseStatusEx           = 223,
+    VMMDevReq_GetHostGraphicsCapability  = 224,
     VMMDevReq_SizeHack                   = 0x7fffffff
 } VMMDevRequestType;
 
@@ -1807,6 +1808,33 @@ AssertCompileSize(VMMDevHGCMCancel2, 24+8);
 
 #endif /* VBOX_WITH_HGCM */
 
+/** @name VBOX_GRAPHICS_DEVCAP_* - Host graphics capabilities (VMMDevGetHostGraphicsCapability::capIndex)
+ * @{ */
+/** Returns VBOX_GRAPHICS_DEVCAP_MAX. */
+#define VBOX_GRAPHICS_DEVCAP_MAX_INDEX          0
+/** Whether 3D is supported. */
+#define VBOX_GRAPHICS_DEVCAP_3D                 1
+/** Number of guest displays. */
+#define VBOX_GRAPHICS_DEVCAP_NUM_DISPLAYS       2
+/** Maximum supported index. */
+#define VBOX_GRAPHICS_DEVCAP_MAX                2
+/** @} */
+
+/**
+ * Query a capability of graphics device.
+ *
+ * Used by VMMDevReq_GetHostGraphicsCapability.
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader header;
+    /** IN: The graphics device capability index (VBOX_GRAPHICS_DEVCAP_*). */
+    uint32_t capIndex;
+    /** OUT: Graphics device capability value. */
+    uint32_t capValue;
+} VMMDevGetHostGraphicsCapability;
+AssertCompileSize(VMMDevGetHostGraphicsCapability, 24+8);
 
 /**
  * Inline helper to determine the request size for the given operation.
@@ -1928,6 +1956,8 @@ DECLINLINE(size_t) vmmdevGetRequestSize(VMMDevRequestType requestType)
             return sizeof(VMMDevRequestHeader);
         case VMMDevReq_VideoUpdateMonitorPositions:
             return sizeof(VMMDevVideoUpdateMonitorPositions);
+        case VMMDevReq_GetHostGraphicsCapability:
+            return sizeof(VMMDevGetHostGraphicsCapability);
         default:
             break;
     }

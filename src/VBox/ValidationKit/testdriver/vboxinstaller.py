@@ -11,7 +11,7 @@ other VBox test drivers.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2024 Oracle and/or its affiliates.
+Copyright (C) 2010-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -40,7 +40,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 164827 $"
+__version__ = "$Revision: 170187 $"
 
 
 # Standard Python imports.
@@ -537,13 +537,14 @@ class VBoxInstallerTestDriver(TestDriverBase):
         #
         # Go to system specific installation code.
         #
-        sHost = utils.getHostOs()
+        sHost = utils.getHostOs();
         if   sHost == 'darwin':     fRc = self._installVBoxOnDarwin();
         elif sHost == 'linux':      fRc = self._installVBoxOnLinux();
         elif sHost == 'solaris':    fRc = self._installVBoxOnSolaris();
         elif sHost == 'win':        fRc = self._installVBoxOnWindows();
         else:
             reporter.error('Unsupported host "%s".' % (sHost,));
+            fRc = False;
         if fRc is False:
             reporter.testFailure('Installation error.');
         elif fRc is not True:
@@ -573,13 +574,14 @@ class VBoxInstallerTestDriver(TestDriverBase):
         """
         reporter.testStart('Uninstalling VirtualBox');
 
-        sHost = utils.getHostOs()
+        sHost = utils.getHostOs();
         if   sHost == 'darwin':     fRc = self._uninstallVBoxOnDarwin();
         elif sHost == 'linux':      fRc = self._uninstallVBoxOnLinux();
         elif sHost == 'solaris':    fRc = self._uninstallVBoxOnSolaris(True);
         elif sHost == 'win':        fRc = self._uninstallVBoxOnWindows('uninstall');
         else:
             reporter.error('Unsupported host "%s".' % (sHost,));
+            fRc = None; # To make pylint happy.
         if fRc is False and not fIgnoreError:
             reporter.testFailure('Uninstallation failed.');
 
@@ -904,6 +906,48 @@ class VBoxInstallerTestDriver(TestDriverBase):
     ## VBox windows services we can query the status of.
     kasWindowsServices = [ 'vboxsup', 'vboxusbmon', 'vboxnetadp', 'vboxnetflt', 'vboxnetlwf' ];
 
+    ## Windows SetupAPI log files we handle.
+    kasSetupApiLogFiles = [
+        # Windows XP and later.
+        ( '%WINDIR%/setupapi.log',             'misc/other', 'SetupAPI (setupapi.log)', ),
+        ( '%WINDIR%/setupact.log',             'misc/other', 'SetupAPI (setupact.log)', ),
+        ( '%WINDIR%/setuperr.log',             'misc/other', 'SetupAPI (setuperr.log)', ),
+        # Windows 7 and later.
+        ( '%WINDIR%/INF/setupapi.app.log',     'misc/other', 'SetupAPI (setupapi.app.log)', ),
+        ( '%WINDIR%/INF/setupapi.dev.log',     'misc/other', 'SetupAPI (setupapi.dev.log)', ),
+        # Windows 10 and later.
+        ( '%WINDIR%/INF/setupapi.upgrade.log', 'misc/other', 'SetupAPI (setupapi.upgrade.log)', ),
+        ( '%WINDIR%/INF/setupact.log',         'misc/other', 'SetupAPI (setupact.log)', ),
+        ( '%WINDIR%/INF/setuperr.log',         'misc/other', 'SetupAPI (setuperr.log)', ),
+    ];
+
+    def _winPurgeSetupApiLogs(self):
+        """
+        Tries deleting the Setup API host logs.
+        """
+        for sFile, _, _ in self.kasSetupApiLogFiles:
+            sFile = os.path.expandvars(sFile);
+            try:
+                os.remove(sFile);
+            except:
+                pass;
+
+    def _winAddSetupApiLogs(self, sDescPrefix = None):
+        """
+        Adds all defined (and existing) SetupAPI host logs to the report.
+
+        The sDescPrefix is an optional prefix for the file naming.
+        """
+        if sDescPrefix:
+            sDescPrefix = sDescPrefix + ": ";
+        else:
+            sDescPrefix = '';
+
+        for sFile, sKind, sDesc in self.kasSetupApiLogFiles:
+            sFile = os.path.expandvars(sFile);
+            if os.path.isfile(sFile):
+                reporter.addLogFile(sFile, sKind, sDescPrefix + sDesc);
+
     def _installVBoxOnWindows(self):
         """ Installs VBox on Windows."""
         sExe = self._findFile('^VirtualBox-.*-(MultiArch|Win).exe$');
@@ -951,6 +995,9 @@ class VBoxInstallerTestDriver(TestDriverBase):
             else:
                 return False;
 
+        # Try removing old setupapi logs to get a fresh start before installing our stuff.
+        self._winPurgeSetupApiLogs();
+
         # We need the help text to detect supported options below.
         reporter.log('Executing: %s' % ([sExe, '--silent', '--help'], ));
         reporter.flushall();
@@ -986,6 +1033,10 @@ class VBoxInstallerTestDriver(TestDriverBase):
         if os.path.isfile(sLogFile):
             reporter.addLogFile(sLogFile, 'log/installer', "Verbose MSI installation log file");
         self._waitForTestManagerConnectivity(30);
+
+        # Add setupapi logs if something failed, to give some more clues about driver installation.
+        if fRc is False:
+            self._winAddSetupApiLogs('Installation');
 
         return fRc;
 
@@ -1103,6 +1154,9 @@ class VBoxInstallerTestDriver(TestDriverBase):
                     break;
                 time.sleep(2); # fudge.
 
+        # Try removing old setupapi logs to get a fresh start before uninstalling our stuff.
+        self._winPurgeSetupApiLogs();
+
         # Do the uninstalling.
         fRc = True;
         sLogFile = os.path.join(self.sScratchPath, 'VBoxUninstallLog.txt');
@@ -1122,6 +1176,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         # Upload the log on failure.  Do it early if the extra cleanups below causes trouble.
         if fRc is False and os.path.isfile(sLogFile):
             reporter.addLogFile(sLogFile, 'log/uninstaller', "Verbose MSI uninstallation log file");
+            self._winAddSetupApiLogs('Uninstallation');
             sLogFile = None;
 
         # Log driver service states (should ls \Driver\VBox* and \Device\VBox*).

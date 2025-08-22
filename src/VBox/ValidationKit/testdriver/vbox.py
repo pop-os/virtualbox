@@ -8,7 +8,7 @@ VirtualBox Specific base testdriver.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2024 Oracle and/or its affiliates.
+Copyright (C) 2010-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 164827 $"
+__version__ = "$Revision: 170187 $"
 
 # pylint: disable=unnecessary-semicolon
 
@@ -642,8 +642,9 @@ class EventHandlerBase(object):
                     oListener = oEventSrc.createListener();
                     dArgsCopy['oListener'] = oListener;
                     oRet = oSubClass(dArgsCopy);
-            except:
-                reporter.errorXcpt('%s::eventSource.createListener(%s) failed%s' % (sSrcParentNm, oListener, sLogSuffix));
+            except Exception as oXcpt:
+                reporter.errorXcpt('%s::eventSource.createListener(%s, %s) failed: %s; fPassive=%s%s'
+                                   % (sSrcParentNm, oSubClass, dArgsCopy, oXcpt, fPassive, sLogSuffix));
             else:
                 try:
                     oEventSrc.registerListener(oListener, aenmEvents, not fPassive);
@@ -1777,61 +1778,13 @@ class TestDriver(base.TestDriver):                                              
         return self.oBuild.sGuestAdditionsIso;
 
     @staticmethod
-    def versionToTuple(sVer, fIgnoreErrors = False):
-        """
-        Returns a semantic versioning string as a tuple.
-        """
-        try:
-            # Regular expression taken from semver.org (recommended regular expression for semantic version strings).
-            # Creative Commons ― CC BY 3.0
-            #
-            # Modified to also recognize our semantics:
-            # - We use "-BETA2" instead of "_BETA2".
-            oRegEx = re.compile(r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:[-|_]((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'); # pylint: disable=line-too-long
-            oMatch = oRegEx.search(sVer);
-            return oMatch.groups();
-        except:
-            if not fIgnoreErrors:
-                reporter.logXcpt('Handling regex for "%s" failed' % (sVer,));
-        return None;
-
-    @staticmethod
-    def compareVersion(sVer1, sVer2, fIgnoreErrors = False):
-        """
-        Compares two version numbers and returns the result.
-
-        Takes either strings or version tuples as input.
-
-        Returns 0 if both versions match.
-        Return -1 if version 1 is bigger than version 2.
-        Return  1 if version 2 is bigger than version 1.
-        Returns None on error.
-        """
-        assert sVer1 is not None;
-        assert sVer2 is not None;
-        try:
-            tpVer1 = TestDriver.versionToTuple(sVer1, fIgnoreErrors);
-            if tpVer1 is None:
-                return None;
-            tpVer2 = TestDriver.versionToTuple(sVer2, fIgnoreErrors);
-            if tpVer2 is None:
-                return None;
-            if tpVer1 == tpVer2:
-                return 0;
-            return 1 if tuple(map(str, tpVer2)) > tuple(map(str, tpVer1)) else -1;
-        except:
-            if not fIgnoreErrors:
-                reporter.logXcpt();
-        return None;
-
-    @staticmethod
-    def isVersionEqualOrBigger(sVer1, sVer2, fIgnoreErrors = False):
+    def isVersionEqualOrBigger(sVer1, sVer2):
         """
         Checks whether version 1 is equal or bigger than version 2.
 
         Returns True if version 1 is equal or bigger than version 2, False if not.
         """
-        return not TestDriver.compareVersion(sVer1, sVer2, fIgnoreErrors);
+        return utils.versionCompare(sVer1, sVer2) >= 0;
 
     def getGuestAdditionsVersion(self, oSession, fIgnoreErrors = False):
         """
@@ -1845,6 +1798,20 @@ class TestDriver(base.TestDriver):                                              
         except:
             if not fIgnoreErrors:
                 reporter.errorXcpt('Getting the Guest Additions version failed');
+        return None;
+
+    def getGuestAdditionsRevision(self, oSession, fIgnoreErrors = False):
+        """
+        Returns the installed Guest Additions (SVN) revision.
+
+        Returns revision as an integer, or None if not found / on error.
+        """
+        assert oSession is not None;
+        try:
+            return oSession.o.console.guest.additionsRevision;
+        except:
+            if not fIgnoreErrors:
+                reporter.errorXcpt('Getting the Guest Additions revision failed');
         return None;
 
     #
@@ -2358,8 +2325,9 @@ class TestDriver(base.TestDriver):                                              
             if self.fpApiVer >= 7.1 and hasattr(oVM.graphicsAdapter, 'isFeatureEnabled'):
                 fAccelerate3DEnabled = \
                     oVM.graphicsAdapter.isFeatureEnabled(vboxcon.GraphicsFeature_Acceleration3D);
-                fAccelerate2DVideoEnabled = \
-                    oVM.graphicsAdapter.isFeatureEnabled(vboxcon.GraphicsFeature_Acceleration2DVideo);
+                if self.fpApiVer < 7.2: # 2D video acceleration was removed with 7.2.
+                    fAccelerate2DVideoEnabled = \
+                        oVM.graphicsAdapter.isFeatureEnabled(vboxcon.GraphicsFeature_Acceleration2DVideo);
             else:
                 fAccelerate3DEnabled      = oVM.graphicsAdapter.accelerate3DEnabled;
                 fAccelerate2DVideoEnabled = oVM.graphicsAdapter.accelerate2DVideoEnabled;
@@ -2367,7 +2335,8 @@ class TestDriver(base.TestDriver):                                              
             fAccelerate3DEnabled      = oVM.accelerate3DEnabled;
             fAccelerate2DVideoEnabled = oVM.accelerate2DVideoEnabled;
         reporter.log("  3D acceleration:    %s" % (fAccelerate3DEnabled,));
-        reporter.log("  2D acceleration:    %s" % (fAccelerate2DVideoEnabled,));
+        if self.fpApiVer < 7.2:
+            reporter.log("  2D acceleration:    %s" % (fAccelerate2DVideoEnabled,));
         reporter.log("  TeleporterEnabled:  %s" % (oVM.teleporterEnabled,));
         reporter.log("  TeleporterPort:     %s" % (oVM.teleporterPort,));
         reporter.log("  TeleporterAddress:  %s" % (oVM.teleporterAddress,));
@@ -2501,13 +2470,17 @@ class TestDriver(base.TestDriver):                                              
 
         reporter.log("  Serial ports:");
         for iSlot in range(0, 8):
-            try:    oPort = oVM.getSerialPort(iSlot)
+            try:    oPort = oVM.getSerialPort(iSlot);
             except: break;
             if oPort is not None and oPort.enabled:
                 enmHostMode = oPort.hostMode;
-                reporter.log("    slot #%d: hostMode: %s (%s)  I/O port: %s  IRQ: %s  server: %s  path: %s" %
+                if self.fpApiVer >= 7.1:
+                    sIOAddressOrBase = oPort.IOAddress;
+                else:
+                    sIOAddressOrBase = oPort.IOBase;
+                reporter.log("    slot #%d: hostMode: %s (%s)  I/O address: %s  IRQ: %s  server: %s  path: %s" %
                              (iSlot,  self.oVBoxMgr.getEnumValueName('PortMode', enmHostMode),                                    # pylint: disable=not-callable
-                              enmHostMode, oPort.IOBase, oPort.IRQ, oPort.server, oPort.path,) );
+                              enmHostMode, sIOAddressOrBase, oPort.IRQ, oPort.server, oPort.path,) );
                 self.processPendingEvents();
 
         return True;

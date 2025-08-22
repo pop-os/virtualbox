@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -346,16 +346,4 @@ void UIVMActivityMonitorContainer::sltTogglePreferencesPane(bool fChecked)
 {
     AssertReturnVoid(m_pPaneContainer);
     m_pPaneContainer->setVisible(fChecked);
-}
-
-void UIVMActivityMonitorContainer::guestAdditionsStateChange(const QUuid &machineId)
-{
-    for (int i = m_pTabWidget->count() - 1; i >= 0; --i)
-    {
-        UIVMActivityMonitorLocal *pMonitor = qobject_cast<UIVMActivityMonitorLocal*>(m_pTabWidget->widget(i));
-        if (!pMonitor)
-            continue;
-        if (pMonitor->machineId() == machineId)
-            pMonitor->guestAdditionsStateChange();
-    }
 }

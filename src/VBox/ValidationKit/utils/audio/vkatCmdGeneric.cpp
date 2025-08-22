@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -651,10 +651,13 @@ static DECLCALLBACK(const char *) audioTestCmdPlayHelp(PCRTGETOPTDEF pOpt)
  */
 static DECLCALLBACK(RTEXITCODE) audioTestCmdPlayHandler(PRTGETOPTSTATE pGetState)
 {
+    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
+
     /* Option values: */
     PCPDMDRVREG pDrvReg             = AudioTestGetDefaultBackend();
     const char *pszDevId            = NULL;
     uint32_t    cTestTones          = 0;
+    uint32_t    cTestFiles          = 0;
     uint8_t     cbSample            = 0;
     uint8_t     cChannels           = 0;
     uint32_t    uHz                 = 0;
@@ -728,17 +731,17 @@ static DECLCALLBACK(RTEXITCODE) audioTestCmdPlayHandler(PRTGETOPTSTATE pGetState
 
             case VINF_GETOPT_NOT_OPTION:
             {
-                if (cTestTones)
-                    return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Playing test tones (-t) cannot be combined with playing files");
-
                 /* Set new (override standard) I/O PCM properties if set by the user. */
                 PDMAudioPropsInit(&IoOpts.Props,
                                   cbSample  ? cbSample  : 2 /* 16-bit */, true /* fSigned */,
                                   cChannels ? cChannels : 2 /* Stereo */, uHz ? uHz : 44100);
 
-                RTEXITCODE rcExit = audioTestPlayOne(ValueUnion.psz, pDrvReg, pszDevId, &IoOpts);
-                if (rcExit != RTEXITCODE_SUCCESS)
-                    return rcExit;
+                RTEXITCODE const rcExit2 = audioTestPlayOne(ValueUnion.psz, pDrvReg, pszDevId, &IoOpts);
+                if (rcExit == RTEXITCODE_SUCCESS)
+                    rcExit = rcExit2;
+                /* Keep going. */
+
+                cTestFiles++;
                 break;
             }
 
@@ -749,19 +752,26 @@ static DECLCALLBACK(RTEXITCODE) audioTestCmdPlayHandler(PRTGETOPTSTATE pGetState
         }
     }
 
-    while (cTestTones--)
+    if (   !cTestFiles
+        && !cTestTones)
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Must specify at least one test tone and/or file to play!");
+
+    while (cTestTones)
     {
         /* Use some sane defaults if no PCM props are set by the user. */
         PDMAudioPropsInit(&ToneParms.Props,
                           cbSample  ? cbSample  : 2 /* 16-bit */, true /* fSigned */,
                           cChannels ? cChannels : 2 /* Stereo */, uHz ? uHz : 44100);
 
-        RTEXITCODE rcExit = audioTestPlayTestToneOne(&ToneParms, pDrvReg, pszDevId, &IoOpts);
-        if (rcExit != RTEXITCODE_SUCCESS)
-            return rcExit;
+        RTEXITCODE const rcExit2 = audioTestPlayTestToneOne(&ToneParms, pDrvReg, pszDevId, &IoOpts);
+        if (rcExit == RTEXITCODE_SUCCESS)
+            rcExit = rcExit2;
+
+        cTestTones--;
     }
 
-    return RTEXITCODE_SUCCESS;
+    RTMsgInfo("Played %RU32 file(s) / %RU32 test tone(s)\n", cTestFiles, cTestTones);
+    return rcExit;
 }
 
 

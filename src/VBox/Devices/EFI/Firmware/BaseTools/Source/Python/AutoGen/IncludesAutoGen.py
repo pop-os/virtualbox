@@ -40,6 +40,16 @@ class IncludesAutoGen():
         self.module_autogen = ModuleAuto
         self.ToolChainFamily = ModuleAuto.ToolChainFamily
         self.workspace = ModuleAuto.WorkspaceDir
+        # vbox
+        MakePath = ModuleAuto.BuildOption.get('MAKE', {}).get('PATH')
+        if not MakePath:
+            MakePath = AutoGenObject.ToolDefinition.get('MAKE', {}).get('PATH')
+        if "nmake" in MakePath:
+            assert False, MakePath # DONT COMMIT
+            self._MakefileType = 'nmake'
+        else:
+            self._MakefileType = 'gmake'
+        # vbox
 
     def CreateModuleDeps(self):
         SaveFileOnChange(os.path.join(self.makefile_folder,"deps.txt"),"\n".join(self.DepsCollection),False)
@@ -226,7 +236,19 @@ ${END}
             if ModuleDepDict[source_abs]:
                 target_abs = self.GetRealTarget(source_abs)
                 dep_file_name = os.path.basename(source_abs) + ".deps"
-                SaveFileOnChange(os.path.join(os.path.dirname(target_abs),dep_file_name)," \\\n".join([target_abs+":"] + ['''"''' + item +'''"''' for item in ModuleDepDict[source_abs]]),False)
+                # VBox - generate kmk/gmake compatible files when used.
+                #SaveFileOnChange(os.path.join(os.path.dirname(target_abs),dep_file_name)," \\\n".join([target_abs+":"] + ['''"''' + item +'''"''' for item in ModuleDepDict[source_abs]]),False)
+                if self._MakefileType != 'nmake':
+                    sDepFile = os.path.join(os.path.dirname(target_abs), dep_file_name);
+                    #EdkLogger.info('IncludesAutoGen.py: %s' % (sDepFile,));
+                    SaveFileOnChange(sDepFile,
+                                     target_abs.replace(' ', '\\ ') + ": \\\n"
+                                     + ' \\\n'.join([s.replace(' ', '\\ ') for s in ModuleDepDict[source_abs]]), 
+                                     IsBinaryFile = False);
+                else:
+                    assert False # DONT COMMIT
+                    SaveFileOnChange(os.path.join(os.path.dirname(target_abs),dep_file_name)," \\\n".join([target_abs+":"] + ['''"''' + item +'''"''' for item in ModuleDepDict[source_abs]]),False)
+                # VBox end
 
     def UpdateDepsFileforNonMsvc(self):
         """ Update .deps files.

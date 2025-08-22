@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -95,7 +95,7 @@ typedef struct RTLDRLNXMODSIG
     uint8_t         cbKeyId;
     /** Zero padding. */
     uint8_t         abReserved[3];
-    /** The length of the signature preceeding this footer structure. */
+    /** The length of the signature preceding this footer structure. */
     uint32_t        cbSignature;
     /** Magic value identifying this structure.   */
     char            achMagic[sizeof(RTLDRLNXMODSIG_MAGIC) - 1];

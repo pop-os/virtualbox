@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -357,6 +357,7 @@ public:
             , offStart(0)
             , fOpen(false)
             , tcAbsStartMs(0)
+            , tcAbsLastWrittenMs(0)
             , cBlocks(0) { }
 
         /** This cluster's ID. */

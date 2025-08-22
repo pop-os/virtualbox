@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -216,7 +216,18 @@ static void createVM(IVirtualBox *virtualBox)
      */
     /* alternative to illustrate the use of string classes */
     rc = machine->SetName(NS_ConvertUTF8toUTF16("A new name").get());
+    if (NS_FAILED(rc))
+    {
+        printf("Error: could not set name for machine! rc=%#x\n", rc);
+        return;
+    }
+
     rc = machine->SetMemorySize(128);
+    if (NS_FAILED(rc))
+    {
+        printf("Error: could not set memory size for machine! rc=%#x\n", rc);
+        return;
+    }
 
     /*
      * Now a more advanced property -- the guest OS type. This is
@@ -477,9 +488,10 @@ int main(int argc, char **argv)
         setenv("VBOX_XPCOM_HOME", RTPATH_APP_PRIVATE_ARCH, 1);
 # else
     char szTmp[8192];
+    memset(szTmp, 0, sizeof(szTmp));
     if (!getenv("VBOX_XPCOM_HOME"))
     {
-        strcpy(szTmp, argv[0]);
+        strncpy(szTmp, argv[0], sizeof(szTmp) - 1);
         *strrchr(szTmp, '/') = '\0';
         strcat(szTmp, "/..");
         fprintf(stderr, "tstVBoxAPIXPCOM: VBOX_XPCOM_HOME is not set, using '%s' instead\n", szTmp);
@@ -502,27 +514,12 @@ int main(int argc, char **argv)
      */
     {
         nsCOMPtr<nsIServiceManager> serviceManager;
-        rc = NS_InitXPCOM2(getter_AddRefs(serviceManager), nsnull, nsnull);
+        rc = NS_InitXPCOM2Ex(getter_AddRefs(serviceManager), nsnull, nsnull, 0);
         if (NS_FAILED(rc))
         {
             printf("Error: XPCOM could not be initialized! rc=%#x\n", rc);
             return -1;
         }
-
-#if 0
-        /*
-         * Register our components. This step is only necessary if this executable
-         * implements XPCOM components itself which is not the case for this
-         * simple example.
-         */
-        nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(serviceManager);
-        if (!registrar)
-        {
-            printf("Error: could not query nsIComponentRegistrar interface!\n");
-            return -1;
-        }
-        registrar->AutoRegister(nsnull);
-#endif
 
         /*
          * Make sure the main event queue is created. This event queue is

@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -224,6 +224,16 @@ typedef enum EFIDBGPOINT
     EFIDBGPOINT_GRAPHICS,
     /** DEBUG_AGENT_INIT_DXE_AP. */
     EFIDBGPOINT_DXE_AP,
+    /** DEBUG_AGENT_PEI. */
+    EFIDBGPOINT_PEI,
+    /** DEBUG_AGENT_DXE_LOAD. */
+    EFIDBGPOINT_DXE_LOAD,
+    /** DEBUG_AGENT_DXE_UNLOAD. */
+    EFIDBGPOINT_DXE_UNLOAD,
+    /** DEBUG_AGENT_REINITIALIZE. */
+    EFIDBGPOINT_REINITIALIZE,
+    /** DEBUG_AGENT_INIT_DXE_CORE_LATE. */
+    EFIDBGPOINT_DXE_CORE_LATE,
     /** End of valid points. */
     EFIDBGPOINT_END,
     /** Blow up the type to 32-bits. */

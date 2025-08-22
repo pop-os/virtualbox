@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1073,7 +1073,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CR0_WP_BIT                      16
 /** Bit 18 - AM - Alignment Mask (486+). */
 #define X86_CR0_AM                          RT_BIT_32(18)
-#define X86_CR0_ALIGMENT_MASK               RT_BIT_32(18)
+#define X86_CR0_ALIGNMENT_MASK              RT_BIT_32(18)
 #define X86_CR0_AM_BIT                      18
 /** Bit 29 - NW - Not Write-though (486+). */
 #define X86_CR0_NW                          RT_BIT_32(29)
@@ -2749,7 +2749,7 @@ AssertCompileSize(X86PTPAE, 4096);
 typedef X86PTPAE *PX86PTPAE;
 /** Pointer to a const page table. */
 typedef const X86PTPAE *PCX86PTPAE;
-#endif /* !__ASSEMBLY__ */
+#endif /* !__ASSEMBLER__ */
 
 /** The page shift to get the PA PTE index. */
 #define X86_PT_PAE_SHIFT                    12
@@ -4033,9 +4033,9 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
  */
 typedef struct X86XSAVEHDR
 {
-    /** XTATE_BV - Bitmap indicating whether a component is in the state. */
+    /** XSTATE_BV - Bitmap indicating whether a component is in the state. */
     uint64_t        bmXState;
-    /** XCOMP_BC - Bitmap used by instructions applying structure compaction. */
+    /** XCOMP_BV  - Bitmap used by instructions applying structure compaction. */
     uint64_t        bmXComp;
     /** Reserved for furture extensions, probably MBZ. */
     uint64_t        au64Reserved[6];

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -254,15 +254,6 @@ HRESULT GuestOSType::getRecommendedVRAM(ULONG *aVRAMSize)
 {
     /* mVRAMSize is constant during life time, no need to lock */
     *aVRAMSize = mVRAMSize;
-
-    return S_OK;
-}
-
-
-HRESULT GuestOSType::getRecommended2DVideoAcceleration(BOOL *aRecommended2DVideoAcceleration)
-{
-    /* Constant during life time, no need to lock */
-    *aRecommended2DVideoAcceleration = !!(mOSHint & VBOXOSHINT_ACCEL2D);
 
     return S_OK;
 }

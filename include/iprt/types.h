@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -201,6 +201,21 @@ RT_C_DECLS_END
 
 # else
 #  include <stddef.h>
+#  if defined(RT_OS_SOLARIS) && defined(VBOX_WITH_PARFAIT) && defined(_KERNEL) && defined(__INT_FAST16_MAX__)
+    /* HACK ALERT: Workaround for duplicate [u]int_fast16_t conflicting due to 'incorrect'
+                   __INT_FAST16_TYPE__ and __UINT_FAST16_TYPE__ definitions in pairfait.
+                   The types are usually 'int' and 'unsigned int', which the system headers
+                   assume, thus we get a conflict when the pairfait compiler redefines to
+                   a narrow variant.  Workaround, try ignore the system types and use the
+                   compiler ones... */
+#   if (__INT_FAST16_MAX__) == 32767
+#    define int_fast16_t  hacked_int_fast16_t
+#    define uint_fast16_t hacked_uint_fast16_t
+#    include <sys/int_types.h>
+#    undef  int_fast16_t
+#    undef  uint_fast16_t
+#   endif
+#  endif
 #  include <sys/types.h>
 # endif
 
@@ -250,8 +265,9 @@ typedef signed long ssize_t;
 
 /*
  * C doesn't have bool, nor does VisualAge for C++ v3.08.
+ * Starting with c23, bool, true and false are keywords.
  */
-#if !defined(__cplusplus) || (defined(__IBMCPP__) && defined(RT_OS_OS2))
+#if (!defined(__cplusplus) || (defined(__IBMCPP__) && defined(RT_OS_OS2))) && !RT_STDC_VERSION_PREREQ(202311L)
 # if defined(__GNUC__)
 #  if defined(RT_OS_LINUX) && __GNUC__ < 3
 typedef uint8_t bool;
@@ -3202,6 +3218,20 @@ typedef struct RTFDTINT                     RT_FAR *RTFDT;
 typedef RTFDT                               RT_FAR *PRTFDT;
 /** A NIL Flattened Devicetree handle. */
 #define NIL_RTFDT                                  ((RTFDT)~(uintptr_t)0)
+
+/** ACPI table handle. */
+typedef struct RTACPITBLINT                 RT_FAR *RTACPITBL;
+/** Pointer to an ACPI table handle. */
+typedef RTACPITBL                           RT_FAR *PRTACPITBL;
+/** A NIL ACPI table handle. */
+#define NIL_RTACPITBL                              ((RTACPITBL)~(uintptr_t)0)
+
+/** ACPI resource handle. */
+typedef struct RTACPIRESINT                 RT_FAR *RTACPIRES;
+/** Pointer to an ACPI resource handle. */
+typedef RTACPIRES                           RT_FAR *PRTACPIRES;
+/** A NIL ACPI resource handle. */
+#define NIL_RTACPIRES                              ((RTACPIRES)~(uintptr_t)0)
 
 
 /**

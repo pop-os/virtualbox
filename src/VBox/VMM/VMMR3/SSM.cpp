@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -9500,7 +9500,11 @@ VMMR3DECL(int) SSMR3SetLoadErrorV(PSSMHANDLE pSSM, int rc, RT_SRC_POS_DECL, cons
     /*
      * Input validations.
      */
-    SSM_ASSERT_READABLE_RET(pSSM);
+    AssertMsgReturn(   pSSM->enmOp == SSMSTATE_LOAD_EXEC
+                    || pSSM->enmOp == SSMSTATE_LOAD_PREP
+                    || pSSM->enmOp == SSMSTATE_LOAD_DONE
+                    || (pSSM->enmOp == SSMSTATE_OPEN_READ && pSSM->pVM) /*??*/
+                    , ("Invalid state %d\n", pSSM->enmOp), VERR_SSM_INVALID_STATE);
     AssertPtr(pszFormat);
     Assert(RT_FAILURE_NP(rc));
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -176,8 +176,12 @@ typedef std::list< ComObjPtr<ExtPack> > ExtPackList;
  */
 struct ExtPackManager::Data
 {
-    Data()
-        : cUpdate(0)
+    Data() :
+#ifndef VBOX_COM_INPROC
+          pVirtualBox(NULL),
+#endif
+          enmContext(VBOXEXTPACKCTX_INVALID)
+        , cUpdate(0)
     {}
 
     /** The directory where the extension packs are installed. */
@@ -943,7 +947,7 @@ HRESULT ExtPack::i_callUninstallHookAndClose(IVirtualBox *a_pVirtualBox, bool a_
     if (   m != NULL
         && m->hMainMod != NIL_RTLDRMOD)
     {
-        if (m->pReg->pfnUninstall && !a_fForcedRemoval)
+        if (m->pReg->pfnUninstall)
         {
             int vrc = m->pReg->pfnUninstall(m->pReg, a_pVirtualBox);
             if (RT_FAILURE(vrc))
@@ -2750,6 +2754,7 @@ HRESULT ExtPackManager::i_runSetUidToRootHelper(Utf8Str const *a_pstrDisplayInfo
     if (RT_SUCCESS(vrc))
     {
         vrc = RTPipeClose(hStdErrPipe.u.hPipe);
+        AssertRC(vrc);
         hStdErrPipe.u.hPipe = NIL_RTPIPE;
 
         /*

@@ -9,51 +9,6 @@
     </message>
 </context>
 <context>
-    <name>MAC_APPLICATION_MENU</name>
-    <message>
-        <source>About %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Preferences...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Services</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hide %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hide Others</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show All</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Quit %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>Print Device Input Slot</name>
-    <message>
-        <source>Automatic</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>Print Device Output Bin</name>
-    <message>
-        <source>Automatic</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>QAbstractSocket</name>
     <message>
         <source>Socket operation timed out</source>
@@ -203,95 +158,14 @@
     </message>
 </context>
 <context>
-    <name>QAndroidPlatformTheme</name>
-    <message>
-        <source>Yes</source>
-        <translation type="unfinished">Áno</translation>
-    </message>
-    <message>
-        <source>Yes to All</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No</source>
-        <translation type="unfinished">Nie</translation>
-    </message>
-    <message>
-        <source>No to All</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>QApplication</name>
-    <message>
-        <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>Program &apos;%1&apos; vyžaduje Qt %2, nájdené Qt %3.</translation>
-    </message>
     <message>
         <source>Incompatible Qt Library Error</source>
         <translation>Chyba kompatibility knižnice Qt</translation>
     </message>
-</context>
-<context>
-    <name>QCocoaMenuItem</name>
     <message>
-        <source>About</source>
+        <source>Application &quot;%1&quot; requires Qt %2, found Qt %3.</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Config</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Preference</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Options</source>
-        <translation type="unfinished">Možnosti</translation>
-    </message>
-    <message>
-        <source>Setting</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Setup</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Quit</source>
-        <translation type="unfinished">Opustiť</translation>
-    </message>
-    <message>
-        <source>Exit</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cut</source>
-        <translation type="unfinished">Vystrihnúť</translation>
-    </message>
-    <message>
-        <source>Copy</source>
-        <translation type="unfinished">Kopírovať</translation>
-    </message>
-    <message>
-        <source>Paste</source>
-        <translation type="unfinished">Vložiť</translation>
-    </message>
-    <message>
-        <source>Select All</source>
-        <translation type="unfinished">Vybrať všetko</translation>
-    </message>
-    <message>
-        <source>About Qt</source>
-        <translation type="unfinished">O Qt</translation>
-    </message>
-</context>
-<context>
-    <name>QCocoaTheme</name>
-    <message>
-        <source>Don&apos;t Save</source>
-        <translation type="unfinished">Neuložiť</translation>
     </message>
 </context>
 <context>
@@ -370,198 +244,6 @@ Press ESC to cancel</source>
     </message>
 </context>
 <context>
-    <name>QCommandLineParser</name>
-    <message>
-        <source>Displays version information.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Displays help on commandline options.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Displays help including Qt specific options.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unknown option &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unknown options: %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Missing value after &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected value after &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>[options]</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Usage: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Options:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Arguments:</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QCoreApplication</name>
-    <message>
-        <source>%1: key is empty</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: kľúč je prázdny</translation>
-    </message>
-    <message>
-        <source>%1: unable to make key</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: nedá sa vytvoriť kľúč</translation>
-    </message>
-    <message>
-        <source>%1: ftok failed</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: ftok zlyhal</translation>
-    </message>
-</context>
-<context>
-    <name>QCupsJobWidget</name>
-    <message>
-        <source>Job</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Job Control</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Scheduled printing:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Billing information:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Job priority:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Banner Pages</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>End:</source>
-        <comment>Banner page at end</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Start:</source>
-        <comment>Banner page at start</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Print Immediately</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hold Indefinitely</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Day (06:00 to 17:59)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Night (18:00 to 05:59)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Second Shift (16:00 to 23:59)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Third Shift (00:00 to 07:59)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Weekend (Saturday to Sunday)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Specific Time</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>None</source>
-        <comment>CUPS Banner page</comment>
-        <translation type="unfinished">Žiadne</translation>
-    </message>
-    <message>
-        <source>Standard</source>
-        <comment>CUPS Banner page</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unclassified</source>
-        <comment>CUPS Banner page</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Confidential</source>
-        <comment>CUPS Banner page</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Classified</source>
-        <comment>CUPS Banner page</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Secret</source>
-        <comment>CUPS Banner page</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Top Secret</source>
-        <comment>CUPS Banner page</comment>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QCupsPrinterSupport</name>
-    <message>
-        <source>Authentication Needed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Authentication needed to use %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Authentication needed to use %1 on %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Username:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Password:</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
@@ -608,32 +290,6 @@ Press ESC to cancel</source>
     </message>
 </context>
 <context>
-    <name>QDBusTrayIcon</name>
-    <message>
-        <source>OK</source>
-        <translation type="unfinished">OK</translation>
-    </message>
-</context>
-<context>
-    <name>QDateTimeParser</name>
-    <message>
-        <source>AM</source>
-        <translation type="unfinished">AM</translation>
-    </message>
-    <message>
-        <source>am</source>
-        <translation type="unfinished">am</translation>
-    </message>
-    <message>
-        <source>PM</source>
-        <translation type="unfinished">PM</translation>
-    </message>
-    <message>
-        <source>pm</source>
-        <translation type="unfinished">pm</translation>
-    </message>
-</context>
-<context>
     <name>QDialog</name>
     <message>
         <source>What&apos;s This?</source>
@@ -648,344 +304,104 @@ Press ESC to cancel</source>
     </message>
 </context>
 <context>
-    <name>QDirModel</name>
-    <message>
-        <source>Name</source>
-        <translation>Názov</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <translation>Veľkosť</translation>
-    </message>
-    <message>
-        <source>Kind</source>
-        <comment>Match OS X Finder</comment>
-        <translation>Druh</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <comment>All other platforms</comment>
-        <translation>Typ</translation>
-    </message>
-    <message>
-        <source>Date Modified</source>
-        <translation>Dátum úpravy</translation>
-    </message>
-</context>
-<context>
     <name>QDnsLookup</name>
     <message>
         <source>Operation cancelled</source>
         <translation>Operácia bola zrušená</translation>
     </message>
+    <message>
+        <source>Invalid domain name</source>
+        <translation type="unfinished">Neplatný názov domény</translation>
+    </message>
+    <message>
+        <source>SSL/TLS support not present</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Request timed out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server could not process query</source>
+        <translation type="unfinished">Sever nemôže spracovať dopyt</translation>
+    </message>
+    <message>
+        <source>Server failure</source>
+        <translation type="unfinished">Zlyhanie servera</translation>
+    </message>
+    <message>
+        <source>Non existent domain</source>
+        <translation type="unfinished">Neexistujúca doména</translation>
+    </message>
+    <message>
+        <source>Server refused to answer</source>
+        <translation type="unfinished">Server odmietol odpovedať</translation>
+    </message>
+    <message>
+        <source>Invalid reply received (rcode %1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid reply received</source>
+        <translation type="unfinished">Prijatá neplatná odpoveď</translation>
+    </message>
+    <message>
+        <source>Invalid reply received (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IPv6 nameservers are currently not supported on this OS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reply was too large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not expand domain name</source>
+        <translation type="unfinished">Nie je možné expandovať názov domény</translation>
+    </message>
+    <message>
+        <source>Invalid IPv4 address record</source>
+        <translation type="unfinished">Neplatný záznam IPv4 adresy</translation>
+    </message>
+    <message>
+        <source>Invalid IPv6 address record</source>
+        <translation type="unfinished">Neplatný záznam IPv6 adresy</translation>
+    </message>
+    <message>
+        <source>Invalid canonical name record</source>
+        <translation type="unfinished">Neplatný záznam kanonického názvu</translation>
+    </message>
+    <message>
+        <source>Invalid name server record</source>
+        <translation type="unfinished">Neplatný záznam serverového názvu</translation>
+    </message>
+    <message>
+        <source>Invalid pointer record</source>
+        <translation type="unfinished">Neplatný záznam ukazovateľa</translation>
+    </message>
+    <message>
+        <source>Invalid mail exchange record</source>
+        <translation type="unfinished">Neplatný záznam e-mailovej výmeny</translation>
+    </message>
+    <message>
+        <source>Invalid service record</source>
+        <translation type="unfinished">Neplatný záznam služby</translation>
+    </message>
+    <message>
+        <source>Invalid TLS association record</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid text record</source>
+        <translation type="unfinished">Neplatný textový záznam</translation>
+    </message>
 </context>
 <context>
     <name>QDnsLookupRunnable</name>
     <message>
-        <source>Invalid domain name</source>
-        <translation>Neplatný názov domény</translation>
-    </message>
-    <message>
-        <source>Not yet supported on Android</source>
-        <translation>Na Androide ešte nepodporované</translation>
-    </message>
-    <message>
-        <source>Resolver functions not found</source>
-        <translation>Funkcie prekladača (resolver) neboli nájdené</translation>
-    </message>
-    <message>
-        <source>Resolver initialization failed</source>
-        <translation>Prekladač (resolver) sa nepodarilo inicializovať</translation>
-    </message>
-    <message>
-        <source>Server could not process query</source>
-        <translation>Sever nemôže spracovať dopyt</translation>
-    </message>
-    <message>
-        <source>Server failure</source>
-        <translation>Zlyhanie servera</translation>
-    </message>
-    <message>
-        <source>Non existent domain</source>
-        <translation>Neexistujúca doména</translation>
-    </message>
-    <message>
-        <source>Server refused to answer</source>
-        <translation>Server odmietol odpovedať</translation>
-    </message>
-    <message>
-        <source>Invalid reply received</source>
-        <translation>Prijatá neplatná odpoveď</translation>
-    </message>
-    <message>
-        <source>Could not expand domain name</source>
-        <translation>Nie je možné expandovať názov domény</translation>
-    </message>
-    <message>
-        <source>Invalid IPv4 address record</source>
-        <translation>Neplatný záznam IPv4 adresy</translation>
-    </message>
-    <message>
-        <source>Invalid IPv6 address record</source>
-        <translation>Neplatný záznam IPv6 adresy</translation>
-    </message>
-    <message>
-        <source>Invalid canonical name record</source>
-        <translation>Neplatný záznam kanonického názvu</translation>
-    </message>
-    <message>
-        <source>Invalid name server record</source>
-        <translation>Neplatný záznam serverového názvu</translation>
-    </message>
-    <message>
-        <source>Invalid pointer record</source>
-        <translation>Neplatný záznam ukazovateľa</translation>
-    </message>
-    <message>
-        <source>Invalid mail exchange record</source>
-        <translation>Neplatný záznam e-mailovej výmeny</translation>
-    </message>
-    <message>
-        <source>Invalid service record</source>
-        <translation>Neplatný záznam služby</translation>
-    </message>
-    <message>
-        <source>Invalid text record</source>
-        <translation>Neplatný textový záznam</translation>
-    </message>
-    <message>
-        <source>Resolver library can&apos;t be loaded: No runtime library loading support</source>
-        <translation>Knižnica prekladača (resolver)  nemôže byť načítaná: načítanie knižnice za behu nie je podporované</translation>
-    </message>
-    <message>
-        <source>IPv6 addresses for nameservers are currently not supported</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No hostname given</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid hostname</source>
-        <translation type="unfinished">Neplatný hostiteľ</translation>
-    </message>
-    <message>
-        <source>Host %1 could not be found.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation type="unfinished">Neznáma chyba</translation>
-    </message>
-</context>
-<context>
-    <name>QDockWidget</name>
-    <message>
-        <source>Float</source>
-        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
-        <translation>Plávať</translation>
-    </message>
-    <message>
-        <source>Undocks and re-attaches the dock widget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <extracomment>Accessible name for button closing a dock widget</extracomment>
-        <translation>Zavrieť</translation>
-    </message>
-    <message>
-        <source>Closes the dock widget</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QDomParser</name>
-    <message>
-        <source>Error occurred while processing XML declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Multiple DTD sections are not allowed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing document type declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing comment</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing a processing instruction</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing a start element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected end element &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing an end element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing the element content</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing comments</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing an entity reference</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected token</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Tag mismatch</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing entity declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing notation declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QDtls</name>
-    <message>
-        <source>Invalid (empty) secret</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Multicast and broadcast addresses are not supported</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot set peer after handshake started</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid address</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot set verification name after handshake started</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot set configuration after handshake started</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot start/continue handshake, invalid handshake state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid (nullptr) socket</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>To start a handshake you must set peer&apos;s address and port first</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>To start a handshake, DTLS server requires non-empty datagram (client hello)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot start handshake, already done/in progress</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A valid QUdpSocket and non-empty datagram are needed to continue the handshake</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot continue handshake, not in InProgress state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot resume, not in VerificationError state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No handshake in progress, nothing to abort</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot send shutdown alert, not encrypted</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot write a datagram, not in encrypted state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot read a datagram, not in encrypted state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 failed</source>
-        <extracomment>%1: Some function</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid SslMode, SslServerMode or SslClientMode expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid protocol version, DTLS protocol expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>BIO_ADD_new failed, cannot start handshake</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot start the handshake, verified client hello expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Peer verification failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The DTLS connection has been closed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error while writing: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The DTLS connection has been shutdown</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error while reading: %1</source>
-        <translation type="unfinished">Chyba pri čítaní: %1</translation>
-    </message>
-</context>
-<context>
-    <name>QDtlsClientVerifier</name>
-    <message>
-        <source>A valid UDP socket, non-empty datagram, valid address/port were expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>BIO_ADDR_new failed, ignoring client hello</source>
+        <source>Not yet supported on this OS</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1010,6 +426,10 @@ Press ESC to cancel</source>
     <message>
         <source>&amp;OK</source>
         <translation>&amp;OK</translation>
+    </message>
+    <message>
+        <source>An error occurred</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Critical Error:</source>
@@ -1039,14 +459,6 @@ Press ESC to cancel</source>
         <translation>%1 sa nepodarilo otvoriť pre čítanie</translation>
     </message>
     <message>
-        <source>Failure to write block</source>
-        <translation>Chyba pri zápise bloku</translation>
-    </message>
-    <message>
-        <source>Cannot create %1 for output</source>
-        <translation>Nepodarilo sa vytvoriť %1 pre výstup</translation>
-    </message>
-    <message>
         <source>Destination file is the same file.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1068,6 +480,14 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Cannot open for output: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failure to write block: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot create %1 for output: %2</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1265,37 +685,6 @@ Chcete ho aj tak zmazať?</translation>
         <translation>Odstrániť</translation>
     </message>
     <message>
-        <source>My Computer</source>
-        <translation>Môj počítač</translation>
-    </message>
-    <message>
-        <source>Drive</source>
-        <translation>Disková jednotka</translation>
-    </message>
-    <message>
-        <source>File</source>
-        <translation>Súbor</translation>
-    </message>
-    <message>
-        <source>File Folder</source>
-        <comment>Match Windows Explorer</comment>
-        <translation>Priečinok súborov</translation>
-    </message>
-    <message>
-        <source>Folder</source>
-        <comment>All other platforms</comment>
-        <translation>Priečinok</translation>
-    </message>
-    <message>
-        <source>Shortcut</source>
-        <comment>All other platforms</comment>
-        <translation>Skratka</translation>
-    </message>
-    <message>
-        <source>Unknown</source>
-        <translation>Neznáme</translation>
-    </message>
-    <message>
         <source>Alt+Left</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1311,23 +700,9 @@ Chcete ho aj tak zmazať?</translation>
         <source>All files (*)</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>%1 File</source>
-        <extracomment>%1 is a file name suffix, for example txt</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Alias</source>
-        <comment>OS X Finder</comment>
-        <translation type="unfinished">Alias</translation>
-    </message>
 </context>
 <context>
     <name>QFileSystemModel</name>
-    <message>
-        <source>Invalid filename</source>
-        <translation>Neplatný názov súboru</translation>
-    </message>
     <message>
         <source>Name</source>
         <translation>Názov</translation>
@@ -1357,10 +732,6 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Computer</source>
         <translation>Počítač</translation>
-    </message>
-    <message>
-        <source>&lt;b&gt;The name &quot;%1&quot; cannot be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuation marks.</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1598,118 +969,6 @@ Chcete ho aj tak zmazať?</translation>
     </message>
 </context>
 <context>
-    <name>QFtp</name>
-    <message>
-        <source>Not connected</source>
-        <translation>Nepripojené</translation>
-    </message>
-    <message>
-        <source>Host %1 not found</source>
-        <translation>Hostiteľ %1 nenájdený</translation>
-    </message>
-    <message>
-        <source>Connection refused to host %1</source>
-        <translation>Spojenie s hostiteľom %1 odmietnuté</translation>
-    </message>
-    <message>
-        <source>Connection timed out to host %1</source>
-        <translation>Časový limit pre spojenie s počítačom &apos;%1&apos; bol prekročený</translation>
-    </message>
-    <message>
-        <source>Connected to host %1</source>
-        <translation>Pripojený k hostiteľovi %1</translation>
-    </message>
-    <message>
-        <source>Data Connection refused</source>
-        <translation>Dátové spojenie bolo zamietnuté</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Neznáma chyba</translation>
-    </message>
-    <message>
-        <source>Connecting to host failed:
-%1</source>
-        <translation>Spojenie s hostiteľom zlyhalo:
-%1</translation>
-    </message>
-    <message>
-        <source>Login failed:
-%1</source>
-        <translation>Prihlásenie sa nepodarilo:
-%1</translation>
-    </message>
-    <message>
-        <source>Listing directory failed:
-%1</source>
-        <translation>Výpis priečinku zlyhal:
-%1</translation>
-    </message>
-    <message>
-        <source>Changing directory failed:
-%1</source>
-        <translation>Zmena priečinku zlyhala:
-%1</translation>
-    </message>
-    <message>
-        <source>Downloading file failed:
-%1</source>
-        <translation>Stiahnutie súboru sa nepodarilo:
-%1</translation>
-    </message>
-    <message>
-        <source>Uploading file failed:
-%1</source>
-        <translation>Poslanie súboru zlyhalo:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing file failed:
-%1</source>
-        <translation>Odstránenie súboru zlyhalo:
-%1</translation>
-    </message>
-    <message>
-        <source>Creating directory failed:
-%1</source>
-        <translation>Vytvorenie priečinku zlyhalo:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing directory failed:
-%1</source>
-        <translation>Odstránenie priečinku zlyhalo:
-%1</translation>
-    </message>
-    <message>
-        <source>Connection closed</source>
-        <translation>Spojenie ukončené</translation>
-    </message>
-</context>
-<context>
-    <name>QGnomeTheme</name>
-    <message>
-        <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
-    </message>
-    <message>
-        <source>&amp;Save</source>
-        <translation>&amp;Uložiť</translation>
-    </message>
-    <message>
-        <source>&amp;Cancel</source>
-        <translation>&amp;Zrušiť</translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation>Za&amp;vrieť</translation>
-    </message>
-    <message>
-        <source>Close without Saving</source>
-        <translation>Zavrieť bez uloženia</translation>
-    </message>
-</context>
-<context>
     <name>QGuiApplication</name>
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
@@ -1773,15 +1032,15 @@ Chcete ho aj tak zmazať?</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Alias for --windowgeometry.</source>
+        <source>Alias for --qwindowgeometry.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Alias for --windowicon.</source>
+        <source>Alias for --qwindowicon.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Alias for --windowtitle.</source>
+        <source>Alias for --qwindowtitle.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1850,12 +1109,36 @@ Chcete ho aj tak zmazať?</translation>
         <translation>Počas štartu SSL protokola sa vyskytla chyba</translation>
     </message>
     <message>
+        <source>Unsupported content encoding: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to initialize the compression decoder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The decompressed output exceeds the limits specified by QNetworkRequest::decompressedSafetyCheckThreshold()</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Too many redirects</source>
         <translation>Príliš veľa presmerovaní</translation>
     </message>
     <message>
         <source>Insecure redirect</source>
         <translation>Nezabezpečené presmerovanie</translation>
+    </message>
+    <message>
+        <source>Decompression failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Data downloaded is too large to store</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to initialize decompression: %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1914,6 +1197,14 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Unable to rollback transaction</source>
         <translation>Nepodarilo sa odvolať transakciu</translation>
+    </message>
+    <message>
+        <source>Could not subscribe to event notifications for %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not unsubscribe from event notifications for %1.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1986,6 +1277,18 @@ Chcete ho aj tak zmazať?</translation>
         <source>Could not get statement info</source>
         <translation>Nepodarilo sa získať info k príkazu</translation>
     </message>
+    <message>
+        <source>Array size mismatch. Field name: %3, expected size: %1. Supplied size: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Array dimensions mismatch. Field name: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Array size mismatch: size of %1 is %2, size of provided list is %3</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QIODevice</name>
@@ -2012,56 +1315,6 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>file to open is a directory</source>
         <translation>súbor, ktorý chcete otvoriť, je adresárom</translation>
-    </message>
-</context>
-<context>
-    <name>QImageReader</name>
-    <message>
-        <source>Invalid device</source>
-        <translation>Neplatné zariadenie</translation>
-    </message>
-    <message>
-        <source>File not found</source>
-        <translation>Súbor nebol nájdený</translation>
-    </message>
-    <message>
-        <source>Unsupported image format</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unable to read image data</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation type="unfinished">Neznáma chyba</translation>
-    </message>
-</context>
-<context>
-    <name>QImageWriter</name>
-    <message>
-        <source>Unknown error</source>
-        <translation type="unfinished">Neznáma chyba</translation>
-    </message>
-    <message>
-        <source>Device is not set</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot open device for writing: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Device not writable</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unsupported image format</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Image is empty</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2135,31 +1388,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
 </context>
 <context>
-    <name>QKeySequenceEdit</name>
-    <message>
-        <source>Press shortcut</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1, ...</source>
-        <extracomment>This text is an &quot;unfinished&quot; shortcut, expands like &quot;Ctrl+A, ...&quot;</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>QLibrary</name>
-    <message>
-        <source>&apos;%1&apos; is not an ELF object (%2)</source>
-        <translation>&apos;%1&apos; nie je ELF objekt (%2)</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is not an ELF object</source>
-        <translation>&apos;%1&apos; nie je ELF objekt</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is an invalid ELF object (%2)</source>
-        <translation>&apos;%1&apos; je neplatný ELF objekt (%2)</translation>
-    </message>
     <message>
         <source>The shared library was not found.</source>
         <translation>Nepodarilo sa nájsť zdielanú knižnica.</translation>
@@ -2189,59 +1418,151 @@ Chcete ho aj tak zmazať?</translation>
         <translation>Nie je možné uvoľniť knižnicu %1: %2</translation>
     </message>
     <message>
+        <source>&apos;%1&apos; is not a valid Windows DLL (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is too small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a Qt plugin (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>metadata not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>invalid signature</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is for a different processor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has no sections</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>wrong characteristics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is for a different word size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has no code</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a section name is empty or extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section contents extend past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is too small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section has incorrect magic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is writable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is executable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is for the wrong endianness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has an unknown ELF version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file has an unexpected ABI</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is not a shared object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a valid ELF object (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unimplemented: PN_XNUM program headers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>program header table extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a program header entry extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a note segment start is not properly aligned (offset 0x%1, alignment %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section table extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section header string table extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>a section name extends past the end of the file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>file too small</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>odd cpu architecture</source>
+        <source>unexpected program header entry size (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>wrong cpu architecture</source>
+        <source>unexpected section entry size (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>odd endianness</source>
+        <source>e_shstrndx greater than the number of sections e_shnum (%1 &gt;= %2)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>unexpected e_shsize</source>
+        <source>&apos;%1&apos; is not a Qt plugin</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>unexpected e_shentsize</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>announced %n section(s), each %1 byte(s), exceed file size</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>shstrtab section header seems to be at %1</source>
+        <source>Failed to extract plugin meta data from &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>string table seems to be at %1</source>
+        <source>Could not resolve &apos;qt_plugin_instance&apos; function</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>section name %1 of %2 behind end of file</source>
+        <source>metadata too small</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>empty .rodata. not a library.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>missing section data. This is not a library.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to extract plugin meta data from &apos;%1&apos;</source>
+        <source>entrypoint to query the plugin meta data not found</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2266,10 +1587,6 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>not a dynamic library</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is not a Qt plugin</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2384,6 +1701,10 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Socket is not connected</source>
         <translation type="unfinished">Socket nie je pripojený</translation>
+    </message>
+    <message>
+        <source>Remote closed</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2561,7 +1882,7 @@ Chcete ho aj tak zmazať?</translation>
         <translation>O Qt</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) %1 The Qt Company Ltd and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd product developed as an open source project. See &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;https://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) The Qt Company Ltd. and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd. product developed as an open source project. See &lt;a href=&quot;https://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
         <extracomment>Leave this text untranslated or include a verbatim copy of it below and note that it is the authoritative version in case of doubt.</extracomment>
         <translation type="unfinished"></translation>
     </message>
@@ -2738,45 +2059,10 @@ Chcete ho aj tak zmazať?</translation>
     </message>
 </context>
 <context>
-    <name>QNetworkAccessFtpBackend</name>
-    <message>
-        <source>No suitable proxy found</source>
-        <translation>Nepodarilo sa nájsť vhodný proxy server</translation>
-    </message>
-    <message>
-        <source>Cannot open %1: is a directory</source>
-        <translation>Nemôžem otvoriť %1: je to priečinok</translation>
-    </message>
-    <message>
-        <source>Logging in to %1 failed: authentication required</source>
-        <translation>Prihlásenie sa do %1 zlyhalo: požaduje sa autentifikácia</translation>
-    </message>
-    <message>
-        <source>Error while downloading %1: %2</source>
-        <translation>Chyba počas sťahovania %1: %2</translation>
-    </message>
-    <message>
-        <source>Error while uploading %1: %2</source>
-        <translation>Chyba počas nahrávania %1: %2</translation>
-    </message>
-</context>
-<context>
     <name>QNetworkReply</name>
-    <message>
-        <source>Background request not allowed.</source>
-        <translation>Požiadavka na pozadí nie je povolená.</translation>
-    </message>
-    <message>
-        <source>Network session error.</source>
-        <translation>Chyba spojenia siete.</translation>
-    </message>
     <message>
         <source>backend start error.</source>
         <translation>chyba spustenia backendu.</translation>
-    </message>
-    <message>
-        <source>Temporary network failure.</source>
-        <translation>Dočasné zlyhanie siete.</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
@@ -2803,36 +2089,6 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Operation canceled</source>
         <translation>Operácia zrušená</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkSession</name>
-    <message>
-        <source>Invalid configuration.</source>
-        <translation>Neplatná konfigurácia.</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkSessionPrivateImpl</name>
-    <message>
-        <source>Unknown session error.</source>
-        <translation>Neznáma chyba spojenia.</translation>
-    </message>
-    <message>
-        <source>The session was aborted by the user or system.</source>
-        <translation>Spojenie bolo prerušené používateľom alebo systémom.</translation>
-    </message>
-    <message>
-        <source>The requested operation is not supported by the system.</source>
-        <translation>Požadovaná operácia nie je podporovaná systémom.</translation>
-    </message>
-    <message>
-        <source>The specified configuration cannot be used.</source>
-        <translation>Špecifikovanú konfiguráciu nie je možné použiť.</translation>
-    </message>
-    <message>
-        <source>Roaming was aborted or is not possible.</source>
-        <translation>Roaming bol prerušený alebo nie je možný.</translation>
     </message>
 </context>
 <context>
@@ -2959,6 +2215,10 @@ Chcete ho aj tak zmazať?</translation>
         <source>Unable to bind variable</source>
         <translation>Premennú sa nepodarilo priradiť</translation>
     </message>
+    <message>
+        <source>QODBCResult::reset: Unable to set &apos;SQL_ATTR_CURSOR_TYPE&apos; as statement attribute. Please check your ODBC driver configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
@@ -2985,6 +2245,10 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Unable to unsubscribe</source>
         <translation>Registráciu sa nepodarilo zrušiť</translation>
+    </message>
+    <message>
+        <source>Unable to set client encoding to &apos;UNICODE&apos;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3148,559 +2412,6 @@ Chcete ho aj tak zmazať?</translation>
     </message>
 </context>
 <context>
-    <name>QPageSize</name>
-    <message>
-        <source>Custom (%1mm x %2mm)</source>
-        <extracomment>Custom size name in millimeters</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom (%1pt x %2pt)</source>
-        <extracomment>Custom size name in points</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom (%1in x %2in)</source>
-        <extracomment>Custom size name in inches</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom (%1pc x %2pc)</source>
-        <extracomment>Custom size name in picas</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom (%1DD x %2DD)</source>
-        <extracomment>Custom size name in didots</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom (%1CC x %2CC)</source>
-        <extracomment>Custom size name in ciceros</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 x %2 in</source>
-        <extracomment>Page size in &apos;Inch&apos;.</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A0</source>
-        <translation type="unfinished">A0</translation>
-    </message>
-    <message>
-        <source>A1</source>
-        <translation type="unfinished">A1</translation>
-    </message>
-    <message>
-        <source>A2</source>
-        <translation type="unfinished">A2</translation>
-    </message>
-    <message>
-        <source>A3</source>
-        <translation type="unfinished">A3</translation>
-    </message>
-    <message>
-        <source>A4</source>
-        <translation type="unfinished">A4</translation>
-    </message>
-    <message>
-        <source>A5</source>
-        <translation type="unfinished">A5</translation>
-    </message>
-    <message>
-        <source>A6</source>
-        <translation type="unfinished">A6</translation>
-    </message>
-    <message>
-        <source>A7</source>
-        <translation type="unfinished">A7</translation>
-    </message>
-    <message>
-        <source>A8</source>
-        <translation type="unfinished">A8</translation>
-    </message>
-    <message>
-        <source>A9</source>
-        <translation type="unfinished">A9</translation>
-    </message>
-    <message>
-        <source>A10</source>
-        <translation type="unfinished">A10</translation>
-    </message>
-    <message>
-        <source>B0</source>
-        <translation type="unfinished">B0</translation>
-    </message>
-    <message>
-        <source>B1</source>
-        <translation type="unfinished">B1</translation>
-    </message>
-    <message>
-        <source>B2</source>
-        <translation type="unfinished">B2</translation>
-    </message>
-    <message>
-        <source>B3</source>
-        <translation type="unfinished">B3</translation>
-    </message>
-    <message>
-        <source>B4</source>
-        <translation type="unfinished">B4</translation>
-    </message>
-    <message>
-        <source>B5</source>
-        <translation type="unfinished">B5</translation>
-    </message>
-    <message>
-        <source>B6</source>
-        <translation type="unfinished">B6</translation>
-    </message>
-    <message>
-        <source>B7</source>
-        <translation type="unfinished">B7</translation>
-    </message>
-    <message>
-        <source>B8</source>
-        <translation type="unfinished">B8</translation>
-    </message>
-    <message>
-        <source>B9</source>
-        <translation type="unfinished">B9</translation>
-    </message>
-    <message>
-        <source>B10</source>
-        <translation type="unfinished">B10</translation>
-    </message>
-    <message>
-        <source>Executive (7.5 x 10 in)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Executive (7.25 x 10.5 in)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Folio (8.27 x 13 in)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Legal</source>
-        <translation type="unfinished">Legal</translation>
-    </message>
-    <message>
-        <source>Letter / ANSI A</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Tabloid / ANSI B</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Ledger / ANSI B</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation type="unfinished">Vlastné</translation>
-    </message>
-    <message>
-        <source>A3 Extra</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A4 Extra</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A4 Plus</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A4 Small</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A5 Extra</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>B5 Extra</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B0</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B3</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B4</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B5</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B6</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B7</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B8</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B9</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIS B10</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>ANSI C</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>ANSI D</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>ANSI E</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Legal Extra</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Letter Extra</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Letter Plus</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Letter Small</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Tabloid Extra</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Architect A</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Architect B</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Architect C</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Architect D</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Architect E</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Note</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Quarto</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Statement</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Super A</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Super B</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Postcard</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Double Postcard</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PRC 16K</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PRC 32K</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PRC 32K Big</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Fan-fold US (14.875 x 11 in)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Fan-fold German (8.5 x 12 in)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Fan-fold German Legal (8.5 x 13 in)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope B4</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope B5</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope B6</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope C0</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope C1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope C2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope C3</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope C4</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope C5</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope C6</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope C65</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope C7</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope DL</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope US 9</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope US 10</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope US 11</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope US 12</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope US 14</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope Monarch</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope Personal</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope Chou 3</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope Chou 4</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope Invite</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope Italian</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope Kaku 2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope Kaku 3</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 3</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 4</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 5</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 6</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 7</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 8</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 9</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope PRC 10</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Envelope You 4</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QPlatformTheme</name>
-    <message>
-        <source>OK</source>
-        <translation type="unfinished">OK</translation>
-    </message>
-    <message>
-        <source>Save</source>
-        <translation type="unfinished">Uložiť</translation>
-    </message>
-    <message>
-        <source>Save All</source>
-        <translation type="unfinished">Uložiť všetko</translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation type="unfinished">Otvoriť</translation>
-    </message>
-    <message>
-        <source>&amp;Yes</source>
-        <translation type="unfinished">Án&amp;o</translation>
-    </message>
-    <message>
-        <source>Yes to &amp;All</source>
-        <translation type="unfinished">Áno pre &amp;všetko</translation>
-    </message>
-    <message>
-        <source>&amp;No</source>
-        <translation type="unfinished">&amp;Nie</translation>
-    </message>
-    <message>
-        <source>N&amp;o to All</source>
-        <translation type="unfinished">Nie pre všetk&amp;o</translation>
-    </message>
-    <message>
-        <source>Abort</source>
-        <translation type="unfinished">Prerušiť</translation>
-    </message>
-    <message>
-        <source>Retry</source>
-        <translation type="unfinished">Skúsiť znova</translation>
-    </message>
-    <message>
-        <source>Ignore</source>
-        <translation type="unfinished">Ignorovať</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation type="unfinished">Zavrieť</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation type="unfinished">Zrušiť</translation>
-    </message>
-    <message>
-        <source>Discard</source>
-        <translation type="unfinished">Zahodiť</translation>
-    </message>
-    <message>
-        <source>Help</source>
-        <translation type="unfinished">Pomocník</translation>
-    </message>
-    <message>
-        <source>Apply</source>
-        <translation type="unfinished">Použiť</translation>
-    </message>
-    <message>
-        <source>Reset</source>
-        <translation type="unfinished">Nastaviť pôvodné</translation>
-    </message>
-    <message>
-        <source>Restore Defaults</source>
-        <translation type="unfinished">Obnoviť štandardné</translation>
-    </message>
-</context>
-<context>
     <name>QPluginLoader</name>
     <message>
         <source>The plugin was not loaded.</source>
@@ -3766,10 +2477,6 @@ Má sa prepísať?</translation>
     <message>
         <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
         <translation>Hodnota &apos;Od&apos; nemôže byť väčšia ako hodnota &apos;Do&apos;.</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
     </message>
     <message>
         <source>Left to Right, Top to Bottom</source>
@@ -3938,33 +2645,6 @@ Please turn one of those options off.</source>
     <message>
         <source>Export to PDF</source>
         <translation>Export do PDF</translation>
-    </message>
-</context>
-<context>
-    <name>QPrintPropertiesDialog</name>
-    <message>
-        <source>Printer Properties</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Job Options</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Page Setup Conflicts</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>There are conflicts in page setup options. Do you want to fix them?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Advanced Option Conflicts</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>There are conflicts in some advanced options. Do you want to fix them?</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4162,63 +2842,28 @@ Please turn one of those options off.</source>
         <source>Process failed to start</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Child process modifier threw an exception: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Child process set up failed: %1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QProgressDialog</name>
     <message>
         <source>Cancel</source>
         <translation>Zrušiť</translation>
-    </message>
-</context>
-<context>
-    <name>QRegExp</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>nevyskytla sa žiadna chyba</translation>
-    </message>
-    <message>
-        <source>disabled feature used</source>
-        <translation>bola použitá zakázaná vlastnosť</translation>
-    </message>
-    <message>
-        <source>bad char class syntax</source>
-        <translation>nesprávna syntax pre triedu znakov</translation>
-    </message>
-    <message>
-        <source>bad lookahead syntax</source>
-        <translation>nesprávna syntax pre smerové vyhľadávanie (lookahead)</translation>
-    </message>
-    <message>
-        <source>lookbehinds not supported, see QTBUG-2371</source>
-        <translation>spätné vyhľadávanie (lookbehind) nie je podporované, pozri QTBUG-2371 </translation>
-    </message>
-    <message>
-        <source>bad repetition syntax</source>
-        <translation>nesprávna syntax pre opakovanie</translation>
-    </message>
-    <message>
-        <source>invalid octal value</source>
-        <translation>neplatná oktálová hodnota</translation>
-    </message>
-    <message>
-        <source>missing left delim</source>
-        <translation>chýba ľavý oddeľovač</translation>
-    </message>
-    <message>
-        <source>unexpected end</source>
-        <translation>neočakávaný koniec</translation>
-    </message>
-    <message>
-        <source>met internal limit</source>
-        <translation>dosiahnutý vnútorný limit</translation>
-    </message>
-    <message>
-        <source>invalid interval</source>
-        <translation>neplatný interval</translation>
-    </message>
-    <message>
-        <source>invalid category</source>
-        <translation>neplatná kategória</translation>
     </message>
 </context>
 <context>
@@ -4887,35 +3532,9 @@ Please turn one of those options off.</source>
         <source>PCRE2_MATCH_INVALID_UTF is not supported for DFA matching</source>
         <translation type="unfinished"></translation>
     </message>
-</context>
-<context>
-    <name>QSQLite2Driver</name>
     <message>
-        <source>Error opening database</source>
-        <translation>Chyba pri otváraní databázy</translation>
-    </message>
-    <message>
-        <source>Unable to begin transaction</source>
-        <translation>Transakciu sa nepodarilo spustiť</translation>
-    </message>
-    <message>
-        <source>Unable to commit transaction</source>
-        <translation>Nepodarilo sa zapísať transakciu</translation>
-    </message>
-    <message>
-        <source>Unable to rollback transaction</source>
-        <translation>Nepodarilo sa odvolať transakciu</translation>
-    </message>
-</context>
-<context>
-    <name>QSQLite2Result</name>
-    <message>
-        <source>Unable to fetch results</source>
-        <translation>Výsledky sa nepodarilo natiahnuť</translation>
-    </message>
-    <message>
-        <source>Unable to execute statement</source>
-        <translation>Príkaz sa neporadilo vykonať</translation>
+        <source>INTERNAL ERROR: invalid substring offset</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4970,25 +3589,6 @@ Please turn one of those options off.</source>
     <message>
         <source>Parameter count mismatch</source>
         <translation>Nesúhlasí počet parametrov</translation>
-    </message>
-</context>
-<context>
-    <name>QSaveFile</name>
-    <message>
-        <source>Existing file %1 is not writable</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Filename refers to a directory</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>QSaveFile cannot open &apos;%1&apos; without direct write fallback enabled.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Writing canceled by application</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5047,18 +3647,7 @@ Please turn one of those options off.</source>
     </message>
 </context>
 <context>
-    <name>QSctpSocket</name>
-    <message>
-        <source>The remote host closed the connection</source>
-        <translation type="unfinished">Vzdialený počítač uzavrel spojenie</translation>
-    </message>
-</context>
-<context>
     <name>QSharedMemory</name>
-    <message>
-        <source>%1: unable to set key on lock</source>
-        <translation>%1: nepodarilo sa nastaviť kľúč na uzamknutie</translation>
-    </message>
     <message>
         <source>%1: create size is less then 0</source>
         <translation>%1: vytvorená veľkosť je menšia než 0</translation>
@@ -5088,20 +3677,8 @@ Please turn one of those options off.</source>
         <translation>%1: bez použiteľných zdrojov</translation>
     </message>
     <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: neznáma chyba %2</translation>
-    </message>
-    <message>
         <source>%1: key is empty</source>
         <translation>%1:kľúč je prázdny</translation>
-    </message>
-    <message>
-        <source>%1: UNIX key file doesn&apos;t exist</source>
-        <translation>%1: Súbor s unixovým kľúčom neexistuje</translation>
-    </message>
-    <message>
-        <source>%1: ftok failed</source>
-        <translation>%1: ftok zlyhal</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
@@ -5126,6 +3703,18 @@ Please turn one of those options off.</source>
     <message>
         <source>%1: size query failed</source>
         <translation>%1: dopyt po veľkosti zlyhal</translation>
+    </message>
+    <message>
+        <source>%1: unsupported key type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unable to set key on lock (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unknown error: %2</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: bad name</source>
@@ -6150,6 +4739,10 @@ Please turn one of those options off.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Control</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Num</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6214,6 +4807,1173 @@ Please turn one of those options off.</source>
     </message>
 </context>
 <context>
+    <name>QSslSocket</name>
+    <message>
+        <source>No error</source>
+        <translation>Žiadna chyba</translation>
+    </message>
+    <message>
+        <source>The issuer certificate could not be found</source>
+        <translation>Certifikát vydavateľa sa nepodarilo nájsť</translation>
+    </message>
+    <message>
+        <source>The certificate signature could not be decrypted</source>
+        <translation>Podpis certifikátu sa nepodarilo rozlúštiť</translation>
+    </message>
+    <message>
+        <source>The public key in the certificate could not be read</source>
+        <translation>Verejný kľúč v certifikáte nie je možné prečítať</translation>
+    </message>
+    <message>
+        <source>The signature of the certificate is invalid</source>
+        <translation>Podpis v certifikáte nie je platný</translation>
+    </message>
+    <message>
+        <source>The certificate is not yet valid</source>
+        <translation>Certifikát ešte nie je platný</translation>
+    </message>
+    <message>
+        <source>The certificate has expired</source>
+        <translation>Platnosť certifikátu vypršala</translation>
+    </message>
+    <message>
+        <source>The certificate&apos;s notBefore field contains an invalid time</source>
+        <translation>Pole certifikátu &apos;notBefore&apos; obsahuje neplatný čas</translation>
+    </message>
+    <message>
+        <source>The certificate&apos;s notAfter field contains an invalid time</source>
+        <translation>Pole certifikátu &apos;notAfter&apos; obsahuje neplatný čas</translation>
+    </message>
+    <message>
+        <source>The certificate is self-signed, and untrusted</source>
+        <translation>Certifikát je podpísaný sám sebou a preto je nedôveryhodný</translation>
+    </message>
+    <message>
+        <source>The root certificate of the certificate chain is self-signed, and untrusted</source>
+        <translation>Koreňový certifikát certifikátu je podpísaný sám sebou a preto je nedôveryhodný</translation>
+    </message>
+    <message>
+        <source>The issuer certificate of a locally looked up certificate could not be found</source>
+        <translation>Nepodarilo sa nájsť vydavateľa certifikátu k miestne nájdenému certifikátu</translation>
+    </message>
+    <message>
+        <source>No certificates could be verified</source>
+        <translation>Ani jeden certifikát nie je možné overiť</translation>
+    </message>
+    <message>
+        <source>One of the CA certificates is invalid</source>
+        <translation>Jedna z CA certifikátov je neplatná</translation>
+    </message>
+    <message>
+        <source>The basicConstraints path length parameter has been exceeded</source>
+        <translation>Dĺžka cesty &apos;basicConstraints&apos; bola prekročená</translation>
+    </message>
+    <message>
+        <source>The supplied certificate is unsuitable for this purpose</source>
+        <translation>Poskytnutý certifikát nie je vhodný pre tento účel</translation>
+    </message>
+    <message>
+        <source>The root CA certificate is not trusted for this purpose</source>
+        <translation>Koreňový certifikát CA nie je dôveryhodný pre tento účel</translation>
+    </message>
+    <message>
+        <source>The root CA certificate is marked to reject the specified purpose</source>
+        <translation>Koreňový certifikát CA je označený na zamietnutie pre konkrétny účel</translation>
+    </message>
+    <message>
+        <source>The current candidate issuer certificate was rejected because its subject name did not match the issuer name of the current certificate</source>
+        <translation>Súčasný kandidát vydavateľa certifikátu bol zamietnutý, pretože jeho názov nezodpovedá názvu vydavateľa aktuálneho certifikátu</translation>
+    </message>
+    <message>
+        <source>The current candidate issuer certificate was rejected because its issuer name and serial number was present and did not match the authority key identifier of the current certificate</source>
+        <translation>Súčasný kandidát vydavateľa certifikátu bol zamietnutý, pretože jeho názov a sériové číslo, ktoré boli prezentované, nezodpovedajú identifikátoru kľúča autority aktuálneho certifikátu</translation>
+    </message>
+    <message>
+        <source>The peer did not present any certificate</source>
+        <translation>Druhá strana neposkytla žiadny certifikát</translation>
+    </message>
+    <message>
+        <source>The host name did not match any of the valid hosts for this certificate</source>
+        <translation>Názov hostiteľa nezodpovedá žiadnemu z platných hostiteľov pre tento certifikát</translation>
+    </message>
+    <message>
+        <source>The peer certificate is blacklisted</source>
+        <translation>Certifikát druhej strany je na čiernej listine</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Neznáma chyba</translation>
+    </message>
+    <message>
+        <source>Error creating SSL context (%1)</source>
+        <translation>Chyba pri vytváraní SSL kontextu (%1)</translation>
+    </message>
+    <message>
+        <source>Invalid or empty cipher list (%1)</source>
+        <translation>Neplatný alebo prázdny zoznam šifier (%1)</translation>
+    </message>
+    <message>
+        <source>Error loading local certificate, %1</source>
+        <translation>Chyba pri načítaní lokálneho certifikátu, %1</translation>
+    </message>
+    <message>
+        <source>Error loading private key, %1</source>
+        <translation>Chyba pri načítaní súkromného kľúča, %1</translation>
+    </message>
+    <message>
+        <source>Private key does not certify public key, %1</source>
+        <translation>Privátny kľúč nepotvrdzuje verejný kľúč, %1</translation>
+    </message>
+    <message>
+        <source>Error creating SSL session, %1</source>
+        <translation>Chyba pri vytváraní sedenia SSL, %1</translation>
+    </message>
+    <message>
+        <source>Error creating SSL session: %1</source>
+        <translation>Chyba pri vytváraní sedenia SSL: %1</translation>
+    </message>
+    <message>
+        <source>Unable to init SSL Context: %1</source>
+        <translation>Nepodarilo sa inicializovať kontext SSL: %1</translation>
+    </message>
+    <message>
+        <source>Unable to write data: %1</source>
+        <translation>Nepodarilo sa zapísať dáta: %1</translation>
+    </message>
+    <message>
+        <source>Unable to decrypt data: %1</source>
+        <translation>Nepodarilo sa rozlúštiť dáta:%1</translation>
+    </message>
+    <message>
+        <source>Error while reading: %1</source>
+        <translation>Chyba pri čítaní: %1</translation>
+    </message>
+    <message>
+        <source>Error during SSL handshake: %1</source>
+        <translation>Chyba počas štartu SSL: %1</translation>
+    </message>
+    <message>
+        <source>No OCSP status response found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The OCSP status request had invalid syntax</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OCSP response contains an unexpected number of SingleResponse structures</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OCSP responder reached an inconsistent internal state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OCSP responder was unable to return a status for the requested certificate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server requires the client to sign the OCSP request in order to construct a response</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The client is not authorized to request OCSP status from this server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OCSP responder&apos;s identity cannot be verified</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The identity of a certificate in an OCSP response cannot be established</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The certificate status response has expired</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The certificate&apos;s status is unknown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TLS initialization failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Attempted to use an unsupported protocol.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error when setting the OpenSSL configuration (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error when setting the elliptic curves (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unsupported protocol</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error while setting the minimal protocol version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error while setting the maximum protocol version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot provide a certificate with no key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Diffie-Hellman parameters are not valid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenSSL version with disabled elliptic curves</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expecting QByteArray for %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>An error occurred attempting to set %1 to %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wrong value for %1 (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unrecognized command %1 = %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SSL_CONF_finish() failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SSL_CONF_CTX_new() failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TLS certificate unexpectedly changed during renegotiation!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The TLS/SSL connection has been closed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server-side QSslSocket does not support OCSP stapling</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to enable OCSP stapling</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Client-side sockets do not send OCSP responses</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to decode OCSP response</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to extract basic OCSP response</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No certificate verification store, cannot verify OCSP response</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to decode a SingleResponse from OCSP status response</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to extract &apos;this update time&apos; from the SingleResponse</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Insufficient memory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Internal error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>An internal handle was invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>An internal token was invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Access denied</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No authority could be contacted for authorization</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No credentials</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The target is unknown or unreachable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>An unsupported function was requested</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The hostname provided does not match the one received from the peer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No common protocol exists between the client and the server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected or badly-formatted message received</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The data could not be encrypted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No cipher suites in common</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The credentials were not recognized / Invalid argument</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The message was tampered with, damaged or out of sequence.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A message was received out of sequence.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown error occurred: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid protocol chosen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The certificate provided cannot be used for a client.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The certificate provided cannot be used for a server.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server did not accept any certificate we could present.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Algorithm mismatch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handshake failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to query the TLS context: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Did not get the required attributes for the connection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unwanted protocol was negotiated</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Renegotiation was unsuccessful: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Schannel failed to encrypt data: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QStandardPaths</name>
+    <message>
+        <source>Desktop</source>
+        <translation>Plocha</translation>
+    </message>
+    <message>
+        <source>Documents</source>
+        <translation>Dokumenty</translation>
+    </message>
+    <message>
+        <source>Fonts</source>
+        <translation>Písma</translation>
+    </message>
+    <message>
+        <source>Applications</source>
+        <translation>Aplikácie</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>Hudba</translation>
+    </message>
+    <message>
+        <source>Movies</source>
+        <translation>Filmy</translation>
+    </message>
+    <message>
+        <source>Pictures</source>
+        <translation>Obrázky</translation>
+    </message>
+    <message>
+        <source>Temporary Directory</source>
+        <translation>Dočasný priečinok</translation>
+    </message>
+    <message>
+        <source>Home</source>
+        <translation>Domov</translation>
+    </message>
+    <message>
+        <source>Application Data</source>
+        <translation>Dáta aplikácií</translation>
+    </message>
+    <message>
+        <source>Cache</source>
+        <translation>Vyrovnávacia pamäť</translation>
+    </message>
+    <message>
+        <source>Shared Data</source>
+        <translation>Zdielané dáta</translation>
+    </message>
+    <message>
+        <source>Runtime</source>
+        <translation>Runtime</translation>
+    </message>
+    <message>
+        <source>Configuration</source>
+        <translation>Nastavenie</translation>
+    </message>
+    <message>
+        <source>Shared Cache</source>
+        <translation>Zdielaná vyrovnávacia pamäť</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>Stiahnuté</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shared Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shared State</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Application Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Public</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Templates</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Temporary Items</source>
+        <extracomment>macOS: Temporary directory</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QSystemSemaphore</name>
+    <message>
+        <source>%1: permission denied</source>
+        <translation>%1: prístup zamietnutý</translation>
+    </message>
+    <message>
+        <source>%1: already exists</source>
+        <translation>%1: už existuje</translation>
+    </message>
+    <message>
+        <source>%1: does not exist</source>
+        <translation>%1: neexistuje</translation>
+    </message>
+    <message>
+        <source>%1: out of resources</source>
+        <translation>%1: už nie sú použiteľné zdroje</translation>
+    </message>
+    <message>
+        <source>%1: unsupported key type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: key too long</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unknown error: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: key is empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: System V semaphores are not available for sandboxed applications. Please build Qt with -feature-ipc_posix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unable to make key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: ftok failed</source>
+        <translation type="unfinished">%1: ftok zlyhal</translation>
+    </message>
+</context>
+<context>
+    <name>QTabBar</name>
+    <message>
+        <source>Scroll Left</source>
+        <translation>Posunúť vľavo</translation>
+    </message>
+    <message>
+        <source>Scroll Right</source>
+        <translation>Posunúť vpravo</translation>
+    </message>
+</context>
+<context>
+    <name>QTcpServer</name>
+    <message>
+        <source>Operation on socket is not supported</source>
+        <translation>Nepodporovaná operácia so soketom</translation>
+    </message>
+</context>
+<context>
+    <name>QUndoGroup</name>
+    <message>
+        <source>Undo %1</source>
+        <translation>Vrátiť späť %1</translation>
+    </message>
+    <message>
+        <source>Undo</source>
+        <comment>Default text for undo action</comment>
+        <translation>Späť</translation>
+    </message>
+    <message>
+        <source>Redo %1</source>
+        <translation>Opakovať vrátené %1</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <comment>Default text for redo action</comment>
+        <translation>Znovu</translation>
+    </message>
+</context>
+<context>
+    <name>QUndoModel</name>
+    <message>
+        <source>&lt;empty&gt;</source>
+        <translation>&lt;prázdne&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>QUndoStack</name>
+    <message>
+        <source>Undo %1</source>
+        <translation>Vrátiť späť %1</translation>
+    </message>
+    <message>
+        <source>Undo</source>
+        <comment>Default text for undo action</comment>
+        <translation>Späť</translation>
+    </message>
+    <message>
+        <source>Redo %1</source>
+        <translation>Opakovať vrátené %1</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <comment>Default text for redo action</comment>
+        <translation>Znovu</translation>
+    </message>
+</context>
+<context>
+    <name>QUnicodeControlCharacterMenu</name>
+    <message>
+        <source>LRM Left-to-right mark</source>
+        <translation>LRM značka zľava-doprava</translation>
+    </message>
+    <message>
+        <source>RLM Right-to-left mark</source>
+        <translation>RLM značka sprava-doľava</translation>
+    </message>
+    <message>
+        <source>ZWJ Zero width joiner</source>
+        <translation>ZWJ Nulová spojovacia medzera</translation>
+    </message>
+    <message>
+        <source>ZWNJ Zero width non-joiner</source>
+        <translation>ZWNJ Nulová nespojovacia medzera</translation>
+    </message>
+    <message>
+        <source>ZWSP Zero width space</source>
+        <translation>ZWSP Nulová medzera</translation>
+    </message>
+    <message>
+        <source>LRE Start of left-to-right embedding</source>
+        <translation>LRE Začiatok vkladania zľava-doprava</translation>
+    </message>
+    <message>
+        <source>RLE Start of right-to-left embedding</source>
+        <translation>RLE Začiatok vkladania sprava-doľava</translation>
+    </message>
+    <message>
+        <source>LRO Start of left-to-right override</source>
+        <translation>LRO Začiatok prepisovania zľava-doprava</translation>
+    </message>
+    <message>
+        <source>RLO Start of right-to-left override</source>
+        <translation>RLO Začiatok prepisovania sprava-doľava</translation>
+    </message>
+    <message>
+        <source>PDF Pop directional formatting</source>
+        <translation>PDF Pop directional formatting</translation>
+    </message>
+    <message>
+        <source>Insert Unicode control character</source>
+        <translation>Vložiť kontrolný znak Unicode</translation>
+    </message>
+    <message>
+        <source>LRI Left-to-right isolate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RLI Right-to-left isolate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>FSI First strong isolate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PDI Pop directional isolate</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QWhatsThisAction</name>
+    <message>
+        <source>What&apos;s This?</source>
+        <translation>Čo je toto?</translation>
+    </message>
+</context>
+<context>
+    <name>QWidget</name>
+    <message>
+        <source>*</source>
+        <translation>*</translation>
+    </message>
+</context>
+<context>
+    <name>QWidgetTextControl</name>
+    <message>
+        <source>&amp;Undo</source>
+        <translation>&amp;Späť</translation>
+    </message>
+    <message>
+        <source>&amp;Redo</source>
+        <translation>&amp;Znovu</translation>
+    </message>
+    <message>
+        <source>Cu&amp;t</source>
+        <translation>Vys&amp;trihnúť</translation>
+    </message>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>&amp;Kopírovať</translation>
+    </message>
+    <message>
+        <source>Copy &amp;Link Location</source>
+        <translation>&amp;Kopírovať umiestnenie odkazu</translation>
+    </message>
+    <message>
+        <source>&amp;Paste</source>
+        <translation>&amp;Vložiť</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Zmazať</translation>
+    </message>
+    <message>
+        <source>Select All</source>
+        <translation>Vybrať všetko</translation>
+    </message>
+</context>
+<context>
+    <name>QWizard</name>
+    <message>
+        <source>Go Back</source>
+        <translation>Choď späť</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation>&lt; &amp;Späť</translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>Pokračovať</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation>Ď&amp;alší</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation>Ď&amp;alší &gt;</translation>
+    </message>
+    <message>
+        <source>Commit</source>
+        <translation>Potvrdiť</translation>
+    </message>
+    <message>
+        <source>Done</source>
+        <translation>Hotovo</translation>
+    </message>
+    <message>
+        <source>&amp;Finish</source>
+        <translation>Do&amp;končiť</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Zrušiť</translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation>Pomocník</translation>
+    </message>
+    <message>
+        <source>&amp;Help</source>
+        <translation>&amp;Pomocník</translation>
+    </message>
+</context>
+<context>
+    <name>QXmlStream</name>
+    <message>
+        <source>Extra content at end of document.</source>
+        <translation>Extra obsah na konci dokumentu.</translation>
+    </message>
+    <message>
+        <source>Invalid entity value.</source>
+        <translation>Neplatná hodnota entity.</translation>
+    </message>
+    <message>
+        <source>Invalid XML character.</source>
+        <translation>Neplatný znak XML.</translation>
+    </message>
+    <message>
+        <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
+        <translation>Sekvencia &apos;]]&gt;&apos; nie je povolená v obsahu.</translation>
+    </message>
+    <message>
+        <source>Encountered incorrectly encoded content.</source>
+        <translation>Bol nájdený obsah s neplatným kódovaní.</translation>
+    </message>
+    <message>
+        <source>Namespace prefix &apos;%1&apos; not declared</source>
+        <translation>Prefix oblasti mien &apos;%1&apos; nebol deklarovaný</translation>
+    </message>
+    <message>
+        <source>Illegal namespace declaration.</source>
+        <translation>Zlá deklarácia mennom priestore.</translation>
+    </message>
+    <message>
+        <source>Unexpected character &apos;%1&apos; in public id literal.</source>
+        <translation>Neočakávaný znak &apos;%1&apos; vo verejnom id literálu.</translation>
+    </message>
+    <message>
+        <source>Invalid XML version string.</source>
+        <translation>Chybný reťazec verzie XML.</translation>
+    </message>
+    <message>
+        <source>Unsupported XML version.</source>
+        <translation>Nepodporovaná verzia XML.</translation>
+    </message>
+    <message>
+        <source>The standalone pseudo attribute must appear after the encoding.</source>
+        <translation>Samostatný pseudoatribút musí nasledovať bezprostredne po kódovaní.</translation>
+    </message>
+    <message>
+        <source>%1 is an invalid encoding name.</source>
+        <translation>%1 je neplatný názov kódovania.</translation>
+    </message>
+    <message>
+        <source>Encoding %1 is unsupported</source>
+        <translation>Kódovanie %1 nie je podporované</translation>
+    </message>
+    <message>
+        <source>Standalone accepts only yes or no.</source>
+        <translation>Vlastnosť samostatný (standalone) akceptuje len áno alebo nie.</translation>
+    </message>
+    <message>
+        <source>Premature end of document.</source>
+        <translation>Predčasný koniec dokumentu.</translation>
+    </message>
+    <message>
+        <source>Invalid document.</source>
+        <translation>Chybný dokument.</translation>
+    </message>
+    <message>
+        <source>Expected character data.</source>
+        <translation>Boli očakávané znakové údaje.</translation>
+    </message>
+    <message>
+        <source>Start tag expected.</source>
+        <translation>Očakáva sa štartovacia značka.</translation>
+    </message>
+    <message>
+        <source>NDATA in parameter entity declaration.</source>
+        <translation>NDATA v deklarácii parametra entity.</translation>
+    </message>
+    <message>
+        <source>XML declaration not at start of document.</source>
+        <translation>XML deklarácia nie je na začiatku dokumentu.</translation>
+    </message>
+    <message>
+        <source>%1 is an invalid processing instruction name.</source>
+        <translation>%1 je neplatný názov inštrukcie spracovania.</translation>
+    </message>
+    <message>
+        <source>Invalid processing instruction name.</source>
+        <translation>Neplatný názov inštrukcie spracovania.</translation>
+    </message>
+    <message>
+        <source>%1 is an invalid PUBLIC identifier.</source>
+        <translation>%1 je neplatný PUBLIC identifikátor.</translation>
+    </message>
+    <message>
+        <source>Invalid XML name.</source>
+        <translation>Neplatný názov XML.</translation>
+    </message>
+    <message>
+        <source>Opening and ending tag mismatch.</source>
+        <translation>Počet otváracích a uzavieracích značiek nesúhlasí.</translation>
+    </message>
+    <message>
+        <source>Entity &apos;%1&apos; not declared.</source>
+        <translation>Entita &apos;%1&apos; nie je deklarovaná.</translation>
+    </message>
+    <message>
+        <source>Reference to unparsed entity &apos;%1&apos;.</source>
+        <translation>Odkaz na neanalyzovanú entitu &apos;%1&apos;.</translation>
+    </message>
+    <message>
+        <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
+        <translation>Odkaz na externú entitu &apos;%1&apos; v hodnote atribútu.</translation>
+    </message>
+    <message>
+        <source>Invalid character reference.</source>
+        <translation>Neplatný znak odkazu.</translation>
+    </message>
+    <message>
+        <source>Attribute &apos;%1&apos; redefined.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid attribute in XML declaration: %1 = %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length of XML attribute name exceeds implementation limits (4KiB characters).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos;</source>
+        <comment>expected</comment>
+        <extracomment>&apos;&lt;first option&gt;&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 or &apos;%2&apos;</source>
+        <comment>expected</comment>
+        <extracomment>&lt;first option&gt;, &apos;&lt;second option&gt;&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, &apos;%2&apos;</source>
+        <comment>expected</comment>
+        <extracomment>&lt;options so far&gt;, &apos;&lt;next option&gt;&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, or &apos;%2&apos;</source>
+        <comment>expected</comment>
+        <extracomment>&lt;options so far&gt;, or &apos;&lt;final option&gt;&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expected %1, but got &apos;%2&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected token type %1 in %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Found second DTD token in %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Self-referencing entity detected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Entity expands to more characters than the entity expansion limit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QCupsJobWidget</name>
+    <message>
+        <source>Job</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Job Control</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scheduled printing:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Billing information:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Job priority:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Banner Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>End:</source>
+        <comment>Banner page at end</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start:</source>
+        <comment>Banner page at start</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print Immediately</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hold Indefinitely</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Day (06:00 to 17:59)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Night (18:00 to 05:59)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Second Shift (16:00 to 23:59)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Third Shift (00:00 to 07:59)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Weekend (Saturday to Sunday)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Specific Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished">Žiadne</translation>
+    </message>
+    <message>
+        <source>Standard</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unclassified</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confidential</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Classified</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Secret</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top Secret</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Assets::Downloader::AssetDownloader</name>
+    <message>
+        <source>Downloading JSON file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading zip file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unzipping...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading assets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copying assets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QSaveFile</name>
+    <message>
+        <source>Existing file %1 is not writable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filename refers to a directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>QSaveFile cannot open &apos;%1&apos; without direct write fallback enabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Writing canceled by application</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QFactoryLoader</name>
+    <message>
+        <source>Metadata parsing error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid metadata version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected metadata contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QCommandLineParser</name>
+    <message>
+        <source>Displays version information.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Displays help on commandline options.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Displays help, including generic Qt options.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown option &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown options: %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Missing value after &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected value after &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>[options]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Usage: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Options:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Arguments:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>QSpiAccessibleBridge</name>
     <message>
         <source>invalid role</source>
@@ -6262,9 +6022,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>frame</source>
-        <extracomment>Role of an accessible object: a window with frame and title
-----------
-Role of an accessible object</extracomment>
+        <extracomment>Role of an accessible object: a window with frame and title</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -6589,6 +6347,819 @@ Role of an accessible object</extracomment>
     </message>
 </context>
 <context>
+    <name>QAbstractFileIconProvider</name>
+    <message>
+        <source>Drive</source>
+        <translation type="unfinished">Disková jednotka</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation type="unfinished">Súbor</translation>
+    </message>
+    <message>
+        <source>File Folder</source>
+        <comment>Match Windows Explorer</comment>
+        <translation type="unfinished">Priečinok súborov</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <comment>All other platforms</comment>
+        <translation type="unfinished">Priečinok</translation>
+    </message>
+    <message>
+        <source>Alias</source>
+        <comment>macOS Finder</comment>
+        <translation type="unfinished">Alias</translation>
+    </message>
+    <message>
+        <source>Shortcut</source>
+        <comment>All other platforms</comment>
+        <translation type="unfinished">Skratka</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation type="unfinished">Neznáme</translation>
+    </message>
+</context>
+<context>
+    <name>QImageReader</name>
+    <message>
+        <source>Invalid device</source>
+        <translation>Neplatné zariadenie</translation>
+    </message>
+    <message>
+        <source>File not found</source>
+        <translation>Súbor nebol nájdený</translation>
+    </message>
+    <message>
+        <source>Unsupported image format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to read image data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation type="unfinished">Neznáma chyba</translation>
+    </message>
+</context>
+<context>
+    <name>QImageWriter</name>
+    <message>
+        <source>Unknown error</source>
+        <translation type="unfinished">Neznáma chyba</translation>
+    </message>
+    <message>
+        <source>Device is not set</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot open device for writing: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Device not writable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unsupported image format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Image is empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QPlatformTheme</name>
+    <message>
+        <source>OK</source>
+        <translation type="unfinished">OK</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation type="unfinished">Uložiť</translation>
+    </message>
+    <message>
+        <source>Save All</source>
+        <translation type="unfinished">Uložiť všetko</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation type="unfinished">Otvoriť</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation type="unfinished">Án&amp;o</translation>
+    </message>
+    <message>
+        <source>Yes to &amp;All</source>
+        <translation type="unfinished">Áno pre &amp;všetko</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation type="unfinished">&amp;Nie</translation>
+    </message>
+    <message>
+        <source>N&amp;o to All</source>
+        <translation type="unfinished">Nie pre všetk&amp;o</translation>
+    </message>
+    <message>
+        <source>Abort</source>
+        <translation type="unfinished">Prerušiť</translation>
+    </message>
+    <message>
+        <source>Retry</source>
+        <translation type="unfinished">Skúsiť znova</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <translation type="unfinished">Ignorovať</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">Zavrieť</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished">Zrušiť</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation type="unfinished">Zahodiť</translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation type="unfinished">Pomocník</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation type="unfinished">Použiť</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="unfinished">Nastaviť pôvodné</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation type="unfinished">Obnoviť štandardné</translation>
+    </message>
+</context>
+<context>
+    <name>QPageSize</name>
+    <message>
+        <source>Custom (%1mm x %2mm)</source>
+        <extracomment>Custom size name in millimeters</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1pt x %2pt)</source>
+        <extracomment>Custom size name in points</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1in x %2in)</source>
+        <extracomment>Custom size name in inches</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1pc x %2pc)</source>
+        <extracomment>Custom size name in picas</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1DD x %2DD)</source>
+        <extracomment>Custom size name in didots</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1CC x %2CC)</source>
+        <extracomment>Custom size name in ciceros</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 x %2 in</source>
+        <extracomment>Page size in &apos;Inch&apos;.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A0</source>
+        <translation type="unfinished">A0</translation>
+    </message>
+    <message>
+        <source>A1</source>
+        <translation type="unfinished">A1</translation>
+    </message>
+    <message>
+        <source>A2</source>
+        <translation type="unfinished">A2</translation>
+    </message>
+    <message>
+        <source>A3</source>
+        <translation type="unfinished">A3</translation>
+    </message>
+    <message>
+        <source>A4</source>
+        <translation type="unfinished">A4</translation>
+    </message>
+    <message>
+        <source>A5</source>
+        <translation type="unfinished">A5</translation>
+    </message>
+    <message>
+        <source>A6</source>
+        <translation type="unfinished">A6</translation>
+    </message>
+    <message>
+        <source>A7</source>
+        <translation type="unfinished">A7</translation>
+    </message>
+    <message>
+        <source>A8</source>
+        <translation type="unfinished">A8</translation>
+    </message>
+    <message>
+        <source>A9</source>
+        <translation type="unfinished">A9</translation>
+    </message>
+    <message>
+        <source>A10</source>
+        <translation type="unfinished">A10</translation>
+    </message>
+    <message>
+        <source>B0</source>
+        <translation type="unfinished">B0</translation>
+    </message>
+    <message>
+        <source>B1</source>
+        <translation type="unfinished">B1</translation>
+    </message>
+    <message>
+        <source>B2</source>
+        <translation type="unfinished">B2</translation>
+    </message>
+    <message>
+        <source>B3</source>
+        <translation type="unfinished">B3</translation>
+    </message>
+    <message>
+        <source>B4</source>
+        <translation type="unfinished">B4</translation>
+    </message>
+    <message>
+        <source>B5</source>
+        <translation type="unfinished">B5</translation>
+    </message>
+    <message>
+        <source>B6</source>
+        <translation type="unfinished">B6</translation>
+    </message>
+    <message>
+        <source>B7</source>
+        <translation type="unfinished">B7</translation>
+    </message>
+    <message>
+        <source>B8</source>
+        <translation type="unfinished">B8</translation>
+    </message>
+    <message>
+        <source>B9</source>
+        <translation type="unfinished">B9</translation>
+    </message>
+    <message>
+        <source>B10</source>
+        <translation type="unfinished">B10</translation>
+    </message>
+    <message>
+        <source>Executive (7.5 x 10 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Executive (7.25 x 10.5 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Folio (8.27 x 13 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Legal</source>
+        <translation type="unfinished">Legal</translation>
+    </message>
+    <message>
+        <source>Letter / ANSI A</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tabloid / ANSI B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ledger / ANSI B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation type="unfinished">Vlastné</translation>
+    </message>
+    <message>
+        <source>A3 Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A4 Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A4 Plus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A4 Small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A5 Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B5 Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B7</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B8</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ANSI C</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ANSI D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ANSI E</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Legal Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter Plus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter Small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tabloid Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect A</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect C</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect E</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Note</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quarto</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Statement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Super A</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Super B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Postcard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Double Postcard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PRC 16K</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PRC 32K</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PRC 32K Big</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fan-fold US (14.875 x 11 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fan-fold German (8.5 x 12 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fan-fold German Legal (8.5 x 13 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope B4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope B5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope B6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C65</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C7</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope DL</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 11</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 12</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 14</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Monarch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Personal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Chou 3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Chou 4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Invite</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Italian</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Kaku 2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Kaku 3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 7</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 8</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope You 4</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QDBusTrayIcon</name>
+    <message>
+        <source>OK</source>
+        <translation type="unfinished">OK</translation>
+    </message>
+</context>
+<context>
+    <name>QGnomeTheme</name>
+    <message>
+        <source>&amp;OK</source>
+        <translation>&amp;OK</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation>&amp;Uložiť</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>&amp;Zrušiť</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation>Za&amp;vrieť</translation>
+    </message>
+    <message>
+        <source>Close without Saving</source>
+        <translation>Zavrieť bez uloženia</translation>
+    </message>
+</context>
+<context>
+    <name>QSctpSocket</name>
+    <message>
+        <source>The remote host closed the connection</source>
+        <translation type="unfinished">Vzdialený počítač uzavrel spojenie</translation>
+    </message>
+</context>
+<context>
+    <name>QUdpSocket</name>
+    <message>
+        <source>Unable to send a datagram</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No datagram available for reading</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QDtls</name>
+    <message>
+        <source>Multicast and broadcast addresses are not supported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot set peer after handshake started</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid address</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot set verification name after handshake started</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot set configuration after handshake started</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot start/continue handshake, invalid handshake state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid (nullptr) socket</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>To start a handshake you must set peer&apos;s address and port first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>To start a handshake, DTLS server requires non-empty datagram (client hello)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot start handshake, already done/in progress</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A valid QUdpSocket and non-empty datagram are needed to continue the handshake</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot continue handshake, not in InProgress state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot resume, not in VerificationError state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No handshake in progress, nothing to abort</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot send shutdown alert, not encrypted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot write a datagram, not in encrypted state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot read a datagram, not in encrypted state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 failed</source>
+        <extracomment>%1: Some function</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid SslMode, SslServerMode or SslClientMode expected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid protocol version, DTLS protocol expected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BIO_ADD_new failed, cannot start handshake</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot start the handshake, verified client hello expected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Peer verification failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The DTLS connection has been closed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error while writing: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The DTLS connection has been shutdown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error while reading: %1</source>
+        <translation type="unfinished">Chyba pri čítaní: %1</translation>
+    </message>
+    <message>
+        <source>Invalid (empty) secret</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QDtlsClientVerifier</name>
+    <message>
+        <source>A valid UDP socket, non-empty datagram, and valid address/port were expected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BIO_ADDR_new failed, ignoring client hello</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>QSslDiffieHellmanParameter</name>
     <message>
         <source>No error</source>
@@ -6604,737 +7175,122 @@ Role of an accessible object</extracomment>
     </message>
 </context>
 <context>
-    <name>QSslSocket</name>
+    <name>QAndroidPlatformTheme</name>
     <message>
-        <source>No error</source>
-        <translation>Žiadna chyba</translation>
+        <source>Yes</source>
+        <translation type="unfinished">Áno</translation>
     </message>
     <message>
-        <source>The issuer certificate could not be found</source>
-        <translation>Certifikát vydavateľa sa nepodarilo nájsť</translation>
-    </message>
-    <message>
-        <source>The certificate signature could not be decrypted</source>
-        <translation>Podpis certifikátu sa nepodarilo rozlúštiť</translation>
-    </message>
-    <message>
-        <source>The public key in the certificate could not be read</source>
-        <translation>Verejný kľúč v certifikáte nie je možné prečítať</translation>
-    </message>
-    <message>
-        <source>The signature of the certificate is invalid</source>
-        <translation>Podpis v certifikáte nie je platný</translation>
-    </message>
-    <message>
-        <source>The certificate is not yet valid</source>
-        <translation>Certifikát ešte nie je platný</translation>
-    </message>
-    <message>
-        <source>The certificate has expired</source>
-        <translation>Platnosť certifikátu vypršala</translation>
-    </message>
-    <message>
-        <source>The certificate&apos;s notBefore field contains an invalid time</source>
-        <translation>Pole certifikátu &apos;notBefore&apos; obsahuje neplatný čas</translation>
-    </message>
-    <message>
-        <source>The certificate&apos;s notAfter field contains an invalid time</source>
-        <translation>Pole certifikátu &apos;notAfter&apos; obsahuje neplatný čas</translation>
-    </message>
-    <message>
-        <source>The certificate is self-signed, and untrusted</source>
-        <translation>Certifikát je podpísaný sám sebou a preto je nedôveryhodný</translation>
-    </message>
-    <message>
-        <source>The root certificate of the certificate chain is self-signed, and untrusted</source>
-        <translation>Koreňový certifikát certifikátu je podpísaný sám sebou a preto je nedôveryhodný</translation>
-    </message>
-    <message>
-        <source>The issuer certificate of a locally looked up certificate could not be found</source>
-        <translation>Nepodarilo sa nájsť vydavateľa certifikátu k miestne nájdenému certifikátu</translation>
-    </message>
-    <message>
-        <source>No certificates could be verified</source>
-        <translation>Ani jeden certifikát nie je možné overiť</translation>
-    </message>
-    <message>
-        <source>One of the CA certificates is invalid</source>
-        <translation>Jedna z CA certifikátov je neplatná</translation>
-    </message>
-    <message>
-        <source>The basicConstraints path length parameter has been exceeded</source>
-        <translation>Dĺžka cesty &apos;basicConstraints&apos; bola prekročená</translation>
-    </message>
-    <message>
-        <source>The supplied certificate is unsuitable for this purpose</source>
-        <translation>Poskytnutý certifikát nie je vhodný pre tento účel</translation>
-    </message>
-    <message>
-        <source>The root CA certificate is not trusted for this purpose</source>
-        <translation>Koreňový certifikát CA nie je dôveryhodný pre tento účel</translation>
-    </message>
-    <message>
-        <source>The root CA certificate is marked to reject the specified purpose</source>
-        <translation>Koreňový certifikát CA je označený na zamietnutie pre konkrétny účel</translation>
-    </message>
-    <message>
-        <source>The current candidate issuer certificate was rejected because its subject name did not match the issuer name of the current certificate</source>
-        <translation>Súčasný kandidát vydavateľa certifikátu bol zamietnutý, pretože jeho názov nezodpovedá názvu vydavateľa aktuálneho certifikátu</translation>
-    </message>
-    <message>
-        <source>The current candidate issuer certificate was rejected because its issuer name and serial number was present and did not match the authority key identifier of the current certificate</source>
-        <translation>Súčasný kandidát vydavateľa certifikátu bol zamietnutý, pretože jeho názov a sériové číslo, ktoré boli prezentované, nezodpovedajú identifikátoru kľúča autority aktuálneho certifikátu</translation>
-    </message>
-    <message>
-        <source>The peer did not present any certificate</source>
-        <translation>Druhá strana neposkytla žiadny certifikát</translation>
-    </message>
-    <message>
-        <source>The host name did not match any of the valid hosts for this certificate</source>
-        <translation>Názov hostiteľa nezodpovedá žiadnemu z platných hostiteľov pre tento certifikát</translation>
-    </message>
-    <message>
-        <source>The peer certificate is blacklisted</source>
-        <translation>Certifikát druhej strany je na čiernej listine</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Neznáma chyba</translation>
-    </message>
-    <message>
-        <source>Error creating SSL context (%1)</source>
-        <translation>Chyba pri vytváraní SSL kontextu (%1)</translation>
-    </message>
-    <message>
-        <source>Invalid or empty cipher list (%1)</source>
-        <translation>Neplatný alebo prázdny zoznam šifier (%1)</translation>
-    </message>
-    <message>
-        <source>Cannot provide a certificate with no key, %1</source>
-        <translation>Nemôžem poskytnúť certifikát bez kľúča, %1</translation>
-    </message>
-    <message>
-        <source>Error loading local certificate, %1</source>
-        <translation>Chyba pri načítaní lokálneho certifikátu, %1</translation>
-    </message>
-    <message>
-        <source>Error loading private key, %1</source>
-        <translation>Chyba pri načítaní súkromného kľúča, %1</translation>
-    </message>
-    <message>
-        <source>Private key does not certify public key, %1</source>
-        <translation>Privátny kľúč nepotvrdzuje verejný kľúč, %1</translation>
-    </message>
-    <message>
-        <source>Error creating SSL session, %1</source>
-        <translation>Chyba pri vytváraní sedenia SSL, %1</translation>
-    </message>
-    <message>
-        <source>Error creating SSL session: %1</source>
-        <translation>Chyba pri vytváraní sedenia SSL: %1</translation>
-    </message>
-    <message>
-        <source>Unable to init SSL Context: %1</source>
-        <translation>Nepodarilo sa inicializovať kontext SSL: %1</translation>
-    </message>
-    <message>
-        <source>Unable to write data: %1</source>
-        <translation>Nepodarilo sa zapísať dáta: %1</translation>
-    </message>
-    <message>
-        <source>Unable to decrypt data: %1</source>
-        <translation>Nepodarilo sa rozlúštiť dáta:%1</translation>
-    </message>
-    <message>
-        <source>Error while reading: %1</source>
-        <translation>Chyba pri čítaní: %1</translation>
-    </message>
-    <message>
-        <source>Error during SSL handshake: %1</source>
-        <translation>Chyba počas štartu SSL: %1</translation>
-    </message>
-    <message>
-        <source>Error when setting the OpenSSL configuration (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error when setting the elliptic curves (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>unsupported protocol</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error while setting the minimal protocol version</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error while setting the maximum protocol version</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Diffie-Hellman parameters are not valid</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>OpenSSL version with disabled elliptic curves</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Expecting QByteArray for %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>An error occurred attempting to set %1 to %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Wrong value for %1 (%2)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unrecognized command %1 = %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>SSL_CONF_finish() failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>SSL_CONF_CTX_new() failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No OCSP status response found</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The OCSP status request had invalid syntax</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>OCSP response contains an unexpected number of SingleResponse structures</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>OCSP responder reached an inconsistent internal state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>OCSP responder was unable to return a status for the requested certificate</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The server requires the client to sign the OCSP request in order to construct a response</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The client is not authorized to request OCSP status from this server</source>
+        <source>Yes to All</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>OCSP responder&apos;s identity cannot be verified</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The identity of a certificate in an OCSP response cannot be established</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The certificate status response has expired</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The certificate&apos;s status is unknown</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>TLS initialization failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Attempted to use an unsupported protocol.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The TLS/SSL connection has been closed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Server-side QSslSocket does not support OCSP stapling</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to enable OCSP stapling</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Client-side sockets do not send OCSP responses</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to decode OCSP response</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to extract basic OCSP response</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No certificate verification store, cannot verify OCSP response</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to decode a SingleResponse from OCSP status response</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to extract &apos;this update time&apos; from the SingleResponse</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Insufficient memory</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Internal error</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>An internal handle was invalid</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>An internal token was invalid</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Access denied</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No authority could be contacted for authorization</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No credentials</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The target is unknown or unreachable</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>An unsupported function was requested</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The hostname provided does not match the one received from the peer</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No common protocol exists between the client and the server</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected or badly-formatted message received</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The data could not be encrypted</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No cipher suites in common</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The credentials were not recognized / Invalid argument</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The message was tampered with, damaged or out of sequence.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A message was received out of sequence.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unknown error occurred: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid protocol chosen</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The certificate provided cannot be used for a client.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The certificate provided cannot be used for a server.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Server did not accept any certificate we could present.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Algorithm mismatch</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Handshake failed: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to query the TLS context: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Did not get the required attributes for the connection.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unwanted protocol was negotiated</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Renegotiation was unsuccessful: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Schannel failed to encrypt data: %1</source>
-        <translation type="unfinished"></translation>
+        <source>No</source>
+        <translation type="unfinished">Nie</translation>
     </message>
     <message>
-        <source>Cannot provide a certificate with no key</source>
+        <source>No to All</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
-    <name>QStandardPaths</name>
+    <name>QCocoaMenuBar</name>
     <message>
-        <source>Desktop</source>
-        <translation>Plocha</translation>
-    </message>
-    <message>
-        <source>Documents</source>
-        <translation>Dokumenty</translation>
-    </message>
-    <message>
-        <source>Fonts</source>
-        <translation>Písma</translation>
-    </message>
-    <message>
-        <source>Applications</source>
-        <translation>Aplikácie</translation>
-    </message>
-    <message>
-        <source>Music</source>
-        <translation>Hudba</translation>
-    </message>
-    <message>
-        <source>Movies</source>
-        <translation>Filmy</translation>
-    </message>
-    <message>
-        <source>Pictures</source>
-        <translation>Obrázky</translation>
-    </message>
-    <message>
-        <source>Temporary Directory</source>
-        <translation>Dočasný priečinok</translation>
-    </message>
-    <message>
-        <source>Home</source>
-        <translation>Domov</translation>
-    </message>
-    <message>
-        <source>Application Data</source>
-        <translation>Dáta aplikácií</translation>
-    </message>
-    <message>
-        <source>Cache</source>
-        <translation>Vyrovnávacia pamäť</translation>
-    </message>
-    <message>
-        <source>Shared Data</source>
-        <translation>Zdielané dáta</translation>
-    </message>
-    <message>
-        <source>Runtime</source>
-        <translation>Runtime</translation>
-    </message>
-    <message>
-        <source>Configuration</source>
-        <translation>Nastavenie</translation>
-    </message>
-    <message>
-        <source>Shared Cache</source>
-        <translation>Zdielaná vyrovnávacia pamäť</translation>
-    </message>
-    <message>
-        <source>Download</source>
-        <translation>Stiahnuté</translation>
-    </message>
-    <message>
-        <source>Shared Configuration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Application Configuration</source>
+        <source>Edit</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
-    <name>QStateMachine</name>
+    <name>MAC_APPLICATION_MENU</name>
     <message>
-        <source>Missing initial state in compound state &apos;%1&apos;</source>
-        <translation>Chýba počiatočný stav zložené stavu &apos;%1&apos;</translation>
+        <source>About %1</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Missing default state in history state &apos;%1&apos;</source>
-        <translation>Chýba implicitný stav zložené stavu &apos;%1&apos;</translation>
+        <source>Preferences...</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No common ancestor for targets and source of transition from state &apos;%1&apos;</source>
-        <translatorcomment>Žiadny spoločný predok pre ciele a zdroje prechodu zo stavu &apos;%1&apos;</translatorcomment>
-        <translation></translation>
+        <source>Services</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Unknown error</source>
-        <translation>Neznáma chyba</translation>
+        <source>Hide %1</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Child mode of state machine &apos;%1&apos; is not &apos;ExclusiveStates&apos;.</source>
+        <source>Hide Others</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quit %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
-    <name>QSystemSemaphore</name>
+    <name>QCocoaMenuItem</name>
     <message>
-        <source>%1: permission denied</source>
-        <translation>%1: prístup zamietnutý</translation>
-    </message>
-    <message>
-        <source>%1: already exists</source>
-        <translation>%1: už existuje</translation>
-    </message>
-    <message>
-        <source>%1: does not exist</source>
-        <translation>%1: neexistuje</translation>
-    </message>
-    <message>
-        <source>%1: out of resources</source>
-        <translation>%1: už nie sú použiteľné zdroje</translation>
-    </message>
-    <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: neznáma chyba %2</translation>
-    </message>
-</context>
-<context>
-    <name>QTDSDriver</name>
-    <message>
-        <source>Unable to open connection</source>
-        <translation>Nedá sa otvoriť spojenie</translation>
-    </message>
-    <message>
-        <source>Unable to use database</source>
-        <translation>Databáza sa nedá použiť</translation>
-    </message>
-</context>
-<context>
-    <name>QTabBar</name>
-    <message>
-        <source>Scroll Left</source>
-        <translation>Posunúť vľavo</translation>
-    </message>
-    <message>
-        <source>Scroll Right</source>
-        <translation>Posunúť vpravo</translation>
-    </message>
-</context>
-<context>
-    <name>QTcpServer</name>
-    <message>
-        <source>Operation on socket is not supported</source>
-        <translation>Nepodporovaná operácia so soketom</translation>
-    </message>
-</context>
-<context>
-    <name>QUdpSocket</name>
-    <message>
-        <source>Unable to send a datagram</source>
+        <source>About</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No datagram available for reading</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QUndoGroup</name>
-    <message>
-        <source>Undo %1</source>
-        <translation>Vrátiť späť %1</translation>
-    </message>
-    <message>
-        <source>Undo</source>
-        <comment>Default text for undo action</comment>
-        <translation>Späť</translation>
-    </message>
-    <message>
-        <source>Redo %1</source>
-        <translation>Opakovať vrátené %1</translation>
-    </message>
-    <message>
-        <source>Redo</source>
-        <comment>Default text for redo action</comment>
-        <translation>Znovu</translation>
-    </message>
-</context>
-<context>
-    <name>QUndoModel</name>
-    <message>
-        <source>&lt;empty&gt;</source>
-        <translation>&lt;prázdne&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>QUndoStack</name>
-    <message>
-        <source>Undo %1</source>
-        <translation>Vrátiť späť %1</translation>
-    </message>
-    <message>
-        <source>Undo</source>
-        <comment>Default text for undo action</comment>
-        <translation>Späť</translation>
-    </message>
-    <message>
-        <source>Redo %1</source>
-        <translation>Opakovať vrátené %1</translation>
-    </message>
-    <message>
-        <source>Redo</source>
-        <comment>Default text for redo action</comment>
-        <translation>Znovu</translation>
-    </message>
-</context>
-<context>
-    <name>QUnicodeControlCharacterMenu</name>
-    <message>
-        <source>LRM Left-to-right mark</source>
-        <translation>LRM značka zľava-doprava</translation>
-    </message>
-    <message>
-        <source>RLM Right-to-left mark</source>
-        <translation>RLM značka sprava-doľava</translation>
-    </message>
-    <message>
-        <source>ZWJ Zero width joiner</source>
-        <translation>ZWJ Nulová spojovacia medzera</translation>
-    </message>
-    <message>
-        <source>ZWNJ Zero width non-joiner</source>
-        <translation>ZWNJ Nulová nespojovacia medzera</translation>
-    </message>
-    <message>
-        <source>ZWSP Zero width space</source>
-        <translation>ZWSP Nulová medzera</translation>
-    </message>
-    <message>
-        <source>LRE Start of left-to-right embedding</source>
-        <translation>LRE Začiatok vkladania zľava-doprava</translation>
-    </message>
-    <message>
-        <source>RLE Start of right-to-left embedding</source>
-        <translation>RLE Začiatok vkladania sprava-doľava</translation>
-    </message>
-    <message>
-        <source>LRO Start of left-to-right override</source>
-        <translation>LRO Začiatok prepisovania zľava-doprava</translation>
-    </message>
-    <message>
-        <source>RLO Start of right-to-left override</source>
-        <translation>RLO Začiatok prepisovania sprava-doľava</translation>
-    </message>
-    <message>
-        <source>PDF Pop directional formatting</source>
-        <translation>PDF Pop directional formatting</translation>
-    </message>
-    <message>
-        <source>Insert Unicode control character</source>
-        <translation>Vložiť kontrolný znak Unicode</translation>
-    </message>
-    <message>
-        <source>LRI Left-to-right isolate</source>
+        <source>Config</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>RLI Right-to-left isolate</source>
+        <source>Preference</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>FSI First strong isolate</source>
+        <source>Options</source>
+        <translation type="unfinished">Možnosti</translation>
+    </message>
+    <message>
+        <source>Setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>PDI Pop directional isolate</source>
+        <source>Setup</source>
         <translation type="unfinished"></translation>
     </message>
-</context>
-<context>
-    <name>QWhatsThisAction</name>
     <message>
-        <source>What&apos;s This?</source>
-        <translation>Čo je toto?</translation>
-    </message>
-</context>
-<context>
-    <name>QWidget</name>
-    <message>
-        <source>*</source>
-        <translation>*</translation>
-    </message>
-</context>
-<context>
-    <name>QWidgetTextControl</name>
-    <message>
-        <source>&amp;Undo</source>
-        <translation>&amp;Späť</translation>
+        <source>Quit</source>
+        <translation type="unfinished">Opustiť</translation>
     </message>
     <message>
-        <source>&amp;Redo</source>
-        <translation>&amp;Znovu</translation>
+        <source>Exit</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Cu&amp;t</source>
-        <translation>Vys&amp;trihnúť</translation>
+        <source>Cut</source>
+        <translation type="unfinished">Vystrihnúť</translation>
     </message>
     <message>
-        <source>&amp;Copy</source>
-        <translation>&amp;Kopírovať</translation>
+        <source>Copy</source>
+        <translation type="unfinished">Kopírovať</translation>
     </message>
     <message>
-        <source>Copy &amp;Link Location</source>
-        <translation>&amp;Kopírovať umiestnenie odkazu</translation>
-    </message>
-    <message>
-        <source>&amp;Paste</source>
-        <translation>&amp;Vložiť</translation>
-    </message>
-    <message>
-        <source>Delete</source>
-        <translation>Zmazať</translation>
+        <source>Paste</source>
+        <translation type="unfinished">Vložiť</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Vybrať všetko</translation>
+        <translation type="unfinished">Vybrať všetko</translation>
+    </message>
+    <message>
+        <source>About Qt</source>
+        <translation type="unfinished">O Qt</translation>
+    </message>
+</context>
+<context>
+    <name>QCocoaTheme</name>
+    <message>
+        <source>Don&apos;t Save</source>
+        <translation type="unfinished">Neuložiť</translation>
     </message>
 </context>
 <context>
@@ -7351,311 +7307,284 @@ The minimum Direct2D version required is %1. The Direct2D version on this system
     </message>
 </context>
 <context>
-    <name>QWizard</name>
+    <name>quiaccessibilityelement</name>
     <message>
-        <source>Go Back</source>
-        <translation>Choď späť</translation>
+        <source>checked</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Späť</translation>
-    </message>
-    <message>
-        <source>Continue</source>
-        <translation>Pokračovať</translation>
-    </message>
-    <message>
-        <source>&amp;Next</source>
-        <translation>Ď&amp;alší</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>Ď&amp;alší &gt;</translation>
-    </message>
-    <message>
-        <source>Commit</source>
-        <translation>Potvrdiť</translation>
-    </message>
-    <message>
-        <source>Done</source>
-        <translation>Hotovo</translation>
-    </message>
-    <message>
-        <source>&amp;Finish</source>
-        <translation>Do&amp;končiť</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Zrušiť</translation>
-    </message>
-    <message>
-        <source>Help</source>
-        <translation>Pomocník</translation>
-    </message>
-    <message>
-        <source>&amp;Help</source>
-        <translation>&amp;Pomocník</translation>
+        <source>unchecked</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
-    <name>QXml</name>
+    <name>QCupsPrinterSupport</name>
     <message>
-        <source>no error occurred</source>
-        <translation>bez chyby</translation>
+        <source>Authentication Needed</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>error triggered by consumer</source>
-        <translation>chyba spustená spotrebiteľom</translation>
+        <source>Authentication needed to use %1.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>unexpected end of file</source>
-        <translation>neočakávaný koniec súboru</translation>
+        <source>Authentication needed to use %1 on %2.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>more than one document type definition</source>
-        <translation>viac než jedna definícia typu dokumentu</translation>
+        <source>Username:</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>error occurred while parsing element</source>
-        <translation>vyskytla sa chyba pri analýze elementu</translation>
-    </message>
-    <message>
-        <source>tag mismatch</source>
-        <translation>nezhoda značky</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing content</source>
-        <translation>vyskytla sa chyba pri analýze obsahu</translation>
-    </message>
-    <message>
-        <source>unexpected character</source>
-        <translation>neočakávaný znak</translation>
-    </message>
-    <message>
-        <source>invalid name for processing instruction</source>
-        <translation>neplatný názov pre pokyny na spracovanie</translation>
-    </message>
-    <message>
-        <source>version expected while reading the XML declaration</source>
-        <translation>bola očakávaná verzia pri čítaní XML deklarácie</translation>
-    </message>
-    <message>
-        <source>wrong value for standalone declaration</source>
-        <translation>chybná hodnota pre samostatnú deklarácia</translation>
-    </message>
-    <message>
-        <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>deklarácia kódovania alebo samostatná deklarácia bola očakávaná pri čítaní deklarácie XML</translation>
-    </message>
-    <message>
-        <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>samostatná deklarácia bola očakávaná pri čítaní deklarácie XML</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing document type definition</source>
-        <translation>vyskytla sa chyba pri analýze definície typu dokumentu</translation>
-    </message>
-    <message>
-        <source>letter is expected</source>
-        <translation>očakáva sa písmeno</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing comment</source>
-        <translation>vyskytla sa chyba pri analýze komentára</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing reference</source>
-        <translation>vyskytla sa chyba pri analýze odkazu</translation>
-    </message>
-    <message>
-        <source>internal general entity reference not allowed in DTD</source>
-        <translation>v DTD nie je povolený odkaz na vnútornú štandardnú entitu</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>v hodnote atribútu nie je povolený odkaz na externú všeobecnú entitu</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>v DTD nie je povolený odkaz na externú všeobecnú entitu</translation>
-    </message>
-    <message>
-        <source>unparsed entity reference in wrong context</source>
-        <translation>neanalyzovaný odkaz na entitu v zlom kontexte</translation>
-    </message>
-    <message>
-        <source>recursive entities</source>
-        <translation>rekurzívne entity</translation>
-    </message>
-    <message>
-        <source>error in the text declaration of an external entity</source>
-        <translation>chyba v textovej deklarácii externej entity</translation>
+        <source>Password:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
-    <name>QXmlStream</name>
+    <name>QMimerSQL</name>
     <message>
-        <source>Extra content at end of document.</source>
-        <translation>Extra obsah na konci dokumentu.</translation>
-    </message>
-    <message>
-        <source>Invalid entity value.</source>
-        <translation>Neplatná hodnota entity.</translation>
-    </message>
-    <message>
-        <source>Invalid XML character.</source>
-        <translation>Neplatný znak XML.</translation>
-    </message>
-    <message>
-        <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation>Sekvencia &apos;]]&gt;&apos; nie je povolená v obsahu.</translation>
-    </message>
-    <message>
-        <source>Encountered incorrectly encoded content.</source>
-        <translation>Bol nájdený obsah s neplatným kódovaní.</translation>
-    </message>
-    <message>
-        <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation>Prefix oblasti mien &apos;%1&apos; nebol deklarovaný</translation>
-    </message>
-    <message>
-        <source>Illegal namespace declaration.</source>
-        <translation>Zlá deklarácia mennom priestore.</translation>
-    </message>
-    <message>
-        <source>Unexpected character &apos;%1&apos; in public id literal.</source>
-        <translation>Neočakávaný znak &apos;%1&apos; vo verejnom id literálu.</translation>
-    </message>
-    <message>
-        <source>Invalid XML version string.</source>
-        <translation>Chybný reťazec verzie XML.</translation>
-    </message>
-    <message>
-        <source>Unsupported XML version.</source>
-        <translation>Nepodporovaná verzia XML.</translation>
-    </message>
-    <message>
-        <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation>Samostatný pseudoatribút musí nasledovať bezprostredne po kódovaní.</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid encoding name.</source>
-        <translation>%1 je neplatný názov kódovania.</translation>
-    </message>
-    <message>
-        <source>Encoding %1 is unsupported</source>
-        <translation>Kódovanie %1 nie je podporované</translation>
-    </message>
-    <message>
-        <source>Standalone accepts only yes or no.</source>
-        <translation>Vlastnosť samostatný (standalone) akceptuje len áno alebo nie.</translation>
-    </message>
-    <message>
-        <source>Invalid attribute in XML declaration.</source>
-        <translation>Neplatný atribút v XML deklarácii.</translation>
-    </message>
-    <message>
-        <source>Premature end of document.</source>
-        <translation>Predčasný koniec dokumentu.</translation>
-    </message>
-    <message>
-        <source>Invalid document.</source>
-        <translation>Chybný dokument.</translation>
-    </message>
-    <message>
-        <source>Expected character data.</source>
-        <translation>Boli očakávané znakové údaje.</translation>
-    </message>
-    <message>
-        <source>Start tag expected.</source>
-        <translation>Očakáva sa štartovacia značka.</translation>
-    </message>
-    <message>
-        <source>NDATA in parameter entity declaration.</source>
-        <translation>NDATA v deklarácii parametra entity.</translation>
-    </message>
-    <message>
-        <source>XML declaration not at start of document.</source>
-        <translation>XML deklarácia nie je na začiatku dokumentu.</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid processing instruction name.</source>
-        <translation>%1 je neplatný názov inštrukcie spracovania.</translation>
-    </message>
-    <message>
-        <source>Invalid processing instruction name.</source>
-        <translation>Neplatný názov inštrukcie spracovania.</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid PUBLIC identifier.</source>
-        <translation>%1 je neplatný PUBLIC identifikátor.</translation>
-    </message>
-    <message>
-        <source>Invalid XML name.</source>
-        <translation>Neplatný názov XML.</translation>
-    </message>
-    <message>
-        <source>Opening and ending tag mismatch.</source>
-        <translation>Počet otváracích a uzavieracích značiek nesúhlasí.</translation>
-    </message>
-    <message>
-        <source>Entity &apos;%1&apos; not declared.</source>
-        <translation>Entita &apos;%1&apos; nie je deklarovaná.</translation>
-    </message>
-    <message>
-        <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation>Odkaz na neanalyzovanú entitu &apos;%1&apos;.</translation>
-    </message>
-    <message>
-        <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
-        <translation>Odkaz na externú entitu &apos;%1&apos; v hodnote atribútu.</translation>
-    </message>
-    <message>
-        <source>Invalid character reference.</source>
-        <translation>Neplatný znak odkazu.</translation>
-    </message>
-    <message>
-        <source>Attribute &apos;%1&apos; redefined.</source>
+        <source>No Mimer SQL error for code %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&apos;%1&apos;</source>
-        <comment>expected</comment>
-        <extracomment>&apos;&lt;first option&gt;&apos;</extracomment>
+        <source>Generic Mimer SQL error</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult</name>
+    <message>
+        <source>Could not get %1, column %2</source>
+        <extracomment>Data type, column</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1 or &apos;%2&apos;</source>
-        <comment>expected</comment>
-        <extracomment>&lt;first option&gt;, &apos;&lt;second option&gt;&apos;</extracomment>
+        <source>Could not set %1, parameter %2</source>
+        <extracomment>Data type, parameter</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1, &apos;%2&apos;</source>
-        <comment>expected</comment>
-        <extracomment>&lt;options so far&gt;, &apos;&lt;next option&gt;&apos;</extracomment>
+        <source>Could not close cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1, or &apos;%2&apos;</source>
-        <comment>expected</comment>
-        <extracomment>&lt;options so far&gt;, or &apos;&lt;final option&gt;&apos;</extracomment>
+        <source>Could not close statement</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Expected %1, but got &apos;%2&apos;.</source>
+        <source>Fetch did not succeed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Unexpected &apos;%1&apos;.</source>
+        <source>Fetch first did not succeed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Self-referencing entity detected.</source>
+        <source>Could not fetch next row</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Entity expands to more characters than the entity expansion limit.</source>
+        <source>Unknown data type %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not check null, column %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not prepare/execute statement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wrong number of parameters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown datatype, parameter %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not execute statement/open cursor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only input parameters can be used in batch operations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not add batch %1</source>
+        <extracomment>%1 is the batch number</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not execute batch</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult:</name>
+    <message>
+        <source>Fetch last did not succeed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Column %1 out of range</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLDriver</name>
+    <message>
+        <source>Could not connect to database</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start transaction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not commit transaction</source>
+        <translation type="unfinished">Nie je možné zapísať transakciu</translation>
+    </message>
+    <message>
+        <source>Could not roll back transaction</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QPrintPropertiesDialog</name>
+    <message>
+        <source>Printer Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Job Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Page Setup Conflicts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There are conflicts in page setup options. Do you want to fix them?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Advanced Option Conflicts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There are conflicts in some advanced options. Do you want to fix them?</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Print Device Input Slot</name>
+    <message>
+        <source>Automatic</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Print Device Output Bin</name>
+    <message>
+        <source>Automatic</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QDockWidget</name>
+    <message>
+        <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
+        <translation>Plávať</translation>
+    </message>
+    <message>
+        <source>Undocks and re-attaches the dock widget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
+        <translation>Zavrieť</translation>
+    </message>
+    <message>
+        <source>Closes the dock widget</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QKeySequenceEdit</name>
+    <message>
+        <source>Press shortcut</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, ...</source>
+        <extracomment>This text is an &quot;unfinished&quot; shortcut, expands like &quot;Ctrl+A, ...&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QDomParser</name>
+    <message>
+        <source>Error occurred while processing XML declaration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Multiple DTD sections are not allowed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing document type declaration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing comment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing a processing instruction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing a start element</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected end element &apos;%1&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing an end element</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing the element content</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing comments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing an entity reference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected token</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tag mismatch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing entity declaration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error occurred while processing notation declaration</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

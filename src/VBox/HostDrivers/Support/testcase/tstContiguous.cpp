@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,6 +42,7 @@
 #include <VBox/param.h>
 #include <iprt/initterm.h>
 #include <iprt/stream.h>
+#include <iprt/system.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -57,6 +58,8 @@ int main(int argc, char **argv)
     rcRet += rc != 0;
     if (!rc)
     {
+        uint32_t const cbPage = RTSystemGetPageSize();
+
         /*
          * Allocate a bit of contiguous memory.
          */
@@ -65,12 +68,12 @@ int main(int argc, char **argv)
         rcRet += pv == NULL || HCPhys == 0;
         if (pv && HCPhys)
         {
-            memset(pv, 0xff, PAGE_SIZE * 8);
+            memset(pv, 0xff, cbPage * 8);
             pv = SUPR3ContAlloc(5, NULL, &HCPhys);
             rcRet += pv == NULL || HCPhys == 0;
             if (pv && HCPhys)
             {
-                memset(pv, 0x7f, PAGE_SIZE * 5);
+                memset(pv, 0x7f, cbPage * 5);
                 rc = SUPR3ContFree(pv, 5);
                 rcRet += rc != 0;
                 if (rc)

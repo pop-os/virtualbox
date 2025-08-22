@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -28,10 +28,6 @@
 SUB_DEPTH := ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
-ifndef LWIP_SOURCES
- include $(PATH_SUB_CURRENT)/../../Devices/Network/lwip-new/Config.kmk
-endif
-
 #
 # Hardended stub executable.
 #
@@ -53,11 +49,8 @@ ifdef VBOX_WITH_HARDENING
  VBoxNetDHCP_TEMPLATE := VBoxR3Dll
 else
  PROGRAMS += VBoxNetDHCP
- VBoxNetDHCP_TEMPLATE := VBoxR3Exe
+ VBoxNetDHCP_TEMPLATE := VBoxR3SignedExe
 endif
-
-# (current dir is for for lwipopts.h)
-VBoxNetDHCP_INCS += . $(addprefix ../../Devices/Network/lwip-new/,$(LWIP_INCS))
 
 ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
  VBoxNetDHCP_DEFS     = KBUILD_TYPE="$(KBUILD_TYPE)"
@@ -77,6 +70,7 @@ ifneq ($(KBUILD_TARGET),win)
   VBoxNetDHCP_CXXFLAGS += -std=$(if $(VBOX_GCC_VERSION_CXX),$(if $(VBOX_GCC_VERSION_CXX) < 40700,c++0x,c++11),c++0x)
  endif
 endif
+VBoxNetDHCP_SDKS += VBoxLwipDhcp
 VBoxNetDHCP_INCS += \
 	../NetLib
 VBoxNetDHCP_SOURCES = \
@@ -91,10 +85,10 @@ VBoxNetDHCP_SOURCES = \
 	VBoxNetDhcpd.cpp \
 	../NetLib/IntNetIf.cpp \
 	../../Main/glue/VBoxLogRelCreate.cpp \
-	../../Main/glue/GetVBoxUserHomeDirectory.cpp \
-	$(addprefix ../../Devices/Network/lwip-new/,$(LWIP_SOURCES))
+	../../Main/glue/GetVBoxUserHomeDirectory.cpp
 
-VBoxNetDHCP_LIBS = $(LIB_RUNTIME)
+VBoxNetDHCP_LIBS = \
+	$(LIB_RUNTIME)
 VBoxNetDHCP_LIBS.solaris += socket nsl
 VBoxNetDHCP_LDFLAGS.win = /SUBSYSTEM:windows
 

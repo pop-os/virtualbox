@@ -66,6 +66,7 @@
 #endif
 #include <VBox/com/com.h>
 using namespace com;
+#include <iprt/assert.h>
 #include <iprt/initterm.h>
 #include <iprt/string.h>
 #include <alloca.h>
@@ -152,7 +153,6 @@ InitXPCOMVBox_Impl(JNIEnv* env, jobject aVBoxBinDirectory)
     const char *jhome = nsnull;
     jstring path = nsnull;
 
-    int rv;
     jclass     clazz;
     jmethodID  getPathMID;
 
@@ -174,9 +174,11 @@ InitXPCOMVBox_Impl(JNIEnv* env, jobject aVBoxBinDirectory)
       char *pszExePath = (char *)alloca(cchHome + 32);
       memcpy(pszExePath, pszHome, cchHome);
       memcpy(pszExePath + cchHome, "/javafake", sizeof("/javafake"));
-      rv = RTR3InitEx(RTR3INIT_VER_CUR, RTR3INIT_FLAGS_DLL | RTR3INIT_FLAGS_UNOBTRUSIVE, 0, NULL, pszExePath);
+      int rc = RTR3InitEx(RTR3INIT_VER_CUR, RTR3INIT_FLAGS_DLL | RTR3INIT_FLAGS_UNOBTRUSIVE, 0, NULL, pszExePath);
+      AssertRC(rc);
     } else {
-      rv = RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
+      int rc = RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
+      AssertRC(rc);
     }
 
     if (jhome)
@@ -209,10 +211,10 @@ InitXPCOM_Impl(JNIEnv* env, jobject aMozBinDirectory,
 
   // init XPCOM
   nsCOMPtr<nsIServiceManager> servMan;
-  rv = NS_InitXPCOM2(getter_AddRefs(servMan), directory, provider);
+  rv = NS_InitXPCOM2Ex(getter_AddRefs(servMan), directory, provider, 0);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // create Java proxy for service manager returned by NS_InitXPCOM2
+  // create Java proxy for service manager returned by NS_InitXPCOM2Ex
   return NativeInterfaceToJavaObject(env, servMan, NS_GET_IID(nsIServiceManager),
                                      nsnull, aResult);
 }

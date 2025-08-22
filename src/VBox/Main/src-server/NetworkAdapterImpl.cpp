@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -267,6 +267,7 @@ HRESULT NetworkAdapter::setAdapterType(NetworkAdapterType_T aAdapterType)
         case NetworkAdapterType_WD8013:
         case NetworkAdapterType_ELNK2:
         case NetworkAdapterType_ELNK1:
+        case NetworkAdapterType_UsbNet:
             break;
         default:
             return setError(E_FAIL,
@@ -1584,6 +1585,8 @@ HRESULT NetworkAdapter::i_switchFromNatNetworking(const com::Utf8Str &networkNam
     {
         Bstr bstrName;
         hrc = mParent->COMGETTER(Name)(bstrName.asOutParam());
+        if (FAILED(hrc)) /* Should not happen but as the name is only used in logging try to continue. */
+            LogRel(("Querying the VM name failed hrc -> %Rhrc\n", hrc));
         LogRel(("VM '%ls' stops using NAT network '%s'\n", bstrName.raw(), networkName.c_str()));
         int natCount = mParent->i_getVirtualBox()->i_natNetworkRefDec(Bstr(networkName).raw());
         if (natCount == -1)
@@ -1608,6 +1611,8 @@ HRESULT NetworkAdapter::i_switchToNatNetworking(const com::Utf8Str &aNatNetworkN
     {
         Bstr bstrName;
         hrc = mParent->COMGETTER(Name)(bstrName.asOutParam());
+        if (FAILED(hrc)) /* Should not happen but as the name is only used in logging try to continue. */
+            LogRel(("Querying the VM name failed hrc -> %Rhrc\n", hrc));
         LogRel(("VM '%ls' starts using NAT network '%s'\n", bstrName.raw(), aNatNetworkName.c_str()));
         int natCount = mParent->i_getVirtualBox()->i_natNetworkRefInc(Bstr(aNatNetworkName).raw());
         if (natCount == -1)

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -54,6 +54,8 @@
 
 /** @name AML Bytecode values (see https://uefi.org/specs/ACPI/6.5/20_AML_Specification.html#aml-byte-stream-byte-values).
  * @{ */
+/** Encoding Name: ZeroOp,              Encoding Group: Name Object */
+#define ACPI_AML_BYTE_CODE_PREFIX_NULL_NAME      0x00
 /** Encoding Name: ZeroOp,              Encoding Group: Data Object */
 #define ACPI_AML_BYTE_CODE_OP_ZERO               0x00
 /** Encoding Name: OneOp,               Encoding Group: Data Object */
@@ -290,6 +292,106 @@
 #define ACPI_AML_BYTE_CODE_OP_BREAK_POINT        0xcc
 /** Encoding Name: OnesOp,              Encoding Group: Term Object */
 #define ACPI_AML_BYTE_CODE_OP_ONES               0xff
+/** @} */
+
+
+/** @name Object type values found in AML
+ * @{ */
+/** Object type is uninitialized. */
+#define ACPI_AML_OBJECT_TYPE_UNINIT               0
+/** Object is an integer. */
+#define ACPI_AML_OBJECT_TYPE_INTEGER              1
+/** Object is a string. */
+#define ACPI_AML_OBJECT_TYPE_STRING               2
+/** Object is a buffer. */
+#define ACPI_AML_OBJECT_TYPE_BUFFER               3
+/** Object is a package. */
+#define ACPI_AML_OBJECT_TYPE_PACKAGE              4
+/** Object is a field unit. */
+#define ACPI_AML_OBJECT_TYPE_FIELD_UNIT           5
+/** Object is a device. */
+#define ACPI_AML_OBJECT_TYPE_DEVICE               6
+/** Object is an event. */
+#define ACPI_AML_OBJECT_TYPE_EVENT                7
+/** Object is a method. */
+#define ACPI_AML_OBJECT_TYPE_METHOD               8
+/** Object is a mutex. */
+#define ACPI_AML_OBJECT_TYPE_MUTEX                9
+/** Object is an operation region. */
+#define ACPI_AML_OBJECT_TYPE_OPERATION_REGION    10
+/** Object is a power resource. */
+#define ACPI_AML_OBJECT_TYPE_POWER_RESOURCE      11
+/** Object is a processor. */
+#define ACPI_AML_OBJECT_TYPE_PROCESSOR           12
+/** Object is a thermal zone. */
+#define ACPI_AML_OBJECT_TYPE_THERMAL_ZONE        13
+/** Object is a buffer field. */
+#define ACPI_AML_OBJECT_TYPE_BUFFER_FIELD        14
+/** Object is a DDB handle. */
+#define ACPI_AML_OBJECT_TYPE_DDB_HANDLE          15
+/** Object is the debug object. */
+#define ACPI_AML_OBJECT_TYPE_DEBUG               16
+/** @} */
+
+
+/** @name Some helpers for classifying AML bytecode.
+ * @{ */
+DECLINLINE(bool) rtAcpiAmlOpcIsConstObj(uint8_t bOpc)
+{
+    return    bOpc == ACPI_AML_BYTE_CODE_OP_ZERO
+           || bOpc == ACPI_AML_BYTE_CODE_OP_ONE
+           || bOpc == ACPI_AML_BYTE_CODE_OP_ONES;
+}
+
+
+DECLINLINE(bool) rtAcpiAmlOpcIsComputationalData(uint8_t bOpc)
+{
+    /** @todo RevisionOp (requires two bytes) */
+    return    rtAcpiAmlOpcIsConstObj(bOpc)
+           || bOpc == ACPI_AML_BYTE_CODE_PREFIX_BYTE
+           || bOpc == ACPI_AML_BYTE_CODE_PREFIX_WORD
+           || bOpc == ACPI_AML_BYTE_CODE_PREFIX_DWORD
+           || bOpc == ACPI_AML_BYTE_CODE_PREFIX_QWORD
+           || bOpc == ACPI_AML_BYTE_CODE_PREFIX_STRING
+           || bOpc == ACPI_AML_BYTE_CODE_OP_BUFFER;
+}
+
+
+DECLINLINE(bool) rtAcpiAmlOpcIsDataObject(uint8_t bOpc)
+{
+    return    rtAcpiAmlOpcIsComputationalData(bOpc)
+           || bOpc == ACPI_AML_BYTE_CODE_OP_PACKAGE
+           || bOpc == ACPI_AML_BYTE_CODE_OP_VAR_PACKAGE;
+}
+
+
+DECLINLINE(bool) rtAcpiAmlOpcIsDataRefObject(uint8_t bOpc)
+{
+    return rtAcpiAmlOpcIsDataObject(bOpc); /** @todo ObjectReference and DDBHandle. */
+}
+
+
+DECLINLINE(bool) rtAcpiAmlOpcIsArgObj(uint8_t bOpc)
+{
+    return    (bOpc >= ACPI_AML_BYTE_CODE_OP_ARG_0)
+           && (bOpc <= ACPI_AML_BYTE_CODE_OP_ARG_6);
+}
+
+
+DECLINLINE(bool) rtAcpiAmlOpcIsLocalObj(uint8_t bOpc)
+{
+    return    (bOpc >= ACPI_AML_BYTE_CODE_OP_LOCAL_0)
+           && (bOpc <= ACPI_AML_BYTE_CODE_OP_LOCAL_7);
+}
+
+
+DECLINLINE(bool) rtAcpiAmlOpcIsTermArg(uint8_t bOpc)
+{
+    /** @todo Type2Opcode */
+    return    rtAcpiAmlOpcIsDataObject(bOpc)
+           || rtAcpiAmlOpcIsArgObj(bOpc)
+           || rtAcpiAmlOpcIsLocalObj(bOpc);
+}
 /** @} */
 
 /** @} */

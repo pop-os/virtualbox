@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -43,6 +43,7 @@
 #include <iprt/stream.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
+#include <iprt/system.h>
 
 #include <iprt/test.h>
 
@@ -112,7 +113,9 @@ static void doInVmmTests(RTTEST hTest)
     }
 
     PVM pVM;
-    RTTESTI_CHECK_RC_RETV(SUPR3PageAlloc(RT_ALIGN_Z(sizeof(*pVM), HOST_PAGE_SIZE) >> HOST_PAGE_SHIFT, 0, (void **)&pVM),
+    size_t const cbPage = RTSystemGetPageSize();
+    size_t const cPages = RT_ALIGN_Z(sizeof(*pVM), cbPage) >> RTSystemGetPageShift();
+    RTTESTI_CHECK_RC_RETV(SUPR3PageAlloc(cPages, 0, (void **)&pVM),
                           VINF_SUCCESS);
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -595,7 +595,7 @@ static void vmsvga3dDXDrawDumpRenderTargets(PVGASTATECC pThisCC, PVMSVGA3DDXCONT
             image.face = 0;
             image.mipmap = 0;
             VMSVGA3D_MAPPED_SURFACE map;
-            int rc = vmsvga3dSurfaceMap(pThisCC, &image, NULL, VMSVGA3D_SURFACE_MAP_READ, &map);
+            int rc = vmsvga3dSurfaceMap(pThisCC, &image, NULL, VMSVGA3D_SURFACE_MAP_READ, VMSVGA3D_MAP_F_NONE, &map);
             if (RT_SUCCESS(rc))
             {
                 vmsvga3dMapWriteBmpFile(&map, pszPrefix ? pszPrefix : "rt-");

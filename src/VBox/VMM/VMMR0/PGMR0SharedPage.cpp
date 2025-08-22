@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -31,6 +31,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM_SHARED
 #define VBOX_WITHOUT_PAGING_BIT_FIELDS /* 64-bit bitfields are just asking for trouble. See @bugref{9841} and others. */
+#define VBOX_VMM_TARGET_X86
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/gmm.h>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -317,7 +317,8 @@ static DECLCALLBACK(int) pciGenEcamR3Construct(PPDMDEVINS pDevIns, int iInstance
                                            "|IntPinA"
                                            "|IntPinB"
                                            "|IntPinC"
-                                           "|IntPinD", "");
+                                           "|IntPinD"
+                                           "|Msi", "");
 
     int rc = pHlp->pfnCFGMQueryU64Def(pCfg, "MmioEcamBase", &pPciRoot->u64PciConfigMMioAddress, 0);
     AssertRCReturn(rc, PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"McfgBase\"")));
@@ -343,10 +344,14 @@ static DECLCALLBACK(int) pciGenEcamR3Construct(PPDMDEVINS pDevIns, int iInstance
     rc = pHlp->pfnCFGMQueryU32(pCfg, "IntPinD", &pPciRoot->u.GenericEcam.auPciIrqNr[3]);
     AssertRCReturn(rc, PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"IntPinD\"")));
 
+    bool fMsi;
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "Msi", &fMsi, false);
+    AssertRCReturn(rc, PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Msi\"")));
+
     Log(("PCI: fUseIoApic=%RTbool McfgBase=%#RX64 McfgLength=%#RX64 fR0Enabled=%RTbool fRCEnabled=%RTbool\n", pPciRoot->fUseIoApic,
          pPciRoot->u64PciConfigMMioAddress, pPciRoot->u64PciConfigMMioLength, pDevIns->fR0Enabled, pDevIns->fRCEnabled));
-    Log(("PCI: IntPinA=%u IntPinB=%u IntPinC=%u IntPinD=%u\n", pPciRoot->u.GenericEcam.auPciIrqNr[0],
-         pPciRoot->u.GenericEcam.auPciIrqNr[1], pPciRoot->u.GenericEcam.auPciIrqNr[2], pPciRoot->u.GenericEcam.auPciIrqNr[3]));
+    Log(("PCI: IntPinA=%u IntPinB=%u IntPinC=%u IntPinD=%u fMsi=%RTbool\n", pPciRoot->u.GenericEcam.auPciIrqNr[0],
+         pPciRoot->u.GenericEcam.auPciIrqNr[1], pPciRoot->u.GenericEcam.auPciIrqNr[2], pPciRoot->u.GenericEcam.auPciIrqNr[3], fMsi));
 
     /*
      * Init data.
@@ -375,7 +380,7 @@ static DECLCALLBACK(int) pciGenEcamR3Construct(PPDMDEVINS pDevIns, int iInstance
     PDMPCIBUSREGCC PciBusReg;
     PciBusReg.u32Version                 = PDM_PCIBUSREGCC_VERSION;
     PciBusReg.pfnRegisterR3              = devpciR3CommonRegisterDevice;
-    PciBusReg.pfnRegisterMsiR3           = NULL;
+    PciBusReg.pfnRegisterMsiR3           = fMsi ? devpciR3CommonRegisterMsi : NULL;
     PciBusReg.pfnIORegionRegisterR3      = devpciR3CommonIORegionRegister;
     PciBusReg.pfnInterceptConfigAccesses = devpciR3CommonInterceptConfigAccesses;
     PciBusReg.pfnConfigRead              = devpciR3CommonConfigRead;
@@ -517,7 +522,7 @@ static DECLCALLBACK(int) pciGenEcamBridgeR3Construct(PPDMDEVINS pDevIns, int iIn
     /*
      * Validate and read configuration.
      */
-    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "ExpressEnabled|ExpressPortType", "");
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "ExpressEnabled|ExpressPortType|Msi", "");
 
     /* check if we're supposed to implement a PCIe bridge. */
     bool fExpress;
@@ -531,6 +536,10 @@ static DECLCALLBACK(int) pciGenEcamBridgeR3Construct(PPDMDEVINS pDevIns, int iIn
     uint8_t const uExpressPortType = devpciR3BridgeCommonGetExpressPortTypeFromString(szExpressPortType);
     Log(("PCI/bridge#%u: fR0Enabled=%RTbool fRCEnabled=%RTbool fExpress=%RTbool uExpressPortType=%u (%s)\n",
          iInstance, pDevIns->fR0Enabled, pDevIns->fRCEnabled, fExpress, uExpressPortType, szExpressPortType));
+
+    bool fMsi;
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "Msi", &fMsi, false);
+    AssertRCReturn(rc, PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to query boolean value \"Msi\"")));
 
     /*
      * Init data and register the PCI bus.
@@ -549,7 +558,7 @@ static DECLCALLBACK(int) pciGenEcamBridgeR3Construct(PPDMDEVINS pDevIns, int iIn
     PDMPCIBUSREGCC PciBusReg;
     PciBusReg.u32Version                 = PDM_PCIBUSREGCC_VERSION;
     PciBusReg.pfnRegisterR3              = devpcibridgeR3CommonRegisterDevice;
-    PciBusReg.pfnRegisterMsiR3           = NULL;
+    PciBusReg.pfnRegisterMsiR3           = fMsi ? devpciR3CommonRegisterMsi : NULL;
     PciBusReg.pfnIORegionRegisterR3      = devpciR3CommonIORegionRegister;
     PciBusReg.pfnInterceptConfigAccesses = devpciR3CommonInterceptConfigAccesses;
     PciBusReg.pfnConfigWrite             = devpciR3CommonConfigWrite;

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -482,7 +482,7 @@ VBox-xpcom-xptinfo_SOURCES = \
 $(evalcall VBOX_XPCOM_X86,VBox-xpcom-xptinfo)
 
 
-VBox-xpcom-xptcall_TEMPLATE = XPComDllYasm
+VBox-xpcom-xptcall_TEMPLATE = XPComDll
 VBox-xpcom-xptcall_INSTTYPE = none
 VBox-xpcom-xptcall_DEFS                  = _IMPL_NS_COM _IMPL_NS_BASE EXPORT_XPTC_API
 VBox-xpcom-xptcall_DEFS.darwin           = KEEP_STACK_16_BYTE_ALIGNED
@@ -727,7 +727,7 @@ endif
 ifdef IPC_LOGGING
  TEMPLATE_XPComIpcDll_DEFS           += IPC_LOGGING
 endif
-TEMPLATE_XPComIpcDll_LIBS             = $(VBoxXPCOM_1_TARGET) $(TEMPLATE_XPComDll_LIBS)
+TEMPLATE_XPComIpcDll_LATE_LIBS        = $(VBoxXPCOM_1_TARGET) $(TEMPLATE_XPComDll_LATE_LIBS)
 ifneq ($(KBUILD_TARGET),win)
  ifeq ($(filter-out solaris.x86 %.amd64 %.sparc32 %.sparc64,$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)),) ## TODO: cleanup!
   if defined(VBOX_WITH_RELATIVE_RUNPATH) && !defined(VBOX_WITH_HARDENING)
@@ -743,7 +743,7 @@ endif
 TEMPLATE_XPComIpcDll-x86              = 32-bit XPCOM IPC libraries
 TEMPLATE_XPComIpcDll-x86_EXTENDS      = XPComIpcDll
 TEMPLATE_XPComIpcDll-x86_BLD_TRG_ARCH = x86
-TEMPLATE_XPComIpcDll-x86_LIBS         = $(VBoxXPCOM-x86_1_TARGET) $(TEMPLATE_XPComDll-x86_LIBS)
+TEMPLATE_XPComIpcDll-x86_LATE_LIBS    = $(VBoxXPCOM-x86_1_TARGET) $(TEMPLATE_XPComDll-x86_LATE_LIBS)
 
 TEMPLATE_XPComIpcExe               = XPCOM IPC executables
 TEMPLATE_XPComIpcExe_EXTENDS       = XPComExe
@@ -799,7 +799,7 @@ VBoxXPCOMIPCD_LDFLAGS.darwin = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxXP
 VBoxXPCOMIPCD_LIBS = \
 	$(VBox-xpcom-ipcshared_1_TARGET) \
 	$(VBoxXPCOM_1_TARGET) \
-	$(TEMPLATE_XPComDll_LIBS)
+	$(TEMPLATE_XPComDll_LATE_LIBS)
 
 
 #
@@ -939,6 +939,20 @@ $(PATH_TARGET)/VBox-xpcom-xpt-files/VBoxXPCOMBase.xpt: $$(VBOX_XPTFILES) | $$(xp
 	$(QUIET)$(MKDIR) -p -- $(PATH_STAGE_BIN)/components
 	$(QUIET)$(xpt_link_1_TARGET) $@ $^
 
+
+#
+# Touch and install .autoreg to ensure compreg.dat gets updated.
+#
+INSTALLS += VBoxXPCOM-autoreg
+VBoxXPCOM-autoreg_INST = $(INST_BIN)
+VBoxXPCOM-autoreg_MODE = 0644
+VBoxXPCOM-autoreg_SOURCES = \
+	$(PATH_TARGET)/VBox-xpcom-autoreg=>.autoreg
+VBoxXPCOM-autoreg_CLEAN = \
+	$(PATH_TARGET)/VBox-xpcom-autoreg
+
+$(PATH_TARGET)/VBox-xpcom-autoreg:
+	$(TOUCH) "$@"
 
 
 # generate rules

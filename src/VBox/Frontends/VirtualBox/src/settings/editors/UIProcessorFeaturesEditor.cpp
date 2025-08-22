@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -107,18 +107,18 @@ void UIProcessorFeaturesEditor::setMinimumLayoutIndent(int iIndent)
 void UIProcessorFeaturesEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Extended Features:"));
+        m_pLabel->setText(tr("Features"));
     if (m_pCheckBoxEnablePae)
     {
-        m_pCheckBoxEnablePae->setText(tr("Enable PA&E/NX"));
-        m_pCheckBoxEnablePae->setToolTip(tr("When checked, the Physical Address Extension (PAE) feature of the host CPU will be "
-                                            "exposed to the virtual machine."));
+        m_pCheckBoxEnablePae->setText(tr("PA&E/NX"));
+        m_pCheckBoxEnablePae->setToolTip(tr("Use the Physical Address Extension (PAE) feature "
+                                            "of the host CPU on the virtual machine"));
     }
     if (m_pCheckBoxEnableNestedVirtualization)
     {
-        m_pCheckBoxEnableNestedVirtualization->setText(tr("Enable Nested &VT-x/AMD-V"));
-        m_pCheckBoxEnableNestedVirtualization->setToolTip(tr("When checked, the nested hardware virtualization CPU feature will "
-                                                             "be exposed to the virtual machine."));
+        m_pCheckBoxEnableNestedVirtualization->setText(tr("Nested &VT-x/AMD-V"));
+        m_pCheckBoxEnableNestedVirtualization->setToolTip(tr("Use the nested hardware virtualization "
+                                                             "CPU feature on the virtual machine"));
     }
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -255,6 +255,7 @@ DECL_FORCE_INLINE(int) rtSemMutexRequestNoResume(RTSEMMUTEX hMutexSem, RTMSINTER
         case WAIT_ABANDONED:        return VERR_SEM_OWNER_DIED;
         default:
             AssertMsgFailed(("%u\n",  rc));
+            RT_FALL_THRU();
         case WAIT_FAILED:
         {
             int rc2 = RTErrConvertFromWin32(GetLastError());

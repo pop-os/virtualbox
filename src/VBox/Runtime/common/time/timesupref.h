@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -137,6 +137,9 @@ RTDECL(uint64_t) rtTimeNanoTSInternalRef(PRTTIMENANOTSDATA pData, PRTITMENANOTSE
 # elif TMPL_GET_CPU_METHOD == SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS
             uint16_t const  cbLim    = ASMGetIdtrLimit();
             uint16_t const  iCpuSet  = (cbLim - 256 * (ARCH_BITS == 64 ? 16 : 8)) & (RTCPUSET_MAX_CPUS - 1);
+            uint16_t const  iGipCpu  = pGip->aiCpuFromCpuSetIdx[iCpuSet];
+# elif TMPL_GET_CPU_METHOD == SUPGIPGETCPU_TPIDRRO_EL0
+            uint32_t const  iCpuSet  = ASMGetThreadIdRoEL0() & (RTCPUSET_MAX_CPUS - 1);
             uint16_t const  iGipCpu  = pGip->aiCpuFromCpuSetIdx[iCpuSet];
 # else
 #  error "What?"

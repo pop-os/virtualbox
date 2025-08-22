@@ -3,7 +3,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2024 Oracle and/or its affiliates.
+; Copyright (C) 2006-2025 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -42,6 +42,7 @@ struc GVMCPU
         .s                  resb VMCPU_size
 
         .idCpu              resd 1
+        .enmTarget          resd 1
 
         alignb 8
         .hEMT               RTR0PTR_RES 1
@@ -56,12 +57,12 @@ struc GVMCPU
         alignb 64
         .gvmm               resb 256
         alignb 64
+        .vmmr0              resb 896
+        alignb 64
         .hmr0               resb 1024
 %ifdef VBOX_WITH_NEM_R0
         .nemr0              resb 64
 %endif
-        alignb 64
-        .vmmr0              resb 896
         alignb 64
         .pgmr0              resb 576
         alignb 16384
@@ -78,6 +79,7 @@ struc GVM
         .pVMR3              RTR3PTR_RES 1
         .pSession           RTR0PTR_RES 1
         .cCpus              resd 1
+        .enmTarget          resd 1
 
         alignb 64
         .gvmm               resb 4352
@@ -92,7 +94,7 @@ struc GVM
         alignb 64
         .rawpci             resb 64
         alignb 64
-        .pdmr0              resb 3008
+        .pdmr0              resb 3264
         alignb 64
         .pgmr0              resb 90112
         alignb 64

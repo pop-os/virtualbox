@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -317,18 +317,17 @@ int HGCMThread::Initialize(const char *pszThreadName, PFNHGCMTHREAD pfnThread, v
                                                   "/HGCM/%s/PostMsg1Pending", pszStatsSubDir);
                         pVMM->pfnSTAMR3RegisterFU(pUVM, &m_StatPostMsgTwoPending, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
                                                   STAMUNIT_COUNT,
-                                                  "Times a message was appended to input queue with only one pending message.",
+                                                  "Times a message was appended to input queue with two pending messages.",
                                                   "/HGCM/%s/PostMsg2Pending", pszStatsSubDir);
                         pVMM->pfnSTAMR3RegisterFU(pUVM, &m_StatPostMsgThreePending, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
                                                   STAMUNIT_COUNT,
-                                                  "Times a message was appended to input queue with only one pending message.",
+                                                  "Times a message was appended to input queue with three pending messages.",
                                                   "/HGCM/%s/PostMsg3Pending", pszStatsSubDir);
                         pVMM->pfnSTAMR3RegisterFU(pUVM, &m_StatPostMsgManyPending, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
                                                   STAMUNIT_COUNT,
-                                                  "Times a message was appended to input queue with only one pending message.",
+                                                  "Times a message was appended to input queue with >3 pending messages.",
                                                   "/HGCM/%s/PostMsgManyPending", pszStatsSubDir);
                     }
-
 
                     /* Wait until the thread is ready. */
                     vrc = RTThreadUserWait(hThread, 30000);
@@ -439,9 +438,9 @@ int HGCMThread::MsgPost(HGCMMsgCore *pMsg, PFNHGCMMSGCALLBACK pfnCallback, bool 
             pPrev->m_pNext = pMsg;
             if (!pPrev->m_pPrev)
                 STAM_REL_COUNTER_INC(&m_StatPostMsgOnePending);
-            else if (!pPrev->m_pPrev)
-                STAM_REL_COUNTER_INC(&m_StatPostMsgTwoPending);
             else if (!pPrev->m_pPrev->m_pPrev)
+                STAM_REL_COUNTER_INC(&m_StatPostMsgTwoPending);
+            else if (!pPrev->m_pPrev->m_pPrev->m_pPrev)
                 STAM_REL_COUNTER_INC(&m_StatPostMsgThreePending);
             else
                 STAM_REL_COUNTER_INC(&m_StatPostMsgManyPending);

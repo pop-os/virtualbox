@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -67,11 +67,17 @@ ShClWinDataObject::ShClWinDataObject(void)
     , m_rcStatus(VERR_IPE_UNINITIALIZED_STATUS)
     , m_lRefCount(0)
     , m_cFormats(0)
+    , m_pFormatEtc(NULL)
+    , m_pStgMedium(NULL)
     , m_pTransfer(NULL)
     , m_pStream(NULL)
     , m_uObjIdx(0)
     , m_EventListComplete(NIL_RTSEMEVENT)
     , m_EventStatusChanged(NIL_RTSEMEVENT)
+    , m_cfFileDescriptorA(0)
+    , m_cfFileDescriptorW(0)
+    , m_cfFileContents(0)
+    , m_cfPerformedDropEffect(0)
 {
 #ifdef VBOX_SHARED_CLIPBOARD_DEBUG_OBJECT_COUNTS
     g_cDbgDataObj++;
@@ -502,6 +508,7 @@ DECLCALLBACK(int) ShClWinDataObject::readThread(PSHCLTRANSFER pTransfer, void *p
         for (uint32_t i = 0; i < cRoots; i++)
         {
             PCSHCLLISTENTRY pRootEntry = ShClTransferRootsEntryGet(pTransfer, i);
+            AssertPtrBreakStmt(pRootEntry, rc = VERR_INVALID_POINTER);
 
             AssertBreakStmt(pRootEntry->cbInfo == sizeof(SHCLFSOBJINFO), rc = VERR_INVALID_PARAMETER);
             PSHCLFSOBJINFO const pFsObjInfo = (PSHCLFSOBJINFO)pRootEntry->pvInfo;

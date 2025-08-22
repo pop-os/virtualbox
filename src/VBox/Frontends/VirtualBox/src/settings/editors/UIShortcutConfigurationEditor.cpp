@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -854,10 +854,12 @@ void UIShortcutConfigurationEditor::sltRetranslateUI()
 {
     m_pTabWidget->setTabText(TableIndex_Manager, tr("&VirtualBox Manager"));
     m_pTabWidget->setTabText(TableIndex_Runtime, tr("Virtual &Machine"));
-    m_pTableManager->setWhatsThis(tr("Lists all available shortcuts which can be configured."));
-    m_pTableRuntime->setWhatsThis(tr("Lists all available shortcuts which can be configured."));
-    m_pEditorFilterManager->setToolTip(tr("Holds a sequence to filter the shortcut list."));
-    m_pEditorFilterRuntime->setToolTip(tr("Holds a sequence to filter the shortcut list."));
+    const QString strTableTip = tr("Configurable shortcuts");
+    m_pTableManager->setWhatsThis(strTableTip);
+    m_pTableRuntime->setWhatsThis(strTableTip);
+    const QString strFilterTip = tr("Shortcut list filter");
+    m_pEditorFilterManager->setToolTip(strFilterTip);
+    m_pEditorFilterRuntime->setToolTip(strFilterTip);
 }
 
 void UIShortcutConfigurationEditor::prepare()

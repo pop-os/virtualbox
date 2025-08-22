@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1458,7 +1458,7 @@ static int usbHidCompleteOk(PUSBHID pThis, PVUSBURB pUrb, const void *pSrc, size
     if (pSrc)   /* Can be NULL if not copying anything. */
     {
         Assert(cbSrc);
-        uint8_t *pDst = pUrb->abData;
+        uint8_t *pDst = pUrb->pbData;
 
         /* Returned data is written after the setup message in control URBs. */
         if (pUrb->enmType == VUSBXFERTYPE_MSG)
@@ -1472,7 +1472,7 @@ static int usbHidCompleteOk(PUSBHID pThis, PVUSBURB pUrb, const void *pSrc, size
             cbCopy = RT_MIN(pUrb->cbData - cbSetup, cbSrc);
             memcpy(pDst + cbSetup, pSrc, cbCopy);
             pUrb->cbData = (uint32_t)(cbCopy + cbSetup);
-            Log(("Copied %zu bytes to pUrb->abData[%zu], source had %zu bytes\n", cbCopy, cbSetup, cbSrc));
+            Log(("Copied %zu bytes to pUrb->pbData[%zu], source had %zu bytes\n", cbCopy, cbSetup, cbSrc));
         }
 
         /* Need to check length differences. If cbSrc is less than what
@@ -2247,7 +2247,7 @@ static uint8_t const g_abQASampleBlob[256 + 1] =
 
 static int usbHidRequestClass(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
 {
-    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->abData[0];
+    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->pbData[0];
 
     if ((pThis->enmMode != USBHIDMODE_MT_ABSOLUTE) && (pThis->enmMode != USBHIDMODE_MT_RELATIVE))
     {
@@ -2269,7 +2269,7 @@ static int usbHidRequestClass(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
             LogRelFlow(("usbHid: %s: type %d, ID %d, data\n%.*Rhxd\n",
                         pSetup->bRequest == GET_REPORT? "GET_REPORT": "SET_REPORT",
                         u8ReportType, u8ReportID,
-                        pUrb->cbData - sizeof(VUSBSETUP), &pUrb->abData[sizeof(VUSBSETUP)]));
+                        pUrb->cbData - sizeof(VUSBSETUP), &pUrb->pbData[sizeof(VUSBSETUP)]));
             if (pSetup->bRequest == GET_REPORT)
             {
                 uint8_t     abData[sizeof(USBHIDALL_REPORT)];
@@ -2381,7 +2381,7 @@ static int usbHidRequestClass(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
  */
 static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
 {
-    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->abData[0];
+    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->pbData[0];
     AssertReturn(pUrb->cbData >= sizeof(*pSetup), VERR_VUSB_FAILED_TO_QUEUE_URB);
 
     if ((pSetup->bmRequestType & VUSB_REQ_MASK) == VUSB_REQ_STANDARD)

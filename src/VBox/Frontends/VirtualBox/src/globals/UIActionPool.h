@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -176,6 +176,7 @@ enum UIActionIndex
     UIActionIndex_M_MediumSelector_CreateHD,
     UIActionIndex_M_MediumSelector_CreateCD,
     UIActionIndex_M_MediumSelector_CreateFD,
+    UIActionIndex_M_MediumSelector_EditCD,
     UIActionIndex_M_MediumSelector_Refresh,
 
     /* Maximum index: */

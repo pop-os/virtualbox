@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -4220,8 +4220,10 @@ static void e1kTransmitFrame(PPDMDEVINS pDevIns, PE1KSTATE pThis, PE1KSTATECC pT
 #endif /* E1K_INT_STATS */
 
     /* Add VLAN tag */
-    if (cbFrame > 12 && pThis->fVTag && pSg->cbUsed + 4 <= pSg->cbAvailable)
+    if (pThis->fVTag && pSg->cbUsed + 4 <= pSg->cbAvailable)
     {
+        Assert(cbFrame > 12);
+
         E1kLog3(("%s Inserting VLAN tag %08x\n",
             pThis->szPrf, RT_BE2H_U16((uint16_t)VET) | (RT_BE2H_U16(pThis->u16VTagTCI) << 16)));
         memmove((uint8_t*)pSg->aSegs[0].pvSeg + 16, (uint8_t*)pSg->aSegs[0].pvSeg + 12, cbFrame - 12);

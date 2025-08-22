@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -99,7 +99,7 @@ typedef struct IEMNATIVEEMITTLBSTATE
         /* 32-bit and 64-bit wraparound will require special handling, so skip these for absolute addresses. */
         :           fSkip(      a_pReNative->Core.aVars[IEMNATIVE_VAR_IDX_UNPACK(a_idxVarGCPtrMem)].enmKind
                              == kIemNativeVarKind_Immediate
-                          &&   (  (a_pReNative->fExec & IEM_F_MODE_CPUMODE_MASK) != IEMMODE_64BIT
+                          &&   (  (a_pReNative->fExec & IEM_F_MODE_X86_CPUMODE_MASK) != IEMMODE_64BIT
                                 ? (uint64_t)(UINT32_MAX - a_cbMem - a_offDisp)
                                 : (uint64_t)(UINT64_MAX - a_cbMem - a_offDisp))
                              < a_pReNative->Core.aVars[IEMNATIVE_VAR_IDX_UNPACK(a_idxVarGCPtrMem)].u.uValue)
@@ -125,10 +125,10 @@ typedef struct IEMNATIVEEMITTLBSTATE
         ,   idxRegSegBase(a_fFlat || a_iSegReg == UINT8_MAX || fSkip
                           ? UINT8_MAX
                           : iemNativeRegAllocTmpForGuestReg(a_pReNative, a_poff, IEMNATIVEGSTREG_SEG_BASE(a_iSegReg)))
-        ,  idxRegSegLimit(a_fFlat || a_iSegReg == UINT8_MAX || (a_pReNative->fExec & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_64BIT || fSkip
+        ,  idxRegSegLimit(a_fFlat || a_iSegReg == UINT8_MAX || (a_pReNative->fExec & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_64BIT || fSkip
                           ? UINT8_MAX
                           : iemNativeRegAllocTmpForGuestReg(a_pReNative, a_poff, IEMNATIVEGSTREG_SEG_LIMIT(a_iSegReg)))
-        , idxRegSegAttrib(a_fFlat || a_iSegReg == UINT8_MAX || (a_pReNative->fExec & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_64BIT || fSkip
+        , idxRegSegAttrib(a_fFlat || a_iSegReg == UINT8_MAX || (a_pReNative->fExec & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_64BIT || fSkip
                           ? UINT8_MAX
                           : iemNativeRegAllocTmpForGuestReg(a_pReNative, a_poff, IEMNATIVEGSTREG_SEG_ATTRIB(a_iSegReg)))
         ,         idxReg1(!fSkip ? iemNativeRegAllocTmp(a_pReNative, a_poff) : UINT8_MAX)
@@ -165,10 +165,10 @@ typedef struct IEMNATIVEEMITTLBSTATE
         ,   idxRegSegBase(a_iSegReg == UINT8_MAX || fSkip
                           ? UINT8_MAX
                           : iemNativeRegAllocTmpForGuestReg(a_pReNative, a_poff, IEMNATIVEGSTREG_SEG_BASE(a_iSegReg)))
-        ,  idxRegSegLimit((a_iSegReg == UINT8_MAX || (a_pReNative->fExec & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_64BIT) || fSkip
+        ,  idxRegSegLimit((a_iSegReg == UINT8_MAX || (a_pReNative->fExec & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_64BIT) || fSkip
                           ? UINT8_MAX
                           : iemNativeRegAllocTmpForGuestReg(a_pReNative, a_poff, IEMNATIVEGSTREG_SEG_LIMIT(a_iSegReg)))
-        , idxRegSegAttrib((a_iSegReg == UINT8_MAX || (a_pReNative->fExec & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_64BIT) || fSkip
+        , idxRegSegAttrib((a_iSegReg == UINT8_MAX || (a_pReNative->fExec & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_64BIT) || fSkip
                           ? UINT8_MAX
                           : iemNativeRegAllocTmpForGuestReg(a_pReNative, a_poff, IEMNATIVEGSTREG_SEG_ATTRIB(a_iSegReg)))
         ,         idxReg1(!fSkip ? iemNativeRegAllocTmp(a_pReNative, a_poff) : UINT8_MAX)
@@ -348,7 +348,7 @@ iemNativeEmitTlbLookup(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVEEMI
     /* check_expand_down: ; complicted! */
     uint32_t const offCheckExpandDown = off;
     uint32_t       offFixupLimitDone  = 0;
-    if (a_fDataTlb && iSegReg != UINT8_MAX && (pReNative->fExec & IEM_F_MODE_CPUMODE_MASK) != IEMMODE_64BIT)
+    if (a_fDataTlb && iSegReg != UINT8_MAX && (pReNative->fExec & IEM_F_MODE_X86_CPUMODE_MASK) != IEMMODE_64BIT)
     {
         /* cmp  seglim, regptr */
         if (pTlbState->idxRegPtr != UINT8_MAX && offDisp == 0)
@@ -538,7 +538,7 @@ iemNativeEmitTlbLookup(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVEEMI
      *     ret, and iret prior to making it.  It is also checked by the helpers prior to
      *     doing TLB loading.
      */
-    if (a_fDataTlb && iSegReg != UINT8_MAX && (pReNative->fExec & IEM_F_MODE_CPUMODE_MASK) != IEMMODE_64BIT)
+    if (a_fDataTlb && iSegReg != UINT8_MAX && (pReNative->fExec & IEM_F_MODE_X86_CPUMODE_MASK) != IEMMODE_64BIT)
     {
         /* Check that we've got a segment loaded and that it allows the access.
            For write access this means a writable data segment.
@@ -711,7 +711,8 @@ iemNativeEmitTlbLookup(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVEEMI
             if RT_CONSTEXPR_IF(a_cbMem == 2)
             {
                 /* tbnz regflatptr, #0, tlbmiss */
-                pCodeBuf[off++] = Armv8A64MkInstrTbnz((int32_t)offMisalignedAccess - (int32_t)off, idxRegFlatPtr, 0);
+                pCodeBuf[off] = Armv8A64MkInstrTbnz((int32_t)offMisalignedAccess - (int32_t)off, idxRegFlatPtr, 0);
+                off++;
             }
             else
 #endif
@@ -1096,7 +1097,9 @@ iemNativeEmitTlbLookup(PIEMRECOMPILERSTATE pReNative, uint32_t off, IEMNATIVEEMI
             Assert(idxRegFlatPtr == pTlbState->idxRegPtr);
 # if defined(RT_ARCH_ARM64)
             Assert(idxRegMappingPtr == idxRegMemResult);
+#  ifndef RT_OS_LINUX /* We don't know the page size during compile time */
             AssertCompile(GUEST_PAGE_SIZE <= HOST_PAGE_SIZE);
+#  endif
             pCodeBuf[off++] = Armv8A64MkInstrBfxil(idxRegMemResult, idxRegFlatPtr, 0, GUEST_PAGE_SHIFT);
 # else
             Assert(idxRegMappingPtr == pTlbState->idxReg1);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -242,6 +242,7 @@ RTDECL(const char *) RTFsTypeName(RTFSTYPE enmType)
         case RTFSTYPE_PROC:         return "proc";
         case RTFSTYPE_OCFS2:        return "ocfs2";
         case RTFSTYPE_BTRFS:        return "btrfs";
+        case RTFSTYPE_ECRYPTFS:     return "ecryptfs";
 
         case RTFSTYPE_NTFS:         return "ntfs";
         case RTFSTYPE_FAT:          return "fat";

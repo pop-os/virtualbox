@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -913,7 +913,9 @@ static int vbsf_read_super_aux(struct super_block *sb, void *data, int flags)
         sb->s_time_gran = 1; /* This might be a little optimistic for windows hosts, where it should be 100. */
 #endif
         sb->s_op        = &g_vbsf_super_ops;
-#if RTLNX_VER_MIN(2,6,38)
+#if RTLNX_VER_MIN(6,17,0)
+        set_default_d_op(sb, &vbsf_dentry_ops);
+#elif RTLNX_VER_MIN(2,6,38)
         sb->s_d_op      = &vbsf_dentry_ops;
 #endif
 

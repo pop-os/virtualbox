@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Unit Tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2024 Oracle and/or its affiliates.
+Copyright (C) 2010-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 164827 $"
+__version__ = "$Revision: 170187 $"
 
 
 # Standard Python imports.
@@ -212,7 +212,8 @@ class tdUnitTest1(vbox.TestDriver):
         'tstXptLink': '',                               # parameters required
         'tstXPCOMCGlue': '',                            # user interaction required
         'testcase/tstXPCOMCGlue': '',                   # user interaction required
-        'testcase/tstCAPIGlue': '',                     # user interaction required
+        'testcase/tstCAPIGlue': '',                     # user interaction required (for <= 7.1)
+        'testcase/tstCAPIGlue-x86': '',                 # user interaction required (for <= 7.1)
         'testcase/tstTestCallTemplates': '',            # some strange xpcom18a4 test, segfaults
         'tstTestCallTemplates': '',                     # some strange xpcom18a4 test, segfaults
         'testcase/tstRTFilesystem': '',                 # parameters required
