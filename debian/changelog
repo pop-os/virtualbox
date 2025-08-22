@@ -2,8 +2,10 @@ virtualbox (7.2.0-dfsg-1) experimental; urgency=medium
 
   * New upstream version 7.2.0-dfsg
   * Refresh patches
+  * Update copyright years
+  * Conflict with virtualbox-7.2 too
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 22 Aug 2025 15:41:22 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 22 Aug 2025 16:08:18 +0200
 
 virtualbox (7.1.12-dfsg-2) unstable; urgency=medium
 
