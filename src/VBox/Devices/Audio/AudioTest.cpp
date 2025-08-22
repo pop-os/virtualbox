@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2808,8 +2808,9 @@ static int audioTestVerifyTestToneData(PAUDIOTESTVERIFYJOB pVerJob, PAUDIOTESTOB
     if (pVerJob->Opts.fNormalize)
     {
         rc = audioTestObjFileNormalize(pVerJob, &ObjA, &pVerJob->PCMProps);
-        if (RT_SUCCESS(rc))
-            rc = audioTestObjFileNormalize(pVerJob, &ObjB, &pVerJob->PCMProps);
+        CHECK_RC_MSG_MAYBE_RET(rc, pVerJob, "Normalizing object A failed");
+        rc = audioTestObjFileNormalize(pVerJob, &ObjB, &pVerJob->PCMProps);
+        CHECK_RC_MSG_MAYBE_RET(rc, pVerJob, "Normalizing object B failed");
     }
 
     /** @todo For now we only support comparison of data which do have identical PCM properties! */
@@ -3316,7 +3317,7 @@ int AudioTestWaveFileOpen(const char *pszFile, PAUDIOTESTWAVEFILE pWaveFile, PRT
                     /*
                      * Find the 'data' chunk with the audio samples.
                      *
-                     * There can be INFO lists both preceeding this and succeeding
+                     * There can be INFO lists both preceding this and succeeding
                      * it, containing IART and other things we can ignored.  Thus
                      * we read a list header here rather than just a chunk header,
                      * since it doesn't matter if we read 4 bytes extra as

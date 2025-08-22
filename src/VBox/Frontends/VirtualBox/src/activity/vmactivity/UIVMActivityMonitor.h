@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,15 +40,18 @@
 #include <QHash>
 
 /* COM includes: */
+#include "CCloudMachine.h"
+#include "CConsole.h"
+#include "CEventListener.h"
 #include "CGuest.h"
 #include "CMachine.h"
-#include "CCloudMachine.h"
 #include "CMachineDebugger.h"
 #include "CPerformanceCollector.h"
 #include "CSession.h"
 
 /* GUI includes: */
 #include "QIManagerDialog.h"
+#include "UIMainEventListener.h"
 #include "UIMonitorCommon.h"
 
 /* Forward declarations: */
@@ -255,7 +258,6 @@ public:
     ~UIVMActivityMonitorLocal();
     virtual QUuid machineId() const RT_OVERRIDE;
     virtual QString machineName() const RT_OVERRIDE;
-    void guestAdditionsStateChange();
 
 protected slots:
 
@@ -273,6 +275,7 @@ private slots:
     /** Stop updating the charts if/when the machine state changes something other than KMachineState_Running. */
     void sltMachineStateChange(const QUuid &uId);
     void sltClearCOMData();
+    void sltGuestAdditionsStateChange();
 
 private:
 
@@ -296,8 +299,8 @@ private:
     bool m_fGuestAdditionsAvailable;
     CMachine m_comMachine;
     CSession m_comSession;
-    CGuest m_comGuest;
-
+    CGuest   m_comGuest;
+    CConsole m_comConsole;
     CPerformanceCollector m_performanceCollector;
     bool                  m_fCOMPerformanceCollectorConfigured;
     CMachineDebugger      m_comMachineDebugger;
@@ -306,6 +309,8 @@ private:
     QString m_strVMExitLabelCurrent;
     QString m_strVMExitLabelTotal;
     QString m_strNetworkInfoLabelTitle;
+    ComObjPtr<UIMainEventListenerImpl> m_pQtConsoleListener;
+    CEventListener m_comConsoleListener;
 };
 
 class  SHARED_LIBRARY_STUFF UIVMActivityMonitorCloud : public UIVMActivityMonitor

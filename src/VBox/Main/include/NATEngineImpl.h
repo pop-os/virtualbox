@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -76,6 +76,14 @@ private:
     HRESULT getLocalhostReachable(BOOL *pfLocalhostReachable);
     HRESULT setForwardBroadcast(BOOL fForwardBroadcast);
     HRESULT getForwardBroadcast(BOOL *pfForwardBroadcast);
+    HRESULT setEnableTFTP(BOOL fEnableTFTP);
+    HRESULT getEnableTFTP(BOOL *pfEnableTFTP);
+    HRESULT setNatMRU(ULONG uMRU);
+    HRESULT getNatMRU(ULONG *puMRU);
+    HRESULT setIPv6Enabled(BOOL fEnableIPv6);
+    HRESULT getIPv6Enabled(BOOL *pfEnableIPv6);
+    HRESULT setIPv6Prefix(const com::Utf8Str &aIPv6Prefix);
+    HRESULT getIPv6Prefix(com::Utf8Str &aIPv6Prefix);
     /* TFTP properties */
     HRESULT setTFTPPrefix(const com::Utf8Str &aTFTPPrefix);
     HRESULT getTFTPPrefix(com::Utf8Str &aTFTPPrefix);

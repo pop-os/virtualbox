@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -36,7 +36,6 @@
 #include "UIChooserAbstractModel.h"
 #include "UIChooserNode.h"
 #include "UIChooserNodeGroup.h"
-#include "UIChooserNodeGlobal.h"
 #include "UIChooserNodeMachine.h"
 #include "UICloudNetworkingStuff.h"
 #include "UIExtraDataManager.h"
@@ -404,12 +403,6 @@ void UIChooserAbstractModel::init()
         /* Link root to this model: */
         invisibleRoot()->setModel(this);
 
-        /* Create global node: */
-        new UIChooserNodeGlobal(invisibleRoot() /* parent */,
-                                0 /* position */,
-                                shouldGlobalNodeBeFavorite(invisibleRoot()),
-                                QString() /* tip */);
-
         /* Reload local tree: */
         reloadLocalTree();
         /* Reload cloud tree: */
@@ -462,28 +455,27 @@ QString UIChooserAbstractModel::uniqueGroupName(UIChooserNode *pRoot)
         groupNames << pNode->name();
 
     /* Prepare reg-exp: */
-    const QString strMinimumName = tr("New group");
+    const QString strMinimumName = tr("New Group");
     const QString strShortTemplate = strMinimumName;
     const QString strFullTemplate = strShortTemplate + QString(" (\\d+)");
-    const QRegularExpression shortRegExp(strShortTemplate);
-    const QRegularExpression fullRegExp(strFullTemplate);
+    const QRegularExpression shortRegExp(strShortTemplate, QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpression fullRegExp(strFullTemplate, QRegularExpression::CaseInsensitiveOption);
 
     /* Search for the maximum index: */
-    int iMinimumPossibleNumber = 0;
+    int iMinimumPossibleNumber = 1;
     foreach (const QString &strName, groupNames)
     {
-        const QRegularExpressionMatch mtShort = shortRegExp.match(strName);
         const QRegularExpressionMatch mtFull = fullRegExp.match(strName);
-        if (mtShort.hasMatch())
-            iMinimumPossibleNumber = qMax(iMinimumPossibleNumber, 2);
-        else if (mtFull.hasMatch())
+        const QRegularExpressionMatch mtShort = shortRegExp.match(strName);
+        if (mtFull.hasMatch())
             iMinimumPossibleNumber = qMax(iMinimumPossibleNumber, mtFull.captured(1).toInt() + 1);
+        else if (mtShort.hasMatch())
+            iMinimumPossibleNumber = qMax(iMinimumPossibleNumber, 1);
     }
 
     /* Prepare/return result: */
     QString strResult = strMinimumName;
-    if (iMinimumPossibleNumber)
-        strResult += " " + QString::number(iMinimumPossibleNumber);
+    strResult += " " + QString::number(iMinimumPossibleNumber);
     return strResult;
 }
 
@@ -567,14 +559,13 @@ QString UIChooserAbstractModel::prefixToString(UIChooserNodeDataPrefixType enmTy
 {
     switch (enmType)
     {
-        /* Global nodes: */
-        case UIChooserNodeDataPrefixType_Global:   return "n";
         /* Machine nodes: */
         case UIChooserNodeDataPrefixType_Machine:  return "m";
         /* Group nodes: */
         case UIChooserNodeDataPrefixType_Local:    return "g";
         case UIChooserNodeDataPrefixType_Provider: return "p";
         case UIChooserNodeDataPrefixType_Profile:  return "a";
+        default: break;
     }
     return QString();
 }
@@ -584,21 +575,8 @@ QString UIChooserAbstractModel::optionToString(UIChooserNodeDataOptionType enmTy
 {
     switch (enmType)
     {
-        /* Global nodes: */
-        case UIChooserNodeDataOptionType_GlobalFavorite: return "f";
         /* Group nodes: */
-        case UIChooserNodeDataOptionType_GroupOpened:    return "o";
-    }
-    return QString();
-}
-
-/* static */
-QString UIChooserAbstractModel::valueToString(UIChooserNodeDataValueType enmType)
-{
-    switch (enmType)
-    {
-        /* Global nodes: */
-        case UIChooserNodeDataValueType_GlobalDefault: return "GLOBAL";
+        case UIChooserNodeDataOptionType_GroupOpened: return "o";
     }
     return QString();
 }
@@ -1476,38 +1454,6 @@ bool UIChooserAbstractModel::shouldGroupNodeBeOpened(UIChooserNode *pParentNode,
     return false;
 }
 
-bool UIChooserAbstractModel::shouldGlobalNodeBeFavorite(UIChooserNode *pParentNode) const
-{
-    /* Read group definitions: */
-    const QStringList definitions = gEDataManager->machineGroupDefinitions(pParentNode->fullName());
-    /* Return 'false' if no definitions found: */
-    if (definitions.isEmpty())
-        return false;
-
-    /* Prepare required group definition reg-exp: */
-    const QString strNodePrefix = prefixToString(UIChooserNodeDataPrefixType_Global);
-    const QString strNodeOptionFavorite = optionToString(UIChooserNodeDataOptionType_GlobalFavorite);
-    const QString strNodeValueDefault = valueToString(UIChooserNodeDataValueType_GlobalDefault);
-    const QString strDefinitionTemplate = QString("%1(\\S)*=%2").arg(strNodePrefix, strNodeValueDefault);
-    const QRegularExpression re(strDefinitionTemplate);
-    /* For each the group definition: */
-    foreach (const QString &strDefinition, definitions)
-    {
-        /* Check if this is required definition: */
-        const QRegularExpressionMatch mt = re.match(strDefinition);
-        if (mt.capturedStart() == 0)
-        {
-            /* Get group descriptor: */
-            const QString strDescriptor = mt.captured(1);
-            if (strDescriptor.contains(strNodeOptionFavorite))
-                return true;
-        }
-    }
-
-    /* Return 'false' by default: */
-    return false;
-}
-
 void UIChooserAbstractModel::wipeOutEmptyGroupsStartingFrom(UIChooserNode *pParent)
 {
     /* Cleanup all the group children recursively first: */
@@ -1539,11 +1485,11 @@ int UIChooserAbstractModel::getDesiredNodePosition(UIChooserNode *pParentNode,
         UIChooserNodeType enmType = UIChooserNodeType_Any;
         switch (enmDataType)
         {
-            case UIChooserNodeDataPrefixType_Global:   enmType = UIChooserNodeType_Global; break;
             case UIChooserNodeDataPrefixType_Machine:  enmType = UIChooserNodeType_Machine; break;
             case UIChooserNodeDataPrefixType_Local:
             case UIChooserNodeDataPrefixType_Provider:
             case UIChooserNodeDataPrefixType_Profile:  enmType = UIChooserNodeType_Group; break;
+            default: break;
         }
         const QList<UIChooserNode*> nodes = pParentNode->nodes(enmType);
         for (int i = nodes.size() - 1; i >= 0; --i)
@@ -1552,7 +1498,7 @@ int UIChooserAbstractModel::getDesiredNodePosition(UIChooserNode *pParentNode,
             UIChooserNode *pNode = nodes.at(i);
             AssertPtrReturn(pNode, iNewNodeDesiredPosition);
             /* Which position should be current node placed by definitions? */
-            UIChooserNodeDataPrefixType enmNodeDataType = UIChooserNodeDataPrefixType_Global;
+            UIChooserNodeDataPrefixType enmNodeDataType = UIChooserNodeDataPrefixType_Invalid;
             QString strDefinitionName;
             switch (pNode->type())
             {
@@ -1824,13 +1770,6 @@ void UIChooserAbstractModel::gatherGroupDefinitions(QMap<QString, QStringList> &
 {
     /* Prepare extra-data key for current group: */
     const QString strExtraDataKey = pParentGroup->fullName();
-    /* Iterate over all the global-nodes: */
-    foreach (UIChooserNode *pNode, pParentGroup->nodes(UIChooserNodeType_Global))
-    {
-        /* Append node definition: */
-        AssertPtrReturnVoid(pNode);
-        definitions[strExtraDataKey] << pNode->definition(true /* full */);
-    }
     /* Iterate over all the group-nodes: */
     foreach (UIChooserNode *pNode, pParentGroup->nodes(UIChooserNodeType_Group))
     {

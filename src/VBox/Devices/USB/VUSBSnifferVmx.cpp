@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -166,23 +166,23 @@ static DECLCALLBACK(int) vusbSnifferFmtVmxRecordEvent(PVUSBSNIFFERFMTINT pThis, 
             || pUrb->enmType == VUSBXFERTYPE_MSG)
         {
             if (enmEvent == VUSBSNIFFEREVENT_SUBMIT)
-                rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->abData[0], sizeof(VUSBSETUP));
+                rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->pbData[0], sizeof(VUSBSETUP));
             else if (enmEvent == VUSBSNIFFEREVENT_COMPLETE)
             {
-                rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->abData[0], sizeof(VUSBSETUP));
+                rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->pbData[0], sizeof(VUSBSETUP));
                 if (   RT_SUCCESS(rc)
                     && pUrb->cbData > sizeof(VUSBSETUP))
-                    rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->abData[sizeof(VUSBSETUP)], pUrb->cbData - sizeof(VUSBSETUP));
+                    rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->pbData[sizeof(VUSBSETUP)], pUrb->cbData - sizeof(VUSBSETUP));
             }
         }
         else
         {
             if (   enmEvent == VUSBSNIFFEREVENT_SUBMIT
                 && pUrb->enmDir == VUSBDIRECTION_OUT)
-                rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->abData[0], pUrb->cbData);
+                rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->pbData[0], pUrb->cbData);
             else if (   enmEvent == VUSBSNIFFEREVENT_COMPLETE
                      && pUrb->enmDir == VUSBDIRECTION_IN)
-                rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->abData[0], pUrb->cbData);
+                rc = vusbSnifferFmtVmxLogData(pThis, &Time, &pUrb->pbData[0], pUrb->cbData);
         }
     }
 

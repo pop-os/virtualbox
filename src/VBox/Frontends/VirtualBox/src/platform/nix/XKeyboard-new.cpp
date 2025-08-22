@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -226,7 +226,7 @@ void initMappedX11Keyboard(Display *pDisplay, const QString &remapScancodes)
     initXKeyboard(pDisplay, scancodes);
 
     if (scancodes)
-        delete scancodes;
+        delete[] scancodes;
 }
 
 unsigned handleXKeyEvent(Display *pDisplay, unsigned int iDetail)

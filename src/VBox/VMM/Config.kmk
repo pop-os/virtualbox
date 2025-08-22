@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -41,6 +41,14 @@ VBOX_PATH_SRC_VMM := $(PATH_ROOT)/src/VBox/VMM
 ## DEFS variable that is picked up by all three VMM targets (R0, R3, RC).
 # Can be prepended to by setting it in LocalConfig.kmk
 VMM_COMMON_DEFS := USING_VMM_COMMON_DEFS
+ifdef VBOX_WITH_R0_MODULES
+ VMM_COMMON_DEFS += VBOX_WITH_R0_MODULES
+ ifdef VBOX_WITH_MINIMAL_R0
+  VMM_COMMON_DEFS += VBOX_WITH_MINIMAL_R0 VBOX_WITH_ONLY_PGM_NEM_MODE
+ endif
+else
+ VMM_COMMON_DEFS += VBOX_WITH_ONLY_PGM_NEM_MODE
+endif
 ifdef VBOX_WITH_HWVIRT
  VMM_COMMON_DEFS += VBOX_WITH_HWVIRT
 endif
@@ -111,9 +119,6 @@ endif
 ifdef VBOX_WITH_DTRACE_RC
  VMM_COMMON_DEFS += VBOX_WITH_DTRACE_RC
 endif
-ifdef VBOX_WITH_SAFE_STR
- VMM_COMMON_DEFS += VBOX_WITH_SAFE_STR
-endif
 ifdef VBOX_WITH_64ON32_CMOS_DEBUG
  VMM_COMMON_DEFS += VBOX_WITH_64ON32_CMOS_DEBUG
 endif
@@ -150,15 +155,15 @@ define def_VBoxGenIEMInstructionStatisticsTmpl_Header
  $$(call KB_FN_AUTO_CMD_DEPS,$(2)/IEMInstructionStatisticsTmpl.h.ts)
  $(2)/IEMInstructionStatisticsTmpl.h.ts \
  +| $(2)/IEMInstructionStatisticsTmpl.h: \
- 		$$(VBOX_PATH_SRC_VMM)/VMMAll/IEMAllInstCommon.cpp.h \
- 		$$(VBOX_PATH_SRC_VMM)/VMMAll/IEMAllInstOneByte.cpp.h \
- 		$$(VBOX_PATH_SRC_VMM)/VMMAll/IEMAllInstTwoByte0f.cpp.h \
- 		$$(VBOX_PATH_SRC_VMM)/VMMAll/IEMAllInstThree0f38.cpp.h \
- 		$$(VBOX_PATH_SRC_VMM)/VMMAll/IEMAllInstThree0f3a.cpp.h \
- 		$$(VBOX_PATH_SRC_VMM)/VMMAll/IEMAllInstVexMap1.cpp.h \
- 		$$(VBOX_PATH_SRC_VMM)/VMMAll/IEMAllInstVexMap2.cpp.h \
- 		$$(VBOX_PATH_SRC_VMM)/VMMAll/IEMAllInstVexMap3.cpp.h \
- 		$$(VBOX_PATH_SRC_VMM)/VMMAll/IEMAllInst3DNow.cpp.h
+ 		$$(VBOX_PATH_SRC_VMM)/VMMAll/target-x86/IEMAllInstCommon-x86.cpp.h \
+ 		$$(VBOX_PATH_SRC_VMM)/VMMAll/target-x86/IEMAllInstOneByte-x86.cpp.h \
+ 		$$(VBOX_PATH_SRC_VMM)/VMMAll/target-x86/IEMAllInstTwoByte0f-x86.cpp.h \
+ 		$$(VBOX_PATH_SRC_VMM)/VMMAll/target-x86/IEMAllInstThree0f38-x86.cpp.h \
+ 		$$(VBOX_PATH_SRC_VMM)/VMMAll/target-x86/IEMAllInstThree0f3a-x86.cpp.h \
+ 		$$(VBOX_PATH_SRC_VMM)/VMMAll/target-x86/IEMAllInstVexMap1-x86.cpp.h \
+ 		$$(VBOX_PATH_SRC_VMM)/VMMAll/target-x86/IEMAllInstVexMap2-x86.cpp.h \
+ 		$$(VBOX_PATH_SRC_VMM)/VMMAll/target-x86/IEMAllInstVexMap3-x86.cpp.h \
+ 		$$(VBOX_PATH_SRC_VMM)/VMMAll/target-x86/IEMAllInst3DNow-x86.cpp.h
 	$$(QUIET)$(call MSG_GENERATE,$(1),$$@,VMMAll/IEMAllInst*.cpp.h)
 	$$(QUIET)$$(RM) -f -- "$$@.tmp" "$$@.tmp" "$$@.sorted"
 	$$(QUIET)$$(MKDIR) -p -- "$$(dir $$@)"

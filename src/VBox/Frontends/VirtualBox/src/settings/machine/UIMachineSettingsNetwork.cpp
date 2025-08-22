@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -997,7 +997,7 @@ bool UIMachineSettingsNetwork::saveAdapterData(int iSlot)
         else
         {
             /* Save whether the adapter is enabled: */
-            if (fSuccess && isMachineOffline() && newAdapterData.m_fAdapterEnabled != oldAdapterData.m_fAdapterEnabled)
+            if (/*fSuccess &&*/ isMachineOffline() && newAdapterData.m_fAdapterEnabled != oldAdapterData.m_fAdapterEnabled)
             {
                 comAdapter.SetEnabled(newAdapterData.m_fAdapterEnabled);
                 fSuccess = comAdapter.isOk();

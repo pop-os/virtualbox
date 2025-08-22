@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -606,7 +606,7 @@ static DECLCALLBACK(int) vusbSnifferFmtPcapNgRecordEvent(PVUSBSNIFFERFMTINT pThi
             cbUrbLength = 0;
     }
     uint32_t cbDataLength = cbUrbLength;
-    pbData = &pUrb->abData[0];
+    pbData = &pUrb->pbData[0];
 
     uint32_t cIsocPkts = 0;
     switch (pUrb->enmType)
@@ -677,7 +677,7 @@ static DECLCALLBACK(int) vusbSnifferFmtPcapNgRecordEvent(PVUSBSNIFFERFMTINT pThi
     if (   (pUrb->enmType == VUSBXFERTYPE_MSG || pUrb->enmType == VUSBXFERTYPE_CTRL)
         && enmEvent == VUSBSNIFFEREVENT_SUBMIT)
     {
-        PVUSBSETUP pSetup = (PVUSBSETUP)pUrb->abData;
+        PVUSBSETUP pSetup = (PVUSBSETUP)pUrb->pbData;
 
         UsbHdr.u.UsbSetup.bmRequestType = pSetup->bmRequestType;
         UsbHdr.u.UsbSetup.bRequest      = pSetup->bRequest;

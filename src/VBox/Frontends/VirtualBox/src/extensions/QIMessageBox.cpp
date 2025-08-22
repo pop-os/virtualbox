@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -413,7 +413,7 @@ QString QIMessageBox::compressLongWords(QString strText)
         QString strNewText = strText;
         const QString strFound = mt.captured();
         strNewText.replace(iPosition, strFound.size(), strFound.left(50) + "..." + strFound.right(50));
-        fChangeAllowed = fChangeAllowed && strText != strNewText;
+        fChangeAllowed = strText != strNewText;
         strText = strNewText;
         mt = re.match(strText);
         iPosition = mt.capturedStart();

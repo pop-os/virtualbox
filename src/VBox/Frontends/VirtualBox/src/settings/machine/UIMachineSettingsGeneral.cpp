@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -460,8 +460,8 @@ void UIMachineSettingsGeneral::setOrderAfter(QWidget *pWidget)
 
 void UIMachineSettingsGeneral::sltRetranslateUI()
 {
-    m_pTabWidget->setTabText(m_pTabWidget->indexOf(m_pTabBasic), tr("Basi&c"));
-    m_pTabWidget->setTabText(m_pTabWidget->indexOf(m_pTabAdvanced), tr("A&dvanced"));
+    m_pTabWidget->setTabText(m_pTabWidget->indexOf(m_pTabBasic), tr("&Identity"));
+    m_pTabWidget->setTabText(m_pTabWidget->indexOf(m_pTabAdvanced), tr("&Features"));
     m_pTabWidget->setTabText(m_pTabWidget->indexOf(m_pTabDescription), tr("D&escription"));
     m_pTabWidget->setTabText(m_pTabWidget->indexOf(m_pTabEncryption), tr("Disk Enc&ryption"));
 
@@ -785,8 +785,11 @@ bool UIMachineSettingsGeneral::saveBasicData()
                         CPlatformX86 comPlatformX86 = comPlatform.GetX86();
                         const CGuestOSType comNewType = gpGlobalSession->virtualBox().GetGuestOSType(newGeneralData.m_strGuestOsTypeId);
                         comPlatformX86.SetCPUProperty(KCPUPropertyTypeX86_LongMode, comNewType.GetIs64Bit());
-                        fSuccess = comPlatformX86.isOk();
-                        /// @todo convey error info ..
+                        if (!comPlatformX86.isOk())
+                        {
+                            notifyOperationProgressError(UIErrorString::formatErrorInfo(comPlatformX86));
+                            return false;
+                        }
                         break;
                     }
                     default:
@@ -936,7 +939,7 @@ bool UIMachineSettingsGeneral::saveEncryptionData()
 
                 /* Get attachment type for further activities: */
                 KDeviceType enmType = KDeviceType_Null;
-                if (fSuccess)
+                // if (fSuccess)
                 {
                     enmType = comAttachment.GetType();
                     fSuccess = comAttachment.isOk();
@@ -960,7 +963,7 @@ bool UIMachineSettingsGeneral::saveEncryptionData()
 
                     /* Get medium id for further activities: */
                     QUuid uMediumId;
-                    if (fSuccess)
+                    // if (fSuccess)
                     {
                         uMediumId = comMedium.GetId();
                         fSuccess = comMedium.isOk();

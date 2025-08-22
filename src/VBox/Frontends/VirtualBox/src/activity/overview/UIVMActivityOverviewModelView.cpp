@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -268,8 +268,15 @@ UIVMActivityOverviewRow::~UIVMActivityOverviewRow()
 
 void UIVMActivityOverviewRow::initCells()
 {
+    /* Hide VM exits in release builds: */
     for (int i = (int) VMActivityOverviewColumn_Name; i < (int) VMActivityOverviewColumn_Max; ++i)
+    {
+#ifndef DEBUG
+        if (i == (int) VMActivityOverviewColumn_VMExits)
+            continue;
+#endif
         m_cells[i] = new UIVMActivityOverviewCell(this);
+    }
     m_cells[VMActivityOverviewColumn_Name]->setText(m_strMachineName);
 }
 

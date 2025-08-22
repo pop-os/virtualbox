@@ -1,11 +1,11 @@
 #! /bin/sh
 # $Id: vboxadd.sh $
 ## @file
-# Linux Additions kernel module init script ($Revision: 169437 $)
+# Linux Additions kernel module init script ($Revision: 170187 $)
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -539,7 +539,7 @@ setup_modules()
     # Prepend PATH for building UEK on OL8/9 distributions.
     case "$KERN_VER" in
         5.15.0-*.el8uek*) PATH="/opt/rh/gcc-toolset-11/root/usr/bin:$PATH";;
-        6.12.0-*.el9uek*)PATH="/opt/rh/gcc-toolset-14/root/usr/bin:$PATH";;
+        6.12.0-*.el9uek*) PATH="/opt/rh/gcc-toolset-14/root/usr/bin:$PATH";;
     esac
 
     # Detect if kernel was built with clang.

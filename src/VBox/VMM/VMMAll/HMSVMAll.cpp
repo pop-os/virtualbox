@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2017-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -32,7 +32,7 @@
 #define LOG_GROUP LOG_GROUP_HM
 #define VMCPU_INCL_CPUM_GST_CTX
 #include "HMInternal.h"
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/gim.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/vmcc.h>
@@ -102,7 +102,7 @@ VMM_INT_DECL(int) hmEmulateSvmMovTpr(PVMCC pVM, PVMCPUCC pVCpu)
             case HMTPRINSTR_READ:
             {
                 bool fPending;
-                int  rc = APICGetTpr(pVCpu, &u8Tpr, &fPending, NULL /* pu8PendingIrq */);
+                int  rc = PDMApicGetTpr(pVCpu, &u8Tpr, &fPending, NULL /* pu8PendingIrq */);
                 AssertRC(rc);
 
                 uint8_t idxReg = pPatch->uDstOperand;
@@ -125,7 +125,7 @@ VMM_INT_DECL(int) hmEmulateSvmMovTpr(PVMCC pVM, PVMCPUCC pVCpu)
                 else
                     u8Tpr = (uint8_t)pPatch->uSrcOperand;
 
-                int rc2 = APICSetTpr(pVCpu, u8Tpr);
+                int rc2 = PDMApicSetTpr(pVCpu, u8Tpr);
                 AssertRC(rc2);
                 pCtx->rip += pPatch->cbOp;
                 pCtx->eflags.Bits.u1RF = 0;

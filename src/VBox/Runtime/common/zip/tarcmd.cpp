@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -493,6 +493,9 @@ static RTEXITCODE rtZipTarCmdArchiveDirSub(PRTZIPTARCMDOPS pOpts, RTVFSFSSTREAM 
                 break;
             }
         }
+
+        if (RT_FAILURE(rc))
+            break;
     }
 
     RTVfsDirRelease(hVfsIoDir);
@@ -1226,6 +1229,7 @@ static RTEXITCODE rtZipTarCmdExtractHardlink(PRTZIPTARCMDOPS pOpts, RTEXITCODE r
                 {
                     rcExit = RTMsgErrorExitFailure("%s: Failed copying hardlinked file '%s': %Rrc", pszDst, szFullTarget, rc);
                     rc = RTFileClose(hDstFile);
+                    AssertRC(rc);
                     RTFileDelete(pszDst);
                 }
             }

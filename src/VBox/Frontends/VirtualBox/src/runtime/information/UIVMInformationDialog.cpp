@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -149,17 +149,6 @@ void UIVMInformationDialog::sltMachineStateChange(const QUuid &uMachineId, const
     pWidget->setEnabled(state == KMachineState_Running);
 }
 
-void UIVMInformationDialog::sltAdditionsStateChange()
-{
-    if (!m_pTabWidget)
-        return;
-    UIVMActivityMonitorContainer *pVMActivityMonitorContainer =
-        qobject_cast<UIVMActivityMonitorContainer*>(m_pTabWidget->widget(Tabs_ActivityMonitor));
-    if (!pVMActivityMonitorContainer)
-        return;
-    pVMActivityMonitorContainer->guestAdditionsStateChange(uiCommon().managedVMUuid());
-}
-
 void UIVMInformationDialog::saveDialogGeometry()
 {
     const QRect geo = currentGeometry();
@@ -170,8 +159,6 @@ void UIVMInformationDialog::saveDialogGeometry()
 
 void UIVMInformationDialog::prepare()
 {
-    connect(gpMachine, &UIMachine::sigAdditionsStateChange,
-            this, &UIVMInformationDialog::sltAdditionsStateChange);
 #ifndef VBOX_WS_MAC
     /* Assign window icon: */
     setWindowIcon(UIIconPool::iconSetFull(":/session_info_32px.png", ":/session_info_16px.png"));
@@ -275,7 +262,7 @@ void UIVMInformationDialog::prepareButtonBox()
     {
         /* Configure button-box: */
         m_pButtonBox->setStandardButtons(QDialogButtonBox::Close | QDialogButtonBox::Help);
-        uiCommon().setHelpKeyword(m_pButtonBox->button(QDialogButtonBox::Help), "vm-session-information");
+        uiCommon().setHelpKeyword(m_pButtonBox->button(QDialogButtonBox::Help), "tk_vm-activity-session-information" /* help keyword */);
         connect(m_pButtonBox, &QIDialogButtonBox::rejected, this, &UIVMInformationDialog::sigClose);
         connect(m_pButtonBox->button(QDialogButtonBox::Help), &QPushButton::pressed,
                 m_pButtonBox, &QIDialogButtonBox::sltHandleHelpRequest);

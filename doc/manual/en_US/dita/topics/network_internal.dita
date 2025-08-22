@@ -23,10 +23,7 @@
       There are two ways to accomplish this: </p>
     <ul>
       <li>
-        <p>Use the VM's <b outputclass="bold">Settings</b> window in <ph conkeyref="vbox-conkeyref-phrases/vbox-mgr"/>.
-          In the <b outputclass="bold">Network</b> category of the Settings window, select <b outputclass="bold"
-            >Internal Network</b> from the drop-down list of networking modes. Select the name of an existing internal
-          network from the drop-down list below, or enter a new name into the <b outputclass="bold">Name</b> field. </p>
+        <p>Use the VM's <b outputclass="bold">Settings</b> in <ph conkeyref="vbox-conkeyref-phrases/vbox-mgr"/>. In the <b outputclass="bold">Network</b> section, select <b outputclass="bold">Internal Network</b> as the networking mode. Select the name of an existing internal network from the drop-down list below, or enter a new name into the <b outputclass="bold">Name</b> field.</p>
       </li>
       <li>
         <p>Use the command line, for example: </p>
@@ -39,10 +36,7 @@
             <codeph>intnet</codeph> by default. </p>
       </li>
     </ul>
-    <p>Unless you configure the virtual network cards in the guest operating systems that are
-      participating in the internal network to use static IP addresses, you may want to use the DHCP
-      server that is built into <ph conkeyref="vbox-conkeyref-phrases/product-name"/> to manage IP addresses for the internal
-      network. See <xref href="vboxmanage-dhcpserver.dita"/>. </p>
+    <p>Unless you configure the virtual network cards in the guest operating systems that are participating in the internal network to use static IP addresses, you may want to use the DHCP server that is built into <ph conkeyref="vbox-conkeyref-phrases/product-name"/> to manage IP addresses for the internal network. See <xref href="../cli_topics/vboxmanage-dhcpserver.dita"/>.</p>
     <p>As a security measure, by default, the Linux implementation of
       internal networking only allows VMs running under the same user ID
       to establish an internal network. However, it is possible to

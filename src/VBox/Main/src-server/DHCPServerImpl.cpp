@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -569,14 +569,13 @@ HRESULT DHCPServer::setConfiguration(const com::Utf8Str &aIPAddress,
     /*
      * Input is valid, effect the changes.
      */
-    HRESULT hrc;
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
         m->IPAddress  = aIPAddress;
         m->lowerIP    = aLowerIP;
         m->upperIP    = aUpperIP;
-        hrc = m->globalConfig->i_setNetworkMask(aNetworkMask);
     }
+    HRESULT hrc = m->globalConfig->i_setNetworkMask(aNetworkMask);
     if (SUCCEEDED(hrc))
         hrc = i_doSaveSettings();
     return hrc;

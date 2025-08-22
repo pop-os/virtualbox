@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -49,21 +49,22 @@ enum UIActionIndexMN
     UIActionIndexMN_M_File_S_ImportAppliance,
     UIActionIndexMN_M_File_S_ExportAppliance,
     UIActionIndexMN_M_File_M_Tools,
-    UIActionIndexMN_M_File_M_Tools_T_WelcomeScreen,
+    UIActionIndexMN_M_File_M_Tools_T_HomeScreen,
     UIActionIndexMN_M_File_M_Tools_T_ExtensionPackManager,
     UIActionIndexMN_M_File_M_Tools_T_VirtualMediaManager,
     UIActionIndexMN_M_File_M_Tools_T_NetworkManager,
     UIActionIndexMN_M_File_M_Tools_T_CloudProfileManager,
     UIActionIndexMN_M_File_M_Tools_T_VMActivityOverview,
+    UIActionIndexMN_M_File_M_Tools_T_MachineManager,
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     UIActionIndexMN_M_File_S_ShowExtraDataManager,
 #endif
     UIActionIndexMN_M_File_S_Close,
 
-    /* 'Welcome' menu actions: */
-    UIActionIndexMN_M_Welcome,
-    UIActionIndexMN_M_Welcome_S_New,
-    UIActionIndexMN_M_Welcome_S_Add,
+    /* 'Home' menu actions: */
+    UIActionIndexMN_M_Home,
+    UIActionIndexMN_M_Home_S_New,
+    UIActionIndexMN_M_Home_S_Add,
 
     /* 'Group' menu actions: */
     UIActionIndexMN_M_Group,
@@ -72,10 +73,11 @@ enum UIActionIndexMN
     UIActionIndexMN_M_Group_S_Rename,
     UIActionIndexMN_M_Group_S_Remove,
     UIActionIndexMN_M_Group_M_MoveToGroup,
-    UIActionIndexMN_M_Group_M_StartOrShow,
-    UIActionIndexMN_M_Group_M_StartOrShow_S_StartNormal,
-    UIActionIndexMN_M_Group_M_StartOrShow_S_StartHeadless,
-    UIActionIndexMN_M_Group_M_StartOrShow_S_StartDetachable,
+    UIActionIndexMN_M_Group_M_Start,
+    UIActionIndexMN_M_Group_M_Start_S_Normal,
+    UIActionIndexMN_M_Group_M_Start_S_Headless,
+    UIActionIndexMN_M_Group_M_Start_S_Detachable,
+    UIActionIndexMN_M_Group_S_Show,
     UIActionIndexMN_M_Group_T_Pause,
     UIActionIndexMN_M_Group_S_Reset,
     UIActionIndexMN_M_Group_S_Detach,
@@ -112,10 +114,11 @@ enum UIActionIndexMN
     UIActionIndexMN_M_Machine_S_Remove,
     UIActionIndexMN_M_Machine_M_MoveToGroup,
     UIActionIndexMN_M_Machine_M_MoveToGroup_S_New,
-    UIActionIndexMN_M_Machine_M_StartOrShow,
-    UIActionIndexMN_M_Machine_M_StartOrShow_S_StartNormal,
-    UIActionIndexMN_M_Machine_M_StartOrShow_S_StartHeadless,
-    UIActionIndexMN_M_Machine_M_StartOrShow_S_StartDetachable,
+    UIActionIndexMN_M_Machine_M_Start,
+    UIActionIndexMN_M_Machine_M_Start_S_Normal,
+    UIActionIndexMN_M_Machine_M_Start_S_Headless,
+    UIActionIndexMN_M_Machine_M_Start_S_Detachable,
+    UIActionIndexMN_M_Machine_S_Show,
     UIActionIndexMN_M_Machine_T_Pause,
     UIActionIndexMN_M_Machine_S_Reset,
     UIActionIndexMN_M_Machine_S_Detach,
@@ -173,6 +176,7 @@ enum UIActionIndexMN
     UIActionIndexMN_M_Medium_T_Search,
     UIActionIndexMN_M_Medium_S_Refresh,
     UIActionIndexMN_M_Medium_S_Clear,
+    UIActionIndexMN_M_Medium_S_Edit,
 
     /* Network Manager actions: */
     UIActionIndexMN_M_NetworkWindow,
@@ -252,8 +256,8 @@ private:
     void updateMenuFile();
     /** Updates 'File' / 'Tools' menu. */
     void updateMenuFileTools();
-    /** Updates 'Welcome' menu. */
-    void updateMenuWelcome();
+    /** Updates 'Home' menu. */
+    void updateMenuHome();
     /** Updates 'Group' menu. */
     void updateMenuGroup();
     /** Updates 'Machine' menu. */
@@ -262,10 +266,10 @@ private:
     void updateMenuGroupMoveToGroup();
     /** Updates 'Machine' / 'Move to Group' menu. */
     void updateMenuMachineMoveToGroup();
-    /** Updates 'Group' / 'Start or Show' menu. */
-    void updateMenuGroupStartOrShow();
-    /** Updates 'Machine' / 'Start or Show' menu. */
-    void updateMenuMachineStartOrShow();
+    /** Updates 'Group' / 'Start' menu. */
+    void updateMenuGroupStart();
+    /** Updates 'Machine' / 'Start' menu. */
+    void updateMenuMachineStart();
     /** Updates 'Group' / 'Console' menu. */
     void updateMenuGroupConsole();
     /** Updates 'Machine' / 'Console' menu. */

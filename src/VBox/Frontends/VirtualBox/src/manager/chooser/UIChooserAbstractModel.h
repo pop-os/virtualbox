@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -141,8 +141,6 @@ public:
         static QString prefixToString(UIChooserNodeDataPrefixType enmType);
         /** Returns node extra-data option of certain @a enmType. */
         static QString optionToString(UIChooserNodeDataOptionType enmType);
-        /** Returns node extra-data value of certain @a enmType. */
-        static QString valueToString(UIChooserNodeDataValueType enmType);
     /** @} */
 
     /** @name Cloud update stuff.
@@ -312,9 +310,6 @@ private:
         bool shouldGroupNodeBeOpened(UIChooserNode *pParentNode,
                                      UIChooserNodeDataPrefixType enmDataType,
                                      const QString &strName) const;
-        /** Returns whether global node should be favorite,
-          * searching starting from the passed @a pParentNode. */
-        bool shouldGlobalNodeBeFavorite(UIChooserNode *pParentNode) const;
 
         /** Wipes out empty groups starting from @a pParentItem. */
         void wipeOutEmptyGroupsStartingFrom(UIChooserNode *pParentNode);

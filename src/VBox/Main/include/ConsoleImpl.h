@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2005-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -39,7 +39,7 @@
 #include "SecretKeyStore.h"
 #include "ConsoleWrap.h"
 #ifdef VBOX_WITH_RECORDING
-# include "Recording.h"
+# include "RecordingContext.h"
 #endif
 #ifdef VBOX_WITH_CLOUD_NET
 #include "CloudGateway.h"
@@ -202,7 +202,6 @@ public:
     int i_recordingCreate(ComPtr<IProgress> &pProgress);
     void i_recordingDestroy(void);
     int i_recordingEnable(BOOL fEnable, util::AutoWriteLock *pAutoLock, ComPtr<IProgress> &pProgress);
-    int i_recordingGetSettings(settings::Recording &Settings);
     int i_recordingStart(util::AutoWriteLock *pAutoLock = NULL);
     int i_recordingStop(util::AutoWriteLock *pAutoLock = NULL);
     int i_recordingCursorShapeChange(bool fVisible, bool fAlpha, uint32_t xHot, uint32_t yHot, uint32_t uWidth, uint32_t uHeight, const uint8_t *pu8Shape, uint32_t cbShape);
@@ -245,8 +244,8 @@ public:
     HRESULT i_onClipboardFileTransferModeChange(bool aEnabled);
     HRESULT i_onDnDModeChange(DnDMode_T aDnDMode);
     HRESULT i_onVRDEServerChange(BOOL aRestart);
-    HRESULT i_onRecordingStateChange(BOOL aEnable, ComPtr<IProgress> &aProgress);
-    HRESULT i_onRecordingScreenStateChange(BOOL aEnable, ULONG aScreen);
+    HRESULT i_onRecordingStateChange(RecordingState_T aState, ComPtr<IProgress> &aProgress);
+    HRESULT i_onRecordingScreenStateChange(RecordingState_T aState, ULONG aScreen);
     HRESULT i_onUSBControllerChange();
     HRESULT i_onSharedFolderChange(BOOL aGlobal);
     HRESULT i_onUSBDeviceAttach(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs,
@@ -876,7 +875,11 @@ private:
                              PCFGMNODE pDevices, PCFGMNODE pUsbDevices, PCFGMNODE pBiosCfg, bool *pfFdcEnabled);
     int i_configNetworkCtrls(ComPtr<IMachine> pMachine, ComPtr<IPlatformProperties> pPlatformProperties,
                              ChipsetType_T enmChipset, BusAssignmentManager *pBusMgr, PCVMMR3VTABLE pVMM, PUVM pUVM,
-                             PCFGMNODE pDevices, std::list<BootNic> &llBootNics);
+                             PCFGMNODE pDevices, PCFGMNODE pUsbDevices, std::list<BootNic> &llBootNics);
+#if defined(VBOX_WITH_TPM)
+    int i_configTpm(ComPtr<ITrustedPlatformModule> pTpm, TpmType_T enmTpmType, PCFGMNODE pDevices,
+                    RTGCPHYS GCPhysTpmMmio, uint32_t uIrq, RTGCPHYS GCPhysTpmPpi, bool fCrb = false);
+#endif
 
     static DECLCALLBACK(void) i_vmstateChangeCallback(PUVM pUVM, PCVMMR3VTABLE pVMM, VMSTATE enmState,
                                                       VMSTATE enmOldState, void *pvUser);
@@ -966,10 +969,9 @@ private:
 
     static DECLCALLBACK(int)    i_pdmIfSecKeyHlp_KeyMissingNotify(PPDMISECKEYHLP pInterface);
 
-    int mcAudioRefs;
     volatile uint32_t mcVRDPClients;
     uint32_t mu32SingleRDPClientId; /* The id of a connected client in the single connection mode. */
-    volatile  bool mcGuestCredentialsProvided;
+    volatile  bool mfGuestCredentialsProvided;
 
     static const char *sSSMConsoleUnit;
 

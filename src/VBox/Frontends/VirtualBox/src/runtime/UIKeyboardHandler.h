@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -119,6 +119,10 @@ public:
     /** Called whenever host key press/release scan codes are inserted to the guest.
       * @a bPressed is true for press and false for release inserts. */
     void setHostKeyComboPressedFlag(bool bPressed);
+
+#ifdef VBOX_WS_NIX
+    void handleKeyEvent(quint32 uEvDevCode, bool fRelease);
+#endif
 
 protected slots:
 

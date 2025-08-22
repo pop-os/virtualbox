@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -70,11 +70,11 @@ public slots:
     /** Performs forced new version check. */
     void sltForceCheck();
 
-private slots:
-
     /** Checks whether update is necessary.
       * @param  fForcedCall  Brings whether this customer has forced privelegies. */
     void sltCheckIfUpdateIsNecessary(bool fForcedCall = false);
+
+private slots:
 
     /** Handles update finishing. */
     void sltHandleUpdateFinishing();

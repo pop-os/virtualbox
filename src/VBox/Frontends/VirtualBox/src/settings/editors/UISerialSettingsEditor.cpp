@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -196,41 +196,41 @@ void UISerialSettingsEditor::sltRetranslateUI()
     if (m_pCheckBoxPort)
     {
         m_pCheckBoxPort->setText(tr("&Enable Serial Port"));
-        m_pCheckBoxPort->setToolTip(tr("When checked, enables the given serial port of the virtual machine."));
+        m_pCheckBoxPort->setToolTip(tr("Enable this serial port of the virtual machine"));
     }
     if (m_pLabelNumber)
-        m_pLabelNumber->setText(tr("Port &Number:"));
+        m_pLabelNumber->setText(tr("Port &Number"));
     if (m_pComboNumber)
     {
         m_pComboNumber->setItemText(m_pComboNumber->count() - 1, UITranslator::toCOMPortName(0, 0));
-        m_pComboNumber->setToolTip(tr("Selects the serial port number. You can choose one of the standard serial ports or select "
+        m_pComboNumber->setToolTip(tr("Serial port number. You can choose one of the standard serial ports or select "
                                       "User-defined and specify port parameters manually."));
     }
     if (m_pLabelIRQ)
-        m_pLabelIRQ->setText(tr("&IRQ:"));
+        m_pLabelIRQ->setText(tr("&IRQ"));
     if (m_pLineEditIRQ)
-        m_pLineEditIRQ->setToolTip(tr("Holds the IRQ number of this serial port. This should be a whole number between "
+        m_pLineEditIRQ->setToolTip(tr("IRQ number of this serial port. This should be a whole number between "
                                       "'0' and '255'. Values greater than '15' may only be used if the "
                                       "I/O APIC setting is enabled for this virtual machine."));
     if (m_pLabelIOAddress)
-        m_pLabelIOAddress->setText(tr("I/O Po&rt:"));
+        m_pLabelIOAddress->setText(tr("I/O Po&rt"));
     if (m_pLineEditIOAddress)
-        m_pLineEditIOAddress->setToolTip(tr("Holds the base I/O port address of this serial port. Valid values are integer numbers "
+        m_pLineEditIOAddress->setToolTip(tr("Base I/O port address of this serial port. Valid values are integer numbers "
                                             "in range from '0' to '0xFFFF'."));
     if (m_pLabelMode)
-        m_pLabelMode->setText(tr("Port &Mode:"));
+        m_pLabelMode->setText(tr("Port &Mode"));
     if (m_pComboMode)
-        m_pComboMode->setToolTip(tr("Selects the working mode of this serial port. If you select Disconnected, the guest "
+        m_pComboMode->setToolTip(tr("Working mode of this serial port. If you select Disconnected, the guest "
                                     "OS will detect the serial port but will not be able to operate it."));
     if (m_pCheckBoxPipe)
     {
         m_pCheckBoxPipe->setText(tr("&Connect to existing pipe/socket"));
-        m_pCheckBoxPipe->setToolTip(tr("When checked, the virtual machine will assume that the pipe or socket specified in the "
+        m_pCheckBoxPipe->setToolTip(tr("Virtual machine will assume that the pipe or socket specified in the "
                                        "Path/Address field exists and try to use it. Otherwise, the pipe or socket will "
                                        "be created by the virtual machine when it starts."));
     }
     if (m_pLabelPath)
-        m_pLabelPath->setText(tr("&Path/Address:"));
+        m_pLabelPath->setText(tr("&Path/Address"));
     if (m_pEditorPath)
         m_pEditorPath->setToolTip(tr("In Host Pipe mode: Holds the path to the serial port's pipe on the host. "
                                      "Examples: \"\\\\.\\pipe\\myvbox\" or \"/tmp/myvbox\", for Windows and UNIX-like systems "

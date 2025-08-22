@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -329,6 +329,25 @@ QUuid UIMediumTools::openMediumCreatorDialog(UIActionPool *pActionPool,
     /* Update the recent medium list only if the medium type is floppy since updating when a VISO is created is not optimal: */
     if (enmMediumType == UIMediumDeviceType_Floppy)
         gpMediumEnumerator->updateRecentlyUsedMediumListAndFolder(enmMediumType, gpMediumEnumerator->medium(uMediumId).location());
+    return uMediumId;
+}
+
+QUuid UIMediumTools::openMediumEditDialog(UIActionPool *pActionPool,
+                                          QWidget *pParent,
+                                          UIMediumDeviceType enmMediumType,
+                                          const QString &strMediumPath)
+{
+    QUuid uMediumId;
+    switch (enmMediumType)
+    {
+        case UIMediumDeviceType_HardDisk:
+        case UIMediumDeviceType_Floppy:
+        default:
+            break;
+        case UIMediumDeviceType_DVD:
+            uMediumId = UIVisoCreatorDialog::editViso(pActionPool, pParent, strMediumPath);
+            break;
+    }
     return uMediumId;
 }
 

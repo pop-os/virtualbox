@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -79,7 +79,7 @@ void UIChipsetEditor::setMinimumLayoutIndent(int iIndent)
 void UIChipsetEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("&Chipset:"));
+        m_pLabel->setText(tr("&Chipset"));
     if (m_pCombo)
     {
         for (int i = 0; i < m_pCombo->count(); ++i)
@@ -87,9 +87,7 @@ void UIChipsetEditor::sltRetranslateUI()
             const KChipsetType enmType = m_pCombo->itemData(i).value<KChipsetType>();
             m_pCombo->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pCombo->setToolTip(tr("Selects the chipset to be emulated in this virtual machine. Note that the ICH9 chipset "
-                                "emulation is experimental and not recommended except for guest systems (such as Mac OS X) "
-                                "which require it."));
+        m_pCombo->setToolTip(tr("Emulated chipset type"));
     }
 }
 

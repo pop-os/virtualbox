@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -53,23 +53,6 @@ RT_C_DECLS_BEGIN
  * @ingroup grp_vmm
  * @{
  */
-
-/** @def IN_GVMM_R0
- * Used to indicate whether we're inside the same link module as the ring 0
- * part of the Global VM Manager or not.
- */
-#ifdef DOXYGEN_RUNNING
-# define IN_GVMM_R0
-#endif
-/** @def GVMMR0DECL
- * Ring 0 VM export or import declaration.
- * @param   type    The return type of the function declaration.
- */
-#ifdef IN_GVMM_R0
-# define GVMMR0DECL(type)    DECLEXPORT(type) VBOXCALL
-#else
-# define GVMMR0DECL(type)    DECLIMPORT(type) VBOXCALL
-#endif
 
 /** @def NIL_GVM_HANDLE
  * The nil GVM VM handle value (VM::hSelf).
@@ -213,43 +196,43 @@ typedef enum GVMMWORKERTHREAD
     GVMMWORKERTHREAD_32_BIT_HACK = 0x7fffffff
 } GVMMWORKERTHREAD;
 
-GVMMR0DECL(int)     GVMMR0Init(void);
-GVMMR0DECL(void)    GVMMR0Term(void);
-GVMMR0DECL(int)     GVMMR0SetConfig(PSUPDRVSESSION pSession, const char *pszName, uint64_t u64Value);
-GVMMR0DECL(int)     GVMMR0QueryConfig(PSUPDRVSESSION pSession, const char *pszName, uint64_t *pu64Value);
+VMMR0_INT_DECL(int)     GVMMR0Init(void);
+VMMR0_INT_DECL(void)    GVMMR0Term(void);
+VMMR0_INT_DECL(int)     GVMMR0SetConfig(PSUPDRVSESSION pSession, const char *pszName, uint64_t u64Value);
+VMMR0_INT_DECL(int)     GVMMR0QueryConfig(PSUPDRVSESSION pSession, const char *pszName, uint64_t *pu64Value);
 
-GVMMR0DECL(int)     GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVMCC *ppVM);
-GVMMR0DECL(int)     GVMMR0InitVM(PGVM pGVM);
-GVMMR0DECL(void)    GVMMR0DoneInitVM(PGVM pGVM);
-GVMMR0DECL(bool)    GVMMR0DoingTermVM(PGVM pGVM);
-GVMMR0DECL(int)     GVMMR0DestroyVM(PGVM pGVM);
-GVMMR0DECL(int)     GVMMR0RegisterVCpu(PGVM pGVM, VMCPUID idCpu);
-GVMMR0DECL(int)     GVMMR0DeregisterVCpu(PGVM pGVM, VMCPUID idCpu);
-GVMMR0DECL(int)     GVMMR0RegisterWorkerThread(PGVM pGVM, GVMMWORKERTHREAD enmWorker, RTNATIVETHREAD hThreadR3);
-GVMMR0DECL(int)     GVMMR0DeregisterWorkerThread(PGVM pGVM, GVMMWORKERTHREAD enmWorker);
-GVMMR0DECL(PGVM)    GVMMR0ByHandle(uint32_t hGVM);
-GVMMR0DECL(int)     GVMMR0ValidateGVM(PGVM pGVM);
-GVMMR0DECL(int)     GVMMR0ValidateGVMandEMT(PGVM pGVM, VMCPUID idCpu);
-GVMMR0DECL(int)     GVMMR0ValidateGVMandEMTorWorker(PGVM pGVM, VMCPUID idCpu, GVMMWORKERTHREAD enmWorker);
-GVMMR0DECL(PVMCC)   GVMMR0GetVMByEMT(RTNATIVETHREAD hEMT);
-GVMMR0DECL(PGVMCPU) GVMMR0GetGVCpuByEMT(RTNATIVETHREAD hEMT);
-GVMMR0DECL(PGVMCPU) GVMMR0GetGVCpuByGVMandEMT(PGVM pGVM, RTNATIVETHREAD hEMT);
-GVMMR0DECL(RTNATIVETHREAD) GVMMR0GetRing3ThreadForSelf(PGVM pGVM);
-GVMMR0DECL(RTHCPHYS) GVMMR0ConvertGVMPtr2HCPhys(PGVM pGVM, void *pv);
-GVMMR0DECL(int)     GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGipTime);
-GVMMR0DECL(int)     GVMMR0SchedHaltReq(PGVM pGVM, VMCPUID idCpu, uint64_t u64ExpireGipTime);
-GVMMR0DECL(int)     GVMMR0SchedWakeUp(PGVM pGVM, VMCPUID idCpu);
-GVMMR0DECL(int)     GVMMR0SchedWakeUpEx(PGVM pGVM, VMCPUID idCpu, bool fTakeUsedLock);
-GVMMR0DECL(int)     GVMMR0SchedWakeUpNoGVMNoLock(PGVM pGVM, VMCPUID idCpu);
-GVMMR0DECL(int)     GVMMR0SchedPoke(PGVM pGVM, VMCPUID idCpu);
-GVMMR0DECL(int)     GVMMR0SchedPokeEx(PGVM pGVM, VMCPUID idCpu, bool fTakeUsedLock);
-GVMMR0DECL(int)     GVMMR0SchedPokeNoGVMNoLock(PVMCC pVM, VMCPUID idCpu);
-GVMMR0DECL(int)     GVMMR0SchedWakeUpAndPokeCpus(PGVM pGVM, PCVMCPUSET pSleepSet, PCVMCPUSET pPokeSet);
-GVMMR0DECL(int)     GVMMR0SchedPoll(PGVM pGVM, VMCPUID idCpu, bool fYield);
-GVMMR0DECL(void)    GVMMR0SchedUpdatePeriodicPreemptionTimer(PGVM pGVM, RTCPUID idHostCpu, uint32_t uHz);
-GVMMR0DECL(int)     GVMMR0EnumVMs(PFNGVMMR0ENUMCALLBACK pfnCallback, void *pvUser);
-GVMMR0DECL(int)     GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession, PGVM pGVM);
-GVMMR0DECL(int)     GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSession, PGVM pGVM);
+VMMR0_INT_DECL(int)     GVMMR0CreateVM(PSUPDRVSESSION pSession, VMTARGET enmTarget, uint32_t cCpus, PVMCC *ppVM);
+VMMR0_INT_DECL(int)     GVMMR0InitVM(PGVM pGVM);
+VMMR0_INT_DECL(void)    GVMMR0DoneInitVM(PGVM pGVM);
+VMMR0_INT_DECL(bool)    GVMMR0DoingTermVM(PGVM pGVM);
+VMMR0_INT_DECL(int)     GVMMR0DestroyVM(PGVM pGVM);
+VMMR0_INT_DECL(int)     GVMMR0RegisterVCpu(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)     GVMMR0DeregisterVCpu(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)     GVMMR0RegisterWorkerThread(PGVM pGVM, GVMMWORKERTHREAD enmWorker, RTNATIVETHREAD hThreadR3);
+VMMR0_INT_DECL(int)     GVMMR0DeregisterWorkerThread(PGVM pGVM, GVMMWORKERTHREAD enmWorker);
+VMMR0_INT_DECL(PGVM)    GVMMR0ByHandle(uint32_t hGVM);
+VMMR0_INT_DECL(int)     GVMMR0ValidateGVM(PGVM pGVM);
+VMMR0_INT_DECL(int)     GVMMR0ValidateGVMandEMT(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)     GVMMR0ValidateGVMandEMTorWorker(PGVM pGVM, VMCPUID idCpu, GVMMWORKERTHREAD enmWorker);
+VMMR0_INT_DECL(PVMCC)   GVMMR0GetVMByEMT(RTNATIVETHREAD hEMT);
+VMMR0_INT_DECL(PGVMCPU) GVMMR0GetGVCpuByEMT(RTNATIVETHREAD hEMT);
+VMMR0_INT_DECL(PGVMCPU) GVMMR0GetGVCpuByGVMandEMT(PGVM pGVM, RTNATIVETHREAD hEMT);
+VMMR0_INT_DECL(RTNATIVETHREAD) GVMMR0GetRing3ThreadForSelf(PGVM pGVM);
+VMMR0_INT_DECL(RTHCPHYS) GVMMR0ConvertGVMPtr2HCPhys(PGVM pGVM, void *pv);
+VMMR0_INT_DECL(int)     GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGipTime);
+VMMR0_INT_DECL(int)     GVMMR0SchedHaltReq(PGVM pGVM, VMCPUID idCpu, uint64_t u64ExpireGipTime);
+VMMR0_INT_DECL(int)     GVMMR0SchedWakeUp(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)     GVMMR0SchedWakeUpEx(PGVM pGVM, VMCPUID idCpu, bool fTakeUsedLock);
+VMMR0_INT_DECL(int)     GVMMR0SchedWakeUpNoGVMNoLock(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)     GVMMR0SchedPoke(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)     GVMMR0SchedPokeEx(PGVM pGVM, VMCPUID idCpu, bool fTakeUsedLock);
+VMMR0_INT_DECL(int)     GVMMR0SchedPokeNoGVMNoLock(PVMCC pVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)     GVMMR0SchedWakeUpAndPokeCpus(PGVM pGVM, PCVMCPUSET pSleepSet, PCVMCPUSET pPokeSet);
+VMMR0_INT_DECL(int)     GVMMR0SchedPoll(PGVM pGVM, VMCPUID idCpu, bool fYield);
+VMMR0_INT_DECL(void)    GVMMR0SchedUpdatePeriodicPreemptionTimer(PGVM pGVM, RTCPUID idHostCpu, uint32_t uHz);
+VMMR0_INT_DECL(int)     GVMMR0EnumVMs(PFNGVMMR0ENUMCALLBACK pfnCallback, void *pvUser);
+VMMR0_INT_DECL(int)     GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession, PGVM pGVM);
+VMMR0_INT_DECL(int)     GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSession, PGVM pGVM);
 
 
 /**
@@ -261,8 +244,18 @@ typedef struct GVMMCREATEVMREQ
     SUPVMMR0REQHDR  Hdr;
     /** The support driver session. (IN) */
     PSUPDRVSESSION  pSession;
+    /** The VM's target arch.   */
+    VMTARGET        enmTarget;
     /** Number of virtual CPUs for the new VM. (IN) */
     uint32_t        cCpus;
+    /** Size of the VM structure. (IN) */
+    uint32_t        cbVM;
+    /** Size of the VMCPU structure. (IN) */
+    uint32_t        cbVCpu;
+    /** Structure version number (TBD). (IN) */
+    uint32_t        uStructVersion;
+    /** SVN revision. (IN) */
+    uint32_t        uSvnRevision;
     /** Pointer to the ring-3 mapping of the shared VM structure on return. (OUT) */
     PVMR3           pVMR3;
     /** Pointer to the ring-0 mapping of the shared VM structure on return. (OUT) */
@@ -271,7 +264,7 @@ typedef struct GVMMCREATEVMREQ
 /** Pointer to a GVMMR0CreateVM request packet. */
 typedef GVMMCREATEVMREQ *PGVMMCREATEVMREQ;
 
-GVMMR0DECL(int)     GVMMR0CreateVMReq(PGVMMCREATEVMREQ pReq, PSUPDRVSESSION pSession);
+VMMR0_INT_DECL(int)     GVMMR0CreateVMReq(PGVMMCREATEVMREQ pReq, PSUPDRVSESSION pSession);
 
 
 /**
@@ -304,7 +297,7 @@ typedef struct GVMMSCHEDWAKEUPANDPOKECPUSREQ /* nice and unreadable... */
 /** Pointer to a GVMMR0QueryStatisticsReq / VMMR0_DO_GVMM_QUERY_STATISTICS request buffer. */
 typedef GVMMSCHEDWAKEUPANDPOKECPUSREQ *PGVMMSCHEDWAKEUPANDPOKECPUSREQ;
 
-GVMMR0DECL(int)     GVMMR0SchedWakeUpAndPokeCpusReq(PGVM pGVM, PGVMMSCHEDWAKEUPANDPOKECPUSREQ pReq);
+VMMR0_INT_DECL(int)     GVMMR0SchedWakeUpAndPokeCpusReq(PGVM pGVM, PGVMMSCHEDWAKEUPANDPOKECPUSREQ pReq);
 
 
 /**
@@ -323,7 +316,7 @@ typedef struct GVMMQUERYSTATISTICSSREQ
 /** Pointer to a GVMMR0QueryStatisticsReq / VMMR0_DO_GVMM_QUERY_STATISTICS request buffer. */
 typedef GVMMQUERYSTATISTICSSREQ *PGVMMQUERYSTATISTICSSREQ;
 
-GVMMR0DECL(int)     GVMMR0QueryStatisticsReq(PGVM pGVM, PGVMMQUERYSTATISTICSSREQ pReq, PSUPDRVSESSION pSession);
+VMMR0_INT_DECL(int)     GVMMR0QueryStatisticsReq(PGVM pGVM, PGVMMQUERYSTATISTICSSREQ pReq, PSUPDRVSESSION pSession);
 
 
 /**
@@ -343,11 +336,12 @@ typedef struct GVMMRESETSTATISTICSSREQ
 /** Pointer to a GVMMR0ResetStatisticsReq / VMMR0_DO_GVMM_RESET_STATISTICS request buffer. */
 typedef GVMMRESETSTATISTICSSREQ *PGVMMRESETSTATISTICSSREQ;
 
-GVMMR0DECL(int)     GVMMR0ResetStatisticsReq(PGVM pGVM, PGVMMRESETSTATISTICSSREQ pReq, PSUPDRVSESSION pSession);
+VMMR0_INT_DECL(int)     GVMMR0ResetStatisticsReq(PGVM pGVM, PGVMMRESETSTATISTICSSREQ pReq, PSUPDRVSESSION pSession);
 
 
 #ifdef IN_RING3
-VMMR3_INT_DECL(int)  GVMMR3CreateVM(PUVM pUVM, uint32_t cCpus, PSUPDRVSESSION pSession, PVM *ppVM, PRTR0PTR ppVMR0);
+VMMR3_INT_DECL(int)  GVMMR3CreateVM(PUVM pUVM, VMTARGET enmTarget, uint32_t cCpus, PSUPDRVSESSION pSession,
+                                    PVM *ppVM, PRTR0PTR ppVMR0);
 VMMR3_INT_DECL(int)  GVMMR3DestroyVM(PUVM pUVM, PVM pVM);
 VMMR3_INT_DECL(int)  GVMMR3RegisterVCpu(PVM pVM, VMCPUID idCpu);
 VMMR3_INT_DECL(int)  GVMMR3DeregisterVCpu(PVM pVM, VMCPUID idCpu);

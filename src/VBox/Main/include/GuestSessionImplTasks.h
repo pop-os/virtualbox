@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -57,7 +57,9 @@ struct GuestSessionFsSourceSpec
     GuestSessionFsSourceSpec()
         : enmType(FsObjType_Unknown)
         , enmPathStyle(PathStyle_Unknown)
-        , fDryRun(false) { RT_ZERO(Type); }
+        , fDryRun(false)
+        , fDirCopyFlags(DirectoryCopyFlag_None)
+        , fFileCopyFlags(FileCopyFlag_None) { RT_ZERO(Type); }
 
     /** The (absolute) path to the source to use. */
     Utf8Str     strSource;
@@ -159,7 +161,7 @@ public:
 typedef std::vector<FsList *> FsLists;
 
 /**
- * Abstract base class for a lenghtly per-session operation which
+ * Abstract base class for a lengthy per-session operation which
  * runs in a Main worker thread.
  */
 class GuestSessionTask
@@ -454,7 +456,7 @@ protected:
 
     int addProcessArguments(ProcessArguments &aArgumentsDest, const ProcessArguments &aArgumentsSource);
     int copyFileToGuest(GuestSession *pSession, RTVFS hVfsIso, Utf8Str const &strFileSource, const Utf8Str &strFileDest, bool fOptional);
-    int runFileOnGuest(GuestSession *pSession, GuestProcessStartupInfo &procInfo, bool fSilent = false);
+    int runFileOnGuest(GuestSession *pSession, GuestProcessStartupInfo &procInfo, bool fSilent = false, bool fOptional = false);
     HRESULT setUpdateErrorMsg(HRESULT hrc, const Utf8Str &strMsg);
     HRESULT setUpdateErrorMsg(HRESULT hrc, const Utf8Str &strMsg, const GuestErrorInfo &guestErrorInfo);
 

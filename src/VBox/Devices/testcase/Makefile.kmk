@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -52,7 +52,6 @@ VBOX_DEVICES_TESTS_FEATURES = \
 	$(if $(VBOX_WITH_SCSI),VBOX_WITH_SCSI,) \
 	$(if $(VBOX_WITH_USB),VBOX_WITH_USB,) \
 	$(if $(VBOX_WITH_VDMA),VBOX_WITH_VDMA,) \
-	$(if $(VBOX_WITH_VIDEOHWACCEL),VBOX_WITH_VIDEOHWACCEL,) \
 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO,) \
 	$(if $(VBOX_WITH_VMSVGA),VBOX_WITH_VMSVGA,) \
 	$(if $(VBOX_WITH_WDDM),VBOX_WITH_WDDM,) \
@@ -144,7 +143,9 @@ ifdef VBOX_WITH_RAW_MODE
 endif
 
 # 3. run it.
-$(VBOX_DEVICES_TEST_OUT_DIR)/tstDeviceStructSize.run: $$(tstDeviceStructSize_1_STAGE_TARGET) | $$(dir $$@)
+$(VBOX_DEVICES_TEST_OUT_DIR)/tstDeviceStructSize.run: \
+		$$(tstDeviceStructSize_1_STAGE_TARGET) \
+		| $$(dir $$@) $$(VBOX_RUN_TARGET_ORDER_DEPS)
 	$(QUIET)$(RM) -f $@
 	$^
 	$(QUIET)$(APPEND) "$@" "done"

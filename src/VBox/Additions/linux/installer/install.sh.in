@@ -5,7 +5,7 @@
 # for Linux Guest Additions
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -250,8 +250,8 @@ do
                 fi
                 ;;
 
-            ## @todo Add per-module options handling, e.g. --lightdm-greeter-dir
-             #       or --lightdm-config
+            ## @todo Add per-module options handling, e.g. --mymodule-greeter-dir
+             #       or --mymodule-config
 
             ## @todo Add listing all available modules (+ their options, e.g.
              #       with callback mod_mymod_show_options?)

@@ -1,9 +1,9 @@
 /** @file
- * ARMv8 Generic Interrupt Controller Architecture v3 (GICv3) definitions.
+ * ARMv8 Generic Interrupt Controller Architecture (GIC) definitions.
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,22 +42,28 @@
 #include <iprt/types.h>
 #include <iprt/armv8.h>
 
-/** @name INTIDs - Interrupt identifier ranges.
+/** @name GIC Interrupt identifiers (INTID) ranges.
  * @{ */
 /** Start of the SGI (Software Generated Interrupts) range. */
-#define GIC_INTID_RANGE_SGI_START                          0
-/** Last valid SGI (Software Generated Interrupts) identifier. */
-#define GIC_INTID_RANGE_SGI_LAST                          15
+#define GIC_INTID_RANGE_SGI_START                       0
+/** Last valid SGI. */
+#define GIC_INTID_RANGE_SGI_LAST                        15
+/** Number of SGIs. */
+#define GIC_INTID_SGI_RANGE_SIZE                        (GIC_INTID_RANGE_SGI_LAST - GIC_INTID_RANGE_SGI_START + 1)
 
 /** Start of the PPI (Private Peripheral Interrupts) range. */
-#define GIC_INTID_RANGE_PPI_START                         16
-/** Last valid PPI (Private Peripheral Interrupts) identifier. */
-#define GIC_INTID_RANGE_PPI_LAST                          31
+#define GIC_INTID_RANGE_PPI_START                       16
+/** Last valid PPI. */
+#define GIC_INTID_RANGE_PPI_LAST                        31
+/** Number of PPIs. */
+#define GIC_INTID_PPI_RANGE_SIZE                        (GIC_INTID_RANGE_PPI_LAST - GIC_INTID_RANGE_PPI_START + 1)
 
 /** Start of the SPI (Shared Peripheral Interrupts) range. */
-#define GIC_INTID_RANGE_SPI_START                         32
-/** Last valid SPI (Shared Peripheral Interrupts) identifier. */
+#define GIC_INTID_RANGE_SPI_START                       32
+/** Last valid SPI. */
 #define GIC_INTID_RANGE_SPI_LAST                        1019
+/** The size of the SPI range. */
+#define GIC_INTID_SPI_RANGE_SIZE                        (GIC_INTID_RANGE_SPI_LAST - GIC_INTID_RANGE_SPI_START + 1)
 
 /** Start of the special interrupt range. */
 #define GIC_INTID_RANGE_SPECIAL_START                   1020
@@ -66,23 +72,29 @@
 /** Value for an interrupt acknowledge if no pending interrupt with sufficient
  * priority, security state or interrupt group. */
 # define GIC_INTID_RANGE_SPECIAL_NO_INTERRUPT           1023
+/** The size of the extended PPI range. */
+#define GIC_INTID_SPECIAL_RANGE_SIZE                    (GIC_INTID_RANGE_SPECIAL_NO_INTERRUPT - GIC_INTID_RANGE_SPECIAL_START + 1)
 
 /** Start of the extended PPI (Private Peripheral Interrupts) range. */
-#define GIC_INTID_RANGE_EPPI_START                      1056
-/** Last valid extended PPI (Private Peripheral Interrupts) identifier. */
-#define GIC_INTID_RANGE_EPPI_LAST                       1119
+#define GIC_INTID_RANGE_EXT_PPI_START                   1056
+/** Last valid extended PPI. */
+#define GIC_INTID_RANGE_EXT_PPI_LAST                    1119
+/** The size of the extended PPI range. */
+#define GIC_INTID_EXT_PPI_RANGE_SIZE                    (GIC_INTID_RANGE_EXT_PPI_LAST - GIC_INTID_RANGE_EXT_PPI_START + 1)
 
 /** Start of the extended SPI (Shared Peripheral Interrupts) range. */
-#define GIC_INTID_RANGE_ESPI_START                      4096
-/** Last valid extended SPI (Shared Peripheral Interrupts) identifier. */
-#define GIC_INTID_RANGE_ESPI_LAST                       5119
+#define GIC_INTID_RANGE_EXT_SPI_START                   4096
+/** Last valid extended SPI. */
+#define GIC_INTID_RANGE_EXT_SPI_LAST                    5119
+/** The size of the extended SPI range. */
+#define GIC_INTID_EXT_SPI_RANGE_SIZE                    (GIC_INTID_RANGE_EXT_SPI_LAST - GIC_INTID_RANGE_EXT_SPI_START + 1)
 
 /** Start of the LPI (Locality-specific Peripheral Interrupts) range. */
 #define GIC_INTID_RANGE_LPI_START                       8192
 /** @} */
 
 
-/** @name GICD - GIC Distributor registers.
+/** @name GIC Distributor registers.
  * @{ */
 /** Size of the distributor register frame. */
 #define GIC_DIST_REG_FRAME_SIZE                         _64K
@@ -117,8 +129,7 @@
 /** Interrupt Controller Type Register - RO. */
 #define GIC_DIST_REG_TYPER_OFF                          0x0004
 /** Bit 0 - 4 - Maximum number of SPIs supported. */
-# define GIC_DIST_REG_TYPER_NUM_ITLINES                 (  RT_BIT_32(0) | RT_BIT_32(1) | RT_BIT(2) \
-                                                         | RT_BIT_32(3) | RT_BIT_32(4))
+# define GIC_DIST_REG_TYPER_NUM_ITLINES                 (RT_BIT_32(0) | RT_BIT_32(1) | RT_BIT(2) | RT_BIT_32(3) | RT_BIT_32(4))
 # define GIC_DIST_REG_TYPER_NUM_ITLINES_SET(a_NumSpis)  ((a_NumSpis) & GIC_DIST_REG_TYPER_NUM_ITLINES)
 /** Bit 5 - 7 - Reports number of PEs that can be used when affinity routing is not enabled, minus 1. */
 # define GIC_DIST_REG_TYPER_NUM_PES                     (RT_BIT_32(5) | RT_BIT_32(6) | RT_BIT(7))
@@ -161,10 +172,20 @@
 /** Bit 27 - 31 - Indicates maximum INTID in the Extended SPI range. */
 # define GIC_DIST_REG_TYPER_ESPI_RANGE                  (  RT_BIT_32(27) | RT_BIT_32(28) | RT_BIT(29) \
                                                          | RT_BIT_32(30) | RT_BIT_32(31))
+# define GIC_DIST_REG_TYPER_ESPI_RANGE_BIT              27
 # define GIC_DIST_REG_TYPER_ESPI_RANGE_SET(a_Range)     (((a_Range) << 27) & GIC_DIST_REG_TYPER_ESPI_RANGE)
 
 /** Distributor Implementer Identification Register - RO. */
 #define GIC_DIST_REG_IIDR_OFF                           0x0008
+/** Bits 0 - 6 - Implementer ID code. */
+# define GIC_DIST_REG_IIDR_IMPL_ID                      UINT32_C(0x0000007f)
+# define GIC_DIST_REG_IIDR_IMPL_ID_BIT                  0
+/** Bits 0 - 6 - Implementer continuation code. */
+# define GIC_DIST_REG_IIDR_IMPL_CONT                    UINT32_C(0x00000f00)
+# define GIC_DIST_REG_IIDR_IMPL_CONT_BIT                8
+# define GIC_DIST_REG_IIDR_IMPL_SET(a_Id, a_Cont)       ((a_Id) | \
+                                                        (((a_Cont) << GIC_DIST_REG_IIDR_IMPL_CONT_BIT) & GIC_DIST_REG_IIDR_IMPL_CONT))
+
 /** Interrupt Controller Type Register 2 - RO. */
 #define GIC_DIST_REG_TYPER2_OFF                         0x000c
 /** Error Reporting Status Register (optional) - RW. */
@@ -182,38 +203,57 @@
 #define GIC_DIST_REG_IGROUPRn_OFF_START                 0x0080
 /** Interrupt Group Registers, last offset - RW. */
 #define GIC_DIST_REG_IGROUPRn_OFF_LAST                  0x00fc
+/** Interrupt Group Registers, range in bytes. */
+#define GIC_DIST_REG_IGROUPRn_RANGE_SIZE                (GIC_DIST_REG_IGROUPRn_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_IGROUPRn_OFF_START)
 
 /** Interrupt Set Enable Registers, start offset - RW. */
 #define GIC_DIST_REG_ISENABLERn_OFF_START               0x0100
 /** Interrupt Set Enable Registers, last offset - RW. */
 #define GIC_DIST_REG_ISENABLERn_OFF_LAST                0x017c
+/** Interrupt Set Enable Registers, range in bytes. */
+#define GIC_DIST_REG_ISENABLERn_RANGE_SIZE             (GIC_DIST_REG_ISENABLERn_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ISENABLERn_OFF_START)
+
 /** Interrupt Clear Enable Registers, start offset - RW. */
 #define GIC_DIST_REG_ICENABLERn_OFF_START               0x0180
 /** Interrupt Clear Enable Registers, last offset - RW. */
 #define GIC_DIST_REG_ICENABLERn_OFF_LAST                0x01fc
+/** Interrupt Clear Enable Registers, range in bytes. */
+#define GIC_DIST_REG_ICENABLERn_RANGE_SIZE             (GIC_DIST_REG_ICENABLERn_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ICENABLERn_OFF_START)
 
 /** Interrupt Set Pending Registers, start offset - RW. */
 #define GIC_DIST_REG_ISPENDRn_OFF_START                 0x0200
 /** Interrupt Set Pending Registers, last offset - RW. */
 #define GIC_DIST_REG_ISPENDRn_OFF_LAST                  0x027c
+/** Interrupt Set Pending Registers, range in bytes. */
+#define GIC_DIST_REG_ISPENDRn_RANGE_SIZE                (GIC_DIST_REG_ISPENDRn_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ISPENDRn_OFF_START)
+
 /** Interrupt Clear Pending Registers, start offset - RW. */
 #define GIC_DIST_REG_ICPENDRn_OFF_START                 0x0280
 /** Interrupt Clear Pending Registers, last offset - RW. */
 #define GIC_DIST_REG_ICPENDRn_OFF_LAST                  0x02fc
+/** Interrupt Clear Pending Registers, range in bytes. */
+#define GIC_DIST_REG_ICPENDRn_RANGE_SIZE               (GIC_DIST_REG_ICPENDRn_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ICPENDRn_OFF_START)
 
 /** Interrupt Set Active Registers, start offset - RW. */
 #define GIC_DIST_REG_ISACTIVERn_OFF_START               0x0300
 /** Interrupt Set Active Registers, last offset - RW. */
 #define GIC_DIST_REG_ISACTIVERn_OFF_LAST                0x037c
+/** Interrupt Set Active Registers, range in bytes. */
+#define GIC_DIST_REG_ISACTIVERn_RANGE_SIZE              (GIC_DIST_REG_ISACTIVERn_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ISACTIVERn_OFF_START)
+
 /** Interrupt Clear Active Registers, start offset - RW. */
 #define GIC_DIST_REG_ICACTIVERn_OFF_START               0x0380
 /** Interrupt Clear Active Registers, last offset - RW. */
 #define GIC_DIST_REG_ICACTIVERn_OFF_LAST                0x03fc
+/** Interrupt Clear Active Registers, range in bytes. */
+#define GIC_DIST_REG_ICACTIVERn_RANGE_SIZE              (GIC_DIST_REG_ICACTIVERn_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ICACTIVERn_OFF_START)
 
 /** Interrupt Priority Registers, start offset - RW. */
-#define GIC_DIST_REG_IPRIORITYn_OFF_START               0x0400
+#define GIC_DIST_REG_IPRIORITYRn_OFF_START              0x0400
 /** Interrupt Priority Registers, last offset - RW. */
-#define GIC_DIST_REG_IPRIORITYn_OFF_LAST                0x07f8
+#define GIC_DIST_REG_IPRIORITYRn_OFF_LAST               0x07f8
+/** Interrupt Priority Registers, range in bytes. */
+#define GIC_DIST_REG_IPRIORITYRn_RANGE_SIZE             (GIC_DIST_REG_IPRIORITYRn_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_IPRIORITYRn_OFF_START)
 
 /** Interrupt Processor Targets Registers, start offset - RO/RW. */
 #define GIC_DIST_REG_ITARGETSRn_OFF_START               0x0800
@@ -224,6 +264,8 @@
 #define GIC_DIST_REG_ICFGRn_OFF_START                   0x0c00
 /** Interrupt Configuration Registers, last offset - RW. */
 #define GIC_DIST_REG_ICFGRn_OFF_LAST                    0x0cfc
+/** Interrupt Configuration Registers, range in bytes. */
+#define GIC_DIST_REG_ICFGRn_RANGE_SIZE                  (GIC_DIST_REG_ICFGRn_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ICFGRn_OFF_START)
 
 /** Interrupt Group Modifier Registers, start offset - RW. */
 #define GIC_DIST_REG_IGRPMODRn_OFF_START                0x0d00
@@ -252,48 +294,68 @@
 /** Non-maskable Interrupt Registers, last offset - RW. */
 #define GIC_DIST_REG_INMIn_OFF_LAST                     0x0ffc
 
-
 /** Interrupt Group Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_IGROUPRnE_OFF_START                0x1000
 /** Interrupt Group Registers for extended SPI range, last offset - RW. */
 #define GIC_DIST_REG_IGROUPRnE_OFF_LAST                 0x107c
+/** Interrupt Group Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_IGROUPRnE_RANGE_SIZE               (GIC_DIST_REG_IGROUPRnE_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_IGROUPRnE_OFF_START)
 
 /** Interrupt Set Enable Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_ISENABLERnE_OFF_START              0x1200
 /** Interrupt Set Enable Registers for extended SPI range, last offset - RW. */
 #define GIC_DIST_REG_ISENABLERnE_OFF_LAST               0x127c
+/** Interrupt Set Enable Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_ISENABLERnE_RANGE_SIZE             (GIC_DIST_REG_ISENABLERnE_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ISENABLERnE_OFF_START)
+
 /** Interrupt Clear Enable Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_ICENABLERnE_OFF_START              0x1400
 /** Interrupt Clear Enable Registers for extended SPI range, last offset - RW. */
 #define GIC_DIST_REG_ICENABLERnE_OFF_LAST               0x147c
+/** Interrupt Clear Enable Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_ICENABLERnE_RANGE_SIZE             (GIC_DIST_REG_ICENABLERnE_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ICENABLERnE_OFF_START)
 
 /** Interrupt Set Pending Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_ISPENDRnE_OFF_START                0x1600
 /** Interrupt Set Pending Registers for extended SPI range, last offset - RW. */
 #define GIC_DIST_REG_ISPENDRnE_OFF_LAST                 0x167c
+/** Interrupt Set Pending Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_ISPENDRnE_RANGE_SIZE               (GIC_DIST_REG_ISPENDRnE_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ISPENDRnE_OFF_START)
+
 /** Interrupt Clear Pending Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_ICPENDRnE_OFF_START                0x1800
 /** Interrupt Clear Pending Registers for extended SPI range, last offset - RW. */
 #define GIC_DIST_REG_ICPENDRnE_OFF_LAST                 0x187c
+/** Interrupt Clear Pending Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_ICPENDRnE_RANGE_SIZE               (GIC_DIST_REG_ICPENDRnE_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ICPENDRnE_OFF_START)
 
 /** Interrupt Set Active Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_ISACTIVERnE_OFF_START              0x1a00
 /** Interrupt Set Active Registers for extended SPI range, last offset - RW. */
 #define GIC_DIST_REG_ISACTIVERnE_OFF_LAST               0x1a7c
+/** Interrupt Set Active Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_ISACTIVERnE_RANGE_SIZE             (GIC_DIST_REG_ISACTIVERnE_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ISACTIVERnE_OFF_START)
+
 /** Interrupt Clear Active Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_ICACTIVERnE_OFF_START              0x1c00
 /** Interrupt Clear Active Registers for extended SPI range, last offset - RW. */
 #define GIC_DIST_REG_ICACTIVERnE_OFF_LAST               0x1c7c
+/** Interrupt Clear Active Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_ICACTIVERnE_RANGE_SIZE             (GIC_DIST_REG_ICACTIVERnE_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ICACTIVERnE_OFF_START)
 
 /** Interrupt Priority Registers for extended SPI range, start offset - RW. */
-#define GIC_DIST_REG_IPRIORITYnE_OFF_START              0x2000
+#define GIC_DIST_REG_IPRIORITYRnE_OFF_START             0x2000
 /** Interrupt Priority Registers for extended SPI range, last offset - RW. */
-#define GIC_DIST_REG_IPRIORITYnE_OFF_LAST               0x23fc
+#define GIC_DIST_REG_IPRIORITYRnE_OFF_LAST              0x23fc
+/** Interrupt Priority Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_IPRIORITYRnE_RANGE_SIZE            (GIC_DIST_REG_IPRIORITYRnE_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_IPRIORITYRnE_OFF_START)
 
 /** Interrupt Configuration Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_ICFGRnE_OFF_START                  0x3000
 /** Interrupt Configuration Registers for extended SPI range, last offset - RW. */
 #define GIC_DIST_REG_ICFGRnE_OFF_LAST                   0x30fc
+/** Interrupt Configuration Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_ICFGRnE_RANGE_SIZE                (GIC_DIST_REG_ICFGRnE_OFF_LAST + sizeof(uint32_t) - GIC_DIST_REG_ICFGRnE_OFF_START)
 
 /** Interrupt Group Modifier Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_IGRPMODRnE_OFF_START               0x3400
@@ -314,36 +376,86 @@
 #define GIC_DIST_REG_IROUTERn_OFF_START                 0x6100
 /** Interrupt Routing Registers, last offset - RW. */
 #define GIC_DIST_REG_IROUTERn_OFF_LAST                  0x7fd8
+/** Interrupt Routing Registers range in bytes. */
+#define GIC_DIST_REG_IROUTERn_RANGE_SIZE                (GIC_DIST_REG_IROUTERn_OFF_LAST + sizeof(uint64_t) - GIC_DIST_REG_IROUTERn_OFF_START)
+
 /** Interrupt Routing Registers for extended SPI range, start offset - RW. */
 #define GIC_DIST_REG_IROUTERnE_OFF_START                0x8000
 /** Interrupt Routing Registers for extended SPI range, last offset - RW. */
 #define GIC_DIST_REG_IROUTERnE_OFF_LAST                 0x9ffc
+/** Interrupt Routing Registers for extended SPI range, range in bytes. */
+#define GIC_DIST_REG_IROUTERnE_RANGE_SIZE               (GIC_DIST_REG_IROUTERnE_OFF_LAST + sizeof(uint64_t) - GIC_DIST_REG_IROUTERnE_OFF_START)
+
+#define GIC_DIST_REG_IROUTERn_IRM_BIT                   31
+#define GIC_DIST_REG_IROUTERn_MASK                      (RT_BIT_32(GIC_DIST_REG_IROUTERn_IRM_BIT) | 0xffffff)
+#define GIC_DIST_REG_IROUTERnE_MASK                     0xff
+
+#define GIC_DIST_REG_IROUTERn_IRM_GET(a_Reg)            (((a_Reg) >> GIC_DIST_REG_IROUTERn_IRM_BIT) & 1)
+#define GIC_DIST_REG_IROUTERn_SET(a_fIrm, a_Reg)        ((((a_fIrm) << GIC_DIST_REG_IROUTERn_IRM_BIT) | (a_Reg)) & GIC_DIST_REG_IROUTERn_MASK)
 
 /** Distributor Peripheral ID2 Register - RO. */
 #define GIC_DIST_REG_PIDR2_OFF                          0xffe8
 /** Bit 4 - 7 - GIC architecture revision */
-# define GIC_DIST_REG_PIDR2_ARCH_REV                    (  RT_BIT_32(4) | RT_BIT_32(5) | RT_BIT_32(6) \
-                                                         | RT_BIT_32(7))
-# define GIC_DIST_REG_PIDR2_ARCH_REV_SET(a_ArchRev)     (((a_ArchRev) << 4) & GIC_DIST_REG_PIDR2_ARCH_REV)
+# define GIC_DIST_REG_PIDR2_ARCHREV                     (RT_BIT_32(4) | RT_BIT_32(5) | RT_BIT_32(6) | RT_BIT_32(7))
+# define GIC_DIST_REG_PIDR2_ARCHREV_SET(a_ArchRev)      (((a_ArchRev) << 4) & GIC_DIST_REG_PIDR2_ARCHREV)
 /** GICv1 architecture revision. */
-#  define GIC_DIST_REG_PIDR2_ARCH_REV_GICV1             0x1
+#  define GIC_DIST_REG_PIDR2_ARCHREV_GICV1              0x1
 /** GICv2 architecture revision. */
-#  define GIC_DIST_REG_PIDR2_ARCH_REV_GICV2             0x2
+#  define GIC_DIST_REG_PIDR2_ARCHREV_GICV2              0x2
 /** GICv3 architecture revision. */
-#  define GIC_DIST_REG_PIDR2_ARCH_REV_GICV3             0x3
+#  define GIC_DIST_REG_PIDR2_ARCHREV_GICV3              0x3
 /** GICv4 architecture revision. */
-#  define GIC_DIST_REG_PIDR2_ARCH_REV_GICV4             0x4
+#  define GIC_DIST_REG_PIDR2_ARCHREV_GICV4              0x4
 /** @} */
 
 
-/** @name GICD - GIC Redistributor registers.
+/** @name GIC Redistributor registers.
  * @{ */
 /** Size of the redistributor register frame. */
 #define GIC_REDIST_REG_FRAME_SIZE                       _64K
+
 /** Redistributor Control Register - RW. */
 #define GIC_REDIST_REG_CTLR_OFF                         0x0000
+/** Bit 0 - Enable LPIs. */
+#define GIC_REDIST_REG_CTLR_ENABLE_LPI_BIT              0
+#define GIC_REDIST_REG_CTLR_ENABLE_LPI                  RT_BIT_32(0)
+/** Bit 1 - Clear Enable Support. */
+#define GIC_REDIST_REG_CTLR_CES_BIT                     1
+#define GIC_REDIST_REG_CTLR_CES                         RT_BIT_32(1)
+#define GIC_REDIST_REG_CTLR_CES_SET(a_Ces)              (((a_Ces) << GIC_REDIST_REG_CTLR_CES_BIT) & GIC_REDIST_REG_CTLR_CES)
+/** Bit 2 - LPI invalidate registers supported. */
+#define GIC_REDIST_REG_CTLR_IR_BIT                      2
+#define GIC_REDIST_REG_CTLR_IR                          RT_BIT_32(2)
+/** Bit 3 - Register Write Pending. */
+#define GIC_REDIST_REG_CTLR_RWP_BIT                     3
+#define GIC_REDIST_REG_CTLR_RWP                         RT_BIT_32(3)
+/** Bit 24 - Disable Processor selection for Group 0 interrupt. */
+#define GIC_REDIST_REG_CTLR_DPG0_BIT                    24
+#define GIC_REDIST_REG_CTLR_DPG0                        RT_BIT_32(24)
+/** Bit 25 - Disable Processor selection for Group 1 non-secure interrupt. */
+#define GIC_REDIST_REG_CTLR_DPG1NS_BIT                  25
+#define GIC_REDIST_REG_CTLR_DPG1NS                      RT_BIT_32(25)
+/** Bit 26 - Disable Processor selection for Group 1 secure interrupt. */
+#define GIC_REDIST_REG_CTLR_DPG1S_BIT                   26
+#define GIC_REDIST_REG_CTLR_DPG1S                       RT_BIT_32(26)
+/** Bit 31 - Upstream Write Pending. */
+#define GIC_REDIST_REG_CTLR_UWP_BIT                     31
+#define GIC_REDIST_REG_CTLR_UWP                         RT_BIT_32(31)
+/** GICR_CTLR: Mask of valid read-write bits. */
+#define GIC_REDIST_REG_CTLR_RW_MASK                     (  GIC_REDIST_REG_CTLR_ENABLE_LPI \
+                                                         | GIC_REDIST_REG_CTLR_DPG0 \
+                                                         | GIC_REDIST_REG_CTLR_DPG1NS \
+                                                         | GIC_REDIST_REG_CTLR_DPG1S)
+
 /** Implementer Identification Register - RO. */
 #define GIC_REDIST_REG_IIDR_OFF                         0x0004
+/** Bits 0 - 6 - Implementer ID code. */
+# define GIC_REDIST_REG_IIDR_IMPL_ID                    GIC_DIST_REG_IIDR_IMPL_ID
+# define GIC_REDIST_REG_IIDR_IMPL_ID_BIT                GIC_DIST_REG_IIDR_IMPL_ID_BIT
+/** Bits 0 - 6 - Implementer continuation code. */
+# define GIC_REDIST_REG_IIDR_IMPL_CONT                  GIC_DIST_REG_IIDR_IMPL_CONT
+# define GIC_REDIST_REG_IIDR_IMPL_CONT_BIT              GIC_DIST_REG_IIDR_IMPL_CONT_BIT
+# define GIC_REDIST_REG_IIDR_IMPL_SET(a_Id, a_Cont)     GIC_DIST_REG_IIDR_IMPL_SET(a_Id, a_Cont)
 
 /** Redistributor Type Register - RO. */
 #define GIC_REDIST_REG_TYPER_OFF                        0x0008
@@ -374,37 +486,37 @@
 /** Bit 8 - 23 - A unique identifier for the PE. */
 # define GIC_REDIST_REG_TYPER_CPU_NUMBER                UINT32_C(0x00ffff00)
 # define GIC_REDIST_REG_TYPER_CPU_NUMBER_SET(a_CpuNum)  (((a_CpuNum) << 8) & GIC_REDIST_REG_TYPER_CPU_NUMBER)
-/** Bit 24 - 25 - The affinity level at Redistributorsshare an LPI Configuration table. */
+/** Bit 24 - 25 - The affinity level at Redistributors share an LPI configuration table. */
 # define GIC_REDIST_REG_TYPER_CMN_LPI_AFF               (RT_BIT_32(24) | RT_BIT_32(25))
 # define GIC_REDIST_REG_TYPER_CMN_LPI_AFF_SET(a_LpiAff) (((a_LpiAff) << 24) & GIC_REDIST_REG_TYPER_CMN_LPI_AFF)
 /** All Redistributors must share an LPI Configuration table. */
 #  define GIC_REDIST_REG_TYPER_CMN_LPI_AFF_ALL          0
-/** All Redistributors with the same affinity 3 value must share an LPI Configuration table. */
+/** All Redistributors with the same affinity 3 value must share an LPI configuration table. */
 #  define GIC_REDIST_REG_TYPER_CMN_LPI_AFF_3            1
-/** All Redistributors with the same affinity 3.2 value must share an LPI Configuration table. */
+/** All Redistributors with the same affinity 3.2 value must share an LPI configuration table. */
 #  define GIC_REDIST_REG_TYPER_CMN_LPI_AFF_3_2          2
-/** All Redistributors with the same affinity 3.2.1 value must share an LPI Configuration table. */
+/** All Redistributors with the same affinity 3.2.1 value must share an LPI configuration table. */
 #  define GIC_REDIST_REG_TYPER_CMN_LPI_AFF_3_2_1        3
 /** Bit 26 - Indicates whether vSGIs are supported. */
 # define GIC_REDIST_REG_TYPER_VSGI                      RT_BIT_32(26)
 # define GIC_REDIST_REG_TYPER_VSGI_BIT                  26
 /** Bit 27 - 31 - Indicates the maximum PPI INTID that a GIC implementation can support. */
-# define GIC_REDIST_REG_TYPER_PPI_NUM                  (  RT_BIT_32(27) | RT_BIT_32(28) | RT_BIT_32(29) \
-                                                        | RT_BIT_32(30) | RT_BIT_32(31))
-# define GIC_REDIST_REG_TYPER_PPI_NUM_SET(a_PpiNum)    (((a_PpiNum) << 27) & GIC_REDIST_REG_TYPER_PPI_NUM)
+# define GIC_REDIST_REG_TYPER_PPI_NUM                   (  RT_BIT_32(27) | RT_BIT_32(28) | RT_BIT_32(29) \
+                                                         | RT_BIT_32(30) | RT_BIT_32(31))
+# define GIC_REDIST_REG_TYPER_PPI_NUM_SET(a_PpiNum)     (((a_PpiNum) << 27) & GIC_REDIST_REG_TYPER_PPI_NUM)
 /** Maximum PPI INTID is 31. */
-#  define GIC_REDIST_REG_TYPER_PPI_NUM_MAX_31          0
+#  define GIC_REDIST_REG_TYPER_PPI_NUM_MAX_31           0
 /** Maximum PPI INTID is 1087. */
-#  define GIC_REDIST_REG_TYPER_PPI_NUM_MAX_1087        1
+#  define GIC_REDIST_REG_TYPER_PPI_NUM_MAX_1087         1
 /** Maximum PPI INTID is 1119. */
-#  define GIC_REDIST_REG_TYPER_PPI_NUM_MAX_1119        2
+#  define GIC_REDIST_REG_TYPER_PPI_NUM_MAX_1119         2
+# define GIC_REDIST_REG_TYPER_CPU_NUMBER_MASK           (GIC_REDIST_REG_TYPER_CPU_NUMBER >> 8)
 
 /** Redistributor Type Register (the affinity value of the 64-bit register) - RO. */
-#define GIC_REDIST_REG_TYPER_AFFINITY_OFF              0x000c
+#define GIC_REDIST_REG_TYPER_AFFINITY_OFF               0x000c
 /** Bit 0 - 31 - The identity of the PE associated with this Redistributor. */
-# define GIC_REDIST_REG_TYPER_AFFINITY_VALUE           UINT32_C(0xffffffff)
+# define GIC_REDIST_REG_TYPER_AFFINITY_VALUE            UINT32_C(0xffffffff)
 # define GIC_REDIST_REG_TYPER_AFFINITY_VALUE_SET(a_Aff) ((a_Aff) & GIC_REDIST_REG_TYPER_AFFINITY_VALUE)
-
 
 /** Redistributor Error Reporting Status Register (optional) - RW. */
 #define GIC_REDIST_REG_STATUSR_OFF                      0x0010
@@ -418,10 +530,62 @@
 #define GIC_REDIST_REG_SETLPIR_OFF                      0x0040
 /** Redistributor Clear LPI Pending Register - WO. */
 #define GIC_REDIST_REG_CLRLPIR_OFF                      0x0048
+
 /** Redistributor Properties Base Address Register - RW. */
 #define GIC_REDIST_REG_PROPBASER_OFF                    0x0070
+#define GIC_BF_REDIST_REG_PROPBASER_ID_BITS_SHIFT       0
+#define GIC_BF_REDIST_REG_PROPBASER_ID_BITS_MASK        UINT64_C(0x000000000000001f)
+#define GIC_BF_REDIST_REG_PROPBASER_RSVD_6_5_SHIFT      5
+#define GIC_BF_REDIST_REG_PROPBASER_RSVD_6_5_MASK       UINT64_C(0x0000000000000060)
+#define GIC_BF_REDIST_REG_PROPBASER_INNER_CACHE_SHIFT   7
+#define GIC_BF_REDIST_REG_PROPBASER_INNER_CACHE_MASK    UINT64_C(0x0000000000000380)
+#define GIC_BF_REDIST_REG_PROPBASER_SHAREABILITY_SHIFT  10
+#define GIC_BF_REDIST_REG_PROPBASER_SHAREABILITY_MASK   UINT64_C(0x0000000000000c00)
+#define GIC_BF_REDIST_REG_PROPBASER_PHYS_ADDR_SHIFT     12
+#define GIC_BF_REDIST_REG_PROPBASER_PHYS_ADDR_MASK      UINT64_C(0x000ffffffffff000)
+#define GIC_BF_REDIST_REG_PROPBASER_RSVD_55_52_SHIFT    52
+#define GIC_BF_REDIST_REG_PROPBASER_RSVD_55_52_MASK     UINT64_C(0x00f0000000000000)
+#define GIC_BF_REDIST_REG_PROPBASER_OUTER_CACHE_SHIFT   56
+#define GIC_BF_REDIST_REG_PROPBASER_OUTER_CACHE_MASK    UINT64_C(0x0700000000000000)
+#define GIC_BF_REDIST_REG_PROPBASER_RSVD_63_59_SHIFT    59
+#define GIC_BF_REDIST_REG_PROPBASER_RSVD_63_59_MASK     UINT64_C(0xf800000000000000)
+RT_BF_ASSERT_COMPILE_CHECKS(GIC_BF_REDIST_REG_PROPBASER_, UINT64_C(0), UINT64_MAX,
+                            (ID_BITS, RSVD_6_5, INNER_CACHE, SHAREABILITY, PHYS_ADDR, RSVD_55_52, OUTER_CACHE, RSVD_63_59));
+#define GIC_REDIST_REG_PROPBASER_RW_MASK                (UINT64_MAX & ~(  GIC_BF_REDIST_REG_PROPBASER_RSVD_6_5_MASK   \
+                                                                        | GIC_BF_REDIST_REG_PROPBASER_RSVD_55_52_MASK \
+                                                                        | GIC_BF_REDIST_REG_PROPBASER_RSVD_63_59_MASK))
+
 /** Redistributor LPI Pending Table Base Address Register - RW. */
 #define GIC_REDIST_REG_PENDBASER_OFF                    0x0078
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_6_0_SHIFT      0
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_6_0_MASK       UINT64_C(0x000000000000007f)
+#define GIC_BF_REDIST_REG_PENDBASER_INNER_CACHE_SHIFT   7
+#define GIC_BF_REDIST_REG_PENDBASER_INNER_CACHE_MASK    UINT64_C(0x0000000000000380)
+#define GIC_BF_REDIST_REG_PENDBASER_SHAREABILITY_SHIFT  10
+#define GIC_BF_REDIST_REG_PENDBASER_SHAREABILITY_MASK   UINT64_C(0x0000000000000c00)
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_15_12_SHIFT    12
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_15_12_MASK     UINT64_C(0x000000000000f000)
+#define GIC_BF_REDIST_REG_PENDBASER_PHYS_ADDR_SHIFT     16
+#define GIC_BF_REDIST_REG_PENDBASER_PHYS_ADDR_MASK      UINT64_C(0x000fffffffff0000)
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_55_52_SHIFT    52
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_55_52_MASK     UINT64_C(0x00f0000000000000)
+#define GIC_BF_REDIST_REG_PENDBASER_OUTER_CACHE_SHIFT   56
+#define GIC_BF_REDIST_REG_PENDBASER_OUTER_CACHE_MASK    UINT64_C(0x0700000000000000)
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_61_59_SHIFT    59
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_61_59_MASK     UINT64_C(0x3800000000000000)
+#define GIC_BF_REDIST_REG_PENDBASER_PTZ_SHIFT           62
+#define GIC_BF_REDIST_REG_PENDBASER_PTZ_MASK            UINT64_C(0x4000000000000000)
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_63_SHIFT       63
+#define GIC_BF_REDIST_REG_PENDBASER_RSVD_63_MASK        UINT64_C(0x8000000000000000)
+RT_BF_ASSERT_COMPILE_CHECKS(GIC_BF_REDIST_REG_PENDBASER_, UINT64_C(0), UINT64_MAX,
+                            (RSVD_6_0, INNER_CACHE, SHAREABILITY, RSVD_15_12, PHYS_ADDR, RSVD_55_52, OUTER_CACHE, RSVD_61_59,
+                             PTZ, RSVD_63));
+#define GIC_REDIST_REG_PENDBASER_RW_MASK                (UINT64_MAX & ~(  GIC_BF_REDIST_REG_PENDBASER_RSVD_6_0_MASK   \
+                                                                        | GIC_BF_REDIST_REG_PENDBASER_RSVD_15_12_MASK \
+                                                                        | GIC_BF_REDIST_REG_PENDBASER_RSVD_55_52_MASK \
+                                                                        | GIC_BF_REDIST_REG_PENDBASER_RSVD_61_59_MASK \
+                                                                        | GIC_BF_REDIST_REG_PENDBASER_RSVD_63_MASK))
+
 /** Redistributor Invalidate LPI Register - WO. */
 #define GIC_REDIST_REG_INVLPIR_OFF                      0x00a0
 /** Redistributor Invalidate All Register - WO. */
@@ -432,31 +596,31 @@
 /** Redistributor Peripheral ID2 Register - RO. */
 #define GIC_REDIST_REG_PIDR2_OFF                        0xffe8
 /** Bit 4 - 7 - GIC architecture revision */
-# define GIC_REDIST_REG_PIDR2_ARCH_REV                  (  RT_BIT_32(4) | RT_BIT_32(5) | RT_BIT_32(6) \
-                                                         | RT_BIT_32(7))
-# define GIC_REDIST_REG_PIDR2_ARCH_REV_SET(a_ArchRev)   (((a_ArchRev) << 4) & GIC_DIST_REG_PIDR2_ARCH_REV)
+# define GIC_REDIST_REG_PIDR2_ARCHREV                   (RT_BIT_32(4) | RT_BIT_32(5) | RT_BIT_32(6) | RT_BIT_32(7))
+# define GIC_REDIST_REG_PIDR2_ARCHREV_SET(a_ArchRev)    (((a_ArchRev) << 4) & GIC_REDIST_REG_PIDR2_ARCHREV)
 /** GICv1 architecture revision. */
-#  define GIC_REDIST_REG_PIDR2_ARCH_REV_GICV1           0x1
+#  define GIC_REDIST_REG_PIDR2_ARCHREV_GICV1            0x1
 /** GICv2 architecture revision. */
-#  define GIC_REDIST_REG_PIDR2_ARCH_REV_GICV2           0x2
+#  define GIC_REDIST_REG_PIDR2_ARCHREV_GICV2            0x2
 /** GICv3 architecture revision. */
-#  define GIC_REDIST_REG_PIDR2_ARCH_REV_GICV3           0x3
+#  define GIC_REDIST_REG_PIDR2_ARCHREV_GICV3            0x3
 /** GICv4 architecture revision. */
-#  define GIC_REDIST_REG_PIDR2_ARCH_REV_GICV4           0x4
+#  define GIC_REDIST_REG_PIDR2_ARCHREV_GICV4            0x4
 /** @} */
 
 
-/** @name GICD - GIC SGI and PPI Redistributor registers (Adjacent to the GIC Redistributor register space).
+/** @name GIC SGI and PPI Redistributor registers
+ *  (Adjacent to the GIC Redistributor register space).
  * @{ */
 /** Size of the SGI and PPI redistributor register frame. */
 #define GIC_REDIST_SGI_PPI_REG_FRAME_SIZE               _64K
 
 /** Interrupt Group Register 0 - RW. */
 #define GIC_REDIST_SGI_PPI_REG_IGROUPR0_OFF             0x0080
-/** Interrupt Group Register 1 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_IGROUPR1E_OFF            0x0084
-/** Interrupt Group Register 2 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_IGROUPR2E_OFF            0x0084
+/** Interrupt Group Register 2 for extended PPI range - RW, last offset. */
+#define GIC_REDIST_SGI_PPI_REG_IGROUPRnE_OFF_LAST       0x0088
+/** Interrupt Group Register, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_IGROUPRnE_RANGE_SIZE     (GIC_REDIST_SGI_PPI_REG_IGROUPRnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_IGROUPR0_OFF)
 
 /** Interrupt Set Enable Register 0 - RW. */
 #define GIC_REDIST_SGI_PPI_REG_ISENABLER0_OFF           0x0100
@@ -464,50 +628,57 @@
 #define GIC_REDIST_SGI_PPI_REG_ISENABLER1E_OFF          0x0104
 /** Interrupt Set Enable Register 2 for extended PPI range - RW. */
 #define GIC_REDIST_SGI_PPI_REG_ISENABLER2E_OFF          0x0108
+#define GIC_REDIST_SGI_PPI_REG_ISENABLERnE_OFF_LAST     GIC_REDIST_SGI_PPI_REG_ISENABLER2E_OFF
+/** Interrupt Set Enable Register, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_ISENABLERnE_RANGE_SIZE   (GIC_REDIST_SGI_PPI_REG_ISENABLERnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_ISENABLER0_OFF)
 
 /** Interrupt Clear Enable Register 0 - RW. */
 #define GIC_REDIST_SGI_PPI_REG_ICENABLER0_OFF           0x0180
-/** Interrupt Clear Enable Register 1 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ICENABLER1E_OFF          0x0184
-/** Interrupt Clear Enable Register 2 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ICENABLER2E_OFF          0x0188
+/** Interrupt Clear Enable Register for extended PPI range, start offset - RW. */
+#define GIC_REDIST_SGI_PPI_REG_ICENABLERnE_OFF_START    0x0184
+/** Interrupt Clear Enable Register for extended PPI range, last offset - RW. */
+#define GIC_REDIST_SGI_PPI_REG_ICENABLERnE_OFF_LAST     0x0188
+/** Interrupt Clear Enable Register, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_ICENABLERnE_RANGE_SIZE   (GIC_REDIST_SGI_PPI_REG_ICENABLERnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_ICENABLER0_OFF)
 
-/** Interrupt Set Pend Register 0 - RW. */
+/** Interrupt Set Pending Register 0 - RW. */
 #define GIC_REDIST_SGI_PPI_REG_ISPENDR0_OFF             0x0200
-/** Interrupt Set Pend Register 1 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ISPENDR1E_OFF            0x0204
-/** Interrupt Set Pend Register 2 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ISPENDR2E_OFF            0x0208
+/** Interrupt Set Pending Registers for extended PPI range, last offset - RW. */
+#define GIC_REDIST_SGI_PPI_REG_ISPENDRnE_OFF_LAST       0x0208
+/** Interrupt Set Pending Registers for extended PPI range, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_ISPENDRnE_RANGE_SIZE     (GIC_REDIST_SGI_PPI_REG_ISPENDRnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_ISPENDR0_OFF)
 
-/** Interrupt Clear Pend Register 0 - RW. */
+/** Interrupt Clear Pending Register 0 - RW. */
 #define GIC_REDIST_SGI_PPI_REG_ICPENDR0_OFF             0x0280
-/** Interrupt Clear Pend Register 1 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ICPENDR1E_OFF            0x0284
-/** Interrupt Clear Pend Register 2 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ICPENDR2E_OFF            0x0288
+/** Interrupt Clear Pending Registers for extended PPI range, last offset - RW. */
+#define GIC_REDIST_SGI_PPI_REG_ICPENDRnE_OFF_LAST       0x0288
+/** Interrupt Clear Pending Register for extended PPI range, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_ICPENDRnE_RANGE_SIZE     (GIC_REDIST_SGI_PPI_REG_ICPENDRnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_ICPENDR0_OFF)
 
 /** Interrupt Set Active Register 0 - RW. */
 #define GIC_REDIST_SGI_PPI_REG_ISACTIVER0_OFF           0x0300
-/** Interrupt Set Active Register 1 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ISACTIVER1E_OFF          0x0304
-/** Interrupt Set Active Register 2 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ISACTIVER2E_OFF          0x0308
+/** Interrupt Set Active Registers for extended PPI range, last offset - RW. */
+#define GIC_REDIST_SGI_PPI_REG_ISACTIVERnE_OFF_LAST     0x0308
+/** Interrupt Set Active Registers for extended PPI range, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_ISACTIVERnE_RANGE_SIZE   (GIC_REDIST_SGI_PPI_REG_ISACTIVERnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_ISACTIVER0_OFF)
 
 /** Interrupt Clear Active Register 0 - RW. */
 #define GIC_REDIST_SGI_PPI_REG_ICACTIVER0_OFF           0x0380
-/** Interrupt Clear Active Register 1 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ICACTIVER1E_OFF          0x0384
-/** Interrupt Clear Active Register 2 for extended PPI range - RW. */
-#define GIC_REDIST_SGI_PPI_REG_ICACTIVER2E_OFF          0x0388
+/** Interrupt Clear Active Registers for extended PPI range, last offset - RW. */
+#define GIC_REDIST_SGI_PPI_REG_ICACTIVERnE_OFF_LAST     0x0388
+/** Interrupt Clear Active Register for extended PPI range, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_ICACTIVERnE_RANGE_SIZE   (GIC_REDIST_SGI_PPI_REG_ICACTIVERnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_ICACTIVER0_OFF)
 
 /** Interrupt Priority Registers, start offset - RW. */
-#define GIC_REDIST_SGI_PPI_REG_IPRIORITYn_OFF_START     0x0400
+#define GIC_REDIST_SGI_PPI_REG_IPRIORITYRn_OFF_START    0x0400
 /** Interrupt Priority Registers, last offset - RW. */
-#define GIC_REDIST_SGI_PPI_REG_IPRIORITYn_OFF_LAST      0x041c
+#define GIC_REDIST_SGI_PPI_REG_IPRIORITYRn_OFF_LAST     0x041c
 /** Interrupt Priority Registers for extended PPI range, start offset - RW. */
-#define GIC_REDIST_SGI_PPI_REG_IPRIORITYnE_OFF_START    0x0420
+#define GIC_REDIST_SGI_PPI_REG_IPRIORITYRnE_OFF_START   0x0420
 /** Interrupt Priority Registers for extended PPI range, last offset - RW. */
-#define GIC_REDIST_SGI_PPI_REG_IPRIORITYnE_OFF_LAST     0x045c
+#define GIC_REDIST_SGI_PPI_REG_IPRIORITYRnE_OFF_LAST    0x045c
+/** Interrupt Priority Registers for extended PPI range, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_IPRIORITYRnE_RANGE_SIZE  (GIC_REDIST_SGI_PPI_REG_IPRIORITYRnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_IPRIORITYRn_OFF_START)
 
 /** SGI Configuration Register - RW. */
 #define GIC_REDIST_SGI_PPI_REG_ICFGR0_OFF               0x0c00
@@ -517,6 +688,8 @@
 #define GIC_REDIST_SGI_PPI_REG_ICFGRnE_OFF_START        0x0c08
 /** Extended PPI Configuration Register, last offset - RW. */
 #define GIC_REDIST_SGI_PPI_REG_ICFGRnE_OFF_LAST         0x0c14
+/** SGI Configure Register, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_ICFGRnE_RANGE_SIZE       (GIC_REDIST_SGI_PPI_REG_ICFGRnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_ICFGR0_OFF)
 
 /** Interrupt Group Modifier Register 0 - RW. */
 #define GIC_REDIST_SGI_PPI_REG_IGRPMODR0_OFF            0x0d00
@@ -534,8 +707,46 @@
 #define GIC_REDIST_SGI_PPI_REG_INMIRnE_OFF_START        0x0f84
 /** Non maskable Interrupt Register for Extended PPIs, last offset - RW. */
 #define GIC_REDIST_SGI_PPI_REG_INMIRnE_OFF_LAST         0x0ffc
+/** Non maskable Interrupt Register for Extended PPIs, range in bytes. */
+#define GIC_REDIST_SGI_PPI_REG_INMIRnE_RANGE_SIZE       (GIC_REDIST_SGI_PPI_REG_INMIRnE_OFF_LAST + sizeof(uint32_t) - GIC_REDIST_SGI_PPI_REG_INMIR0_OFF)
 /** @} */
 
+
+/** @name JEDEC codes for ARM.
+ * @{ */
+/** JEP106 identification code. */
+#define GIC_JEDEC_JEP106_IDENTIFICATION_CODE            0x3b
+/** JEP106 continuation code. */
+#define GIC_JEDEC_JEP106_CONTINUATION_CODE              0x4
+
+/** DES_0 - JEP106 identification code bits (3:0). */
+#define GIC_JEDEC_JEP10_DES_0(a_JepIdCode)              ((a_JepIdCode) & 0xf)
+/** DES_1 - JEP106 identification code bits (6:4). */
+#define GIC_JEDEC_JEP10_DES_1(a_JepIdCode)              (((a_JepIdCode) >> 4) & 0x70)
+/** @} */
+
+
+/** @name GIC LPIs.
+ * @{ */
+/** Configuration Table Entry: Enable. */
+#define GIC_BF_LPI_CTE_ENABLE_SHIFT                     0
+#define GIC_BF_LPI_CTE_ENABLE_MASK                      UINT8_C(0x1)
+/** Configuration Table Entry: Reserved (bit 1). */
+#define GIC_BF_LPI_CTE_RSVD_1_SHIFT                     1
+#define GIC_BF_LPI_CTE_RSVD_1_MASK                      UINT8_C(0x2)
+/** Configuration Table Entry: Priority. */
+#define GIC_BF_LPI_CTE_PRIORITY_SHIFT                   2
+#define GIC_BF_LPI_CTE_PRIORITY_MASK                    UINT8_C(0xfc)
+RT_BF_ASSERT_COMPILE_CHECKS(GIC_BF_LPI_CTE_, UINT8_C(0), UINT8_MAX,
+                            (ENABLE, RSVD_1, PRIORITY));
+
+/** Minimum number of bits required to enable LPIs (i.e. should accomodate
+ *  GIC_INTID_RANGE_LPI_START). */
+#define GIC_LPI_ID_BITS_MIN                             14
+/** @} */
+
+/** GIC idle priority. */
+#define GIC_IDLE_PRIORITY                               0xff
 
 #endif /* !VBOX_INCLUDED_gic_h */
 

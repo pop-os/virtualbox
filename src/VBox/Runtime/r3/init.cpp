@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -47,10 +47,10 @@
 # include <unistd.h>
 # ifndef RT_OS_OS2
 #  include <pthread.h>
-#  include <signal.h>
 #  include <errno.h>
 #  define IPRT_USE_SIG_CHILD_DUMMY
 # endif
+# include <signal.h>
 #endif
 #ifdef RT_OS_OS2
 # include <InnoTekLIBC/fork.h>
@@ -524,6 +524,29 @@ static int rtR3InitBody(uint32_t fFlags, int cArgs, char ***ppapszArgs, const ch
         RTThreadYield();
     }
 #endif /* IPRT_USE_SIG_CHILD_DUMMY */
+
+#ifndef RT_OS_WINDOWS
+    /*
+     * Ignore SIGPIPE if it is configured as SIG_DFL.
+     */
+    if (!(fFlags & RTR3INIT_FLAGS_UNOBTRUSIVE))
+    {
+        struct sigaction SigActOld;
+        rc = sigaction(SIGPIPE, 0, &SigActOld);
+        AssertMsg(rc == 0, ("%d/%d\n", rc, errno));
+        if (   rc == 0
+            && !(SigActOld.sa_flags & SA_SIGINFO)
+            && SigActOld.sa_handler == SIG_DFL)
+        {
+            struct sigaction SigAct;
+            memset(&SigAct, 0, sizeof(SigAct));
+            SigAct.sa_handler = SIG_IGN;
+            rc = sigaction(SIGPIPE, &SigAct, &SigActOld);
+            AssertMsg(rc == 0, ("%d/%d\n", rc, errno));
+            Assert(SigActOld.sa_handler == SIG_DFL || rc != 0);
+        }
+    }
+#endif
 
 #ifdef IPRT_WITH_ALIGNMENT_CHECKS
     /*

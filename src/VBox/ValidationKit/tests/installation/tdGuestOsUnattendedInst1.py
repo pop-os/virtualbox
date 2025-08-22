@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Guest OS unattended installation tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2024 Oracle and/or its affiliates.
+Copyright (C) 2010-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 164827 $"
+__version__ = "$Revision: 170187 $"
 
 
 # Standard Python imports.
@@ -180,6 +180,11 @@ class UnattendedVm(vboxtestvms.BaseTestVm):
         # Associate oVM with the installer:
         try:
             oIUnattended.machine = oVM;
+            if oTestDrv.fpApiVer >= 7.1:
+                oIUnattended.userPassword  = 'changeme';
+                oIUnattended.adminPassword = 'changeme';
+            else:
+                oIUnattended.password = 'changeme';
         except:
             return reporter.errorXcpt();
         oTestDrv.processPendingEvents();

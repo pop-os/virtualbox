@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2024 Oracle and/or its affiliates.
+; Copyright (C) 2006-2025 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -63,10 +63,12 @@ RT_NOCRT_BEGINPROC memrchr
 
 %else
  %ifdef ASM_CALL32_WATCOM
+        push    edi                     ; watcall preserves everything.
+        push    ecx
         mov     ecx, ebx
         jecxz   .not_found_early
-        xchg    eax, edx
-        xchg    edi, edx                ; load + save edi
+        mov     edi, edi
+        mov     eax, edx
  %else
         mov     ecx, [esp + 0ch]
         jecxz   .not_found_early
@@ -87,7 +89,12 @@ RT_NOCRT_BEGINPROC memrchr
         mov     rdi, r9
 %endif
 %ifdef RT_ARCH_X86
+ %ifdef ASM_CALL32_WATCOM
+        pop     ecx
+        pop     edi
+ %else
         mov     edi, edx
+ %endif
 %endif
         cld
         ret
@@ -97,9 +104,17 @@ RT_NOCRT_BEGINPROC memrchr
         mov     rdi, r9
 %endif
 %ifdef RT_ARCH_X86
+ %ifndef ASM_CALL32_WATCOM
         mov     edi, edx
+ %endif
 %endif
 .not_found_early:
+%ifdef RT_ARCH_X86
+ %ifdef ASM_CALL32_WATCOM
+        pop     ecx
+        pop     edi
+ %endif
+%endif
         xor     eax, eax
         cld
         ret

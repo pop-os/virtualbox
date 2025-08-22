@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -315,5 +315,8 @@ RTEXITCODE handleUpdateCheck(HandlerArg *a);
 
 /* VBoxManageModifyNvram.cpp */
 RTEXITCODE handleModifyNvram(HandlerArg *a);
+
+/* VBoxManageObjectTracker.cpp */
+RTEXITCODE handleTrackedObjects(HandlerArg *a);
 
 #endif /* !VBOX_INCLUDED_SRC_VBoxManage_VBoxManage_h */

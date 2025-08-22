@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2024 Oracle and/or its affiliates.
+; Copyright (C) 2006-2025 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -109,7 +109,7 @@ RT_BEGINPROC RTDbgStackDumpSelf
         SEH64_PUSH_GREG xAX
 
         ;
-        ; ... preceeded by the EIP/RIP.
+        ; ... preceded by the EIP/RIP.
         ;
 %ifdef RT_ARCH_AMD64
         mov     r10, [xBP + xCB]

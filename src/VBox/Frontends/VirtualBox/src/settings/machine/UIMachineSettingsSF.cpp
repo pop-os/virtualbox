@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -30,6 +30,7 @@
 
 /* GUI includes: */
 #include "UIErrorString.h"
+#include "UIGlobalSession.h"
 #include "UIMachineSettingsSF.h"
 #include "UISharedFoldersEditor.h"
 
@@ -105,6 +106,12 @@ void UIMachineSettingsSF::loadToCacheFrom(QVariant &data)
 
     /* Get actual folders: */
     QMultiMap<UISharedFolderType, CSharedFolder> folders;
+    /* Load global folders: */
+    if (isSharedFolderTypeSupported(UISharedFolderType_Global))
+    {
+        foreach (const CSharedFolder &folder, getSharedFolders(UISharedFolderType_Global))
+            folders.insert(UISharedFolderType_Global, folder);
+    }
     /* Load machine (permanent) folders if allowed: */
     if (isSharedFolderTypeSupported(UISharedFolderType_Machine))
     {
@@ -214,6 +221,7 @@ void UIMachineSettingsSF::polishPage()
 {
     /* Polish availability: */
     m_pEditorSharedFolders->setFeatureAvailable(isMachineInValidMode());
+    m_pEditorSharedFolders->setFoldersAvailable(UISharedFolderType_Global, isSharedFolderTypeSupported(UISharedFolderType_Global));
     m_pEditorSharedFolders->setFoldersAvailable(UISharedFolderType_Machine, isSharedFolderTypeSupported(UISharedFolderType_Machine));
     m_pEditorSharedFolders->setFoldersAvailable(UISharedFolderType_Console, isSharedFolderTypeSupported(UISharedFolderType_Console));
 }
@@ -263,6 +271,7 @@ bool UIMachineSettingsSF::isSharedFolderTypeSupported(UISharedFolderType enmShar
 {
     switch (enmSharedFolderType)
     {
+        case UISharedFolderType_Global: return true;
         case UISharedFolderType_Machine: return isMachineInValidMode();
         case UISharedFolderType_Console: return isMachineOnline();
         default: return false;
@@ -288,6 +297,19 @@ bool UIMachineSettingsSF::getSharedFolders(UISharedFolderType enmFoldersType, CS
         AssertReturn(isSharedFolderTypeSupported(enmFoldersType), false);
         switch (enmFoldersType)
         {
+            case UISharedFolderType_Global:
+            {
+                /* Load global folders: */
+                CVirtualBox vbox = gpGlobalSession->virtualBox();
+                folders = vbox.GetSharedFolders();
+                fSuccess = vbox.isOk();
+
+                /* Show error message if necessary: */
+                if (!fSuccess)
+                    notifyOperationProgressError(UIErrorString::formatErrorInfo(vbox));
+
+                break;
+            }
             case UISharedFolderType_Machine:
             {
                 /* Make sure machine was specified: */
@@ -336,7 +358,7 @@ bool UIMachineSettingsSF::getSharedFolder(const QString &strFolderName, const CS
 
         /* Get current folder name for further activities: */
         QString strCurrentFolderName;
-        if (fSuccess)
+        // if (fSuccess)
         {
             strCurrentFolderName = comCurrentFolder.GetName();
             fSuccess = comCurrentFolder.isOk();
@@ -372,7 +394,7 @@ bool UIMachineSettingsSF::saveData()
             const UISettingsCacheSharedFolder &folderCache = m_pCache->child(iFolderIndex);
 
             /* Remove folder marked for 'remove' or 'update': */
-            if (fSuccess && (folderCache.wasRemoved() || folderCache.wasUpdated()))
+            if (/*fSuccess &&*/ (folderCache.wasRemoved() || folderCache.wasUpdated()))
                 fSuccess = removeSharedFolder(folderCache);
 
             /* Create folder marked for 'create' or 'update': */
@@ -412,6 +434,19 @@ bool UIMachineSettingsSF::removeSharedFolder(const UISettingsCacheSharedFolder &
             /* Remove existing folder: */
             switch (enmFoldersType)
             {
+                case UISharedFolderType_Global:
+                {
+                    /* Remove existing folder: */
+                    CVirtualBox vbox = gpGlobalSession->virtualBox();
+                    vbox.RemoveSharedFolder(strFolderName);
+                    fSuccess = vbox.isOk();
+                    if (!fSuccess)
+                    {
+                        /* Show error message: */
+                        notifyOperationProgressError(UIErrorString::formatErrorInfo(vbox));
+                    }
+                    break;
+                }
                 case UISharedFolderType_Machine:
                 {
                     /* Remove existing folder: */
@@ -473,6 +508,17 @@ bool UIMachineSettingsSF::createSharedFolder(const UISettingsCacheSharedFolder &
         /* Create new folder: */
         switch (enmFoldersType)
         {
+            case UISharedFolderType_Global:
+            {
+                /* Create new folder: */
+                CVirtualBox vbox = gpGlobalSession->virtualBox();
+                vbox.CreateSharedFolder(strFolderName, strFolderPath, fIsWritable, fIsAutoMount, strAutoMountPoint);
+                /* Show error if the operation failed: */
+                fSuccess = vbox.isOk();
+                if (!fSuccess)
+                    notifyOperationProgressError(UIErrorString::formatErrorInfo(vbox));
+                break;
+            }
             case UISharedFolderType_Machine:
             {
                 /* Create new folder: */

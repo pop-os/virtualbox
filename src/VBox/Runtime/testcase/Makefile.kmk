@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -66,6 +66,7 @@ ifdef VBOX_WITH_TESTCASES # The whole file
  #
  ifndef VBOX_ONLY_VALIDATIONKIT
   PROGRAMS += \
+  	tstRTAcpi \
   	tstRTArmv8 \
   	tstRTAssertCompile \
   	tstRTAvl \
@@ -184,7 +185,8 @@ ifdef VBOX_WITH_TESTCASES # The whole file
   	tstRTVfs \
   	tstRTZip \
   	tstRTJson \
-  	tstRTShMem
+  	tstRTShMem \
+  	tstRTXml
 
   PROGRAMS.win += \
   	tstRTCritSectW32 \
@@ -279,6 +281,49 @@ ifdef VBOX_WITH_TESTCASES # The whole file
  #
  # Target configs in almost alphabetical order.
  #
+
+ TST_RT_ACPI_FILE = $(tstRTAcpi_0_OUTDIR)/tstRTAcpi-tests.h
+ TST_RT_ACPI_SOURCES := \
+ 	01_empty=01-empty.asl \
+ 	02_method=02-method.asl
+
+ TST_RT_ACPI_PATH_SOURCES := $(PATH_SUB_CURRENT)/acpi
+
+ $$(TST_RT_ACPI_FILE): $(MAKEFILE_CURRENT) \
+ 		$(foreach source,$(TST_RT_ACPI_SOURCES),$(TST_RT_ACPI_PATH_SOURCES)/$(lastword $(subst =,$(SP),$(source)))) \
+ 		$(VBOX_BIN2C) \
+ 		| $$(dir $$@)
+	$(QUIET)$(RM) -f -- $@
+	$(foreach source,$(TST_RT_ACPI_SOURCES), $(NLTAB)$(VBOX_BIN2C) -ascii --append \
+		"$(firstword $(subst =,$(SP),$(source)))" \
+		"$(TST_RT_ACPI_PATH_SOURCES)/$(lastword $(subst =,$(SP),$(source)))" \
+		"$@")
+	$(QUIET)$(APPEND) -n "$@" \
+       	'' \
+       	'static struct' \
+       	'{' \
+       	'    const char          *pszName;' \
+       	'    const unsigned char *pchAsl;' \
+       	'    const unsigned int  *pcbAsl;' \
+       	'} const g_aTests[] =' \
+       	'{'
+	$(foreach source,$(TST_RT_ACPI_SOURCES), $(NLTAB)$(QUIET)$(APPEND) -n "$@" \
+		'    {' \
+		'        "$(firstword $(subst =,$(SP),$(source)))",' \
+		'        g_ab$(firstword $(subst =,$(SP),$(source))),' \
+		'        &g_cb$(firstword $(subst =,$(SP),$(source))),' \
+		'    },')
+	$(QUIET)$(APPEND) -n "$@" \
+       	'};' \
+       	''
+
+ OTHER_CLEAN += $(TST_RT_ACPI_FILE)
+
+ tstRTAcpi_TEMPLATE = VBoxR3TstExe
+ tstRTAcpi_INCS     = $(tstRTAcpi_0_OUTDIR)
+ tstRTAcpi_DEPS     = $(TST_RT_ACPI_FILE)
+ tstRTAcpi_SOURCES  = tstRTAcpi.cpp
+
  tstRTArmv8_TEMPLATE = VBoxR3TstExe
  tstRTArmv8_SOURCES = tstRTArmv8.cpp
 
@@ -975,6 +1020,9 @@ ifdef VBOX_WITH_TESTCASES # The whole file
 
  tstRTShMem_TEMPLATE = VBoxR3TstExe
  tstRTShMem_SOURCES = tstRTShMem.cpp
+
+ tstRTXml_TEMPLATE = VBoxR3TstExe
+ tstRTXml_SOURCES = tstRTXml.cpp
 
  #
  # Ring-0 testcases.

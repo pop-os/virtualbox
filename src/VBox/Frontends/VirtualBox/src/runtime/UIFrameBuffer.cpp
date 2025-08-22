@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -61,6 +61,7 @@
 #include <math.h>
 #ifdef VBOX_WS_NIX
 # include <X11/Xlib.h>
+# include "VBoxUtils-nix.h"
 # undef Bool // Qt5 vs Xlib gift..
 #endif /* VBOX_WS_NIX */
 
@@ -106,13 +107,13 @@ public:
     /** Returns frame-buffer data address. */
     uchar *address() { return m_image.bits(); }
     /** Returns frame-buffer width. */
-    ulong width() const { return m_iWidth; }
+    int width() const { return m_iWidth; }
     /** Returns frame-buffer height. */
-    ulong height() const { return m_iHeight; }
+    int height() const { return m_iHeight; }
     /** Returns frame-buffer bits-per-pixel value. */
-    ulong bitsPerPixel() const { return m_image.depth(); }
+    int bitsPerPixel() const { return m_image.depth(); }
     /** Returns frame-buffer bytes-per-line value. */
-    ulong bytesPerLine() const { return m_image.bytesPerLine(); }
+    qsizetype bytesPerLine() const { return m_image.bytesPerLine(); }
     /** Returns default frame-buffer pixel-format. */
     ulong pixelFormat() const { return KBitmapFormat_BGR; }
 
@@ -453,13 +454,18 @@ void UIFrameBufferPrivate::setView(UIMachineView *pMachineView)
     m_pMachineView = pMachineView;
     /* Reassign index: */
     m_uScreenId = m_pMachineView ? m_pMachineView->screenId() : 0;
-    /* Recache window ID: */
-    m_iWinId = (m_pMachineView && m_pMachineView->viewport()) ? (LONG64)m_pMachineView->viewport()->winId() : 0;
 
 #ifdef VBOX_WS_NIX
-    if (uiCommon().X11ServerAvailable())
+    if (NativeWindowSubsystem::displayServerType() == VBGHDISPLAYSERVERTYPE_X11)
         /* Resync Qt and X11 Server (see xTracker #7547). */
         XSync(NativeWindowSubsystem::X11GetDisplay(), false);
+    if (NativeWindowSubsystem::displayServerType() == VBGHDISPLAYSERVERTYPE_PURE_WAYLAND)
+        m_iWinId = (m_pMachineView && m_pMachineView->machineWindow()) ? (LONG64)m_pMachineView->machineWindow()->winId() : 0;
+    else
+        m_iWinId = (m_pMachineView && m_pMachineView->viewport()) ? (LONG64)m_pMachineView->viewport()->winId() : 0;
+#else
+    /* Recache window ID: */
+    m_iWinId = (m_pMachineView && m_pMachineView->viewport()) ? (LONG64)m_pMachineView->viewport()->winId() : 0;
 #endif
 
     /* Reconnect new handlers: */
@@ -543,7 +549,7 @@ STDMETHODIMP UIFrameBufferPrivate::COMGETTER(BitsPerPixel)(ULONG *puBitsPerPixel
 {
     if (!puBitsPerPixel)
         return E_POINTER;
-    *puBitsPerPixel = bitsPerPixel();
+    *puBitsPerPixel = (ULONG)bitsPerPixel();
     return S_OK;
 }
 
@@ -551,7 +557,7 @@ STDMETHODIMP UIFrameBufferPrivate::COMGETTER(BytesPerLine)(ULONG *puBytesPerLine
 {
     if (!puBytesPerLine)
         return E_POINTER;
-    *puBytesPerLine = bytesPerLine();
+    *puBytesPerLine = (ULONG)bytesPerLine();
     return S_OK;
 }
 
@@ -981,7 +987,7 @@ void UIFrameBufferPrivate::handleNotifyChange(int iWidth, int iHeight)
 
 void UIFrameBufferPrivate::handlePaintEvent(QPaintEvent *pEvent)
 {
-    LogRel3(("GUI: UIFrameBufferPrivate::handlePaintEvent: Origin=%lux%lu, Size=%dx%d\n",
+    LogRel3(("GUI: UIFrameBufferPrivate::handlePaintEvent: Origin=%dx%d, Size=%dx%d\n",
              pEvent->rect().x(), pEvent->rect().y(),
              pEvent->rect().width(), pEvent->rect().height()));
 
@@ -1519,22 +1525,22 @@ uchar *UIFrameBuffer::address()
     return m_pFrameBuffer->address();
 }
 
-ulong UIFrameBuffer::width() const
+int UIFrameBuffer::width() const
 {
     return m_pFrameBuffer->width();
 }
 
-ulong UIFrameBuffer::height() const
+int UIFrameBuffer::height() const
 {
     return m_pFrameBuffer->height();
 }
 
-ulong UIFrameBuffer::bitsPerPixel() const
+int UIFrameBuffer::bitsPerPixel() const
 {
     return m_pFrameBuffer->bitsPerPixel();
 }
 
-ulong UIFrameBuffer::bytesPerLine() const
+qsizetype UIFrameBuffer::bytesPerLine() const
 {
     return m_pFrameBuffer->bytesPerLine();
 }

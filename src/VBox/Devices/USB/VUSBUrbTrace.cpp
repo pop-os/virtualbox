@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -157,7 +157,7 @@ DECLHIDDEN(void) vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
 {
     PVUSBDEV        pDev   = pUrb->pVUsb ? pUrb->pVUsb->pDev : NULL; /* Can be NULL when called from usbProxyConstruct and friends. */
     PVUSBPIPE       pPipe  = pDev ? &pDev->aPipes[pUrb->EndPt] : NULL;
-    const uint8_t  *pbData = pUrb->abData;
+    const uint8_t  *pbData = pUrb->pbData;
     uint32_t        cbData = pUrb->cbData;
     PCVUSBSETUP     pSetup = NULL;
     bool            fDescriptors = false;
@@ -202,7 +202,7 @@ DECLHIDDEN(void) vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
             "GET_CONFIGURATION", "SET_CONFIGURATION", "GET_INTERFACE",  "SET_INTERFACE",
             "SYNCH_FRAME"
         };
-        pSetup = (PVUSBSETUP)pUrb->abData;
+        pSetup = (PVUSBSETUP)pUrb->pbData;
         pbData += sizeof(*pSetup);
         cbData -= sizeof(*pSetup);
 
@@ -558,7 +558,7 @@ DECLHIDDEN(void) vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
     if (    pUrb->enmType == VUSBXFERTYPE_BULK
         &&  pUrb->enmDir  == VUSBDIRECTION_OUT
         &&  pUrb->cbData >= 12
-        &&  !memcmp(pUrb->abData, "USBC", 4))
+        &&  !memcmp(pUrb->pbData, "USBC", 4))
     {
         const struct usbc
         {
@@ -569,7 +569,7 @@ DECLHIDDEN(void) vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
             uint8_t     Lun;
             uint8_t     Length;
             uint8_t     CDB[13];
-        } *pUsbC = (struct usbc *)pUrb->abData;
+        } *pUsbC = (struct usbc *)pUrb->pbData;
         Log(("URB: %*s: SCSI: Tag=%#x DataTransferLength=%#x Flags=%#x Lun=%#x Length=%#x CDB=%.*Rhxs\n",
              s_cchMaxMsg, pszMsg, pUsbC->Tag, pUsbC->DataTransferLength, pUsbC->Flags, pUsbC->Lun,
              pUsbC->Length, pUsbC->Length, pUsbC->CDB));
@@ -667,7 +667,7 @@ DECLHIDDEN(void) vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
              && pUrb->enmType == VUSBXFERTYPE_BULK
              && pUrb->enmDir  == VUSBDIRECTION_IN
              && pUrb->cbData >= 12
-             && !memcmp(pUrb->abData, "USBS", 4))
+             && !memcmp(pUrb->pbData, "USBS", 4))
     {
         const struct usbs
         {
@@ -676,7 +676,7 @@ DECLHIDDEN(void) vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
             uint32_t    DataResidue;
             uint8_t     Status;
             uint8_t     CDB[3];
-        } *pUsbS = (struct usbs *)pUrb->abData;
+        } *pUsbS = (struct usbs *)pUrb->pbData;
         static const char * const s_apszStatuses[] = { "PASSED", "FAILED", "PHASE ERROR", "RESERVED" };
         Log(("URB: %*s: SCSI: Tag=%#x DataResidue=%#RX32 Status=%#RX8 %s\n",
              s_cchMaxMsg, pszMsg, pUsbS->Tag, pUsbS->DataResidue, pUsbS->Status,
@@ -690,7 +690,7 @@ DECLHIDDEN(void) vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
              && pDev
              && pDev->Urb.u8ScsiCmd != 0xff)
     {
-        const uint8_t *pb = pUrb->abData;
+        const uint8_t *pb = pUrb->pbData;
         switch (pDev->Urb.u8ScsiCmd)
         {
             case 0x03: /* REQUEST_SENSE */

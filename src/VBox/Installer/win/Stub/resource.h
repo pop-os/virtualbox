@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -38,5 +38,8 @@
 #endif
 #define APP_MANIFEST 1
 
-#endif /* !VBOX_INCLUDED_SRC_Stub_resource_h */
+#ifdef VBOX_STUB_WITH_SPLASH
+# define IDB_SPLASH    102
+#endif
 
+#endif /* !VBOX_INCLUDED_SRC_Stub_resource_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2017-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -25,24 +25,31 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-#include "DrvHostAudioDSoundMMNotifClient.h"
 
-#include <iprt/win/windows.h>
-#include <mmdeviceapi.h>
-#include <iprt/win/endpointvolume.h>
-#include <iprt/errcore.h>
-
-#ifdef LOG_GROUP  /** @todo r=bird: wtf? Put it before all other includes like you're supposed to. */
-# undef LOG_GROUP
-#endif
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
 #include <VBox/log.h>
 
+#include "DrvHostAudioDSoundMMNotifClient.h"
 
+#include <mmdeviceapi.h>
+
+#include <iprt/win/windows.h>
+#include <iprt/win/endpointvolume.h>
+#include <iprt/errcore.h>
+
+
+/*********************************************************************************************************************************
+*   IMMNotificationClient interface implementation                                                                               *
+*********************************************************************************************************************************/
 DrvHostAudioDSoundMMNotifClient::DrvHostAudioDSoundMMNotifClient(PPDMIHOSTAUDIOPORT pInterface, bool fDefaultIn, bool fDefaultOut)
     : m_fDefaultIn(fDefaultIn)
     , m_fDefaultOut(fDefaultOut)
     , m_fRegisteredClient(false)
+    , m_pEnum(NULL)
+    , m_pEndpoint(NULL)
     , m_cRef(1)
     , m_pIAudioNotifyFromHost(pInterface)
 {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -107,7 +107,7 @@ void UIWizardCloneVMExpertPage::sltRetranslateUI()
     if (m_pCloneModeGroupBox)
         m_pCloneModeGroupBox->setTitle(UIWizardCloneVM::tr("Snapshots"));
     if (m_pAdditionalOptionsGroupBox)
-        m_pAdditionalOptionsGroupBox->setTitle(UIWizardCloneVM::tr("Additional Options"));
+        m_pAdditionalOptionsGroupBox->setTitle(UIWizardCloneVM::tr("OS Installation Options"));
 }
 
 void UIWizardCloneVMExpertPage::initializePage()

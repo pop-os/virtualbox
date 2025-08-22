@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1162,10 +1162,13 @@ uint32_t Mouse::i_getDeviceCaps(void)
 /** Does the VMM device currently support absolute reporting? */
 bool Mouse::i_vmmdevCanAbs(void)
 {
-    /* This requires the VMMDev cap and a relative device, which supposedly
-       consumes these. As seen in @bugref{10285} this isn't quite as clear cut. */
+    /* This requires the VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE cap and either a relative device, which supposedly
+       consumes these, or a support for VMMDEV_MOUSE_GUEST_USES_FULL_STATE_PROTOCOL (in which case a
+       relative device is not used to pass the button state to the guest).
+       See in @bugref{10285} for information about VMMDEV_MOUSE_GUEST_USES_FULL_STATE_PROTOCOL. */
     return (mfVMMDevGuestCaps & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE)
-        && (i_getDeviceCaps() & MOUSE_DEVCAP_RELATIVE);
+        && (   (i_getDeviceCaps() & MOUSE_DEVCAP_RELATIVE)
+            || (mfVMMDevGuestCaps & VMMDEV_MOUSE_GUEST_USES_FULL_STATE_PROTOCOL));
 }
 
 
@@ -1189,7 +1192,8 @@ bool Mouse::i_supportsAbs(uint32_t fCaps) const
     return (fCaps & MOUSE_DEVCAP_ABSOLUTE)
         || /* inlined i_vmmdevCanAbs() to avoid unnecessary i_getDeviceCaps call: */
            (   (mfVMMDevGuestCaps & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE)
-            && (fCaps & MOUSE_DEVCAP_RELATIVE));
+            && (   (fCaps & MOUSE_DEVCAP_RELATIVE)
+                || (mfVMMDevGuestCaps & VMMDEV_MOUSE_GUEST_USES_FULL_STATE_PROTOCOL)));
 }
 
 

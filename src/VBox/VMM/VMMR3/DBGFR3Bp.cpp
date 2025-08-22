@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -176,6 +176,9 @@
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/mem.h>
+#ifdef VBOX_VMM_TARGET_ARMV8
+# include <iprt/armv8.h>
+#endif
 
 #include "DBGFInline.h"
 
@@ -315,6 +318,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpInitEmtWorker(PVM pVM, PVMCPU pVCpu, v
     if (   pVCpu->idCpu == 0
         && !pUVM->dbgf.s.paBpLocL1R3)
     {
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
         if (!SUPR3IsDriverless())
         {
             DBGFBPINITREQ Req;
@@ -326,9 +330,10 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpInitEmtWorker(PVM pVM, PVMCPU pVCpu, v
             pUVM->dbgf.s.paBpLocL1R3 = Req.paBpLocL1R3;
         }
         else
+#endif
         {
             /* Driverless: Do dbgfR0BpInitWorker here, ring-3 style. */
-            uint32_t const cbL1Loc = RT_ALIGN_32(UINT16_MAX * sizeof(uint32_t), HOST_PAGE_SIZE);
+            uint32_t const cbL1Loc = RT_ALIGN_32(UINT16_MAX * sizeof(uint32_t), HOST_PAGE_SIZE_DYNAMIC);
             pUVM->dbgf.s.paBpLocL1R3 = (uint32_t *)RTMemPageAllocZ(cbL1Loc);
             AssertLogRelMsgReturn(pUVM->dbgf.s.paBpLocL1R3, ("cbL1Loc=%#x\n", cbL1Loc), VERR_NO_PAGE_MEMORY);
         }
@@ -378,6 +383,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpPortIoInitEmtWorker(PVM pVM, PVMCPU pV
     if (   pVCpu->idCpu == 0
         && !pUVM->dbgf.s.paBpLocPortIoR3)
     {
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
         if (!SUPR3IsDriverless())
         {
             DBGFBPINITREQ Req;
@@ -389,9 +395,10 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpPortIoInitEmtWorker(PVM pVM, PVMCPU pV
             pUVM->dbgf.s.paBpLocPortIoR3 = Req.paBpLocL1R3;
         }
         else
+#endif
         {
             /* Driverless: Do dbgfR0BpPortIoInitWorker here, ring-3 style. */
-            uint32_t const cbPortIoLoc = RT_ALIGN_32(UINT16_MAX * sizeof(uint32_t), HOST_PAGE_SIZE);
+            uint32_t const cbPortIoLoc = RT_ALIGN_32(UINT16_MAX * sizeof(uint32_t), HOST_PAGE_SIZE_DYNAMIC);
             pUVM->dbgf.s.paBpLocPortIoR3 = (uint32_t *)RTMemPageAllocZ(cbPortIoLoc);
             AssertLogRelMsgReturn(pUVM->dbgf.s.paBpLocPortIoR3, ("cbPortIoLoc=%#x\n", cbPortIoLoc), VERR_NO_PAGE_MEMORY);
         }
@@ -451,6 +458,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpOwnerInitEmtWorker(PVM pVM, PVMCPU pVC
         pUVM->dbgf.s.pbmBpOwnersAllocR3 = RTMemAllocZ(DBGF_BP_OWNER_COUNT_MAX / 8);
         if (pUVM->dbgf.s.pbmBpOwnersAllocR3)
         {
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
             if (!SUPR3IsDriverless())
             {
                 DBGFBPOWNERINITREQ Req;
@@ -466,11 +474,12 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpOwnerInitEmtWorker(PVM pVM, PVMCPU pVC
                 AssertLogRelMsgRC(rc, ("VMMR0_DO_DBGF_BP_OWNER_INIT failed: %Rrc\n", rc));
             }
             else
+#endif
             {
                 /* Driverless: Do dbgfR0BpOwnerInitWorker here, ring-3 style. */
-                uint32_t const cbBpOwnerR3 = RT_ALIGN_32(DBGF_BP_OWNER_COUNT_MAX * sizeof(DBGFBPOWNERINT), HOST_PAGE_SIZE);
-                pUVM->dbgf.s.paBpLocPortIoR3 = (uint32_t *)RTMemPageAllocZ(cbBpOwnerR3);
-                if (pUVM->dbgf.s.paBpLocPortIoR3)
+                uint32_t const cbBpOwnerR3 = RT_ALIGN_32(DBGF_BP_OWNER_COUNT_MAX * sizeof(DBGFBPOWNERINT), HOST_PAGE_SIZE_DYNAMIC);
+                pUVM->dbgf.s.paBpOwnersR3 = (PDBGFBPOWNERINT)RTMemPageAllocZ(cbBpOwnerR3);
+                if (pUVM->dbgf.s.paBpOwnersR3)
                     return VINF_SUCCESS;
                 AssertLogRelMsgFailed(("cbBpOwnerR3=%#x\n", cbBpOwnerR3));
                 rc = VERR_NO_PAGE_MEMORY;
@@ -620,6 +629,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpChunkAllocEmtWorker(PVM pVM, PVMCPU pV
         void *pbmAlloc = RTMemAllocZ(DBGF_BP_COUNT_PER_CHUNK / 8);
         if (RT_LIKELY(pbmAlloc))
         {
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
             if (!SUPR3IsDriverless())
             {
                 DBGFBPCHUNKALLOCREQ Req;
@@ -634,9 +644,10 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpChunkAllocEmtWorker(PVM pVM, PVMCPU pV
                     AssertLogRelMsgRC(rc, ("VMMR0_DO_DBGF_BP_CHUNK_ALLOC failed: %Rrc\n", rc));
             }
             else
+#endif
             {
                 /* Driverless: Do dbgfR0BpChunkAllocWorker here, ring-3 style. */
-                uint32_t const cbShared = RT_ALIGN_32(DBGF_BP_COUNT_PER_CHUNK * sizeof(DBGFBPINT), HOST_PAGE_SIZE);
+                uint32_t const cbShared = RT_ALIGN_32(DBGF_BP_COUNT_PER_CHUNK * sizeof(DBGFBPINT), HOST_PAGE_SIZE_DYNAMIC);
                 pBpChunk->pBpBaseR3 = (PDBGFBPINT)RTMemPageAllocZ(cbShared);
                 AssertLogRelMsgStmt(pBpChunk->pBpBaseR3, ("cbShared=%#x\n", cbShared), rc = VERR_NO_PAGE_MEMORY);
             }
@@ -841,6 +852,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpL2TblChunkAllocEmtWorker(PVM pVM, PVMC
         void *pbmAlloc = RTMemAllocZ(DBGF_BP_L2_TBL_ENTRIES_PER_CHUNK / 8);
         if (RT_LIKELY(pbmAlloc))
         {
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
             if (!SUPR3IsDriverless())
             {
                 DBGFBPL2TBLCHUNKALLOCREQ Req;
@@ -855,9 +867,10 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpL2TblChunkAllocEmtWorker(PVM pVM, PVMC
                     AssertLogRelMsgRC(rc, ("VMMR0_DO_DBGF_BP_L2_TBL_CHUNK_ALLOC failed: %Rrc\n", rc));
             }
             else
+#endif
             {
                 /* Driverless: Do dbgfR0BpL2TblChunkAllocWorker here, ring-3 style. */
-                uint32_t const cbTotal = RT_ALIGN_32(DBGF_BP_L2_TBL_ENTRIES_PER_CHUNK * sizeof(DBGFBPL2ENTRY), HOST_PAGE_SIZE);
+                uint32_t const cbTotal = RT_ALIGN_32(DBGF_BP_L2_TBL_ENTRIES_PER_CHUNK * sizeof(DBGFBPL2ENTRY), HOST_PAGE_SIZE_DYNAMIC);
                 pL2Chunk->pL2BaseR3 = (PDBGFBPL2ENTRY)RTMemPageAllocZ(cbTotal);
                 AssertLogRelMsgStmt(pL2Chunk->pL2BaseR3, ("cbTotal=%#x\n", cbTotal), rc = VERR_NO_PAGE_MEMORY);
             }
@@ -1234,7 +1247,7 @@ static int dbgfR3BpInt3L2BstNodeAdd(PUVM pUVM, uint32_t idxL1, DBGFBP hBp, RTGCU
         PDBGFBPINT pBp2 = dbgfR3BpGetByHnd(pUVM, hBp2);
         AssertStmt(RT_VALID_PTR(pBp2), rc = VERR_DBGF_BP_IPE_7);
         if (RT_SUCCESS(rc))
-            rc = dbgfR3BpInt3L2BstCreate(pUVM, idxL1, u32Entry, hBp, GCPtr, hBp2, pBp2->Pub.u.Int3.GCPtr);
+            rc = dbgfR3BpInt3L2BstCreate(pUVM, idxL1, u32Entry, hBp, GCPtr, hBp2, pBp2->Pub.u.Sw.GCPtr);
     }
     else if (u8Type == DBGF_BP_INT3_L1_ENTRY_TYPE_L2_IDX)
         rc = dbgfR3BpInt2L2BstNodeInsert(pUVM, DBGF_BP_INT3_L1_ENTRY_GET_L2_IDX(u32Entry), hBp, GCPtr);
@@ -1445,10 +1458,10 @@ static int dbgfR3BpInt3L2BstRemove(PUVM pUVM, uint32_t idxL1, uint32_t idxL2Root
  */
 static int dbgfR3BpInt3Add(PUVM pUVM, DBGFBP hBp, PDBGFBPINT pBp)
 {
-    AssertReturn(DBGF_BP_PUB_GET_TYPE(&pBp->Pub) == DBGFBPTYPE_INT3, VERR_DBGF_BP_IPE_3);
+    AssertReturn(DBGF_BP_PUB_GET_TYPE(&pBp->Pub) == DBGFBPTYPE_SOFTWARE, VERR_DBGF_BP_IPE_3);
 
     int rc = VINF_SUCCESS;
-    uint16_t idxL1 = DBGF_BP_INT3_L1_IDX_EXTRACT_FROM_ADDR(pBp->Pub.u.Int3.GCPtr);
+    uint16_t idxL1 = DBGF_BP_INT3_L1_IDX_EXTRACT_FROM_ADDR(pBp->Pub.u.Sw.GCPtr);
     uint8_t  cTries = 16;
 
     while (cTries--)
@@ -1466,7 +1479,7 @@ static int dbgfR3BpInt3Add(PUVM pUVM, DBGFBP hBp, PDBGFBPINT pBp)
         }
         else
         {
-            rc = dbgfR3BpInt3L2BstNodeAdd(pUVM, idxL1, hBp, pBp->Pub.u.Int3.GCPtr);
+            rc = dbgfR3BpInt3L2BstNodeAdd(pUVM, idxL1, hBp, pBp->Pub.u.Sw.GCPtr);
             if (rc != VINF_TRY_AGAIN)
                 break;
         }
@@ -1550,7 +1563,7 @@ static DBGFBP dbgfR3BpGetByAddr(PUVM pUVM, DBGFBPTYPE enmType, RTGCUINTPTR GCPtr
             break;
         }
 
-        case DBGFBPTYPE_INT3:
+        case DBGFBPTYPE_SOFTWARE:
         {
             const uint16_t idxL1      = DBGF_BP_INT3_L1_IDX_EXTRACT_FROM_ADDR(GCPtr);
             const uint32_t u32L1Entry = ASMAtomicReadU32(&pUVM->dbgf.s.CTX_SUFF(paBpLocL1)[idxL1]);
@@ -1650,7 +1663,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpInt3RemoveEmtWorker(PVM pVM, PVMCPU pV
     int rc = VINF_SUCCESS;
     if (pVCpu->idCpu == 0)
     {
-        uint16_t idxL1 = DBGF_BP_INT3_L1_IDX_EXTRACT_FROM_ADDR(pBp->Pub.u.Int3.GCPtr);
+        uint16_t idxL1 = DBGF_BP_INT3_L1_IDX_EXTRACT_FROM_ADDR(pBp->Pub.u.Sw.GCPtr);
         uint32_t u32Entry = ASMAtomicReadU32(&pUVM->dbgf.s.paBpLocL1R3[idxL1]);
         AssertReturn(u32Entry != DBGF_BP_INT3_L1_ENTRY_TYPE_NULL, VERR_DBGF_BP_IPE_6);
 
@@ -1674,12 +1687,12 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpInt3RemoveEmtWorker(PVM pVM, PVMCPU pV
                 AssertReturn(DBGF_BP_INT3_L1_ENTRY_GET_TYPE(u32Entry) == DBGF_BP_INT3_L1_ENTRY_TYPE_L2_IDX, VERR_DBGF_BP_IPE_9);
 
                 rc = dbgfR3BpInt3L2BstRemove(pUVM, idxL1, DBGF_BP_INT3_L1_ENTRY_GET_L2_IDX(u32Entry),
-                                             hBp, pBp->Pub.u.Int3.GCPtr);
+                                             hBp, pBp->Pub.u.Sw.GCPtr);
             }
         }
         else if (u8Type == DBGF_BP_INT3_L1_ENTRY_TYPE_L2_IDX)
             rc = dbgfR3BpInt3L2BstRemove(pUVM, idxL1, DBGF_BP_INT3_L1_ENTRY_GET_L2_IDX(u32Entry),
-                                         hBp, pBp->Pub.u.Int3.GCPtr);
+                                         hBp, pBp->Pub.u.Sw.GCPtr);
     }
 
     return rc;
@@ -1696,7 +1709,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpInt3RemoveEmtWorker(PVM pVM, PVMCPU pV
  */
 static int dbgfR3BpInt3Remove(PUVM pUVM, DBGFBP hBp, PDBGFBPINT pBp)
 {
-    AssertReturn(DBGF_BP_PUB_GET_TYPE(&pBp->Pub) == DBGFBPTYPE_INT3, VERR_DBGF_BP_IPE_3);
+    AssertReturn(DBGF_BP_PUB_GET_TYPE(&pBp->Pub) == DBGFBPTYPE_SOFTWARE, VERR_DBGF_BP_IPE_3);
 
     /*
      * This has to be done by an EMT rendezvous in order to not have an EMT traversing
@@ -1772,11 +1785,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpRegRecalcOnCpu(PVM pVM, PVMCPU pVCpu, 
 {
     RT_NOREF(pvUser);
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
-    RT_NOREF(pVM, pVCpu);
-    AssertReleaseFailed();
-    return VERR_NOT_IMPLEMENTED;
-#else
+#ifdef VBOX_VMM_TARGET_X86
     /*
      * CPU 0 updates the enabled hardware breakpoint counts.
      */
@@ -1796,6 +1805,12 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3BpRegRecalcOnCpu(PVM pVM, PVMCPU pVCpu, 
     }
 
     return CPUMRecalcHyperDRx(pVCpu, UINT8_MAX);
+
+#else
+    /** @todo arm64: hardware breakpoints. */
+    RT_NOREF(pVM, pVCpu);
+    AssertReleaseFailed();
+    return VERR_NOT_IMPLEMENTED;
 #endif
 }
 
@@ -1834,31 +1849,38 @@ static int dbgfR3BpArm(PUVM pUVM, DBGFBP hBp, PDBGFBPINT pBp)
             }
             break;
         }
-        case DBGFBPTYPE_INT3:
+        case DBGFBPTYPE_SOFTWARE:
         {
             dbgfR3BpSetEnabled(pBp, true /*fEnabled*/);
 
-            /** @todo When we enable the first int3 breakpoint we should do this in an EMT rendezvous
+            /** @todo When we enable the first software breakpoint we should do this in an EMT rendezvous
              * as the VMX code intercepts #BP only when at least one int3 breakpoint is enabled.
              * A racing vCPU might trigger it and forward it to the guest causing panics/crashes/havoc. */
             /*
-             * Save current byte and write the int3 instruction byte.
+             * Save original instruction and replace a breakpoint instruction.
              */
-            rc = PGMPhysSimpleReadGCPhys(pVM, &pBp->Pub.u.Int3.bOrg, pBp->Pub.u.Int3.PhysAddr, sizeof(pBp->Pub.u.Int3.bOrg));
+#ifdef VBOX_VMM_TARGET_ARMV8
+            static const uint32_t s_BreakpointInstr = Armv8A64MkInstrBrk(0xc0de);
+            rc = PGMPhysSimpleReadGCPhys(pVM, &pBp->Pub.u.Sw.Arch.armv8.u32Org, pBp->Pub.u.Sw.PhysAddr,
+                                         sizeof(pBp->Pub.u.Sw.Arch.armv8.u32Org));
+#elif defined(VBOX_VMM_TARGET_X86)
+            static const uint8_t  s_BreakpointInstr = 0xcc;
+            rc = PGMPhysSimpleReadGCPhys(pVM, &pBp->Pub.u.Sw.Arch.x86.bOrg, pBp->Pub.u.Sw.PhysAddr,
+                                         sizeof(pBp->Pub.u.Sw.Arch.x86.bOrg));
+#else
+# error "port me"
+#endif
             if (RT_SUCCESS(rc))
             {
-                static const uint8_t s_bInt3 = 0xcc;
-                rc = PGMPhysSimpleWriteGCPhys(pVM, pBp->Pub.u.Int3.PhysAddr, &s_bInt3, sizeof(s_bInt3));
+                rc = PGMPhysSimpleWriteGCPhys(pVM, pBp->Pub.u.Sw.PhysAddr, &s_BreakpointInstr, sizeof(s_BreakpointInstr));
                 if (RT_SUCCESS(rc))
                 {
-                    ASMAtomicIncU32(&pVM->dbgf.s.cEnabledInt3Breakpoints);
-                    Log(("DBGF: Set breakpoint at %RGv (Phys %RGp)\n", pBp->Pub.u.Int3.GCPtr, pBp->Pub.u.Int3.PhysAddr));
+                    ASMAtomicIncU32(&pVM->dbgf.s.cEnabledSwBreakpoints);
+                    Log(("DBGF: Set breakpoint at %RGv (Phys %RGp)\n", pBp->Pub.u.Sw.GCPtr, pBp->Pub.u.Sw.PhysAddr));
+                    break;
                 }
             }
-
-            if (RT_FAILURE(rc))
-                dbgfR3BpSetEnabled(pBp, false /*fEnabled*/);
-
+            dbgfR3BpSetEnabled(pBp, false /*fEnabled*/);
             break;
         }
         case DBGFBPTYPE_PORT_IO:
@@ -1915,24 +1937,32 @@ static int dbgfR3BpDisarm(PUVM pUVM, DBGFBP hBp, PDBGFBPINT pBp)
             }
             break;
         }
-        case DBGFBPTYPE_INT3:
+        case DBGFBPTYPE_SOFTWARE:
         {
             /*
              * Check that the current byte is the int3 instruction, and restore the original one.
              * We currently ignore invalid bytes.
              */
+#ifdef VBOX_VMM_TARGET_ARMV8
+            uint32_t u32Current = 0;
+            rc = PGMPhysSimpleReadGCPhys(pVM, &u32Current, pBp->Pub.u.Sw.PhysAddr, sizeof(u32Current));
+            if (   RT_SUCCESS(rc)
+                && u32Current == Armv8A64MkInstrBrk(0xc0de))
+                rc = PGMPhysSimpleWriteGCPhys(pVM, pBp->Pub.u.Sw.PhysAddr, &pBp->Pub.u.Sw.Arch.armv8.u32Org,
+                                              sizeof(pBp->Pub.u.Sw.Arch.armv8.u32Org));
+#else
             uint8_t bCurrent = 0;
-            rc = PGMPhysSimpleReadGCPhys(pVM, &bCurrent, pBp->Pub.u.Int3.PhysAddr, sizeof(bCurrent));
+            rc = PGMPhysSimpleReadGCPhys(pVM, &bCurrent, pBp->Pub.u.Sw.PhysAddr, sizeof(bCurrent));
             if (   RT_SUCCESS(rc)
                 && bCurrent == 0xcc)
+                rc = PGMPhysSimpleWriteGCPhys(pVM, pBp->Pub.u.Sw.PhysAddr, &pBp->Pub.u.Sw.Arch.x86.bOrg,
+                                              sizeof(pBp->Pub.u.Sw.Arch.x86.bOrg));
+#endif
+            if (RT_SUCCESS(rc))
             {
-                rc = PGMPhysSimpleWriteGCPhys(pVM, pBp->Pub.u.Int3.PhysAddr, &pBp->Pub.u.Int3.bOrg, sizeof(pBp->Pub.u.Int3.bOrg));
-                if (RT_SUCCESS(rc))
-                {
-                    ASMAtomicDecU32(&pVM->dbgf.s.cEnabledInt3Breakpoints);
-                    dbgfR3BpSetEnabled(pBp, false /*fEnabled*/);
-                    Log(("DBGF: Removed breakpoint at %RGv (Phys %RGp)\n", pBp->Pub.u.Int3.GCPtr, pBp->Pub.u.Int3.PhysAddr));
-                }
+                ASMAtomicDecU32(&pVM->dbgf.s.cEnabledSwBreakpoints);
+                dbgfR3BpSetEnabled(pBp, false /*fEnabled*/);
+                Log(("DBGF: Removed breakpoint at %RGv (Phys %RGp)\n", pBp->Pub.u.Sw.GCPtr, pBp->Pub.u.Sw.PhysAddr));
             }
             break;
         }
@@ -1958,7 +1988,7 @@ static int dbgfR3BpDisarm(PUVM pUVM, DBGFBP hBp, PDBGFBPINT pBp)
 
 
 /**
- * Worker for DBGFR3BpHit() differnetiating on the breakpoint type.
+ * Worker for DBGFR3BpHit() differentiating on the breakpoint type.
  *
  * @returns Strict VBox status code.
  * @param   pVM         The cross context VM structure.
@@ -1976,33 +2006,40 @@ static VBOXSTRICTRC dbgfR3BpHit(PVM pVM, PVMCPU pVCpu, DBGFBP hBp, PDBGFBPINT pB
     switch (DBGF_BP_PUB_GET_TYPE(&pBp->Pub))
     {
         case DBGFBPTYPE_REG:
-        case DBGFBPTYPE_INT3:
+        case DBGFBPTYPE_SOFTWARE:
         {
             if (DBGF_BP_PUB_IS_EXEC_BEFORE(&pBp->Pub))
                 rcStrict = pBpOwner->pfnBpHitR3(pVM, pVCpu->idCpu, pBp->pvUserR3, hBp, &pBp->Pub, DBGF_BP_F_HIT_EXEC_BEFORE);
             if (rcStrict == VINF_SUCCESS)
             {
+                /** @todo Need to take more care with the reading there if the breakpoint is
+                 *        on the edge of a page. */
                 uint8_t abInstr[DBGF_BP_INSN_MAX];
                 RTGCPTR const GCPtrInstr = CPUMGetGuestFlatPC(pVCpu);
-                int rc = PGMPhysSimpleReadGCPtr(pVCpu, &abInstr[0], GCPtrInstr, sizeof(abInstr));
-                AssertRC(rc);
-                if (RT_SUCCESS(rc))
+                rcStrict = PGMPhysSimpleReadGCPtr(pVCpu, &abInstr[0], GCPtrInstr, sizeof(abInstr));
+                if (rcStrict == VINF_SUCCESS)
                 {
+#ifdef VBOX_VMM_TARGET_X86
                     /* Replace the int3 with the original instruction byte. */
-                    abInstr[0] = pBp->Pub.u.Int3.bOrg;
+                    abInstr[0] = pBp->Pub.u.Sw.Arch.x86.bOrg;
                     rcStrict = IEMExecOneWithPrefetchedByPC(pVCpu, GCPtrInstr, &abInstr[0], sizeof(abInstr));
+#else
+                    /** @todo arm64: implement stepping over breakpoint. Fix unnecessary opcode reading. */
+                    AssertFailed();
+                    rcStrict = VERR_NOT_IMPLEMENTED;
+#endif
                     if (   rcStrict == VINF_SUCCESS
                         && DBGF_BP_PUB_IS_EXEC_AFTER(&pBp->Pub))
                     {
                         VBOXSTRICTRC rcStrict2 = pBpOwner->pfnBpHitR3(pVM, pVCpu->idCpu, pBp->pvUserR3, hBp, &pBp->Pub,
                                                                       DBGF_BP_F_HIT_EXEC_AFTER);
                         if (rcStrict2 == VINF_SUCCESS)
-                            return VBOXSTRICTRC_VAL(rcStrict);
+                            return rcStrict;
                         if (rcStrict2 != VINF_DBGF_BP_HALT)
                             return VERR_DBGF_BP_OWNER_CALLBACK_WRONG_STATUS;
                     }
                     else
-                        return VBOXSTRICTRC_VAL(rcStrict);
+                        return rcStrict;
                 }
             }
             break;
@@ -2196,9 +2233,9 @@ VMMR3DECL(int) DBGFR3BpSetInt3Ex(PUVM pUVM, DBGFBPOWNER hOwner, void *pvUser,
         GCPhysBpAddr |= (pAddress->FlatPtr & X86_PAGE_OFFSET_MASK);
 
         PDBGFBPINT pBp = NULL;
-        DBGFBP hBp = dbgfR3BpGetByAddr(pUVM, DBGFBPTYPE_INT3, pAddress->FlatPtr, &pBp);
+        DBGFBP hBp = dbgfR3BpGetByAddr(pUVM, DBGFBPTYPE_SOFTWARE, pAddress->FlatPtr, &pBp);
         if (    hBp != NIL_DBGFBP
-            &&  pBp->Pub.u.Int3.PhysAddr == GCPhysBpAddr)
+            &&  pBp->Pub.u.Sw.PhysAddr == GCPhysBpAddr)
         {
             rc = VINF_SUCCESS;
             if (   !DBGF_BP_PUB_IS_ENABLED(&pBp->Pub)
@@ -2212,11 +2249,11 @@ VMMR3DECL(int) DBGFR3BpSetInt3Ex(PUVM pUVM, DBGFBPOWNER hOwner, void *pvUser,
             return rc;
         }
 
-        rc = dbgfR3BpAlloc(pUVM, hOwner, pvUser, DBGFBPTYPE_INT3, fFlags, iHitTrigger, iHitDisable, &hBp, &pBp);
+        rc = dbgfR3BpAlloc(pUVM, hOwner, pvUser, DBGFBPTYPE_SOFTWARE, fFlags, iHitTrigger, iHitDisable, &hBp, &pBp);
         if (RT_SUCCESS(rc))
         {
-            pBp->Pub.u.Int3.PhysAddr = GCPhysBpAddr;
-            pBp->Pub.u.Int3.GCPtr    = pAddress->FlatPtr;
+            pBp->Pub.u.Sw.PhysAddr = GCPhysBpAddr;
+            pBp->Pub.u.Sw.GCPtr    = pAddress->FlatPtr;
 
             /* Add the breakpoint to the lookup tables. */
             rc = dbgfR3BpInt3Add(pUVM, hBp, pBp);
@@ -2594,7 +2631,7 @@ VMMR3DECL(int) DBGFR3BpClear(PUVM pUVM, DBGFBP hBp)
             AssertRC(rc);
             break;
         }
-        case DBGFBPTYPE_INT3:
+        case DBGFBPTYPE_SOFTWARE:
         {
             int rc = dbgfR3BpInt3Remove(pUVM, hBp, pBp);
             AssertRC(rc);

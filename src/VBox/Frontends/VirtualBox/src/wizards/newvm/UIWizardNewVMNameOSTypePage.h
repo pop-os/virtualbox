@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -56,7 +56,9 @@ namespace UIWizardNewVMNameOSTypeCommon
     bool cleanupMachineFolder(UIWizardNewVM *pWizard, bool fWizardCancel = false);
     void composeMachineFilePath(UINameAndSystemEditor *pNameAndSystemEditor, UIWizardNewVM *pWizard);
     /** Return false if ISO path is not empty but points to an missing or unreadable file. */
-    bool checkISOFile(UINameAndSystemEditor *pNameAndSystemEditor);
+    bool checkISOFile(const QString &strPath);
+    void setUnattendedCheckBoxEnable(QCheckBox *pUnattendedCheckBox,
+                                     const QString &strISOPath, bool fIsUnattendedInstallSupported);
 }
 
 /** 1st page of the New Virtual Machine wizard (basic extension). */
@@ -67,7 +69,7 @@ class UIWizardNewVMNameOSTypePage : public UINativeWizardPage
 public:
 
     /** Constructor. */
-    UIWizardNewVMNameOSTypePage();
+    UIWizardNewVMNameOSTypePage(const QString strHelpKeyword = QString());
     void setISOFilePath(const QString &strISOFilePath);
 
 protected:
@@ -83,7 +85,7 @@ private slots:
     void sltOsTypeChanged();
     void sltISOPathChanged(const QString &strPath);
     void sltGuestOSFamilyChanged(const QString &strGuestOSFamilyId);
-    void sltSkipUnattendedInstallChanged(bool fSkip);
+    void sltUnattendedInstallEnableChanged(bool fSkip);
     void sltSelectedEditionChanged(ulong uEditionIndex);
     /** Translation stuff. */
     virtual void sltRetranslateUI() RT_OVERRIDE RT_FINAL;
@@ -96,17 +98,16 @@ private:
     void initializePage() RT_OVERRIDE;
     QWidget *createNameOSTypeWidgets();
     void markWidgets() const;
-    void setSkipCheckBoxEnable();
     bool isUnattendedEnabled() const;
     bool isUnattendedInstallSupported() const;
-    void setEditionSelectorEnabled();
+    void setEditionAndOSTypeSelectorsEnabled();
     void updateInfoLabel();
-
+    bool isMachineFolderUnique() const;
     /** @name Widgets
      * @{ */
         QGridLayout           *m_pNameAndSystemLayout;
         UINameAndSystemEditor *m_pNameAndSystemEditor;
-        QCheckBox             *m_pSkipUnattendedCheckBox;
+        QCheckBox             *m_pUnattendedCheckBox;
         QIRichTextLabel       *m_pNameOSTypeLabel;
         QIRichTextLabel       *m_pInfoLabel;
     /** @} */

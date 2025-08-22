@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -60,7 +60,12 @@
 # include <stdlib.h>
 #endif
 
-#include "VBoxStub.h"
+#ifdef VBOX_STUB_WITH_SPLASH
+# include <math.h>
+# include <gdiplus.h>
+# include <shlwapi.h>
+#endif
+
 #include "../StubBld/VBoxStubBld.h"
 #include "resource.h"
 
@@ -73,6 +78,8 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
+#define VBOX_STUB_TITLE "VirtualBox Installer"
+
 #define MY_UNICODE_SUB(str) L ##str
 #define MY_UNICODE(str)     MY_UNICODE_SUB(str)
 
@@ -109,6 +116,9 @@ typedef struct STUBCLEANUPREC
 } STUBCLEANUPREC;
 /** Pointer to a cleanup record. */
 typedef STUBCLEANUPREC *PSTUBCLEANUPREC;
+
+typedef BOOL (WINAPI *PFNISWOW64PROCESS)(HANDLE, PBOOL);
+typedef BOOL (WINAPI *PFNISWOW64PROCESS2)(HANDLE, USHORT *, USHORT *);
 
 
 /*********************************************************************************************************************************
@@ -345,8 +355,8 @@ static int GetTempFileAlloc(const char  *pszTempPath,
  *
  * @param   pszResourceName     The resource name to extract.
  * @param   pszTempFile         The full file path + name to extract the resource to.
- * @param   hFile               Handle to pszTempFile if RTFileCreateUnique was
- *                              used to generate the name, otherwise NIL_RTFILE.
+ * @param   hFile               Handle to pszTempFile if a custom file handle was used to
+ *                              open / create the file, otherwise NIL_RTFILE.
  * @param   idxPackage          The package index for annotating the cleanup
  *                              record with (HACK ALERT).
  */
@@ -432,16 +442,16 @@ static int ExtractFile(const char *pszResourceName, const char *pszTempFile, RTF
 
 
     /* Check the content. */
-    uint32_t off = 0;
+    size_t off = 0;
     while (off < cbData)
     {
         uint8_t abBuf[_64K];
         size_t  cbToRead = RT_MIN(cbData - off, sizeof(abBuf));
         rc = RTFileRead(hFile, abBuf, cbToRead, NULL);
-        AssertRCReturn(rc, LogErrorRc(rc, "#%u: RTFileRead failed on '%s' at offset %#RX32: %Rrc",
+        AssertRCReturn(rc, LogErrorRc(rc, "#%u: RTFileRead failed on '%s' at offset %#zx: %Rrc",
                                       idxPackage, pszTempFile, off, rc));
         AssertReturn(memcmp(abBuf, &pbData[off], cbToRead) == 0,
-                     LogErrorRc(VERR_STATE_CHANGED, "#%u: File '%s' has change (mismatch in %#zx byte block at %#RX32)",
+                     LogErrorRc(VERR_STATE_CHANGED, "#%u: File '%s' has change (mismatch in %#zx byte block at %#zx)",
                                 idxPackage, pszTempFile, cbToRead, off));
         off += cbToRead;
     }
@@ -457,8 +467,8 @@ static int ExtractFile(const char *pszResourceName, const char *pszTempFile, RTF
  *
  * @param   pPackage            Pointer to a VBOXSTUBPKG struct that contains the resource.
  * @param   pszTempFile         The full file path + name to extract the resource to.
- * @param   hFile               Handle to pszTempFile if RTFileCreateUnique was
- *                              used to generate the name, otherwise NIL_RTFILE.
+ * @param   hFile               Handle to pszTempFile if a custom file handle was used to
+ *                              open / create the file, otherwise NIL_RTFILE.
  * @param   idxPackage          The package index for annotating the cleanup
  *                              record with (HACK ALERT).
  */
@@ -467,25 +477,78 @@ static int Extract(VBOXSTUBPKG const *pPackage, const char *pszTempFile, RTFILE 
     return ExtractFile(pPackage->szResourceName, pszTempFile, hFile, idxPackage);
 }
 
+/**
+ * Returns a string for the given package architecture.
+ *
+ * @returns String for the given package architecture, or "<Unknown>" if invalid/unknown.
+ * @param   enmPkgArch          Package architecture to return as a string.
+ */
+static const char *GetPackageArchStr(VBOXSTUBPKGARCH enmPkgArch)
+{
+    switch (enmPkgArch)
+    {
+        case VBOXSTUBPKGARCH_X86:   return "x86";
+        case VBOXSTUBPKGARCH_AMD64: return "x86_64";
+        case VBOXSTUBPKGARCH_ARM64: return "arm64";
+        default:                    break;
+    }
+
+    return "<Unknown>";
+}
 
 /**
  * Detects whether we're running on a 32- or 64-bit platform and returns the result.
  *
- * @returns TRUE if we're running on a 64-bit OS, FALSE if not.
+ * @returns Returns the native package architecture.
  */
-static BOOL IsWow64(void)
+static VBOXSTUBPKGARCH GetNativePackageArch(void)
 {
-    BOOL fIsWow64 = TRUE;
-    fnIsWow64Process = (LPFN_ISWOW64PROCESS)GetProcAddress(GetModuleHandle(TEXT("kernel32")), "IsWow64Process");
-    if (NULL != fnIsWow64Process)
+    HMODULE const      hModKernel32 = GetModuleHandleW(L"kernel32.dll");
+    PFNISWOW64PROCESS2 pfnIsWow64Process2 = (PFNISWOW64PROCESS2)GetProcAddress(hModKernel32, "IsWow64Process2");
+    if (pfnIsWow64Process2)
     {
-        if (!fnIsWow64Process(GetCurrentProcess(), &fIsWow64))
+        USHORT usWowMachine  = IMAGE_FILE_MACHINE_UNKNOWN;
+        USHORT usHostMachine = IMAGE_FILE_MACHINE_UNKNOWN;
+        if (pfnIsWow64Process2(GetCurrentProcess(), &usWowMachine, &usHostMachine))
         {
-            /* Error in retrieving process type - assume that we're running on 32bit. */
-            return FALSE;
+            if (usHostMachine == IMAGE_FILE_MACHINE_AMD64)
+                return VBOXSTUBPKGARCH_AMD64;
+            if (usHostMachine == IMAGE_FILE_MACHINE_ARM64)
+                return VBOXSTUBPKGARCH_ARM64;
+            if (usHostMachine == IMAGE_FILE_MACHINE_I386)
+                return VBOXSTUBPKGARCH_X86;
+            LogError("IsWow64Process2 return unknown host machine value: %#x (wow machine %#x)", usHostMachine, usWowMachine);
         }
+        else
+            LogError("IsWow64Process2 failed: %u", GetLastError());
     }
-    return fIsWow64;
+    else
+    {
+        PFNISWOW64PROCESS pfnIsWow64Process = (PFNISWOW64PROCESS)GetProcAddress(hModKernel32, "IsWow64Process");
+        if (pfnIsWow64Process)
+        {
+            BOOL fIsWow64 = TRUE;
+            if (pfnIsWow64Process(GetCurrentProcess(), &fIsWow64))
+            {
+                if (fIsWow64)
+                    return VBOXSTUBPKGARCH_AMD64;
+            }
+            else
+                LogError("IsWow64Process failed: %u\n", GetLastError());
+        }
+        else
+            LogError("Neither IsWow64Process nor IsWow64Process2 was found!");
+    }
+
+#ifdef RT_ARCH_X86
+    return VBOXSTUBPKGARCH_X86;
+#elif defined(RT_ARCH_AMD64)
+    return VBOXSTUBPKGARCH_AMD64;
+#elif defined(RT_ARCH_ARM64)
+    return VBOXSTUBPKGARCH_ARM64;
+#else
+# error "port me"
+#endif
 }
 
 
@@ -500,7 +563,7 @@ static bool PackageIsNeeded(VBOXSTUBPKG const *pPackage)
 {
     if (pPackage->enmArch == VBOXSTUBPKGARCH_ALL)
         return true;
-    VBOXSTUBPKGARCH enmArch = IsWow64() ? VBOXSTUBPKGARCH_AMD64 : VBOXSTUBPKGARCH_X86;
+    VBOXSTUBPKGARCH enmArch = GetNativePackageArch();
     return pPackage->enmArch == enmArch;
 }
 
@@ -1016,35 +1079,12 @@ static RTEXITCODE ExtractFiles(unsigned cPackages, const char *pszDstDir, bool f
 
         if (fExtractOnly || PackageIsNeeded(pPackage))
         {
-            /* If we only extract or if it's a common file, use the original file name,
-               otherwise generate a random name with the same file extension (@bugref{10201}). */
-            RTFILE hFile = NIL_RTFILE;
-            char   szDstFile[RTPATH_MAX];
-            if (fExtractOnly || pPackage->enmArch == VBOXSTUBPKGARCH_ALL)
-                rc = RTPathJoin(szDstFile, sizeof(szDstFile), pszDstDir, pPackage->szFilename);
-            else
-            {
-                rc = RTPathJoin(szDstFile, sizeof(szDstFile), pszDstDir, "XXXXXXXXXXXXXXXXXXXXXXXX");
-                if (RT_SUCCESS(rc))
-                {
-                    const char *pszSuffix = RTPathSuffix(pPackage->szFilename);
-                    if (pszSuffix)
-                        rc = RTStrCat(szDstFile, sizeof(szDstFile), pszSuffix);
-                    if (RT_SUCCESS(rc))
-                    {
-                        rc = RTFileCreateUnique(&hFile, szDstFile,
-                                                RTFILE_O_CREATE | RTFILE_O_WRITE | RTFILE_O_DENY_WRITE
-                                                | (0700 << RTFILE_O_CREATE_MODE_SHIFT));
-                        if (RT_FAILURE(rc))
-                            return ShowError("Failed to create unique filename for '%s' in '%s': %Rrc",
-                                             pPackage->szFilename, pszDstDir, rc);
-                    }
-                }
-            }
+            char szDstFile[RTPATH_MAX];
+            rc = RTPathJoin(szDstFile, sizeof(szDstFile), pszDstDir, pPackage->szFilename);
             if (RT_FAILURE(rc))
                 return ShowError("Internal error: Build extraction file name failed: %Rrc", rc);
 
-            rc = Extract(pPackage, szDstFile, hFile, k);
+            rc = Extract(pPackage, szDstFile, NIL_RTFILE /* Custom file handle, not used (anymore) */, k);
             if (RT_FAILURE(rc))
                 return ShowError("Error extracting package #%u (%s): %Rrc", k, pPackage->szFilename, rc);
         }
@@ -1052,6 +1092,312 @@ static RTEXITCODE ExtractFiles(unsigned cPackages, const char *pszDstDir, bool f
 
     return RTEXITCODE_SUCCESS;
 }
+
+#ifdef VBOX_STUB_WITH_SPLASH
+/**
+ * Structure for keeping the splash screen context.
+ */
+typedef struct VBOXSPLASHSCREENCTX
+{
+    /** The instance the window is running in. */
+    HINSTANCE                    hInst;
+    /** The actual splash screen window. */
+    HWND                         hWnd;
+    /** The worker thread handle. */
+    RTTHREAD                     hThread;
+    /** Allocated image which is drawn as the splash screen.
+     *  Owned by the splash screen thread. */
+    Gdiplus::Image              *pImage;
+    /** The current angle we draw the loading dot. */
+    unsigned                     uDotAngle;
+    /** Back buffer DC.
+     *  Also acts as a beacon for initializing / destroying the back buffer data. */
+    HDC                          hDCBackBuffer;
+    /** Back buffer bitmap. */
+    HBITMAP                      hBmpBackBuffer;
+} VBOXSPLASHSCREENCTX;
+/** Pointer to a structure for keeping the splash screen context. */
+typedef VBOXSPLASHSCREENCTX *PVBOXSPLASHSCREENCTX;
+
+/**
+ * Paints the plash screen.
+ *
+ * @param   pCtx                Splash screen context to use.
+ * @param   hdc                 HDC to use for drawing.
+ */
+static void SplashScreenPaint(PVBOXSPLASHSCREENCTX pCtx, HDC hdc)
+{
+    unsigned const uWidth  = pCtx->pImage->GetWidth();
+    unsigned const uHeight = pCtx->pImage->GetHeight();
+
+    /* To prevent flickering we use a back buffer. Create it if not done yet. */
+    if (!pCtx->hDCBackBuffer)
+    {
+        pCtx->hDCBackBuffer  = CreateCompatibleDC(hdc);
+        pCtx->hBmpBackBuffer = CreateCompatibleBitmap(hdc, uWidth, uHeight);
+        SelectObject(pCtx->hDCBackBuffer, pCtx->hBmpBackBuffer);
+    }
+
+    Gdiplus::Graphics graphics(pCtx->hDCBackBuffer);
+
+    graphics.Clear(Gdiplus::Color(255, 255, 255, 255)); /* White background. */
+    graphics.DrawImage(pCtx->pImage, 0, 0, pCtx->pImage->GetWidth(), pCtx->pImage->GetHeight());
+
+    unsigned const uRadius = 10;
+    unsigned const uCenterX = uWidth / 2;
+    unsigned const uCenterY = uHeight / 2 +  80 /* Offset for drawing the dot below the VBox logo */;
+
+    /* Calculate the position of the spinning circle. */
+    unsigned const x = uCenterX + static_cast<int>(uRadius * cos(pCtx->uDotAngle * 3.14159 /* PI */ / 180));
+    unsigned const y = uCenterY + static_cast<int>(uRadius * sin(pCtx->uDotAngle * 3.14159 /* PI */ / 180));
+
+    Gdiplus::SolidBrush brush(Gdiplus::Color(255, 0, 0, 100)); /* Dark blue dot. */
+    graphics.FillEllipse(&brush, x - 5, y - 5, 10, 10);
+
+    /* Blit back buffer DC to front DC. */
+    BitBlt(hdc, 0, 0, uWidth, uHeight, pCtx->hDCBackBuffer, 0, 0, SRCCOPY);
+}
+
+/**
+ * WndProc for the splash screen.
+ *
+ * @returns LRESULT
+ * @param   hWnd                Window handle.
+ * @param   message             Window message.
+ * @param   wParam              wParam.
+ * @param   lParam              lParam.
+ */
+static LRESULT CALLBACK SplashScreenWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+        /* Note: WM_NCCREATE is not the first ever message which arrives, but early enough for us. */
+        case WM_NCCREATE:
+        {
+            LPCREATESTRUCT pCS = (LPCREATESTRUCT)lParam;
+            AssertPtr(pCS);
+            SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pCS->lpCreateParams);
+            break;
+        }
+
+        case WM_PAINT:
+        {
+            PVBOXSPLASHSCREENCTX pCtx = (PVBOXSPLASHSCREENCTX)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+            AssertPtrReturn(pCtx, 0);
+
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            if (hdc)
+            {
+                SplashScreenPaint(pCtx, hdc);
+                EndPaint(hWnd, &ps);
+            }
+            break;
+        }
+
+        case WM_TIMER:
+        {
+            PVBOXSPLASHSCREENCTX pCtx = (PVBOXSPLASHSCREENCTX)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+            AssertPtrReturn(pCtx, 0);
+
+            pCtx->uDotAngle = (pCtx->uDotAngle + 10) % 360;
+            InvalidateRect(hWnd, NULL, FALSE);
+            break;
+        }
+
+        case WM_DESTROY:
+        {
+            KillTimer(hWnd, 1 /* ID */);
+            PostQuitMessage(0);
+            break;
+        }
+
+        default:
+            break;
+
+    }
+
+    return DefWindowProc(hWnd, message, wParam, lParam);
+}
+
+/**
+ * The splash screen thread.
+ *
+ * @returns VBox status code.
+ * @param   hSelf               Thread handle.
+ * @param   pvUser              User-supplied pointer. Of type PVBOXSPLASHSCREENCTX.
+ */
+static DECLCALLBACK(int) SplashScreenThread(RTTHREAD hSelf, void *pvUser)
+{
+    PVBOXSPLASHSCREENCTX pCtx = (PVBOXSPLASHSCREENCTX)pvUser;
+    AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
+
+    ULONG_PTR                    gdiplusToken;
+    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
+    HRSRC const hResource = FindResourceW(pCtx->hInst, MAKEINTRESOURCEW(IDB_SPLASH), L"PNG");
+    if (hResource)
+    {
+        HGLOBAL const hGlobal = LoadResource(pCtx->hInst, hResource);
+        if (hGlobal)
+        {
+            DWORD const dwSize = SizeofResource(pCtx->hInst, hResource);
+            if (dwSize)
+            {
+                LPVOID const pvData = LockResource(hGlobal);
+                if (pvData)
+                {
+                    IStream *pStream = SHCreateMemStream((BYTE*)pvData, dwSize);
+                    if (pStream)
+                    {
+                        pCtx->pImage = new Gdiplus::Image(pStream);
+                        pStream->Release();
+                    }
+
+                    UnlockResource(pvData);
+                }
+            }
+        }
+    }
+
+    if (pCtx->pImage)
+    {
+        WNDCLASS wc = {0};
+        wc.lpfnWndProc   = SplashScreenWndProc;
+        wc.hInstance     = pCtx->hInst;
+        wc.lpszClassName = TEXT("VBoxSplashScreenClass");
+        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+
+        RegisterClass(&wc);
+
+        pCtx->hWnd = CreateWindow(TEXT("VBoxSplashScreenClass"), VBOX_STUB_TITLE,
+                                  WS_POPUP | WS_VISIBLE,
+                                  (GetSystemMetrics(SM_CXSCREEN) - pCtx->pImage->GetWidth()) / 2,
+                                  (GetSystemMetrics(SM_CYSCREEN) - pCtx->pImage->GetHeight()) / 2,
+                                  pCtx->pImage->GetWidth(), pCtx->pImage->GetHeight(),
+                                  NULL, NULL, pCtx->hInst, pCtx /* GWLP_USERDATA */);
+        if (!pCtx->hWnd)
+        {
+            DWORD const dwErr = GetLastError();
+            ShowError("Error creating splash window, rc=%Rrc (%#x)", RTErrConvertFromWin32(dwErr), dwErr);
+        }
+        else
+        {
+            /* Start timer for splash screen updates. */
+            SetTimer(pCtx->hWnd, 1 /* ID */, 50 /* ms */, NULL);
+        }
+    }
+    else
+        ShowError("Error loading splash image");
+
+    RTThreadUserSignal(hSelf);
+
+    /*
+     * Enter message loop.
+     */
+    if (pCtx->hWnd)
+    {
+        MSG msg;
+        while (GetMessage(&msg, NULL, 0, 0))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+    }
+
+    /*
+     * Cleanup.
+     */
+    if (pCtx->pImage)
+    {
+        delete pCtx->pImage;
+        pCtx->pImage = NULL;
+    }
+
+    DeleteObject(pCtx->hBmpBackBuffer);
+    DeleteDC(pCtx->hDCBackBuffer);
+
+    if (pCtx->hWnd)
+    {
+        DestroyWindow(pCtx->hWnd);
+        pCtx->hWnd = NULL;
+    }
+
+    /* Must come after pImage has been destroyed. */
+    Gdiplus::GdiplusShutdown(gdiplusToken);
+
+    /* GdiplusShutdown() apparently forgets to uninit COM, so we have to do that ourselves via CoUninitialize().
+     * Not doing that will result in a debug assertion in experimental code in rtThreadNativeUninitComAndOle()
+     * where we check for dangling COM inits. Sigh. */
+    CoUninitialize();
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Creates a splash screen.
+ *
+ * @returns VBox status code.
+ * @param   ppCtx               Where to return the splash screen context on success.
+ */
+static int SplashScreenCreate(PVBOXSPLASHSCREENCTX *ppCtx)
+{
+    PVBOXSPLASHSCREENCTX pCtx = (PVBOXSPLASHSCREENCTX)RTMemAlloc(sizeof(VBOXSPLASHSCREENCTX));
+    AssertPtrReturn(pCtx, VERR_NO_MEMORY);
+
+    pCtx->hInst         = GetModuleHandle(NULL);
+    pCtx->hThread       = NIL_RTTHREAD;
+    pCtx->hDCBackBuffer = NULL;
+
+    int vrc = RTThreadCreate(&pCtx->hThread, SplashScreenThread, pCtx, 0, RTTHREADTYPE_DEFAULT,
+                             RTTHREADFLAGS_WAITABLE, "vbxStbSplsh");
+    if (RT_SUCCESS(vrc))
+    {
+        vrc = RTThreadUserWait(pCtx->hThread, RT_MS_5SEC);
+        if (RT_SUCCESS(vrc))
+            *ppCtx = pCtx;
+    }
+
+    return vrc;
+}
+
+/**
+ * Destroys a splash screen.
+ *
+ * @param   pCtx                Splash screen context to destroy.
+ *                              The pointer will be invalid on return.
+ */
+static void SplashScreenDestroy(PVBOXSPLASHSCREENCTX pCtx)
+{
+    if (!pCtx)
+        return;
+
+    if (pCtx->hWnd)
+    {
+        PostMessage(pCtx->hWnd, WM_QUIT, 0, 0);
+        pCtx->hWnd = NULL;
+    }
+
+    int vrc = VINF_SUCCESS;
+
+    if (pCtx->hThread != NIL_RTTHREAD)
+    {
+        int rcThread;
+        vrc = RTThreadWait(pCtx->hThread, RT_MS_5SEC /* Timeout in ms */, &rcThread);
+        if (RT_SUCCESS(vrc))
+            vrc = rcThread;
+
+        if (RT_FAILURE(vrc))
+            ShowError("Destruction of splash screen failed with %Rrc\n", vrc);
+
+        pCtx->hThread = NIL_RTTHREAD;
+    }
+
+    RTMemFree(pCtx);
+    return;
+}
+#endif /* VBOX_STUB_WITH_SPLASH */
 
 int main(int argc, char **argv)
 {
@@ -1082,7 +1428,10 @@ int main(int argc, char **argv)
     /* Argument enumeration IDs. */
     enum KVBOXSTUBOPT
     {
-        KVBOXSTUBOPT_MSI_LOG_FILE = 1000
+        KVBOXSTUBOPT_MSI_LOG_FILE = 1000,
+#if defined(VBOX_STUB_WITH_SPLASH) && defined(DEBUG)
+        KVBOXSTUBOPT_SPLASH_TEST
+#endif
     };
 
     /* Parameter definitions. */
@@ -1128,6 +1477,9 @@ int main(int argc, char **argv)
         { "-help",              'h',                         RTGETOPT_REQ_NOTHING },
         { "/help",              'h',                         RTGETOPT_REQ_NOTHING },
         { "/?",                 'h',                         RTGETOPT_REQ_NOTHING },
+#if defined(VBOX_STUB_WITH_SPLASH) && defined(DEBUG)
+        { "--splash-test",      KVBOXSTUBOPT_SPLASH_TEST,    RTGETOPT_REQ_UINT32 },
+#endif
     };
 
     RTGETOPTSTATE GetState;
@@ -1283,6 +1635,10 @@ int main(int argc, char **argv)
                          "   Displays version number and exit\n"
                          "-?, -h, --help\n"
                          "   Displays this help text and exit\n"
+#if defined(VBOX_STUB_WITH_SPLASH) && defined(DEBUG)
+                        "--splash-test <s>\n"
+                         "   Displays the splash screen for <s> seconds and exit\n"
+#endif
                          "\n"
                          "Examples:\n"
                          "  %s --msiparams \"INSTALLDIR=\"\"C:\\Program Files\\VirtualBox\"\"\"\n"
@@ -1291,6 +1647,25 @@ int main(int argc, char **argv)
                          argv[0], argv[0]);
                 return RTEXITCODE_SUCCESS;
 
+#if defined(VBOX_STUB_WITH_SPLASH) && defined(DEBUG)
+            case KVBOXSTUBOPT_SPLASH_TEST:
+            {
+                PVBOXSPLASHSCREENCTX pSplashCtx = NULL;
+                int rc = SplashScreenCreate(&pSplashCtx);
+                if (RT_SUCCESS(rc))
+                {
+                    /* Simulate some work. */
+                    RTThreadSleep(ValueUnion.u32 * RT_MS_1SEC);
+
+                    SplashScreenDestroy(pSplashCtx);
+                }
+
+                if (RT_FAILURE(rc) && !g_fSilent) /* Don't block if running on testboxes. */
+                    ShowError("Splash screen test failed with %Rrc\n", rc);
+
+                return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+            }
+#endif
             case VINF_GETOPT_NOT_OPTION:
                 /* Are (optional) MSI parameters specified and this is the last
                  * parameter? Append everything to the MSI parameter list then. */
@@ -1331,6 +1706,13 @@ int main(int argc, char **argv)
         CloseHandle(hMutexAppRunning); /* close it so we don't keep it open while showing the error message. */
         return ShowError("Another installer is already running");
     }
+
+#ifdef VBOX_STUB_WITH_SPLASH
+    /* Only show the splash screen if we're *not* in silent mode. */
+    PVBOXSPLASHSCREENCTX pSplashCtx = NULL;
+    if (!g_fSilent)
+        /* ignore rc, not fatal */ SplashScreenCreate(&pSplashCtx);
+#endif
 
 /** @todo
  *
@@ -1410,8 +1792,11 @@ int main(int argc, char **argv)
             return ShowError("Error creating MSI log file name, rc=%Rrc", vrc);
     }
 
+    VBOXSTUBPKGARCH const enmPkgArch = GetNativePackageArch();
+
     if (g_iVerbosity)
     {
+        RTPrintf("Host architecture        : %s\n",      GetPackageArchStr(enmPkgArch));
         RTPrintf("Extraction path          : %s\n",      szExtractPath);
         RTPrintf("Silent installation      : %RTbool\n", g_fSilent);
 #ifdef VBOX_WITH_CODE_SIGNING
@@ -1426,7 +1811,7 @@ int main(int argc, char **argv)
      */
     if (   !fExtractOnly
         && !g_fSilent
-        && !IsWow64())
+        && enmPkgArch == VBOXSTUBPKGARCH_X86)
         rcExit = ShowError("32-bit Windows hosts are not supported by this VirtualBox release.");
     else
     {
@@ -1447,6 +1832,11 @@ int main(int argc, char **argv)
             rcExit = ExtractFiles(pHeader->cPackages, szExtractPath, fExtractOnly, &pExtractDirRec);
             if (rcExit == RTEXITCODE_SUCCESS)
             {
+#ifdef VBOX_STUB_WITH_SPLASH
+                /* Hide the splash right after extraction. */
+                SplashScreenDestroy(pSplashCtx);
+                pSplashCtx = NULL;
+#endif
                 if (fExtractOnly)
                     ShowInfo("Files were extracted to: %s", szExtractPath);
                 else
@@ -1498,6 +1888,12 @@ int main(int argc, char **argv)
     if (g_iVerbosity)
         FreeConsole();
 # endif /* VBOX_STUB_WITH_OWN_CONSOLE */
+#endif
+
+#ifdef VBOX_STUB_WITH_SPLASH
+    /* Make sure the splash screen got destroyed (if not already above). */
+    SplashScreenDestroy(pSplashCtx);
+    pSplashCtx = NULL;
 #endif
 
     /*

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -828,8 +828,8 @@ typedef enum DBGFBPTYPE
     DBGFBPTYPE_INVALID = 0,
     /** Debug register. */
     DBGFBPTYPE_REG,
-    /** INT 3 instruction. */
-    DBGFBPTYPE_INT3,
+    /** Software breakpoint (INT 3 on x86, bkpt on AArch64). */
+    DBGFBPTYPE_SOFTWARE,
     /** Port I/O breakpoint. */
     DBGFBPTYPE_PORT_IO,
     /** Memory mapped I/O breakpoint. */
@@ -919,16 +919,31 @@ typedef struct DBGFBPPUB
             uint8_t         cb;
         } Reg;
 
-        /** INT3 breakpoint data. */
-        struct DBGFBPINT3
+        /** Software breakpoint data. */
+        struct DBGFBPSW
         {
             /** The flat GC address of the breakpoint. */
             RTGCUINTPTR     GCPtr;
             /** The physical address of the breakpoint. */
             RTGCPHYS        PhysAddr;
-            /** The byte value we replaced by the INT 3 instruction. */
-            uint8_t         bOrg;
-        } Int3;
+
+            /** Architecture specific breakpoint data. */
+            union
+            {
+                /** BKPT breakpoint data. */
+                struct
+                {
+                    /** The original instruction being replaced by the breakpoint. */
+                    uint32_t        u32Org;
+                } armv8;
+                /** Int 3 data. */
+                struct
+                {
+                    /** The byte value we replaced by the INT 3 instruction. */
+                    uint8_t         bOrg;
+                } x86;
+            } Arch;
+        } Sw;
 
         /** I/O port breakpoint data.   */
         struct DBGFBPPORTIO
@@ -958,7 +973,7 @@ typedef struct DBGFBPPUB
 } DBGFBPPUB;
 AssertCompileSize(DBGFBPPUB, 64 - 8);
 AssertCompileMembersAtSameOffset(DBGFBPPUB, u.GCPtr, DBGFBPPUB, u.Reg.GCPtr);
-AssertCompileMembersAtSameOffset(DBGFBPPUB, u.GCPtr, DBGFBPPUB, u.Int3.GCPtr);
+AssertCompileMembersAtSameOffset(DBGFBPPUB, u.GCPtr, DBGFBPPUB, u.Sw.GCPtr);
 
 /** Pointer to the visible breakpoint state. */
 typedef DBGFBPPUB *PDBGFBPPUB;
@@ -1796,8 +1811,9 @@ VMMR3DECL(int) DBGFR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel, uint32_t 
  */
 typedef enum DBGFREG
 {
+    DBGFREG_X86_FIRST = 0,
     /* General purpose registers: */
-    DBGFREG_AL  = 0,
+    DBGFREG_AL  = DBGFREG_X86_FIRST,
     DBGFREG_AX  = DBGFREG_AL,
     DBGFREG_EAX = DBGFREG_AL,
     DBGFREG_RAX = DBGFREG_AL,
@@ -2041,14 +2057,16 @@ typedef enum DBGFREG
     DBGFREG_GDTR,
     DBGFREG_IDTR,
 
-    /** The end of the x86 registers. */
-    DBGFREG_X86_END = DBGFREG_IDTR,
+    /** The last of the x86 registers. */
+    DBGFREG_X86_LAST = DBGFREG_IDTR,
+    /* Misnomer. */
+    DBGFREG_X86_END = DBGFREG_X86_LAST,
 
     /** @name ARMv8 register identifiers.
      * @{ */
     DBGFREG_ARMV8_FIRST,
-    /** General purpose registers. */
-    DBGFREG_ARMV8_GREG_X0,
+    /* General purpose registers: */
+    DBGFREG_ARMV8_GREG_X0 = DBGFREG_ARMV8_FIRST,
     DBGFREG_ARMV8_GREG_W0 = DBGFREG_ARMV8_GREG_X0,
     DBGFREG_ARMV8_GREG_X1,
     DBGFREG_ARMV8_GREG_W1 = DBGFREG_ARMV8_GREG_X1,
@@ -2153,7 +2171,7 @@ typedef enum DBGFREG
     DBGFREG_ARMV8_FPCR,
     DBGFREG_ARMV8_FPSR,
 
-    /** System registers: */
+    /* System registers: */
     DBGFREG_ARMV8_SP_EL0,
     DBGFREG_ARMV8_SP_EL1,
     DBGFREG_ARMV8_SPSR_EL1,
@@ -2164,8 +2182,9 @@ typedef enum DBGFREG
     DBGFREG_ARMV8_TTBR1_EL1,
     DBGFREG_ARMV8_ELR_EL1,
     DBGFREG_ARMV8_VBAR_EL1,
+    DBGFREG_ARMV8_ACTLR_EL1,
 
-    /** EL2 system registers: */
+    /* EL2 system registers: */
     DBGFREG_ARMV8_CNTHCTL_EL2,
     DBGFREG_ARMV8_CNTHP_CTL_EL2,
     DBGFREG_ARMV8_CNTHP_CVAL_EL2,
@@ -2194,7 +2213,7 @@ typedef enum DBGFREG
     DBGFREG_ARMV8_LAST = DBGFREG_ARMV8_VTTBR_EL2,
     /** @} */
 
-    /** The end of the registers.  */
+    /** The end of the registers. */
     DBGFREG_END,
     /** The usual 32-bit type hack. */
     DBGFREG_32BIT_HACK = 0x7fffffff
@@ -2299,6 +2318,10 @@ typedef DBGFREGVALEX const *PCDBGFREGVALEX;
 VMMDECL(ssize_t) DBGFR3RegFormatValue(char *pszBuf, size_t cbBuf, PCDBGFREGVAL pValue, DBGFREGVALTYPE enmType, bool fSpecial);
 VMMDECL(ssize_t) DBGFR3RegFormatValueEx(char *pszBuf, size_t cbBuf, PCDBGFREGVAL pValue, DBGFREGVALTYPE enmType,
                                         unsigned uBase, signed int cchWidth, signed int cchPrecision, uint32_t fFlags);
+
+VMMR3_INT_DECL(size_t) DBGFR3RegFormatX86EFlags(char pszDst[160], uint32_t fEFlags);
+VMMR3_INT_DECL(size_t) DBGFR3RegFormatArmV8PState(char pszDst[160], uint64_t fPState);
+
 
 /**
  * Register sub-field descriptor.

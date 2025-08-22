@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -35,6 +35,7 @@
 #include "UIBaseMemoryEditor.h"
 #include "UIFilePathSelector.h"
 #include "UIHostnameDomainNameEditor.h"
+#include "UIMediumSizeEditor.h"
 #include "UIMediumTools.h"
 #include "UITranslationEventListener.h"
 #include "UIUserNamePasswordEditor.h"
@@ -79,7 +80,7 @@ void UIUserNamePasswordGroupBox::prepare()
 
 void UIUserNamePasswordGroupBox::sltRetranslateUI()
 {
-    setTitle(UIWizardNewVM::tr("Username and Password"));
+    setTitle(UIWizardNewVM::tr("User Name and Password"));
 }
 
 QString UIUserNamePasswordGroupBox::userName() const
@@ -174,11 +175,11 @@ void UIGAInstallationGroupBox::prepare()
 void UIGAInstallationGroupBox::sltRetranslateUI()
 {
     if (m_pGAISOFilePathSelector)
-        m_pGAISOFilePathSelector->setToolTip(UIWizardNewVM::tr("Selects an installation medium (ISO file) for the Guest Additions."));
+        m_pGAISOFilePathSelector->setToolTip(UIWizardNewVM::tr("The ISO file to install the VirtualBox Guest Additions"));
     if (m_pGAISOPathLabel)
-        m_pGAISOPathLabel->setText(UIWizardNewVM::tr("Guest &Additions ISO:"));
-    setTitle(UIWizardNewVM::tr("Gu&est Additions"));
-    setToolTip(UIWizardNewVM::tr("When checked, the guest additions will be installed after the guest OS install."));
+        m_pGAISOPathLabel->setText(UIWizardNewVM::tr("Guest &Additions ISO Image:"));
+    setTitle(UIWizardNewVM::tr("Install Gu&est Additions"));
+    setToolTip(UIWizardNewVM::tr("Install the VirtualBox Guest Additions on the guest OS"));
 }
 
 QString UIGAInstallationGroupBox::path() const
@@ -255,7 +256,7 @@ void UIAdditionalUnattendedOptions::prepare()
 
 void UIAdditionalUnattendedOptions::sltRetranslateUI()
 {
-    setTitle(UIWizardNewVM::tr("Additional Options"));
+    setTitle(UIWizardNewVM::tr("OS Installation Options"));
 }
 
 QString UIAdditionalUnattendedOptions::hostname() const
@@ -291,23 +292,18 @@ QString UIAdditionalUnattendedOptions::hostnameDomainName() const
     return QString();
 }
 
-bool UIAdditionalUnattendedOptions::isComplete() const
-{
-    return isHostnameComplete();
-}
-
-bool UIAdditionalUnattendedOptions::isHostnameComplete() const
+bool UIAdditionalUnattendedOptions::hostDomainNameComplete() const
 {
     if (m_pHostnameDomainNameEditor)
-        return m_pHostnameDomainNameEditor->isComplete();
+        return m_pHostnameDomainNameEditor->hostDomainNameComplete();
     return false;
 }
 
 
-void UIAdditionalUnattendedOptions::mark()
+void UIAdditionalUnattendedOptions::mark(bool fProductKeyRequired)
 {
     if (m_pHostnameDomainNameEditor)
-        m_pHostnameDomainNameEditor->mark();
+        m_pHostnameDomainNameEditor->mark(fProductKeyRequired);
 }
 
 void UIAdditionalUnattendedOptions::disableEnableProductKeyWidgets(bool fEnabled)
@@ -316,11 +312,18 @@ void UIAdditionalUnattendedOptions::disableEnableProductKeyWidgets(bool fEnabled
         m_pHostnameDomainNameEditor->disableEnableProductKeyWidgets(fEnabled);
 }
 
+bool UIAdditionalUnattendedOptions::hasProductKeyAcceptableInput() const
+{
+    if (m_pHostnameDomainNameEditor)
+       return m_pHostnameDomainNameEditor->hasProductKeyAcceptableInput();
+    return false;
+}
+
 /*********************************************************************************************************************************
 *   UINewVMHardwareContainer implementation.                                                                                *
 *********************************************************************************************************************************/
 
-UINewVMHardwareContainer::UINewVMHardwareContainer(QWidget *pParent /* = 0 */)
+UINewVMHardwareContainer::UINewVMHardwareContainer(QWidget *pParent)
     : QWidget(pParent)
     , m_pBaseMemoryEditor(0)
     , m_pVirtualCPUEditor(0)
@@ -393,10 +396,8 @@ void UINewVMHardwareContainer::sltRetranslateUI()
 {
     if (m_pEFICheckBox)
     {
-        m_pEFICheckBox->setText(UIWizardNewVM::tr("&Enable EFI (special OSes only)"));
-        m_pEFICheckBox->setToolTip(UIWizardNewVM::tr("When checked, the guest will support the Extended Firmware Interface (EFI), "
-                                                     "which is required to boot certain guest OSes. Non-EFI aware OSes will not "
-                                                     "be able to boot if this option is activated."));
+        m_pEFICheckBox->setText(UIWizardNewVM::tr("&Use EFI"));
+        m_pEFICheckBox->setToolTip(UIWizardNewVM::tr("Use Extended Firmware Interface (EFI). This is required to boot some OSs."));
     }
 
     updateMinimumLayoutHint();

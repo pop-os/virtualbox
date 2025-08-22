@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -34,9 +34,12 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_IEM_RE_THREADED
 #define VMCPU_INCL_CPUM_GST_CTX
+#ifdef IN_RING0
+# define VBOX_VMM_TARGET_X86
+#endif
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/cpum.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/iom.h>
@@ -67,6 +70,9 @@
 #include <iprt/x86.h>
 
 #include "IEMInline.h"
+#ifdef VBOX_VMM_TARGET_X86
+# include "target-x86/IEMInline-x86.h"
+#endif
 
 
 
@@ -380,7 +386,7 @@ IEM_DECL_IEMTHREADEDFUNC_DEF(iemThreadedFunc_BltIn_CheckHwInstrBps)
             if (GCPhysRangePageWithOffset == pVCpu->iem.s.GCPhysInstrBuf + off) \
             { /* we're good */ } \
             /** @todo r=bird: Not sure if we need the TB obsolete complication here. \
-             * If we're preceeded by an indirect jump, there is no reason why the TB \
+             * If we're preceded by an indirect jump, there is no reason why the TB \
              * would be 'obsolete' just because this time around the indirect jump ends \
              * up at the same offset in a different page.  This would be real bad for \
              * indirect trampolines/validators. */ \

@@ -14,6 +14,7 @@ import sys
 import string
 import re
 import os.path as path
+from Common import EdkLogger
 from Common.LongFilePathSupport import OpenLongFilePath as open
 from Common.MultipleWorkspace import MultipleWorkspace as mws
 from Common.BuildToolError import *
@@ -55,8 +56,10 @@ gIncludeMacroConversion = {
 
 NMAKE_FILETYPE = "nmake"
 GMAKE_FILETYPE = "gmake"
+KMK_FILETYPE   = "kmk";             # vbox
 WIN32_PLATFORM = "win32"
 POSIX_PLATFORM = "posix"
+KBUILD_PLATFORM = "kbuild";         # vbox
 
 ## BuildFile class
 #
@@ -72,6 +75,7 @@ class BuildFile(object):
     ## default file name for each type of build file
     _FILE_NAME_ = {
         NMAKE_FILETYPE :   "Makefile",
+        KMK_FILETYPE :     "Makefile.kmk", # vbox
         GMAKE_FILETYPE :   "GNUmakefile"
     }
 
@@ -100,6 +104,7 @@ class BuildFile(object):
     ## Header string for each type of build file
     _FILE_HEADER_ = {
         NMAKE_FILETYPE :   _MAKEFILE_HEADER % _FILE_NAME_[NMAKE_FILETYPE],
+        KMK_FILETYPE :     _MAKEFILE_HEADER % _FILE_NAME_[KMK_FILETYPE],    # vbox
         GMAKE_FILETYPE :   _MAKEFILE_HEADER % _FILE_NAME_[GMAKE_FILETYPE]
     }
 
@@ -112,12 +117,20 @@ class BuildFile(object):
     #
     _SHELL_CMD_ = {
         WIN32_PLATFORM : {
-            "CP"    :   "copy /y",
-            "MV"    :   "move /y",
-            "RM"    :   "del /f /q",
-            "MD"    :   "mkdir",
-            "RD"    :   "rmdir /s /q",
+            "CP"    :  "copy /y",
+            "MV"    :  "move /y",
+            "RM"    :  "del /f /q",
+            "MD"    :  "mkdir",
+            "RD"    :  "rmdir /s /q",
         },
+
+        KBUILD_PLATFORM : {                     # vbox
+            "CP"    :  "kmk_builtin_cp -f",     # vbox
+            "MV"    :  "kmk_builtin_mv -f",     # vbox
+            "MD"    :  "kmk_builtin_mkdir -p",  # vbox
+            "RM"    :  "kmk_builtin_rm -f",     # vbox
+            "RD"    :  "kmk_builtin_rm -Rf",    # vbox
+        },                                      # vbox
 
         POSIX_PLATFORM : {
             "CP"    :   "cp -p -f",
@@ -131,38 +144,45 @@ class BuildFile(object):
     ## directory separator
     _SEP_ = {
         WIN32_PLATFORM :   "\\",
+        KBUILD_PLATFORM :  "\\" if sys.platform == "win32" else '/',                        # vbox
         POSIX_PLATFORM :   "/"
     }
 
     ## directory creation template
     _MD_TEMPLATE_ = {
         WIN32_PLATFORM :   'if not exist %(dir)s $(MD) %(dir)s',
+        KBUILD_PLATFORM :  "$(MD) -- %(dir)s",                                              # vbox
         POSIX_PLATFORM :   "$(MD) %(dir)s"
     }
 
     ## directory removal template
     _RD_TEMPLATE_ = {
         WIN32_PLATFORM :   'if exist %(dir)s $(RD) %(dir)s',
+        KBUILD_PLATFORM :  "$(RD) -- %(dir)s",                                              # vbox
         POSIX_PLATFORM :   "$(RD) %(dir)s"
     }
     ## cp if exist
     _CP_TEMPLATE_ = {
         WIN32_PLATFORM :   'if exist %(Src)s $(CP) %(Src)s %(Dst)s',
+        KBUILD_PLATFORM :  "kmk_builtin_test -f %(Src)s -- $(CP) -- %(Src)s %(Dst)s",       # vbox
         POSIX_PLATFORM :   "test -f %(Src)s && $(CP) %(Src)s %(Dst)s"
     }
 
     _CD_TEMPLATE_ = {
         WIN32_PLATFORM :   'if exist %(dir)s cd %(dir)s',
+        KBUILD_PLATFORM :  "test -e %(dir)s && cd %(dir)s",                                 # vbox
         POSIX_PLATFORM :   "test -e %(dir)s && cd %(dir)s"
     }
 
     _MAKE_TEMPLATE_ = {
         WIN32_PLATFORM :   'if exist %(file)s "$(MAKE)" $(MAKE_FLAGS) -f %(file)s',
+        KBUILD_PLATFORM :  '+kmk_test -e %(file)s -- "$(MAKE)" $(MAKE_FLAGS) -f %(file)s',  # vbox
         POSIX_PLATFORM :   'test -e %(file)s && "$(MAKE)" $(MAKE_FLAGS) -f %(file)s'
     }
 
     _INCLUDE_CMD_ = {
         NMAKE_FILETYPE :   '!INCLUDE',
+        KMK_FILETYPE :     "include",                                                       # vbox
         GMAKE_FILETYPE :   "include"
     }
 
@@ -180,6 +200,8 @@ class BuildFile(object):
             MakePath = AutoGenObject.ToolDefinition.get('MAKE', {}).get('PATH')
         if "nmake" in MakePath:
             self._FileType = NMAKE_FILETYPE
+        elif "kmk" in MakePath:                     # vbox
+            self._FileType = KMK_FILETYPE           # vbox
         else:
             self._FileType = GMAKE_FILETYPE
 
@@ -187,6 +209,10 @@ class BuildFile(object):
             self._Platform = WIN32_PLATFORM
         else:
             self._Platform = POSIX_PLATFORM
+        # vbox start
+        if self._FileType == KMK_FILETYPE:
+            self._Platform = KBUILD_PLATFORM
+        # vbox end
 
     ## Create build file.
     #
@@ -243,6 +269,43 @@ class BuildFile(object):
                     Path = "$(%s)%s" % (MacroName, Path[MacroValueLength:])
                     break
             return Path
+
+    # VBox begin
+    def FixQuietAndRedirForCommandList(self, asCommands):
+        asRet = [];
+        for sCmd in asCommands:
+            sCmd = sCmd.strip();
+            if sCmd:
+                if sCmd.startswith('if exist ') and self._FileType == KMK_FILETYPE:
+                    raise Exception('sCmd=%s' % (sCmd,));
+
+                # DOS-slashes are problematic since kmk uses kmk_ash, so escape them.
+                if self._Platform == KBUILD_PLATFORM and os.sep == '\\':
+                    sCmd = sCmd.replace('\\','\\\\');
+                    off  = sCmd.find('$');
+                    while off >= 0:
+                        if sCmd[off + 1] == '(':
+                            offEnd = sCmd.find(')', off)
+                            assert offEnd > off + 1;
+                            assert sCmd.find('(', off + 2, offEnd) < 0, '%s:%s in %s' % (off, offEnd, sCmd);
+                            assert sCmd.find('$', off + 2, offEnd) < 0, '%s:%s in %s' % (off, offEnd, sCmd);
+                            offEnd += 1;
+                        else:
+                            offEnd = off + 2;
+                        sCmd = sCmd[:off] + '$(subst \\,\\\\,' + sCmd[off : offEnd] + ')' + sCmd[offEnd:];
+                        off = sCmd.find('$', offEnd + len('$(subst \\,\\\\,)'));
+
+                if self._FileType == KMK_FILETYPE and sCmd.count('>') == 1 and '&' not in sCmd:
+                    sCmd, sOutput = sCmd.split('>');
+                    sCmd = 'kmk_builtin_redirect -wto %s -- %s' % (sOutput.strip(), sCmd.strip());
+
+                if sCmd[0] == '-' and self._FileType == NMAKE_FILETYPE:
+                    sCmd = '-$(EFI_QUIET)' + sCmd[1:];
+                else:
+                    sCmd = '$(EFI_QUIET)' + sCmd;
+            asRet.append(sCmd);
+        return asRet;
+    # VBox end
 
 ## ModuleMakefile class
 #
@@ -898,9 +961,20 @@ cleanlib:
                                 break
 
                         if self._AutoGenObject.ToolChainFamily == 'GCC':
-                            RespDict[Key] = Value.replace('\\', '/')
-                        else:
-                            RespDict[Key] = Value
+                            #
+                            # Replace '\' with '/' in the response file.
+                            # Skip content within "" or \"\"
+                            #
+                            ValueList = re.split(r'("|\\"|\s+)', Value)
+                            Skip = False
+                            for i, v in enumerate(ValueList):
+                                if v in ('"', '\\"'):
+                                    Skip = not Skip
+                                elif not Skip:
+                                    ValueList[i] = v.replace('\\', '/')
+                            Value = ''.join(ValueList)
+                        RespDict[Key] = Value
+
                         for Target in BuildTargets:
                             for i, SingleCommand in enumerate(BuildTargets[Target].Commands):
                                 if FlagDict[Flag]['Macro'] in SingleCommand:
@@ -1049,43 +1123,33 @@ cleanlib:
                     if Type in [TAB_OBJECT_FILE, TAB_STATIC_LIBRARY]:
                         Deps.append("$(%s)" % T.ListFileMacro)
 
-                # VBox - begin: Add $(QUIET)
-                sAllCmds = None;
-                for sCmd in T.Commands:
-                    sCmd = sCmd.strip();
-                    if len(sCmd) > 0:
-                        if sCmd[0] == '-' and self._FileType == 'nmake':
-                            sCmd = '-$(EFI_QUIET)' + sCmd[1:];
-                        else:
-                            sCmd = '$(EFI_QUIET)' + sCmd;
-                        if sAllCmds is None:
-                            sAllCmds = sCmd;
-                        else:
-                            sAllCmds += '\n\t' + sCmd;
-                # VBox - end.
-
-                if self._AutoGenObject.BuildRuleFamily == TAB_COMPILER_MSFT and Type == TAB_C_CODE_FILE:
+                if self._AutoGenObject.BuildRuleFamily == TAB_COMPILER_MSFT and Type == TAB_C_CODE_FILE and self._Platform != KBUILD_PLATFORM:
                     T, CmdTarget, CmdTargetDict, CmdCppDict = self.ParserCCodeFile(T, Type, CmdSumDict, CmdTargetDict,
                                                                                    CmdCppDict, DependencyDict, RespFile,
                                                                                    ToolsDef, resp_file_number)
                     resp_file_number += 1
-                    TargetDict = {"target": self.PlaceMacro(T.Target.Path, self.Macros), "cmd": "\n\t".join(T.Commands),"deps": CCodeDeps}
-                    # VBox: Original: TargetDict = {"target": self.PlaceMacro(T.Target.Path, self.Macros), "cmd": sAllCmds,"deps": CCodeDeps}
-                    CmdLine = self._BUILD_TARGET_TEMPLATE.Replace(TargetDict).rstrip().replace('\t$(OBJLIST', '$(OBJLIST')
+                    TargetDict = {"target": self.PlaceMacro(T.Target.Path, self.Macros), "cmd": "\n\t".join(self.FixQuietAndRedirForCommandList(T.Commands)),"deps": CCodeDeps}
+                    CmdLine = self._BUILD_TARGET_TEMPLATE.Replace(TargetDict).rstrip().replace('\t$(OBJLIST', '$(OBJLIST').replace('\t$(EFI_QUIET)$(OBJLIST', '$(OBJLIST')
                     if T.Commands:
                         CmdLine = '%s%s' %(CmdLine, TAB_LINE_BREAK)
                     if CCodeDeps or CmdLine:
                         self.BuildTargetList.append(CmdLine)
                 else:
-                    TargetDict = {"target": self.PlaceMacro(T.Target.Path, self.Macros), "cmd": "\n\t".join(T.Commands),"deps": Deps}
-                    # VBox: Original: TargetDict = {"target": self.PlaceMacro(T.Target.Path, self.Macros), "cmd": sAllCmds,"deps": Deps}
+                    TargetDict = {"target": self.PlaceMacro(T.Target.Path, self.Macros), "cmd": "\n\t".join(self.FixQuietAndRedirForCommandList(T.Commands)),"deps": Deps}
+                    if self._FileType == KMK_FILETYPE and len(T.Outputs) > 1:                               # vbox
+                        # kmk has syntax for multiple output files.                                         # vbox
+                        asTargets = [TargetDict["target"],];                                                # vbox
+                        for oOutput in T.Outputs[1:]:                                                       # vbox
+                            asTargets.append(self.PlaceMacro(oOutput.Path, self.Macros));                   # vbox
+                        TargetDict["target"] = ' +| '.join(asTargets)                                       # vbox
                     self.BuildTargetList.append(self._BUILD_TARGET_TEMPLATE.Replace(TargetDict))
 
-                    # Add a Makefile rule for targets generating multiple files.
-                    # The main output is a prerequisite for the other output files.
-                    for i in T.Outputs[1:]:
-                        AnnexeTargetDict = {"target": self.PlaceMacro(i.Path, self.Macros), "cmd": "", "deps": self.PlaceMacro(T.Target.Path, self.Macros)}
-                        self.BuildTargetList.append(self._BUILD_TARGET_TEMPLATE.Replace(AnnexeTargetDict))
+                    if self._FileType != KMK_FILETYPE:                                                      # vbox
+                        # Add a Makefile rule for targets generating multiple files.
+                        # The main output is a prerequisite for the other output files.
+                        for i in T.Outputs[1:]:
+                            AnnexeTargetDict = {"target": self.PlaceMacro(i.Path, self.Macros), "cmd": "", "deps": self.PlaceMacro(T.Target.Path, self.Macros)}
+                            self.BuildTargetList.append(self._BUILD_TARGET_TEMPLATE.Replace(AnnexeTargetDict))
 
     def ParserCCodeFile(self, T, Type, CmdSumDict, CmdTargetDict, CmdCppDict, DependencyDict, RespFile, ToolsDef,
                             resp_file_number):

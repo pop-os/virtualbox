@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -636,7 +636,7 @@ typedef const KDPACKETSTATECHANGE64 *PCKDPACKETSTATECHANGE64;
  * @{ */
 /** Minimum state change type. */
 #define KD_PACKET_STATE_CHANGE_MIN                  UINT32_C(0x00003030)
-/** An exception occured. */
+/** An exception occurred. */
 #define KD_PACKET_STATE_CHANGE_EXCEPTION            KD_PACKET_STATE_CHANGE_MIN
 /** Symbols were loaded(?). */
 #define KD_PACKET_STATE_CHANGE_LOAD_SYMBOLS         UINT32_C(0x00003031)

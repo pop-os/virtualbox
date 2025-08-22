@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -74,6 +74,7 @@
 #include <iprt/process.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
+#include <iprt/system.h>
 #include <iprt/env.h>
 #include <iprt/rand.h>
 #include <iprt/x86.h>
@@ -155,6 +156,7 @@ DECL_HIDDEN_DATA(uint32_t)          g_uSupFakeMode = UINT32_MAX;
 static int supInitFake(PSUPDRVSESSION *ppSession);
 
 
+#ifdef RT_OS_DARWIN
 /** Touch a range of pages. */
 DECLINLINE(void) supR3TouchPages(void *pv, size_t cPages)
 {
@@ -165,6 +167,7 @@ DECLINLINE(void) supR3TouchPages(void *pv, size_t cPages)
         pu32 += PAGE_SIZE / sizeof(uint32_t);
     }
 }
+#endif
 
 
 SUPR3DECL(int) SUPR3Install(void)
@@ -548,11 +551,11 @@ static int supInitFake(PSUPDRVSESSION *ppSession)
             *ppSession = g_pSession;
 
         /* fake the GIP. */
-        g_pSUPGlobalInfoPage = (PSUPGLOBALINFOPAGE)RTMemPageAllocZ(PAGE_SIZE);
+        g_pSUPGlobalInfoPage = (PSUPGLOBALINFOPAGE)RTMemPageAllocZ(SUP_PAGE_SIZE);
         if (g_pSUPGlobalInfoPage)
         {
             g_pSUPGlobalInfoPageR0 = g_pSUPGlobalInfoPage;
-            g_HCPhysSUPGlobalInfoPage = NIL_RTHCPHYS & ~(RTHCPHYS)PAGE_OFFSET_MASK;
+            g_HCPhysSUPGlobalInfoPage = NIL_RTHCPHYS & ~(RTHCPHYS)SUP_PAGE_OFFSET_MASK;
             /* the page is supposed to be invalid, so don't set the magic. */
             return VINF_SUCCESS;
         }
@@ -999,20 +1002,22 @@ SUPR3DECL(int) SUPR3PageFree(void *pvPages, size_t cPages)
  */
 SUPR3DECL(int) supR3PageLock(void *pvStart, size_t cPages, PSUPPAGE paPages)
 {
+    uint32_t  const cbPage = SUP_PAGE_SIZE;
+
     /*
      * Validate.
      */
     AssertPtr(pvStart);
-    AssertMsg(RT_ALIGN_P(pvStart, PAGE_SIZE) == pvStart, ("pvStart (%p) must be page aligned\n", pvStart));
+    AssertMsg(RT_ALIGN_P(pvStart, cbPage) == pvStart, ("pvStart (%p) must be page aligned\n", pvStart));
     AssertPtr(paPages);
 
     /* fake */
     if (RT_UNLIKELY(g_uSupFakeMode))
     {
-        RTHCPHYS    Phys = (uintptr_t)pvStart + PAGE_SIZE * 1024;
+        RTHCPHYS    Phys = (uintptr_t)pvStart + cbPage * 1024;
         size_t      iPage = cPages;
         while (iPage-- > 0)
-            paPages[iPage].Phys = Phys + (iPage << PAGE_SHIFT);
+            paPages[iPage].Phys = Phys + (iPage << SUP_PAGE_SHIFT);
         return VINF_SUCCESS;
     }
 
@@ -1065,7 +1070,7 @@ SUPR3DECL(int) supR3PageUnlock(void *pvStart)
      * Validate.
      */
     AssertPtr(pvStart);
-    AssertMsg(RT_ALIGN_P(pvStart, PAGE_SIZE) == pvStart, ("pvStart (%p) must be page aligned\n", pvStart));
+    AssertMsg(RT_ALIGN_P(pvStart, SUP_PAGE_SIZE) == pvStart, ("pvStart (%p) must be page aligned\n", pvStart));
 
     /* fake */
     if (RT_UNLIKELY(g_uSupFakeMode))
@@ -1114,6 +1119,7 @@ SUPR3DECL(int) SUPR3LockDownLoader(PRTERRINFO pErrInfo)
 }
 
 
+#ifdef VBOX_WITH_R0_MODULES
 /**
  * Fallback for SUPR3PageAllocEx on systems where RTR0MemObjPhysAllocNC isn't
  * supported.
@@ -1132,6 +1138,7 @@ static int supPagePageAllocNoKernelFallback(size_t cPages, void **ppvPages, PSUP
     }
     return rc;
 }
+#endif /* VBOX_WITH_R0_MODULES */
 
 
 SUPR3DECL(int) SUPR3PageAllocEx(size_t cPages, uint32_t fFlags, void **ppvPages, PRTR0PTR pR0Ptr, PSUPPAGE paPages)
@@ -1145,7 +1152,7 @@ SUPR3DECL(int) SUPR3PageAllocEx(size_t cPages, uint32_t fFlags, void **ppvPages,
     if (pR0Ptr)
         *pR0Ptr = NIL_RTR0PTR;
     AssertPtrNullReturn(paPages, VERR_INVALID_POINTER);
-    AssertMsgReturn(cPages > 0 && cPages <= VBOX_MAX_ALLOC_PAGE_COUNT, ("cPages=%zu\n", cPages), VERR_PAGE_COUNT_OUT_OF_RANGE);
+    AssertMsgReturn(cPages > 0 && cPages <= VBOX_MAX_ALLOC_SIZE / SUP_PAGE_SIZE, ("cPages=%zu\n", cPages), VERR_PAGE_COUNT_OUT_OF_RANGE);
     AssertReturn(!fFlags, VERR_INVALID_FLAGS);
 
     /*
@@ -1154,7 +1161,7 @@ SUPR3DECL(int) SUPR3PageAllocEx(size_t cPages, uint32_t fFlags, void **ppvPages,
     if (g_supLibData.fDriverless)
     {
         int rc = SUPR3PageAlloc(cPages, 0 /*fFlags*/, ppvPages);
-        Assert(RT_FAILURE(rc) || ASMMemIsZero(*ppvPages, cPages << PAGE_SHIFT));
+        Assert(RT_FAILURE(rc) || ASMMemIsZero(*ppvPages, cPages << SUP_PAGE_SHIFT));
         if (pR0Ptr)
             *pR0Ptr = NIL_RTR0PTR;
         if (paPages)
@@ -1173,6 +1180,7 @@ SUPR3DECL(int) SUPR3PageAllocEx(size_t cPages, uint32_t fFlags, void **ppvPages,
     else
         return VERR_WRONG_ORDER;
 
+#ifdef VBOX_WITH_R0_MODULES
     /*
      * Use fallback for non-R0 mapping?
      */
@@ -1237,10 +1245,13 @@ SUPR3DECL(int) SUPR3PageAllocEx(size_t cPages, uint32_t fFlags, void **ppvPages,
     else
         rc = VERR_NO_TMP_MEMORY;
     return rc;
-
+#else
+    AssertFailedReturn(VERR_NOT_SUPPORTED);
+#endif /* VBOX_WITH_R0_MODULES */
 }
 
 
+#ifdef VBOX_WITH_R0_MODULES
 SUPR3DECL(int) SUPR3PageMapKernel(void *pvR3, uint32_t off, uint32_t cb, uint32_t fFlags, PRTR0PTR pR0Ptr)
 {
     /*
@@ -1279,6 +1290,7 @@ SUPR3DECL(int) SUPR3PageMapKernel(void *pvR3, uint32_t off, uint32_t cb, uint32_
         *pR0Ptr = Req.u.Out.pvR0;
     return rc;
 }
+#endif
 
 
 SUPR3DECL(int) SUPR3PageProtect(void *pvR3, RTR0PTR R0Ptr, uint32_t off, uint32_t cb, uint32_t fProt)
@@ -1287,8 +1299,8 @@ SUPR3DECL(int) SUPR3PageProtect(void *pvR3, RTR0PTR R0Ptr, uint32_t off, uint32_
      * Validate.
      */
     AssertPtrReturn(pvR3, VERR_INVALID_POINTER);
-    Assert(!(off & PAGE_OFFSET_MASK));
-    Assert(!(cb & PAGE_OFFSET_MASK) && cb);
+    Assert(!(off & SUP_PAGE_OFFSET_MASK));
+    Assert(!(cb & SUP_PAGE_OFFSET_MASK) && cb);
     AssertReturn(!(fProt & ~(RTMEM_PROT_NONE | RTMEM_PROT_READ | RTMEM_PROT_WRITE | RTMEM_PROT_EXEC)), VERR_INVALID_PARAMETER);
 
     /*
@@ -1473,15 +1485,15 @@ SUPR3DECL(int) SUPR3LowAlloc(size_t cPages, void **ppvPages, PRTR0PTR ppvPagesR0
     /* fake */
     if (RT_UNLIKELY(g_uSupFakeMode))
     {
-        *ppvPages = RTMemPageAllocZ((size_t)cPages * PAGE_SIZE);
+        *ppvPages = RTMemPageAllocZ((size_t)cPages * SUP_PAGE_SIZE);
         if (!*ppvPages)
             return VERR_NO_LOW_MEMORY;
 
         /* fake physical addresses. */
-        RTHCPHYS    Phys = (uintptr_t)*ppvPages + PAGE_SIZE * 1024;
+        RTHCPHYS    Phys = (uintptr_t)*ppvPages + SUP_PAGE_SIZE * 1024;
         size_t      iPage = cPages;
         while (iPage-- > 0)
-            paPages[iPage].Phys = Phys + (iPage << PAGE_SHIFT);
+            paPages[iPage].Phys = Phys + (iPage << SUP_PAGE_SHIFT);
         return VINF_SUCCESS;
     }
 
@@ -1541,7 +1553,7 @@ SUPR3DECL(int) SUPR3LowFree(void *pv, size_t cPages)
     /* fake */
     if (RT_UNLIKELY(g_uSupFakeMode))
     {
-        RTMemPageFree(pv, cPages * PAGE_SIZE);
+        RTMemPageFree(pv, cPages * SUP_PAGE_SIZE);
         return VINF_SUCCESS;
     }
 
@@ -2229,6 +2241,7 @@ DECLASM(void) suplibTracerFireProbe(PVTGPROBELOC pProbeLoc, PSUPTRACERUMODFIREPR
     suplibOsIOCtl(&g_supLibData, SUP_IOCTL_TRACER_UMOD_FIRE_PROBE, pReq, SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE);
 }
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 
 SUPR3DECL(int) SUPR3MsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue, bool *pfGp)
 {
@@ -2317,6 +2330,56 @@ SUPR3DECL(int) SUPR3MsrProberModifyEx(uint32_t uMsr, RTCPUID idCpu, uint64_t fAn
     return rc;
 }
 
+#endif /* RT_ARCH_AMD64 || RT_ARCH_X86 */
+
+#ifdef RT_ARCH_ARM64
+SUPR3DECL(int) SUPR3ArmQuerySysRegs(RTCPUID idCpu, uint32_t fFlags, uint32_t cMaxRegs,
+                                    uint32_t *pcRegsReturned, uint32_t *pcRegsAvailable, PSUPARMSYSREGVAL paSysRegValues)
+{
+    /*
+     * Validate input.
+     */
+    AssertPtr(pcRegsReturned);
+    *pcRegsReturned = 0;
+    if (pcRegsAvailable)
+        *pcRegsAvailable = 0;
+    AssertReturn(cMaxRegs < _64K, VERR_OUT_OF_RANGE);
+    AssertReturn(!(fFlags & ~SUP_ARM_SYS_REG_F_VALID_MASK), VERR_INVALID_FLAGS);
+
+    /*
+     * Allocate temporary request.
+     */
+    uint32_t          cbReq = SUP_IOCTL_ARM_GET_SYSREGS_SIZE(cMaxRegs);
+    PSUPARMGETSYSREGS pReq = (PSUPARMGETSYSREGS)RTMemTmpAllocZ(cbReq);
+    AssertReturn(pReq, VERR_NO_TMP_MEMORY);
+
+    pReq->Hdr.u32Cookie           = g_u32Cookie;
+    pReq->Hdr.u32SessionCookie    = g_u32SessionCookie;
+    pReq->Hdr.cbIn                = SUP_IOCTL_ARM_GET_SYSREGS_SIZE_IN;
+    pReq->Hdr.cbOut               = SUP_IOCTL_ARM_GET_SYSREGS_SIZE_OUT(cMaxRegs);
+    pReq->Hdr.fFlags              = SUPREQHDR_FLAGS_DEFAULT;
+    pReq->Hdr.rc                  = VERR_INTERNAL_ERROR;
+
+    pReq->u.In.idCpu              = idCpu;
+    pReq->u.In.fFlags             = fFlags;
+
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_ARM_GET_SYSREGS, pReq, cbReq);
+    if (RT_SUCCESS(rc))
+        rc = pReq->Hdr.rc;
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t const cRetRegs = RT_MIN(cMaxRegs, pReq->u.Out.cRegs); /* paranoia */
+        AssertCompile(sizeof(paSysRegValues[0]) == sizeof(pReq->u.Out.aRegs[0]));
+        memcpy(paSysRegValues, pReq->u.Out.aRegs, sizeof(pReq->u.Out.aRegs[0]) * cRetRegs);
+        *pcRegsReturned = cRetRegs;
+        if (pcRegsAvailable)
+            *pcRegsAvailable = pReq->u.Out.cRegsAvailable;
+    }
+
+    RTMemTmpFree(pReq);
+    return rc;
+}
+#endif /* RT_ARCH_ARM64 */
 
 SUPR3DECL(int) SUPR3ResumeSuspendedKeyboards(void)
 {

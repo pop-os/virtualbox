@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -107,6 +107,9 @@
 #include "CloudProviderManagerImpl.h"
 #include "ThreadTask.h"
 #include "VBoxEvents.h"
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+# include "ObjectsTracker.h"
+#endif
 
 #include <QMTranslator.h>
 
@@ -130,6 +133,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+extern TrackedObjectsCollector gTrackedObjectsCollector;
+#endif
+
 // static
 com::Utf8Str VirtualBox::sVersion;
 
@@ -151,48 +158,6 @@ std::map<com::Utf8Str, int> VirtualBox::sNatNetworkNameToRefCount;
 // static leaked (todo: find better place to free it.)
 RWLockHandle *VirtualBox::spMtxNatNetworkNameToRefCountLock;
 
-
-#if 0 /* obsoleted by AsyncEvent */
-////////////////////////////////////////////////////////////////////////////////
-//
-// CallbackEvent class
-//
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- *  Abstract callback event class to asynchronously call VirtualBox callbacks
- *  on a dedicated event thread. Subclasses reimplement #prepareEventDesc()
- *  to initialize the event depending on the event to be dispatched.
- *
- *  @note The VirtualBox instance passed to the constructor is strongly
- *  referenced, so that the VirtualBox singleton won't be released until the
- *  event gets handled by the event thread.
- */
-class VirtualBox::CallbackEvent : public Event
-{
-public:
-
-    CallbackEvent(VirtualBox *aVirtualBox, VBoxEventType_T aWhat)
-        : mVirtualBox(aVirtualBox), mWhat(aWhat)
-    {
-        Assert(aVirtualBox);
-    }
-
-    void *handler();
-
-    virtual HRESULT prepareEventDesc(IEventSource* aSource, VBoxEventDesc& aEvDesc) = 0;
-
-private:
-
-    /**
-     *  Note that this is a weak ref -- the CallbackEvent handler thread
-     *  is bound to the lifetime of the VirtualBox instance, so it's safe.
-     */
-    VirtualBox         *mVirtualBox;
-protected:
-    VBoxEventType_T     mWhat;
-};
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -265,7 +230,6 @@ public:
 typedef std::map<RTPROCESS, WatchedClientProcess *> WatchedClientProcessMap;
 #endif
 
-
 typedef ObjectsList<Medium> MediaOList;
 typedef ObjectsList<GuestOSType> GuestOSTypesOList;
 typedef ObjectsList<SharedFolder> SharedFoldersOList;
@@ -330,6 +294,9 @@ struct VirtualBox::Data
         , hLdrModCrypto(NIL_RTLDRMOD)
         , cRefsCrypto(0)
         , pCryptoIf(NULL)
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+        , objectTrackerTask(NULL)
+#endif
     {
 #if defined(RT_OS_WINDOWS) && defined(VBOXSVC_WITH_CLIENT_WATCHER)
         RTCritSectRwInit(&WatcherCritSect);
@@ -467,6 +434,11 @@ struct VirtualBox::Data
     /** Critical section protecting the module handle. */
     RTCRITSECT                          CritSectModCrypto;
     /** @} */
+
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+    /** The tracked object collector (better if it'll be a singleton) */
+    ObjectTracker                      *objectTrackerTask;
+#endif
 };
 
 
@@ -560,6 +532,37 @@ HRESULT VirtualBox::init()
         spMtxNatNetworkNameToRefCountLock = new RWLockHandle(LOCKCLASS_VIRTUALBOXOBJECT, "spMtxNatNetworkNameToRefCountLock");
 
     LogFlowThisFunc(("Version: %s, Package: %s, API Version: %s\n", sVersion.c_str(), sPackageType.c_str(), sAPIVersion.c_str()));
+
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+    /* Try to start Object tracker thread as earlier as possible (same code in VirtualBoxClientImpl.cpp). */
+    {
+        int vrc = VERR_GENERAL_FAILURE;
+        if (gTrackedObjectsCollector.init())
+        {
+            LogRel(("Starting the Object tracker thread\n"));
+            try
+            {
+                m->objectTrackerTask = new ObjectTracker();
+                if (m->objectTrackerTask->init()) // some init procedure - bird: some comment!
+                    vrc = m->objectTrackerTask->createThread();
+            }
+            catch (...)
+            {
+                LogRel(("Exception during starting the Object tracker thread\n"));
+                if (m->objectTrackerTask)
+                {
+                    delete m->objectTrackerTask;
+                    m->objectTrackerTask = NULL;
+                }
+                vrc = VERR_INVALID_STATE;
+            }
+        }
+        if (RT_SUCCESS(vrc))
+            LogRel(("Successfully started the Object tracker thread\n"));
+        else
+            LogRel(("Failed to start the Object tracker thread (%Rrc)\n", vrc));
+    }
+#endif
 
     /* Important: DO NOT USE any kind of "early return" (except the single
      * one above, checking the init span success) in this method. It is vital
@@ -771,6 +774,22 @@ HRESULT VirtualBox::init()
 
             hrc = i_registerDHCPServer(pDhcpServer, false /* aSaveRegistry */);
             if (FAILED(hrc)) throw hrc;
+        }
+
+        for (settings::SharedFoldersList::const_iterator it = m->pMainConfigFile->llGlobalSharedFolders.begin();
+             it != m->pMainConfigFile->llGlobalSharedFolders.end();
+             ++it)
+        {
+            const settings::SharedFolder &sf = *it;
+            ComObjPtr<SharedFolder> pSharedFolder;
+            hrc = pSharedFolder.createObject();
+            AssertComRCThrowRC(hrc);
+            hrc = pSharedFolder->init(this, sf);
+            if (FAILED(hrc)) throw hrc;
+
+            AutoWriteLock alock(m->allSharedFolders.getLockHandle() COMMA_LOCKVAL_SRC_POS);
+            m->allSharedFolders.addChild(pSharedFolder);
+            alock.release();
         }
 
         /* net services - nat networks */
@@ -1074,13 +1093,11 @@ void VirtualBox::uninit()
     }
     else
         m->allMachines.uninitAll();
+
     m->allFloppyImages.uninitAll();
     m->allDVDImages.uninitAll();
     m->allHardDisks.uninitAll();
     m->allDHCPServers.uninitAll();
-
-    m->mapProgressOperations.clear();
-
     m->allGuestOSTypes.uninitAll();
 
     /* Note that we release singleton children after we've all other children.
@@ -1129,6 +1146,22 @@ void VirtualBox::uninit()
     }
 
     RTCritSectDelete(&m->CritSectModCrypto);
+
+    m->mapProgressOperations.clear();
+
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+    /*
+     * Call gTrackedObjectsCollector uninitialization before ExtPackManager uninitialization!!!
+     * Otherwise, this results in an error when releasing resources (in ComPtr::cleanup).
+     */
+    if (m->objectTrackerTask)
+    {
+        LogRel(("BACKEND: Terminating the object tracker...\n"));
+        m->objectTrackerTask->finish();//set the termination flag in the thread
+        delete m->objectTrackerTask;//waiting the thread termination is going in the m_objectTrackerTask destructor
+        gTrackedObjectsCollector.uninit();
+    }
+#endif
 
 #ifdef VBOX_WITH_EXTPACK
     if (m->ptrExtPackManager)
@@ -1442,9 +1475,13 @@ HRESULT VirtualBox::getGuestOSTypes(std::vector<ComPtr<IGuestOSType> > &aGuestOS
 
 HRESULT VirtualBox::getSharedFolders(std::vector<ComPtr<ISharedFolder> > &aSharedFolders)
 {
-    NOREF(aSharedFolders);
-
-    return setError(E_NOTIMPL, tr("Not yet implemented"));
+    AutoReadLock al(m->allSharedFolders.getLockHandle() COMMA_LOCKVAL_SRC_POS);
+    aSharedFolders.resize(m->allSharedFolders.size());
+    size_t i = 0;
+    for (SharedFoldersOList::const_iterator it= m->allSharedFolders.begin();
+         it!= m->allSharedFolders.end(); ++it, ++i)
+         (*it).queryInterfaceTo(aSharedFolders[i].asOutParam());
+    return S_OK;
 }
 
 HRESULT VirtualBox::getPerformanceCollector(ComPtr<IPerformanceCollector> &aPerformanceCollector)
@@ -1907,28 +1944,28 @@ HRESULT VirtualBox::checkFirmwarePresent(PlatformArchitecture_T aPlatformArchite
 {
     NOREF(aVersion);
 
-    static const VBOXFWDESC s_FwDescX86[] =
+    static const VBOXFWDESC s_aFwDescX86[] =
     {
-        {   FirmwareType_BIOS,    true,  NULL,             NULL },
+        {   FirmwareType_BIOS,    true,  NULL,               NULL },
 #ifdef VBOX_WITH_EFI_IN_DD2
-        {   FirmwareType_EFI32,   true,  "VBoxEFI32.fd",   NULL },
-        {   FirmwareType_EFI64,   true,  "VBoxEFI64.fd",   NULL },
-        {   FirmwareType_EFIDUAL, true,  "VBoxEFIDual.fd", NULL },
-#else
-        {   FirmwareType_EFI32,   false, "VBoxEFI32.fd",   "http://virtualbox.org/firmware/VBoxEFI32.fd" },
-        {   FirmwareType_EFI64,   false, "VBoxEFI64.fd",   "http://virtualbox.org/firmware/VBoxEFI64.fd" },
-        {   FirmwareType_EFIDUAL, false, "VBoxEFIDual.fd", "http://virtualbox.org/firmware/VBoxEFIDual.fd" },
+        {   FirmwareType_EFI32,   true,  "VBoxEFI-x86.fd",   NULL },
+        {   FirmwareType_EFI64,   true,  "VBoxEFI-amd64.fd", NULL },
+        {   FirmwareType_EFIDUAL, true,  "VBoxEFIDual.fd",   NULL },
+#else                                                         /* Note! These links does not work! */
+        {   FirmwareType_EFI32,   false, "VBoxEFI-x86.fd",   "http://virtualbox.org/firmware/VBoxEFI-x86.fd" },
+        {   FirmwareType_EFI64,   false, "VBoxEFI-amd64.fd", "http://virtualbox.org/firmware/VBoxEFI-amd64.fd" },
+        {   FirmwareType_EFIDUAL, false, "VBoxEFIDual.fd",   "http://virtualbox.org/firmware/VBoxEFIDual.fd" },
 #endif
     };
 
-    static const VBOXFWDESC s_FwDescArm[] =
+    static const VBOXFWDESC s_aFwDescArm[] =
     {
 #ifdef VBOX_WITH_EFI_IN_DD2
-        {   FirmwareType_EFI32,   true,  "VBoxEFIAArch32.fd",   NULL },
-        {   FirmwareType_EFI64,   true,  "VBoxEFIAArch64.fd",   NULL },
-#else
-        {   FirmwareType_EFI32,   false, "VBoxEFIAArch32.fd",   "http://virtualbox.org/firmware/VBoxEFIAArch32.fd" },
-        {   FirmwareType_EFI64,   false, "VBoxEFIAArch64.fd",   "http://virtualbox.org/firmware/VBoxEFIAArch64.fd" },
+        {   FirmwareType_EFI32,   true,  "VBoxEFI-arm32.fd", NULL },
+        {   FirmwareType_EFI64,   true,  "VBoxEFI-arm64.fd", NULL },
+ #else                                                        /* Note! These links does not work! */
+        {   FirmwareType_EFI32,   false, "VBoxEFI-arm32.fd", "http://virtualbox.org/firmware/VBoxEFI-arm32.fd" },
+        {   FirmwareType_EFI64,   false, "VBoxEFI-arm64.fd", "http://virtualbox.org/firmware/VBoxEFI-arm64.fd" },
 #endif
     };
 
@@ -1936,13 +1973,13 @@ HRESULT VirtualBox::checkFirmwarePresent(PlatformArchitecture_T aPlatformArchite
     uint32_t cFwDesc = 0;
     if (aPlatformArchitecture == PlatformArchitecture_x86)
     {
-        pFwDesc = &s_FwDescX86[0];
-        cFwDesc = RT_ELEMENTS(s_FwDescX86);
+        pFwDesc = &s_aFwDescX86[0];
+        cFwDesc = RT_ELEMENTS(s_aFwDescX86);
     }
     else if (aPlatformArchitecture == PlatformArchitecture_ARM)
     {
-        pFwDesc = &s_FwDescArm[0];
-        cFwDesc = RT_ELEMENTS(s_FwDescArm);
+        pFwDesc = &s_aFwDescArm[0];
+        cFwDesc = RT_ELEMENTS(s_aFwDescArm);
     }
     else
         return E_INVALIDARG;
@@ -2015,7 +2052,7 @@ HRESULT VirtualBox::getGuestOSFamilies(std::vector<com::Utf8Str> &aOSFamilies)
          it != m->allGuestOSTypes.end(); ++it)
     {
         const Utf8Str &familyId = (*it)->i_familyId();
-        AssertMsg(!familyId.isEmpty(), ("familfyId must not be NULL"));
+        AssertMsg(!familyId.isEmpty(), ("familyId must not be NULL"));
         allOSFamilies.push_back(familyId);
     }
 
@@ -2242,7 +2279,7 @@ HRESULT VirtualBox::createMachine(const com::Utf8Str &aSettingsFile,
     LogFlowThisFunc(("aSettingsFile=\"%s\", aName=\"%s\", aArchitecture=%#x, aOsTypeId =\"%s\", aCreateFlags=\"%s\"\n",
                      aSettingsFile.c_str(), aName.c_str(), aArchitecture, aOsTypeId.c_str(), aFlags.c_str()));
 
-#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
+#if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && !defined(VBOX_WITH_VIRT_ARMV8)
     if (aArchitecture != PlatformArchitecture_x86)/* x86 hosts only allows creating x86 VMs for now. */
         return setError(VBOX_E_PLATFORM_ARCH_NOT_SUPPORTED, tr("'Creating VMs for platform architecture %s not supported on %s"),
                         Global::stringifyPlatformArchitecture(aArchitecture),
@@ -2587,9 +2624,11 @@ HRESULT VirtualBox::createMedium(const com::Utf8Str &aFormat,
             if (format.isEmpty())
                 return setError(E_INVALIDARG, tr("Format must be Valid Type%s"), format.c_str());
 
+#if 0 /* unused */
             // enforce read-only for DVDs even if caller specified ReadWrite
             if (aDeviceType == DeviceType_DVD)
                 aAccessMode = AccessMode_ReadOnly;
+#endif
 
              hrc = medium->init(this,
                                 format,
@@ -2718,19 +2757,81 @@ HRESULT VirtualBox::createSharedFolder(const com::Utf8Str &aName,
                                        BOOL aAutomount,
                                        const com::Utf8Str &aAutoMountPoint)
 {
-    NOREF(aName);
-    NOREF(aHostPath);
-    NOREF(aWritable);
-    NOREF(aAutomount);
-    NOREF(aAutoMountPoint);
+    LogFlowThisFunc(("Entering for '%s' -> '%s'\n", aName.c_str(), aHostPath.c_str()));
 
-    return setError(E_NOTIMPL, tr("Not yet implemented"));
+    ComPtr<ISharedFolder> found;
+    HRESULT hrc = i_findSharedFolder(aName, found);
+    if (SUCCEEDED(hrc))
+        return setError(VBOX_E_OBJECT_IN_USE,
+                        tr("Shared folder named '%s' already exists"),
+                        aName.c_str());
+
+    ComObjPtr<SharedFolder> sharedFolder;
+    SymlinkPolicy_T enmSymlinkPolicy = SymlinkPolicy_None;
+    sharedFolder.createObject();
+    hrc = sharedFolder->init(this,
+                             aName,
+                             aHostPath,
+                             !!aWritable,
+                             !!aAutomount,
+                             aAutoMountPoint,
+                             true /* fFailOnError */,
+                             enmSymlinkPolicy);
+    if (FAILED(hrc)) return hrc;
+
+    AutoWriteLock alock(m->allSharedFolders.getLockHandle() COMMA_LOCKVAL_SRC_POS);
+    m->allSharedFolders.addChild(sharedFolder);
+    alock.release();
+    {
+        AutoWriteLock vboxLock(this COMMA_LOCKVAL_SRC_POS);
+        hrc = i_saveSettings();
+        vboxLock.release();
+
+        if (FAILED(hrc))
+        {
+            alock.acquire();
+            m->allSharedFolders.removeChild(sharedFolder);
+            alock.release();
+        }
+    }
+
+    i_onSharedFolderChanged();
+    LogFlowThisFunc(("Leaving for '%s' -> '%s'\n", aName.c_str(), aHostPath.c_str()));
+    return hrc;
 }
 
 HRESULT VirtualBox::removeSharedFolder(const com::Utf8Str &aName)
 {
-    NOREF(aName);
-    return setError(E_NOTIMPL, tr("Not yet implemented"));
+    LogFlowThisFunc(("Entering for '%s'\n", aName.c_str()));
+
+    ComPtr<ISharedFolder> sharedFolder;
+    HRESULT hrc = i_findSharedFolder(aName, sharedFolder);
+    if (FAILED(hrc))
+        return hrc;
+
+    ISharedFolder *aP = sharedFolder;
+    SharedFolder *aP2 = static_cast<SharedFolder *>(aP);
+    AutoWriteLock alock(m->allSharedFolders.getLockHandle() COMMA_LOCKVAL_SRC_POS);
+    m->allSharedFolders.removeChild(aP2);
+    alock.release();
+
+    {
+        AutoWriteLock vboxLock(this COMMA_LOCKVAL_SRC_POS);
+        hrc = i_saveSettings();
+        vboxLock.release();
+
+        if (FAILED(hrc))
+        {
+            alock.acquire();
+            m->allSharedFolders.addChild(aP2);
+            alock.release();
+        }
+    }
+
+    i_onSharedFolderChanged();
+    LogFlowThisFunc(("Leaving for '%s'\n", aName.c_str()));
+
+    return hrc;
 }
 
 /**
@@ -2757,6 +2858,8 @@ HRESULT VirtualBox::getExtraDataKeys(std::vector<com::Utf8Str> &aKeys)
 HRESULT VirtualBox::getExtraData(const com::Utf8Str &aKey,
                                  com::Utf8Str &aValue)
 {
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     settings::StringsMap::const_iterator it = m->pMainConfigFile->mapExtraDataItems.find(aKey);
     if (it != m->pMainConfigFile->mapExtraDataItems.end())
         // found:
@@ -2764,6 +2867,7 @@ HRESULT VirtualBox::getExtraData(const com::Utf8Str &aKey,
 
     /* return the result to caller (may be empty) */
 
+    /** @todo r=andy Shouldn't we return an error here if not found? */
     return S_OK;
 }
 
@@ -3198,6 +3302,9 @@ public:
         m_strTaskName = "SVCHelper";
         threadVoidData = NULL;
         initialized = false;
+        privileged = false;
+        func = NULL;
+        user = NULL;
     }
 
     virtual ~StartSVCHelperClientData()
@@ -3554,6 +3661,29 @@ void VirtualBox::i_onMediumChanged(IMediumAttachment *aMediumAttachment)
     HRESULT hrc = ::CreateMediumChangedEvent(ptrEvent.asOutParam(), m->pEventSource, aMediumAttachment);
     AssertComRCReturnVoid(hrc);
     i_postEvent(new AsyncEvent(this, ptrEvent));
+}
+
+/**
+ *  @note Locks this object for reading.
+ */
+void VirtualBox::i_onSharedFolderChanged()
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturnVoid(autoCaller.hrc());
+
+    SessionMachinesList aMachines;
+    i_getOpenedMachines(aMachines, NULL);
+    for (SessionMachinesList::iterator it = aMachines.begin();
+         it != aMachines.end();
+         ++it)
+    {
+        ComObjPtr<SessionMachine> &pMachine = *it;
+        AutoReadLock mlock(pMachine COMMA_LOCKVAL_SRC_POS);
+        pMachine->i_onSharedFolderChange(TRUE);
+    }
+    aMachines.clear();
 }
 
 /**
@@ -4487,6 +4617,43 @@ HRESULT VirtualBox::i_findRemoveableMedium(DeviceType_T mediumType,
     return hrc;
 }
 
+/**
+ *  Searches for a shared folder with the given logical name
+ *  in the collection of shared folders.
+ *
+ *  @param aName            logical name of the shared folder
+ *  @param aSharedFolder    where to return the found object
+ *
+ *  @return S_OK, E_INVALIDARG or VBOX_E_OBJECT_NOT_FOUND when not found.
+ *
+ *  @note must be called from under the object's lock
+ */
+HRESULT VirtualBox::i_findSharedFolder(const Utf8Str &aName,
+                                       ComPtr<ISharedFolder> &aSharedFolder)
+{
+    ComObjPtr<SharedFolder> found;
+
+    AutoReadLock alock(m->allSharedFolders.getLockHandle() COMMA_LOCKVAL_SRC_POS);
+
+    for (SharedFoldersOList::const_iterator it = m->allSharedFolders.begin();
+        it != m->allSharedFolders.end();
+        ++it)
+    {
+        Bstr bstrSharedFolderName;
+        HRESULT hrc = (*it)->COMGETTER(Name)(bstrSharedFolderName.asOutParam());
+        if (FAILED(hrc)) return hrc;
+
+        if (Utf8Str(bstrSharedFolderName) == aName)
+        {
+            found = *it;
+            break;
+        }
+    }
+    if (!found)
+        return VBOX_E_OBJECT_NOT_FOUND;
+    return found.queryInterfaceTo(aSharedFolder.asOutParam());
+}
+
 /* Look for a GuestOSType object */
 HRESULT VirtualBox::i_findGuestOSType(const Utf8Str &strOSType,
                                       ComObjPtr<GuestOSType> &guestOSType)
@@ -4536,7 +4703,7 @@ HRESULT VirtualBox::getGuestOSSubtypesByFamilyId(const Utf8Str &strOSFamily,
          it != m->allGuestOSTypes.end(); ++it)
     {
         const Utf8Str &familyId = (*it)->i_familyId();
-        AssertMsg(!familyId.isEmpty(), ("familfyId must not be NULL"));
+        AssertMsg(!familyId.isEmpty(), ("familyId must not be NULL"));
         if (familyId.compare(strOSFamily, Utf8Str::CaseInsensitive) == 0)
         {
             fFoundGuestOSType = true;
@@ -4552,7 +4719,7 @@ HRESULT VirtualBox::getGuestOSSubtypesByFamilyId(const Utf8Str &strOSFamily,
          it != m->allGuestOSTypes.end(); ++it)
     {
         const Utf8Str &familyId = (*it)->i_familyId();
-        AssertMsg(!familyId.isEmpty(), ("familfyId must not be NULL"));
+        AssertMsg(!familyId.isEmpty(), ("familyId must not be NULL"));
         if (familyId.compare(strOSFamily, Utf8Str::CaseInsensitive) == 0)
         {
             const Utf8Str &strOSSubtype = (*it)->i_subtype();
@@ -5156,6 +5323,7 @@ HRESULT VirtualBox::i_saveSettings()
                 // save actual machine registry entry
                 settings::MachineRegistryEntry mre;
                 hrc = pMachine->i_saveRegistryEntry(mre);
+                if (FAILED(hrc)) throw hrc;
                 m->pMainConfigFile->llMachines.push_back(mre);
             }
         }
@@ -5175,6 +5343,19 @@ HRESULT VirtualBox::i_saveSettings()
                 hrc = (*it)->i_saveSettings(d);
                 if (FAILED(hrc)) throw hrc;
                 m->pMainConfigFile->llDhcpServers.push_back(d);
+            }
+        }
+        m->pMainConfigFile->llGlobalSharedFolders.clear();
+        {
+            AutoReadLock sharedFolderLock(m->allSharedFolders.getLockHandle() COMMA_LOCKVAL_SRC_POS);
+            for (SharedFoldersOList::const_iterator it = m->allSharedFolders.begin();
+                 it != m->allSharedFolders.end();
+                 ++it)
+            {
+                settings::SharedFolder sf;
+                hrc = (*it)->i_saveSettings(sf);
+                if (FAILED(hrc)) throw hrc;
+                m->pMainConfigFile->llGlobalSharedFolders.push_back(sf);
             }
         }
 
@@ -5981,39 +6162,6 @@ DECLCALLBACK(int) VirtualBox::AsyncEventHandler(RTTHREAD thread, void *pvUser)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0 /* obsoleted by AsyncEvent */
-/**
- * Prepare the event using the overwritten #prepareEventDesc method and fire.
- *
- *  @note Locks the managed VirtualBox object for reading but leaves the lock
- *        before iterating over callbacks and calling their methods.
- */
-void *VirtualBox::CallbackEvent::handler()
-{
-    if (!mVirtualBox)
-        return NULL;
-
-    AutoCaller autoCaller(mVirtualBox);
-    if (!autoCaller.isOk())
-    {
-        Log1WarningFunc(("VirtualBox has been uninitialized (state=%d), the callback event is discarded!\n",
-                         mVirtualBox->getObjectState().getState()));
-        /* We don't need mVirtualBox any more, so release it */
-        mVirtualBox = NULL;
-        return NULL;
-    }
-
-    {
-        VBoxEventDesc evDesc;
-        prepareEventDesc(mVirtualBox->m->pEventSource, evDesc);
-
-        evDesc.fire(/* don't wait for delivery */0);
-    }
-
-    mVirtualBox = NULL; /* Not needed any longer. Still make sense to do this? */
-    return NULL;
-}
-#endif
 
 /**
  * Called on the event handler thread.
@@ -6388,14 +6536,51 @@ HRESULT VirtualBox::i_unregisterNATNetwork(NATNetwork *aNATNetwork,
 #endif
 }
 
-
 HRESULT VirtualBox::findProgressById(const com::Guid &aId,
                                      ComPtr<IProgress> &aProgressObject)
 {
     if (!aId.isValid())
-        return setError(E_INVALIDARG,
-                        tr("The provided progress object GUID is invalid"));
+        return setError(E_INVALIDARG, tr("The provided progress object GUID is invalid"));
 
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER //0 /** @todo def VBOX_WITH_MAIN_OBJECT_TRACKER - never used */
+    std::vector<com::Utf8Str> lObjIdMap;
+    gTrackedObjectsCollector.getObjIdsByClassIID(IID_IProgress, lObjIdMap);
+
+    for (const com::Utf8Str &item : lObjIdMap)
+    {
+        if (gTrackedObjectsCollector.checkObj(item.c_str()))
+        {
+            TrackedObjectData temp;
+            gTrackedObjectsCollector.getObj(item.c_str(), temp);
+            Log2(("Tracked Progress Object with objectId %s was found\n", temp.objectIdStr().c_str()));
+
+            ComPtr<IProgress> pProgress;
+            temp.getInterface()->QueryInterface(IID_IProgress, (void **)pProgress.asOutParam());
+            if (pProgress.isNotNull())
+            {
+                com::Bstr reqId(aId.toString());
+                Bstr foundId;
+                pProgress->COMGETTER(Id)(foundId.asOutParam());
+                if (reqId == foundId)
+                {
+                    BOOL aCompleted;
+                    pProgress->COMGETTER(Completed)(&aCompleted);
+
+                    BOOL aCanceled;
+                    pProgress->COMGETTER(Canceled)(&aCanceled);
+                    Log2(("Requested progress was found:\n  id %s\n  completed %s\n  canceled %s\n",
+                            aId.toString().c_str(),
+                            aCompleted ? "True" : "False",
+                            aCanceled ? "True" : "False"));
+
+                    aProgressObject = pProgress;
+                    return S_OK;
+                }
+            }
+        }
+    }
+
+#else /* !VBOX_WITH_MAIN_OBJECT_TRACKER */
     /* protect mProgressOperations */
     AutoReadLock safeLock(m->mtxProgressOperations COMMA_LOCKVAL_SRC_POS);
 
@@ -6405,10 +6590,103 @@ HRESULT VirtualBox::findProgressById(const com::Guid &aId,
         aProgressObject = it->second;
         return S_OK;
     }
-    return setError(E_INVALIDARG,
-                    tr("The progress object with the given GUID could not be found"));
+#endif /* !VBOX_WITH_MAIN_OBJECT_TRACKER */
+
+    /** @todo r=bird: E_INVALIDARG isn't a good choice here... */
+    return setError(E_INVALIDARG, tr("The progress object with the given GUID could not be found"));
 }
 
+/**
+ * Get the tracked object by the Id.
+ *
+ * @param aTrObjId  tracked object Id
+ * @param aPIface  returns the ComPtr<IUnknown> if the object is found
+ * @param aState  returns TrackedObjectState_T - the actual state of the found
+ *                object
+ * @param aCreationTime  returns the creation time of the object
+ * @param aDeletionTime  returns the deletion time of the object
+ *
+ * @return HRESULT
+ */
+HRESULT VirtualBox::getTrackedObject(const com::Utf8Str &aTrObjId,
+                                     ComPtr<IUnknown> &aPIface,
+                                     TrackedObjectState_T *aState,
+                                     LONG64 *aCreationTime,
+                                     LONG64 *aDeletionTime)
+{
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+    TrackedObjectData trObjData;
+    HRESULT hrc = gTrackedObjectsCollector.getObj(aTrObjId, trObjData);
+    if (SUCCEEDED(hrc))
+    {
+        trObjData.getInterface().queryInterfaceTo(aPIface.asOutParam());
+        RTTIMESPEC time = trObjData.creationTime();
+        *aCreationTime = RTTimeSpecGetMilli(&time);
+        *aState = trObjData.state();
+        if (*aState != TrackedObjectState_Alive)
+        {
+            time = trObjData.deletionTime();
+            *aDeletionTime = RTTimeSpecGetMilli(&time);
+        }
+        else
+            /* aDeletionTime is set to 0 */
+            *aDeletionTime = 0;
+    }
+
+    return hrc;
+
+#else
+    RT_NOREF(aTrObjId, aPIface, aState, aCreationTime, aDeletionTime);
+    return E_NOTIMPL;
+#endif
+}
+
+
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+static std::map<com::Utf8Str, com::Utf8Str> const g_lMapInterfaceNameToIID = {
+    {"IProgress", Guid(IID_IProgress).toString()},
+};
+#endif
+
+/**
+ * Get the tracked object Ids list by the interface name.
+ *
+ * @param aName  Interface name (like "IProgress", "ISession", "IMedium" etc)
+ * @param aObjIdsList  The list of Ids of the found objects
+ *
+ * @return The list of the found objects Ids
+ */
+HRESULT VirtualBox::getTrackedObjectIds(const com::Utf8Str &aName,
+                                        std::vector<com::Utf8Str> &aObjIdsList)
+{
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+    HRESULT hrc = S_OK;
+
+    try
+    {
+        /* Check the supported tracked classes to avoid "out of range" exception */
+        if (g_lMapInterfaceNameToIID.count(aName))
+        {
+            hrc = gTrackedObjectsCollector.getObjIdsByClassIID(g_lMapInterfaceNameToIID.at(aName), aObjIdsList);
+            if (FAILED(hrc))
+                hrc = setError(VBOX_E_OBJECT_NOT_FOUND, tr("No objects were found for the passed interface name '%s'."),
+                               aName.c_str());
+        }
+        else
+            hrc = setError(E_INVALIDARG, tr("The objects of the passed interface '%s' are not tracked at moment."), aName.c_str());
+    }
+    catch (...)
+    {
+            hrc = setError(E_FAIL, tr("The unknown exception in the VirtualBox::getTrackedObjectIds()."));
+    }
+
+    return hrc;
+
+#else
+    RT_NOREF(aName, aObjIdsList);
+    return E_NOTIMPL;
+#endif
+}
 
 /**
  * Retains a reference to the default cryptographic interface.

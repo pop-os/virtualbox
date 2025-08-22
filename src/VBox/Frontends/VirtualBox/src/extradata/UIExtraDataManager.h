@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -92,6 +92,9 @@ signals:
     void sigRuntimeUIShortcutChange();
     /** Notifies about Runtime UI host-key combination change. */
     void sigRuntimeUIHostKeyCombinationChange();
+
+    /** Notifies about tool labels visibility change. */
+    void sigToolLabelsVisibilityChange(bool fVisible);
 
     /** Notifies about Cloud Profile Manager restriction change. */
     void sigCloudProfileManagerRestrictionChange();
@@ -404,13 +407,20 @@ public:
         void setSelectorWindowToolBarTextVisible(bool fVisible);
 
         /** Returns last selected tool set of VirtualBox Manager. */
-        QList<UIToolType> toolsPaneLastItemsChosen();
+        void toolsPaneLastItemsChosen(UIToolType &enmTypeGlobal,
+                                      UIToolType &enmTypeMachine);
         /** Defines last selected tool @a set of VirtualBox Manager. */
-        void setToolsPaneLastItemsChosen(const QList<UIToolType> &set);
+        void setToolsPaneLastItemsChosen(UIToolType enmTypeGlobal,
+                                         UIToolType enmTypeMachine);
         /** Returns the list of detached tools of VirtualBox Manager. */
         QList<UIToolType> detachedTools();
         /** Defines the list of detached @a tools of VirtualBox Manager. */
         void setDetachedTools(const QList<UIToolType> &tools);
+
+        /** Returns whether tools tool-bar text visible. */
+        bool isToolTextVisible();
+        /** Defines whether tools tool-bar text @a fVisible. */
+        void setToolTextVisible(bool fVisible);
 
         /** Returns whether selector-window status-bar visible. */
         bool selectorWindowStatusBarVisible();
@@ -717,12 +727,12 @@ public:
         bool hidLedsSyncState(const QUuid &uID);
 
         /** Returns the scale-factor. */
-        double scaleFactor(const QUuid &uID, const int uScreenIndex);
+        double scaleFactor(const QUuid &uID, int iScreenIndex);
         QList<double> scaleFactors(const QUuid &uID);
         /** Saves the @a dScaleFactor for the monitor with @a uScreenIndex. If the existing scale factor
           * list (from extra data) does not have scale factors for the screens with ids in [0, uScreenIndex)
           * the this function appends a default scale factor for said screens.*/
-        void setScaleFactor(double dScaleFactor, const QUuid &uID, const int uScreenIndex);
+        void setScaleFactor(double dScaleFactor, const QUuid &uID, int iScreenIndex);
         /** Replaces the scale factor list of the machine with @a uID with @a scaleFactors. */
         void setScaleFactors(const QList<double> &scaleFactors, const QUuid &uID);
 
@@ -774,11 +784,13 @@ public:
         void setFileManagerOptions(bool fListDirectoriesFirst,
                                    bool fShowDeleteConfirmation,
                                    bool fshowHumanReadableSizes,
-                                   bool fShowHiddenObjects);
+                                   bool fShowHiddenObjects,
+                                   bool fAllowInteractiveColumnWidths);
         bool fileManagerListDirectoriesFirst();
         bool fileManagerShowDeleteConfirmation();
         bool fileManagerShowHumanReadableSizes();
         bool fileManagerShowHiddenObjects();
+        bool fileManagerAllowInteractiveColumnWidths();
     /** @} */
 
     /** @name Virtual Machine: Close dialog

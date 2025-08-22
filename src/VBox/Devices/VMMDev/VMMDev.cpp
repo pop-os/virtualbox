@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -185,7 +185,7 @@ static SSMFIELD const g_aSSMDISPLAYCHANGEDATAStateFields[] =
 static void vmmdevLogGuestOsInfo(VBoxGuestInfo *pGuestInfo)
 {
     const char *pszOs;
-    switch (pGuestInfo->osType & ~VBOXOSTYPE_x64)
+    switch (pGuestInfo->osType & ~VBOXOSTYPE_ArchitectureMask)
     {
         case VBOXOSTYPE_DOS:                              pszOs = "DOS";            break;
         case VBOXOSTYPE_Win31:                            pszOs = "Windows 3.1";    break;
@@ -275,6 +275,9 @@ static void vmmdevLogGuestOsInfo(VBoxGuestInfo *pGuestInfo)
         case VBOXOSTYPE_Ubuntu22_LTS_x64 & ~VBOXOSTYPE_x64: pszOs = "Ubuntu 22.04 LTS"; break;
         case VBOXOSTYPE_Ubuntu22_x64 & ~VBOXOSTYPE_x64:   pszOs = "Ubuntu 22.10";   break;
         case VBOXOSTYPE_Ubuntu23_x64 & ~VBOXOSTYPE_x64:   pszOs = "Ubuntu 23.04";   break;
+        case VBOXOSTYPE_Ubuntu231_x64 & ~VBOXOSTYPE_x64:  pszOs = "Ubuntu 23.10";   break;
+        case VBOXOSTYPE_Ubuntu24_LTS_x64 & ~VBOXOSTYPE_x64: pszOs = "Ubuntu 24.04";   break;
+        case VBOXOSTYPE_Ubuntu24_x64 & ~VBOXOSTYPE_x64:  pszOs = "Ubuntu 24.10";   break;
         case VBOXOSTYPE_Lubuntu:                          pszOs = "Lubuntu";        break;
         case VBOXOSTYPE_Xubuntu:                          pszOs = "Xubuntu";        break;
         case VBOXOSTYPE_Xandros:                          pszOs = "Xandros";        break;
@@ -2767,6 +2770,25 @@ static int vmmdevReqHandler_WriteCoreDump(PPDMDEVINS pDevIns, PVMMDEV pThis, VMM
 
 
 /**
+ * Handles VMMDevReq_GetHostGraphicsCapability.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pThisCC         The VMMDev ring-3 instance data.
+ * @param   pReqHdr         The header of the request to handle.
+ */
+static int vmmdevReqHandler_GetHostGraphicsCapability(PVMMDEVCC pThisCC, VMMDevRequestHeader *pReqHdr)
+{
+    VMMDevGetHostGraphicsCapability *pReq = (VMMDevGetHostGraphicsCapability *)pReqHdr;
+    AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
+
+    /* forward the call */
+    return pThisCC->pDrv->pfnGetHostGraphicsCapability(pThisCC->pDrv,
+                                                       pReq->capIndex,
+                                                       &pReq->capValue);
+}
+
+
+/**
  * Sets request status to VINF_HGCM_ASYNC_EXECUTE.
  *
  * @param   pDevIns         The device instance.
@@ -3075,6 +3097,10 @@ static VBOXSTRICTRC vmmdevReqDispatcher(PPDMDEVINS pDevIns, PVMMDEV pThis, PVMMD
 
         case VMMDevReq_NtBugCheck:
             pReqHdr->rc = vmmDevReqHandler_NtBugCheck(pDevIns, pReqHdr);
+            break;
+
+        case VMMDevReq_GetHostGraphicsCapability:
+            pReqHdr->rc = vmmdevReqHandler_GetHostGraphicsCapability(pThisCC, pReqHdr);
             break;
 
         default:

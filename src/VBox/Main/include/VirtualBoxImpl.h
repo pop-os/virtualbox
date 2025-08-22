@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -68,7 +68,6 @@ class NATNetwork;
 class CloudNetwork;
 #endif /* VBOX_WITH_CLOUD_NET */
 
-
 typedef std::list<ComObjPtr<SessionMachine> > SessionMachinesList;
 
 #ifdef RT_OS_WINDOWS
@@ -80,7 +79,6 @@ namespace settings
     class MainConfigFile;
     struct MediaRegistry;
 }
-
 
 #if defined(VBOX_WITH_SDS) && !defined(VBOX_WITH_XPCOM)
 class VirtualBoxClassFactory; /* See ../src-server/win/svcmain.cpp  */
@@ -98,10 +96,6 @@ public:
     typedef std::list<ComPtr<IInternalSessionControl> > InternalControlList;
     typedef ObjectsList<Machine> MachinesOList;
 
-#if 0 /* obsoleted by AsyncEvent */
-    class CallbackEvent;
-    friend class CallbackEvent;
-#endif
     class AsyncEvent;
     friend class AsyncEvent;
 
@@ -172,6 +166,7 @@ public:
     void i_onMediumRegistered(const Guid &aMediumId, const DeviceType_T aDevType, BOOL aRegistered);
     void i_onMediumConfigChanged(IMedium *aMedium);
     void i_onMediumChanged(IMediumAttachment* aMediumAttachment);
+    void i_onSharedFolderChanged();
     void i_onStorageControllerChanged(const Guid &aMachineId, const com::Utf8Str &aControllerName);
     void i_onStorageDeviceChanged(IMediumAttachment* aStorageDevice, BOOL fRemoved, BOOL fSilent);
     void i_onMachineStateChanged(const Guid &aId, MachineState_T aState);
@@ -271,6 +266,8 @@ public:
                                    bool fRefresh,
                                    bool aSetError,
                                    ComObjPtr<Medium> &pMedium);
+    HRESULT i_findSharedFolder(const Utf8Str &aName,
+                               ComPtr<ISharedFolder> &aSharedFolder);
 
     HRESULT i_findGuestOSType(const Utf8Str &strOSType,
                               ComObjPtr<GuestOSType> &guestOSType);
@@ -445,6 +442,13 @@ private:
                                  BOOL *aResult);
     HRESULT findProgressById(const com::Guid &aId,
                              ComPtr<IProgress> &aProgressObject);
+    HRESULT getTrackedObject(const com::Utf8Str &aTrObjId,
+                             ComPtr<IUnknown> &aPIface,
+                             TrackedObjectState_T *aState,
+                             LONG64 *aCreationTime,
+                             LONG64 *aDeletionTime);
+    HRESULT getTrackedObjectIds (const com::Utf8Str& aName,
+                                 std::vector<com::Utf8Str> &aObjIdsList);
 
     static HRESULT i_setErrorStaticBoth(HRESULT aResultCode, int vrc, const char *aText, ...)
     {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1608,7 +1608,7 @@ static int usbMsdHandleBulkHostToDev(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
          */
         case USBMSDREQSTATE_READY:
         {
-            PCUSBCBW pCbw = (PUSBCBW)&pUrb->abData[0];
+            PCUSBCBW pCbw = (PUSBCBW)&pUrb->pbData[0];
             if (pUrb->cbData < RT_UOFFSETOF(USBCBW, CBWCB[1]))
             {
                 Log(("usbMsd: Bad CBW: cbData=%#x < min=%#x\n", pUrb->cbData, RT_UOFFSETOF(USBCBW, CBWCB[1]) ));
@@ -1706,7 +1706,7 @@ static int usbMsdHandleBulkHostToDev(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
                      cbData, pReq->offBuf, pReq->Cbw.dCBWDataTransferLength, cbLeft));
                 return usbMsdCompleteStall(pThis, NULL, pUrb, "Too much data");
             }
-            memcpy(&pReq->pbBuf[pReq->offBuf], &pUrb->abData[0], cbData);
+            memcpy(&pReq->pbBuf[pReq->offBuf], &pUrb->pbData[0], cbData);
             pReq->offBuf += cbData;
 
             if (pReq->offBuf == pReq->Cbw.dCBWDataTransferLength)
@@ -1772,7 +1772,7 @@ static int usbMsdHandleBulkDevToHost(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
                      cbData, pReq->offBuf, pReq->Cbw.dCBWDataTransferLength, cbCopy));
                 return usbMsdCompleteStall(pThis, NULL, pUrb, "Data underrun");
             }
-            memcpy(&pUrb->abData[0], &pReq->pbBuf[pReq->offBuf], cbCopy);
+            memcpy(&pUrb->pbData[0], &pReq->pbBuf[pReq->offBuf], cbCopy);
             pReq->offBuf += cbCopy;
 
             if (pReq->offBuf == pReq->Cbw.dCBWDataTransferLength)
@@ -1795,7 +1795,7 @@ static int usbMsdHandleBulkDevToHost(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
             }
 
             /* Enter a CSW into the URB data buffer. */
-            PUSBCSW pCsw = (PUSBCSW)&pUrb->abData[0];
+            PUSBCSW pCsw = (PUSBCSW)&pUrb->pbData[0];
             pCsw->dCSWSignature = USBCSW_SIGNATURE;
             pCsw->dCSWTag       = pReq->Cbw.dCBWTag;
             pCsw->bCSWStatus    = pReq->iScsiReqStatus == SCSI_STATUS_OK
@@ -1874,7 +1874,7 @@ static int usbMsdHandleBulkDevToHost(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
  */
 static int usbMsdHandleDefaultPipe(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb)
 {
-    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->abData[0];
+    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->pbData[0];
     AssertReturn(pUrb->cbData >= sizeof(*pSetup), VERR_VUSB_FAILED_TO_QUEUE_URB);
 
     if ((pSetup->bmRequestType & VUSB_REQ_MASK) == VUSB_REQ_STANDARD)
@@ -1901,14 +1901,14 @@ static int usbMsdHandleDefaultPipe(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb)
                         /* Returned data is written after the setup message. */
                         cbCopy = pUrb->cbData - sizeof(*pSetup);
                         cbCopy = RT_MIN(cbCopy, sizeof(g_UsbMsdDeviceQualifier));
-                        memcpy(&pUrb->abData[sizeof(*pSetup)], &g_UsbMsdDeviceQualifier, cbCopy);
+                        memcpy(&pUrb->pbData[sizeof(*pSetup)], &g_UsbMsdDeviceQualifier, cbCopy);
                         return usbMsdCompleteOk(pThis, pUrb, cbCopy + sizeof(*pSetup));
                     case VUSB_DT_BOS:
                         Log(("usbMsd: GET_DESCRIPTOR DT_BOS wValue=%#x wIndex=%#x\n", pSetup->wValue, pSetup->wIndex));
                         /* Returned data is written after the setup message. */
                         cbCopy = pUrb->cbData - sizeof(*pSetup);
                         cbCopy = RT_MIN(cbCopy, sizeof(g_UsbMsdBOS));
-                        memcpy(&pUrb->abData[sizeof(*pSetup)], &g_UsbMsdBOS, cbCopy);
+                        memcpy(&pUrb->pbData[sizeof(*pSetup)], &g_UsbMsdBOS, cbCopy);
                         return usbMsdCompleteOk(pThis, pUrb, cbCopy + sizeof(*pSetup));
                     default:
                         Log(("usbMsd: GET_DESCRIPTOR, huh? wValue=%#x wIndex=%#x\n", pSetup->wValue, pSetup->wIndex));

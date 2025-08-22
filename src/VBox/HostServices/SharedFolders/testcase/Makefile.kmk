@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -45,7 +45,7 @@ tstShflSizes_DEFS     = VBOX_WITH_HGCM
 tstShflSizes_SOURCES  = tstShflSizes.cpp
 tstShflSizes_CLEAN    = $(tstShflSizes_0_OUTDIR)/tstShflSizes.run
 
-$$(tstShflSizes_0_OUTDIR)/tstShflSizes.run: $$(tstShflSizes_1_STAGE_TARGET)
+$$(tstShflSizes_0_OUTDIR)/tstShflSizes.run: $$(tstShflSizes_1_STAGE_TARGET) | $$(dir $$@) $$(VBOX_RUN_TARGET_ORDER_DEPS)
 	$(tstShflSizes_1_STAGE_TARGET) quiet
 	$(QUIET)$(APPEND) -t "$@" "done"
 

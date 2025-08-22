@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -208,17 +208,20 @@ static CPUMMSRRANGE const g_aMsrRanges_AMD_Athlon_64_3200[] =
 /**
  * Database entry for AMD Athlon(tm) 64 Processor 3200+.
  */
-static CPUMDBENTRY const g_Entry_AMD_Athlon_64_3200 =
+static CPUMDBENTRYX86 const g_Entry_AMD_Athlon_64_3200 =
 {
-    /*.pszName          = */ "AMD Athlon 64 3200+",
-    /*.pszFullName      = */ "AMD Athlon(tm) 64 Processor 3200+",
-    /*.enmVendor        = */ CPUMCPUVENDOR_AMD,
+    {
+        /*.pszName      = */ "AMD Athlon 64 3200+",
+        /*.pszFullName  = */ "AMD Athlon(tm) 64 Processor 3200+",
+        /*.enmVendor    = */ CPUMCPUVENDOR_AMD,
+        /*.enmMicroarch = */ kCpumMicroarch_AMD_K8_130nm,
+        /*.fFlags       = */ 0,
+        /*.enmEntryType = */ CPUMDBENTRYTYPE_X86,
+    },
     /*.uFamily          = */ 15,
     /*.uModel           = */ 4,
     /*.uStepping        = */ 8,
-    /*.enmMicroarch     = */ kCpumMicroarch_AMD_K8_130nm,
     /*.uScalableBusFreq = */ CPUM_SBUSFREQ_UNKNOWN,
-    /*.fFlags           = */ 0,
     /*.cMaxPhysAddrWidth= */ 40,
     /*.fMxCsrMask       = */ 0xffff, ///< @todo check.
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_AMD_Athlon_64_3200),

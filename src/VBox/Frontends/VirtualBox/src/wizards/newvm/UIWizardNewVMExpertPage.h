@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -77,7 +77,7 @@ private slots:
     void sltGAISOPathChanged(const QString &strPath);
     void sltOSFamilyTypeChanged(const QString &strGuestOSFamilyType);
     void sltInstallGACheckBoxToggle(bool fEnabled);
-    void sltSkipUnattendedCheckBoxChecked(bool fSkip);
+    void sltUnattendedCheckBoxChecked(bool fSkip);
     void sltMediumFormatChanged();
     void sltMediumSizeChanged(qulonglong uSize);
     void sltMediumPathChanged(const QString &strPath);
@@ -121,7 +121,7 @@ private:
     bool validatePage() RT_OVERRIDE;
 
     bool isProductKeyWidgetEnabled() const;
-    void disableEnableUnattendedRelatedWidgets(bool fEnabled);
+    void disableEnableUnattendedRelatedWidgets();
     void markWidgets() const;
     QWidget *createUnattendedWidgets();
     QWidget *createNewDiskWidgets();
@@ -131,7 +131,6 @@ private:
     void updateDiskWidgetsAfterMediumFormatChange();
     void updateHostnameDomainNameFromMachineName();
     void setEnableNewDiskWidgets(bool fEnable);
-    void setSkipCheckBoxEnable();
     bool isUnattendedEnabled() const;
     bool isUnattendedInstallSupported() const;
     void setEnableDiskSelectionWidgets(bool fEnabled);
@@ -144,7 +143,7 @@ private:
         UIDiskFormatsComboBox *m_pFormatComboBox;
         UIMediumSizeAndPathGroupBox *m_pSizeAndLocationGroup;
         UINameAndSystemEditor *m_pNameAndSystemEditor;
-        QCheckBox *m_pSkipUnattendedCheckBox;
+        QCheckBox *m_pUnattendedCheckBox;
         QGridLayout *m_pNameAndSystemLayout;
         UINewVMHardwareContainer *m_pHardwareWidgetContainer;
         UIAdditionalUnattendedOptions *m_pAdditionalOptionsContainer;

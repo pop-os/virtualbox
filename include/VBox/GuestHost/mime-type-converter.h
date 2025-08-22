@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -91,9 +91,10 @@ extern RTDECL(SHCLFORMAT) VBoxMimeConvGetIdByMime(const char *pcszMimeType);
  *
  * @returns IPRT status code.
  * @param   pcszMimeType    Mime-type in string representation.
- * @param   pvBufIn         Input buffer which contains image data in VBox format.
+ * @param   pvBufIn         Input buffer which contains data in VBox format.
  * @param   cbBufIn         Size of input buffer in bytes.
- * @param   ppvBufOut       Newly allocated output buffer which will contain BMP image data (must be freed by caller).
+ * @param   ppvBufOut       Newly allocated output buffer which will contain data
+ *                          in specified mime-type format (must be freed by caller).
  * @param   pcbBufOut       Size of output buffer.
  */
 extern RTDECL(int) VBoxMimeConvVBoxToNative(const char *pcszMimeType, void *pvBufIn, int cbBufIn,
@@ -104,9 +105,10 @@ extern RTDECL(int) VBoxMimeConvVBoxToNative(const char *pcszMimeType, void *pvBu
  *
  * @returns IPRT status code.
  * @param   pcszMimeType    Mime-type in string representation.
- * @param   pvBufIn         Input buffer which contains image data in VBox format.
+ * @param   pvBufIn         Input buffer which contains data in specified mime-type format.
  * @param   cbBufIn         Size of input buffer in bytes.
- * @param   ppvBufOut       Newly allocated output buffer which will contain BMP image data (must be freed by caller).
+ * @param   ppvBufOut       Newly allocated output buffer which will contain image data
+ *                          in VBox internal representation format (must be freed by caller).
  * @param   pcbBufOut       Size of output buffer.
  */
 extern RTDECL(int) VBoxMimeConvNativeToVBox(const char *pcszMimeType, void *pvBufIn, int cbBufIn,

@@ -6,7 +6,7 @@
  *  in platform-independent script-like manner.
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -1814,7 +1814,6 @@
       or . = 'wstring'
       or . = '$unknown'
       or ../@safearray = 'yes'
-      or (count(key('G_keyEnumsByName',      current())) > 0)
       or (count(key('G_keyInterfacesByName', current())) > 0)
     ">
       <xsl:choose>
@@ -1843,7 +1842,7 @@
         </xsl:when>
       </xsl:choose>
     </xsl:when>
-    <!-- assume scalar types -->
+    <!-- assume scalar types (including enums) -->
     <xsl:otherwise>
       <xsl:choose>
         <!-- <attribute> context -->

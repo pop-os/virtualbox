@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -84,17 +84,18 @@ void UIMonitorCountEditor::setMinimumLayoutIndent(int iIndent)
 void UIMonitorCountEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Mo&nitor Count:"));
+        m_pLabel->setText(tr("Number of Virtual Mo&nitors"));
 
+    const QString strToolTip = tr("Number of virtual monitors the virtual machine has");
     if (m_pSlider)
-        m_pSlider->setToolTip(tr("Holds the amount of virtual monitors provided to the virtual machine."));
+        m_pSlider->setToolTip(strToolTip);
     if (m_pSpinBox)
-        m_pSpinBox->setToolTip(tr("Holds the amount of virtual monitors provided to the virtual machine."));
+        m_pSpinBox->setToolTip(strToolTip);
 
     if (m_pLabelMin)
-        m_pLabelMin->setToolTip(tr("Minimum possible monitor count."));
+        m_pLabelMin->setToolTip(tr("Minimum virtual monitor number"));
     if (m_pLabelMax)
-        m_pLabelMax->setToolTip(tr("Maximum possible monitor count."));
+        m_pLabelMax->setToolTip(tr("Maximum virtual monitor number"));
 }
 
 void UIMonitorCountEditor::sltHandleSliderChange()

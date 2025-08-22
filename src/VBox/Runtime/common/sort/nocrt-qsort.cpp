@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2022-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2022-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -48,7 +48,7 @@
  && !defined(RT_ARCH_X86)   /* ASSUMING __cdecl, won't work for __stdcall or __fastcall. */
 # define NEED_COMPARE_WRAPPER
 /** @callback_method_impl{FNRTSORTCMP} */
-static int DECLCALLBACK(int) CompareWrapper(void const *pvElement1, void const *pvElement2, void *pvUser))
+static DECLCALLBACK(int) CompareWrapper(void const *pvElement1, void const *pvElement2, void *pvUser)
 {
     int (*pfnCompare)(const void *pv1, const void *pv2) = (int (*)(const void *pv1, const void *pv2))(uintptr_t)pvUser;
     return pfnCompare(pvElement1, pvElement2);

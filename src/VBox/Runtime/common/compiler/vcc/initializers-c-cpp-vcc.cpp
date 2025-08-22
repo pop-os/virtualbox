@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2022-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2022-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -89,7 +89,7 @@ __declspec(allocate(".CRT$XCZ"))    PFNVCINITTERM       g_apfnRTVccInitializers_
  *
  * @returns 0 on success, non-zero return from C initalizer on failure.
  */
-int rtVccInitializersRunInit(void)
+int rtVccInitializersRunInit(void) RT_NOEXCEPT
 {
     /*
      * Run the C initializers first.
@@ -128,7 +128,7 @@ int rtVccInitializersRunInit(void)
 /**
  * Runs the C terminator callbacks.
  */
-void rtVccInitializersRunTerm(void)
+void rtVccInitializersRunTerm(void) RT_NOEXCEPT
 {
     /*
      * First the early terminators.

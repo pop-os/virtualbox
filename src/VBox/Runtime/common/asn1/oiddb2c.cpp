@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -236,7 +236,7 @@ static RTEXITCODE addOidToTree(uint32_t const *pauComponents, unsigned cComponen
     if (cchName >= BLDPROG_STRTAB_MAX_STRLEN)
         return warning("%s(%d): OID name is too long (%u)!\n", pszFile, iLineNo, (unsigned)cchName);
     if (cComponents == 0)
-        return warning("%s(%d): 'Description' without valid OID preceeding it!\n", pszFile, iLineNo);
+        return warning("%s(%d): 'Description' without valid OID preceding it!\n", pszFile, iLineNo);
     if (!isNiceAsciiString(pszName))
         return warning("%s(%d): Contains unwanted characters!\n", pszFile, iLineNo);
 

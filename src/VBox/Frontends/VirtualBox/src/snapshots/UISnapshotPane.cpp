@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -683,6 +683,12 @@ void UISnapshotPane::showEvent(QShowEvent *pEvent)
     adjustTreeWidget();
 }
 
+void UISnapshotPane::sltDetachCOM()
+{
+    /* Clear machine item list: */
+    setMachineItems(QList<UIVirtualMachineItem*>());
+}
+
 void UISnapshotPane::sltHandleMachineDataChange(const QUuid &uMachineId)
 {
     /* Make sure it's our VM: */
@@ -1188,15 +1194,21 @@ void UISnapshotPane::sltHandleContextMenuRequest(const QPoint &position)
         menu.addSeparator();
         menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Snapshot_S_Restore));
         menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Snapshot_T_Properties));
-        menu.addSeparator();
-        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Snapshot_S_Clone));
+        if (gEDataManager->isSettingsInExpertMode())
+        {
+            menu.addSeparator();
+            menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Snapshot_S_Clone));
+        }
     }
     /* For "current state" item: */
     else
     {
         menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Snapshot_S_Take));
-        menu.addSeparator();
-        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Snapshot_S_Clone));
+        if (gEDataManager->isSettingsInExpertMode())
+        {
+            menu.addSeparator();
+            menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Snapshot_S_Clone));
+        }
     }
 
     /* Show menu: */
@@ -1321,7 +1333,7 @@ void UISnapshotPane::prepare()
     loadSettings();
 
     /* Register help topic: */
-    uiCommon().setHelpKeyword(this, "snapshots");
+    uiCommon().setHelpKeyword(this, "ct_snapshots" /* help keyword */);
 
     /* Apply language settings: */
     sltRetranslateUI();
@@ -1331,6 +1343,10 @@ void UISnapshotPane::prepare()
 
 void UISnapshotPane::prepareConnections()
 {
+    /* Install cleanup handler: */
+    connect(&uiCommon(), &UICommon::sigAskToDetachCOM,
+            this, &UISnapshotPane::sltDetachCOM);
+
     /* Configure Main event connections: */
     connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigMachineDataChange,
             this, &UISnapshotPane::sltHandleMachineDataChange);
@@ -1626,7 +1642,6 @@ void UISnapshotPane::updateActionStates()
         && m_operationAllowed.value(pSnapshotItem->machineID())
         && fCanTakeDeleteSnapshot
         && m_currentSnapshotItems.value(pSnapshotItem->machineID())
-        && pSnapshotItem
         && !pSnapshotItem->isCurrentStateItem()
     );
 

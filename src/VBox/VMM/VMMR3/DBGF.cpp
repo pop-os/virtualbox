@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1585,6 +1585,41 @@ VMMR3DECL(int) DBGFR3Resume(PUVM pUVM, VMCPUID idCpu)
  */
 static DBGFSTEPINSTRTYPE dbgfStepGetCurInstrType(PVM pVM, PVMCPU pVCpu)
 {
+#ifdef VBOX_VMM_TARGET_ARMV8
+    /*
+     * Read the instruction, this ASSUMES running in A64 mode.
+     */
+    size_t   cbRead  = 0;
+    uint32_t u32Insn = 0;
+    int rc = PGMR3DbgReadGCPtr(pVM, &u32Insn, CPUMGetGuestFlatPC(pVCpu), u32Insn, 0 /*fFlags*/, &cbRead);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Do minimal parsing.  No real need to involve the disassembler here.
+         */
+        if (   (u32Insn & UINT32_C(0xfffffc1f)) == UINT32_C(0xd65f0000) /* RET */
+            || (u32Insn & UINT32_C(0xfffffc1f)) == UINT32_C(0xd65f081f) /* RETAA */
+            || (u32Insn & UINT32_C(0xfffffc1f)) == UINT32_C(0xd65f0c1f) /* RETAB */
+            || (u32Insn & UINT32_C(0xffffffff)) == UINT32_C(0xd69f03e0) /* ERET */
+            || (u32Insn & UINT32_C(0xffffffff)) == UINT32_C(0xd69f0bff) /* ERETAA */
+            || (u32Insn & UINT32_C(0xffffffff)) == UINT32_C(0xd69f0fff) /* ERETAB */)
+            return DBGFSTEPINSTRTYPE_RET;
+        if (   (u32Insn & UINT32_C(0xfffffc1f)) == UINT32_C(0xd63f0000) /* BLR */
+            || (u32Insn & UINT32_C(0xfffffc1f)) == UINT32_C(0xd63f081f) /* BLRAAZ */
+            || (u32Insn & UINT32_C(0xfffffc1f)) == UINT32_C(0xd63f0c1f) /* BLRABZ */
+            || (u32Insn & UINT32_C(0xfffffc00)) == UINT32_C(0xd73f0800) /* BLRAA */
+            || (u32Insn & UINT32_C(0xfffffc00)) == UINT32_C(0xd73f0c00) /* BLRAB */
+            || (u32Insn & UINT32_C(0xfc000000)) == UINT32_C(0x14000000) /* BL */
+            || (u32Insn & UINT32_C(0xffe0001f)) == UINT32_C(0xd4000001) /* SVC */
+            || (u32Insn & UINT32_C(0xffe0001f)) == UINT32_C(0xd4000002) /* HVC */
+            || (u32Insn & UINT32_C(0xffe0001f)) == UINT32_C(0xd4000003) /* SMC */
+            || (u32Insn & UINT32_C(0xffe0001f)) == UINT32_C(0xd4200000) /* BRK */
+            || (u32Insn & UINT32_C(0xffe0001f)) == UINT32_C(0xd4400000) /* HLT */)
+            return DBGFSTEPINSTRTYPE_CALL;
+        return DBGFSTEPINSTRTYPE_OTHER;
+    }
+
+#elif defined(VBOX_VMM_TARGET_X86)
     /*
      * Read the instruction.
      */
@@ -1659,6 +1694,10 @@ static DBGFSTEPINSTRTYPE dbgfStepGetCurInstrType(PVM pVM, PVMCPU pVCpu)
         }
     }
 
+#else
+# error "port me"
+#endif
+
     return DBGFSTEPINSTRTYPE_INVALID;
 }
 
@@ -1731,7 +1770,7 @@ static bool dbgfStepAreWeThereYet(PVM pVM, PVMCPU pVCpu)
                                 if (pVM->dbgf.s.SteppingFilter.fFlags & DBGF_STEP_F_STOP_AFTER_RET)
                                     pVM->dbgf.s.SteppingFilter.cMaxSteps = pVM->dbgf.s.SteppingFilter.cSteps + 1;
                             }
-                            else if (pVM->dbgf.s.SteppingFilter.uCallDepth > 0)
+                            else /*if (pVM->dbgf.s.SteppingFilter.uCallDepth > 0)*/
                                 pVM->dbgf.s.SteppingFilter.uCallDepth--;
                             break;
                     }

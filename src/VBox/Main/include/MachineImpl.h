@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -217,16 +217,17 @@ public:
         std::list<Utf8Str>  llFilesToDelete;
 
 #ifdef VBOX_WITH_FULL_VM_ENCRYPTION
-        /* Store for secret keys. */
-        SecretKeyStore      *mpKeyStore;
+        /** Store for secret keys. */
+        SecretKeyStore     *mpKeyStore;
+        /** @todo r=andy Document me ... what is encrypted? Rename to mfEncrypted. */
         BOOL                fEncrypted;
-        /* KeyId of the password encrypting the DEK */
+        /** KeyId of the password encrypting the DEK */
         com::Utf8Str        mstrKeyId;
-        /* Store containing the DEK used for encrypting the VM */
+        /** Store containing the DEK used for encrypting the VM */
         com::Utf8Str        mstrKeyStore;
-        /* KeyId of the password encrypting the DEK for log files */
+        /** KeyId of the password encrypting the DEK for log files */
         com::Utf8Str        mstrLogKeyId;
-        /* Store containing the DEK used for encrypting the VM's log files */
+        /** Store containing the DEK used for encrypting the VM's log files */
         com::Utf8Str        mstrLogKeyStore;
 #endif
     };
@@ -298,6 +299,10 @@ public:
 
         HWData();
         ~HWData();
+#if RT_CPLUSPLUS_PREREQ(201100) /* VC2022: Excplit default copy constructor and copy assignment operator to avoid warnings. */
+        HWData(HWData const &) = default;
+        HWData &operator=(HWData const &) = default;
+#endif
 
         Bstr                mHWVersion;
         Guid                mHardwareUUID;  /**< If Null, use mData.mUuid. */
@@ -553,14 +558,14 @@ public:
     virtual HRESULT i_onSerialPortChange(ISerialPort * /* serialPort */) { return S_OK; }
     virtual HRESULT i_onParallelPortChange(IParallelPort * /* parallelPort */) { return S_OK; }
     virtual HRESULT i_onVRDEServerChange(BOOL /* aRestart */) { return S_OK; }
-    virtual HRESULT i_onRecordingStateChange(BOOL /* aEnable */, IProgress **) { return S_OK; }
-    virtual HRESULT i_onRecordingScreenStateChange(BOOL /* aEnable */, ULONG /* aScreen */) { return S_OK; }
+    virtual HRESULT i_onRecordingStateChange(RecordingState_T, IProgress **) { return S_OK; }
+    virtual HRESULT i_onRecordingScreenStateChange(RecordingState_T, ULONG /* aScreen */) { return S_OK; }
     virtual HRESULT i_onUSBControllerChange() { return S_OK; }
     virtual HRESULT i_onStorageControllerChange(const com::Guid & /* aMachineId */, const com::Utf8Str & /* aControllerName */) { return S_OK; }
     virtual HRESULT i_onCPUChange(ULONG /* aCPU */, BOOL /* aRemove */) { return S_OK; }
     virtual HRESULT i_onCPUExecutionCapChange(ULONG /* aExecutionCap */) { return S_OK; }
     virtual HRESULT i_onMediumChange(IMediumAttachment * /* mediumAttachment */, BOOL /* force */) { return S_OK; }
-    virtual HRESULT i_onSharedFolderChange() { return S_OK; }
+    virtual HRESULT i_onSharedFolderChange(BOOL /* aGlobal */) { return S_OK; }
     virtual HRESULT i_onVMProcessPriorityChange(VMProcPriority_T /* aPriority */) { return S_OK; }
     virtual HRESULT i_onClipboardModeChange(ClipboardMode_T /* aClipboardMode */) { return S_OK; }
     virtual HRESULT i_onClipboardFileTransferModeChange(BOOL /* aEnable */) { return S_OK; }
@@ -1393,8 +1398,8 @@ public:
     HRESULT i_onParallelPortChange(IParallelPort *parallelPort) RT_OVERRIDE;
     HRESULT i_onCPUChange(ULONG aCPU, BOOL aRemove) RT_OVERRIDE;
     HRESULT i_onVRDEServerChange(BOOL aRestart) RT_OVERRIDE;
-    HRESULT i_onRecordingStateChange(BOOL aEnable, IProgress **aProgress) RT_OVERRIDE;
-    HRESULT i_onRecordingScreenStateChange(BOOL aEnable, ULONG aScreen) RT_OVERRIDE;
+    HRESULT i_onRecordingStateChange(RecordingState_T aState, IProgress **aProgress) RT_OVERRIDE;
+    HRESULT i_onRecordingScreenStateChange(RecordingState_T aState, ULONG aScreen) RT_OVERRIDE;
     HRESULT i_onUSBControllerChange() RT_OVERRIDE;
     HRESULT i_onUSBDeviceAttach(IUSBDevice *aDevice,
                                 IVirtualBoxErrorInfo *aError,
@@ -1402,7 +1407,7 @@ public:
                                 const com::Utf8Str &aCaptureFilename);
     HRESULT i_onUSBDeviceDetach(IN_BSTR aId,
                                 IVirtualBoxErrorInfo *aError);
-    HRESULT i_onSharedFolderChange() RT_OVERRIDE;
+    HRESULT i_onSharedFolderChange(BOOL aGlobal) RT_OVERRIDE;
     HRESULT i_onClipboardModeChange(ClipboardMode_T aClipboardMode) RT_OVERRIDE;
     HRESULT i_onClipboardFileTransferModeChange(BOOL aEnable) RT_OVERRIDE;
     HRESULT i_onDnDModeChange(DnDMode_T aDnDMode) RT_OVERRIDE;

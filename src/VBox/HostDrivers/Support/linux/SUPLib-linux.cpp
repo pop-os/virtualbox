@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -99,11 +99,12 @@ DECLHIDDEN(int) suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, uint32_t fFlags
     /*
      * Check if madvise works.
      */
-    void *pv = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    uint32_t const cbPage = SUP_PAGE_SIZE;
+    void *pv = mmap(NULL, cbPage, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (pv == MAP_FAILED)
         return VERR_NO_MEMORY;
-    pThis->fSysMadviseWorks = (0 == madvise(pv, PAGE_SIZE, MADV_DONTFORK));
-    munmap(pv, PAGE_SIZE);
+    pThis->fSysMadviseWorks = (0 == madvise(pv, cbPage, MADV_DONTFORK));
+    munmap(pv, cbPage);
 
     /*
      * Driverless?
@@ -255,10 +256,13 @@ DECLHIDDEN(int) suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, uint32_t fFl
         fMmap |= MAP_HUGETLB;
 #endif
 
-    size_t cbMmap = cPages << PAGE_SHIFT;
+    uint32_t const cbPage = SUP_PAGE_SIZE;
+    uint32_t const cPageShift = SUP_PAGE_SHIFT;
+
+    size_t cbMmap = cPages << cPageShift;
     if (   !pThis->fSysMadviseWorks
         && (fFlags & (SUP_PAGE_ALLOC_F_FOR_LOCKING | SUP_PAGE_ALLOC_F_LARGE_PAGES)) == SUP_PAGE_ALLOC_F_FOR_LOCKING)
-        cbMmap += PAGE_SIZE * 2;
+        cbMmap += cbPage * 2;
 
     uint8_t *pbPages = (uint8_t *)mmap(NULL, cbMmap, PROT_READ | PROT_WRITE, fMmap, -1, 0);
 #ifdef MAP_HUGETLB
@@ -267,7 +271,7 @@ DECLHIDDEN(int) suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, uint32_t fFl
         /* Try again without MAP_HUGETLB if mmap fails: */
         fMmap &= ~MAP_HUGETLB;
         if (!pThis->fSysMadviseWorks && (fFlags & SUP_PAGE_ALLOC_F_FOR_LOCKING))
-            cbMmap = (cPages + 2) << PAGE_SHIFT;
+            cbMmap = (cPages + 2) << cPageShift;
         pbPages = (uint8_t *)mmap(NULL, cbMmap, PROT_READ | PROT_WRITE, fMmap, -1, 0);
     }
 #endif
@@ -312,16 +316,16 @@ DECLHIDDEN(int) suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, uint32_t fFl
              * mmapped region by two unmapped pages to guarantee that there is exactly one VM
              * area struct of the very same size as the mmap area.
              */
-            mprotect(pbPages,                      PAGE_SIZE, PROT_NONE);
-            mprotect(pbPages + cbMmap - PAGE_SIZE, PAGE_SIZE, PROT_NONE);
-            pbPages += PAGE_SHIFT;
+            mprotect(pbPages,                   cbPage, PROT_NONE);
+            mprotect(pbPages + cbMmap - cbPage, cbPage, PROT_NONE);
+            pbPages += cPageShift;
         }
 
         /** @todo Dunno why we do this, really. It's a waste of time.  Maybe it was
          * to try make sure the pages were allocated or something before we locked them,
          * so I qualified it with SUP_PAGE_ALLOC_F_FOR_LOCKING (unused) for now... */
         if (fFlags & SUP_PAGE_ALLOC_F_FOR_LOCKING)
-            memset(pbPages, 0, cPages << PAGE_SHIFT);
+            memset(pbPages, 0, cPages << cPageShift);
 
         *ppvPages = pbPages;
         return VINF_SUCCESS;
@@ -333,7 +337,7 @@ DECLHIDDEN(int) suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, uint32_t fFl
 DECLHIDDEN(int) suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t cPages)
 {
     NOREF(pThis);
-    munmap(pvPages, cPages << PAGE_SHIFT);
+    munmap(pvPages, cPages << SUP_PAGE_SHIFT);
     return VINF_SUCCESS;
 }
 

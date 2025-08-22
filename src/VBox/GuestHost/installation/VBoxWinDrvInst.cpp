@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -29,7 +29,11 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <iprt/win/windows.h>
+#ifdef VBOX_WINDRVINST_USE_NT_APIS
+# include <iprt/nt/nt-and-windows.h>
+#else
+# include <iprt/win/windows.h>
+#endif
 #include <iprt/win/setupapi.h>
 #include <newdev.h> /* For INSTALLFLAG_XXX. */
 #include <cfgmgr32.h> /* For MAX_DEVICE_ID_LEN. */
@@ -42,6 +46,7 @@
 #include <iprt/buildconfig.h>
 #include <iprt/cdefs.h>
 #include <iprt/dir.h>
+#include <iprt/env.h>
 #include <iprt/file.h>
 #include <iprt/ldr.h>
 #include <iprt/list.h>
@@ -111,6 +116,11 @@
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
+#ifdef VBOX_WINDRVINST_USE_NT_APIS
+/* ntdll.dll: Only for > NT4. */
+typedef NTSTATUS(WINAPI* PFNNTOPENSYMBOLICLINKOBJECT) (PHANDLE LinkHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
+typedef NTSTATUS(WINAPI* PFNNTQUERYSYMBOLICLINKOBJECT) (HANDLE LinkHandle, PUNICODE_STRING LinkTarget, PULONG ReturnedLength);
+#endif /* VBOX_WINDRVINST_USE_NT_APIS */
 /* newdev.dll: */
 typedef BOOL(WINAPI* PFNDIINSTALLDRIVERW) (HWND hwndParent, LPCWSTR InfPath, DWORD Flags, PBOOL NeedReboot);
 typedef BOOL(WINAPI* PFNDIUNINSTALLDRIVERW) (HWND hwndParent, LPCWSTR InfPath, DWORD Flags, PBOOL NeedReboot);
@@ -136,6 +146,11 @@ typedef int (*PFNVBOXWINDRVINST_TRYINFSECTION_CALLBACK)(HINF hInf, PCRTUTF16 pws
 /** Init once structure for run-as-user functions we need. */
 DECL_HIDDEN_DATA(RTONCE)                                 g_vboxWinDrvInstResolveOnce              = RTONCE_INITIALIZER;
 
+#ifdef VBOX_WINDRVINST_USE_NT_APIS
+/* ntdll.dll: */
+DECL_HIDDEN_DATA(PFNNTOPENSYMBOLICLINKOBJECT)            g_pfnNtOpenSymbolicLinkObject = NULL;
+DECL_HIDDEN_DATA(PFNNTQUERYSYMBOLICLINKOBJECT)           g_pfnNtQuerySymbolicLinkObject = NULL;
+#endif
 /* newdev.dll: */
 DECL_HIDDEN_DATA(PFNDIINSTALLDRIVERW)                    g_pfnDiInstallDriverW                    = NULL; /* For Vista+ .*/
 DECL_HIDDEN_DATA(PFNDIUNINSTALLDRIVERW)                  g_pfnDiUninstallDriverW                  = NULL; /* Since Win 10 version 1703. */
@@ -235,6 +250,15 @@ static int vboxWinDrvInstSetupAPILog(PVBOXWINDRVINSTINTERNAL pCtx, unsigned cLas
 *   Import tables                                                                                                                *
 *********************************************************************************************************************************/
 
+#ifdef VBOX_WINDRVINST_USE_NT_APIS
+/* ntdll.dll: */
+static VBOXWINDRVINSTIMPORTSYMBOL s_aNtDllImports[] =
+{
+    { "NtOpenSymbolicLinkObject",  (void **)&g_pfnNtOpenSymbolicLinkObject },
+    { "NtQuerySymbolicLinkObject", (void **)&g_pfnNtQuerySymbolicLinkObject }
+};
+#endif
+
 /* setupapi.dll: */
 static VBOXWINDRVINSTIMPORTSYMBOL s_aSetupApiImports[] =
 {
@@ -310,6 +334,59 @@ DECLINLINE(void) vboxWinDrvInstLogEx(PVBOXWINDRVINSTINTERNAL pCtx,
 }
 
 /**
+ * Logs an error message, extended version.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Windows driver installer context.
+ * @param   fIgnore             Whether to ignore the error in the error count or not.
+ * @param   pszFormat           Format string to log.
+ * @param   args                va_list for \a pszFormat.
+ */
+DECLINLINE(void) vboxWinDrvInstLogErrorExV(PVBOXWINDRVINSTINTERNAL pCtx, bool fIgnore, const char *pszFormat, va_list args)
+{
+    vboxWinDrvInstLogExV(pCtx, VBOXWINDRIVERLOGTYPE_ERROR, pszFormat, args);
+    if (!fIgnore)
+        pCtx->cErrors++;
+}
+
+#ifdef RT_ARCH_X86
+/**
+ * Logs an error message but ignores (skips) the error count.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Windows driver installer context.
+ * @param   pszFormat           Format string to log.
+ * @param   ...                 Variable arguments for \a pszFormat.
+ */
+DECLINLINE(void) vboxWinDrvInstLogErrorIgn(PVBOXWINDRVINSTINTERNAL pCtx, const char *pszFormat, ...)
+{
+    va_list args;
+    va_start(args, pszFormat);
+    vboxWinDrvInstLogErrorExV(pCtx, true /* fIgnore */, pszFormat, args);
+    va_end(args);
+}
+
+/**
+ * Logs an error message, ignores (skips) the error count and returns the given rc for convenience.
+ *
+ * @returns VBox status code, given by \a rc.
+ * @param   pCtx                Windows driver installer context.
+ * @param   rc                  rc to return.
+ * @param   pszFormat           Format string to log.
+ * @param   ...                 Variable arguments for \a pszFormat.
+ */
+DECLINLINE(int) vboxWinDrvInstLogErrorRetIgn(PVBOXWINDRVINSTINTERNAL pCtx, int rc, const char *pszFormat, ...)
+{
+    va_list args;
+    va_start(args, pszFormat);
+    vboxWinDrvInstLogErrorExV(pCtx, true /* fIgnore */, pszFormat, args);
+    va_end(args);
+
+    return rc;
+}
+#endif /* RT_ARCH_X86 */
+
+/**
  * Logs an error message.
  *
  * @returns VBox status code.
@@ -320,10 +397,8 @@ DECLINLINE(void) vboxWinDrvInstLogError(PVBOXWINDRVINSTINTERNAL pCtx, const char
 {
     va_list args;
     va_start(args, pszFormat);
-    vboxWinDrvInstLogExV(pCtx, VBOXWINDRIVERLOGTYPE_ERROR, pszFormat, args);
+    vboxWinDrvInstLogErrorExV(pCtx, false /* fIgnore */, pszFormat, args);
     va_end(args);
-
-    pCtx->cErrors++;
 }
 
 /**
@@ -510,7 +585,10 @@ static DECLCALLBACK(int) vboxWinDrvInstResolveOnce(void *pvUser)
     /*
      * Note: Any use of Difx[app|api].dll imports is forbidden (and also marked as being deprecated since Windows 10)!
      */
-
+#ifdef VBOX_WINDRVINST_USE_NT_APIS
+    /* rc ignored, keep going */ vboxWinDrvInstResolveMod(pCtx, "ntdll.dll",
+                                                          s_aNtDllImports, RT_ELEMENTS(s_aNtDllImports));
+#endif
     /* rc ignored, keep going */ vboxWinDrvInstResolveMod(pCtx, "setupapi.dll",
                                                           s_aSetupApiImports, RT_ELEMENTS(s_aSetupApiImports));
     /* rc ignored, keep going */ vboxWinDrvInstResolveMod(pCtx, "newdev.dll",
@@ -846,18 +924,66 @@ static int vboxWinDrvInstallInfSectionEx(PVBOXWINDRVINSTINTERNAL pCtx, HINF hInf
     CallbackCtx.pwszSection = pwszSection;
     CallbackCtx.pvSetupContext = SetupInitDefaultQueueCallback(NULL);
 
-    BOOL fRc = SetupInstallFromInfSectionW(NULL, // hWndOwner
-                                           hInf,
-                                           pwszSection,
-                                           SPINST_ALL, // Flags
-                                           NULL, // RelativeKeyRoot
-                                           NULL, // SourceRootPath
-                                             SP_COPY_NOSKIP
-                                           | SP_COPY_IN_USE_NEEDS_REBOOT,
-                                           vboxDrvInstExecuteInfFileCallback,
-                                           &CallbackCtx,
-                                           NULL,  // DeviceInfoSet
-                                           NULL); // DeviceInfoData
+    BOOL fRc;
+    if (!(pCtx->Parms.fFlags & VBOX_WIN_DRIVERINSTALL_F_DRYRUN))
+    {
+        /* Contains entries to install via SetupInstallFromInfSectionW() in a particular order.
+         * This gives us more flexibility and control compared to the InstallHinfSectionW() fallback below. */
+        struct
+        {
+            UINT  uFlags;
+            UINT  uCopyFlags;
+            PVOID pCallback;
+            PVOID pContext;
+        } s_aFromInfSectionInstall[] =
+        {
+            /* Install files. */
+            { SPINST_FILES, SP_COPY_NOSKIP | SP_COPY_IN_USE_NEEDS_REBOOT,
+              vboxDrvInstExecuteInfFileCallback, &CallbackCtx },
+            /* Install registry directives. */
+            { SPINST_REGISTRY, 0 /* uFlags */,
+              NULL /* pCallback */, NULL /* pContext */ }
+            /** @todo Add more SPINST_ entries as soon as we need those. */
+        };
+
+        for (size_t i = 0; i < RT_ELEMENTS(s_aFromInfSectionInstall); i++)
+        {
+            fRc = SetupInstallFromInfSectionW(NULL, // hWndOwner
+                                              hInf,
+                                              pwszSection,
+                                              s_aFromInfSectionInstall[i].uFlags,
+                                              NULL, // RelativeKeyRoot
+                                              NULL, // SourceRootPath
+                                              s_aFromInfSectionInstall[i].uCopyFlags,
+                                              (PSP_FILE_CALLBACK_W)s_aFromInfSectionInstall[i].pCallback,
+                                              s_aFromInfSectionInstall[i].pContext,
+                                              NULL,  // DeviceInfoSet
+                                              NULL); // DeviceInfoData);
+            if (!fRc)
+            {
+                DWORD const dwErr = GetLastError();
+                vboxWinDrvInstLogVerbose(pCtx, 1, "SetupInstallFromInfSectionW(%zu) failed (%ld / %#x)", i, dwErr, dwErr);
+                break;
+            }
+        }
+
+        if (!fRc)
+        {
+            /* As a last resort, try InstallHinfSectionW() ... we hopefully won't get here ever. */
+            RTUTF16       wszCmdLine[RTPATH_MAX + 64 /* To cover section name + flags */];
+            int     const fFlags = 128 /* Use standard path */ + 0 /* Don't ask for reboot. */;
+            RTUtf16Printf(wszCmdLine, RT_ELEMENTS(wszCmdLine), "%ls %d %ls", pwszSection, fFlags, pCtx->Parms.pwszInfFile);
+            vboxWinDrvInstLogVerbose(pCtx, 1, "Executing \"InstallHinfSection(%ls)\" ...", wszCmdLine);
+            InstallHinfSectionW(NULL, NULL, wszCmdLine, 0);
+
+            /* InstallHinfSectionW() does not provide any return value, so we ASSUME success.
+             * The outcome will be logged via setupapi logs though. */
+            fRc = TRUE;
+        }
+    }
+    else
+        fRc = TRUE;
+
     if (fRc)
     {
         vboxWinDrvInstLogInfo(pCtx, "Installing INF section \"%ls\" successful", pwszSection);
@@ -868,12 +994,14 @@ static int vboxWinDrvInstallInfSectionEx(PVBOXWINDRVINSTINTERNAL pCtx, HINF hInf
         /* Seems like newer Windows OSes (seen on Win10) don't like undecorated sections with SetupInstallFromInfSectionW().
          * So ignore this and continue. */
         if (dwErr == ERROR_BADKEY)
-        {
-            vboxWinDrvInstLogVerbose(pCtx, 1, "Installing INF section \"%ls\" failed with %#x (%d), ignoring",
-                                     pwszSection, dwErr, dwErr);
-        }
+            vboxWinDrvInstLogVerbose(pCtx, 1, "Installing INF section \"%ls\" not possible (ERROR_BADKEY), skipping",
+                                     pwszSection);
+        /* Seen on WinXP: Will return ERROR_INVALID_FLAGS when try to install an INF section which isn't installable. */
+        else if (dwErr == ERROR_INVALID_FLAGS)
+            vboxWinDrvInstLogVerbose(pCtx, 1, "Installing INF section \"%ls\" not possible (ERROR_INVALID_FLAGS), skipping",
+                                     pwszSection);
         else
-           rc = vboxWinDrvInstLogLastError(pCtx, "Installing INF section \"%ls\" failed", pwszSection);
+            rc = vboxWinDrvInstLogLastError(pCtx, "Installing INF section \"%ls\" failed", pwszSection);
     }
 
     /*
@@ -886,7 +1014,10 @@ static int vboxWinDrvInstallInfSectionEx(PVBOXWINDRVINSTINTERNAL pCtx, HINF hInf
     {
         /* We always want to be the first service tag in the group order list (if any). */
         DWORD const fFlags = SPSVCINST_TAGTOFRONT;
-        fRc = SetupInstallServicesFromInfSectionW(hInf, wszSection, fFlags);
+        if (!(pCtx->Parms.fFlags & VBOX_WIN_DRIVERINSTALL_F_DRYRUN))
+            fRc = SetupInstallServicesFromInfSectionW(hInf, wszSection, fFlags);
+        else
+            fRc = TRUE;
         if (!fRc)
         {
             DWORD const dwErr = GetLastError();
@@ -980,37 +1111,8 @@ DECLCALLBACK(int) vboxWinDrvInstallTryInfSectionCallback(HINF hInf, PCRTUTF16 pw
 }
 
 #ifdef RT_ARCH_X86
-/** @todo Make use of the regular logging facilities of VBoxWinDrvInst. */
-DECLINLINE(int) vboxWinDrvInterceptedWinVerifyTrustError(const char *pszFormat, ...)
-{
-    va_list args;
-    va_start(args, pszFormat);
-    char *psz = NULL;
-    RTStrAPrintfV(&psz, pszFormat, args);
-    AssertPtrReturn(psz, -1);
-
-    RTStrmPrintf(g_pStdErr, "Error: %s\n", psz);
-
-    RTStrFree(psz);
-    va_end(args);
-
-    return -1;
-}
-
-/** @todo Make use of the regular logging facilities of VBoxWinDrvInst. */
-DECLINLINE(void) vboxWinDrvInterceptedWinVerifyTrustPrint(const char *pszFormat, ...)
-{
-    va_list args;
-    va_start(args, pszFormat);
-    char *psz = NULL;
-    RTStrAPrintfV(&psz, pszFormat, args);
-    AssertPtrReturnVoid(psz);
-
-    RTStrmPrintf(g_pStdOut, "%s\n", psz);
-
-    RTStrFree(psz);
-    va_end(args);
-}
+/** Static pointer to the internal driver installer handle, used by vboxWinDrvInterceptedWinVerifyTrust(). */
+static PVBOXWINDRVINSTINTERNAL s_vboxWinDrvInterceptedWinVerifyTrustCtx = NULL;
 
 /**
  * Interceptor WinVerifyTrust function for SetupApi.dll on Windows 2000, XP,
@@ -1018,9 +1120,13 @@ DECLINLINE(void) vboxWinDrvInterceptedWinVerifyTrustPrint(const char *pszFormat,
  *
  * This crudely modifies the driver verification request from a WHQL/logo driver
  * check to a simple Authenticode check.
+ *
+ * s_vboxWinDrvInterceptedWinVerifyTrustCtx must be set.
  */
 static LONG WINAPI vboxWinDrvInterceptedWinVerifyTrust(HWND hwnd, GUID *pActionId, void *pvData)
 {
+    AssertPtrReturn(s_vboxWinDrvInterceptedWinVerifyTrustCtx, TRUST_E_SYSTEM_ERROR);
+
     /*
      * Resolve the real WinVerifyTrust function.
      */
@@ -1033,13 +1139,13 @@ static LONG WINAPI vboxWinDrvInterceptedWinVerifyTrust(HWND hwnd, GUID *pActionI
             hmod = LoadLibraryW(L"WINTRUST.DLL");
         if (!hmod)
         {
-            vboxWinDrvInterceptedWinVerifyTrustError("InterceptedWinVerifyTrust: Failed to load wintrust.dll");
+            vboxWinDrvInstLogErrorIgn(s_vboxWinDrvInterceptedWinVerifyTrustCtx, "InterceptedWinVerifyTrust: Failed to load wintrust.dll");
             return TRUST_E_SYSTEM_ERROR;
         }
         pfnRealWinVerifyTrust = (decltype(WinVerifyTrust) *)GetProcAddress(hmod, "WinVerifyTrust");
         if (!pfnRealWinVerifyTrust)
         {
-            vboxWinDrvInterceptedWinVerifyTrustError("InterceptedWinVerifyTrust: Failed to locate WinVerifyTrust in wintrust.dll");
+            vboxWinDrvInstLogErrorIgn(s_vboxWinDrvInterceptedWinVerifyTrustCtx, "InterceptedWinVerifyTrust: Failed to locate WinVerifyTrust in wintrust.dll");
             return TRUST_E_SYSTEM_ERROR;
         }
         s_pfnRealWinVerifyTrust = pfnRealWinVerifyTrust;
@@ -1056,15 +1162,15 @@ static LONG WINAPI vboxWinDrvInterceptedWinVerifyTrust(HWND hwnd, GUID *pActionI
         if (memcmp(pActionId, &s_GuidDriverActionVerify, sizeof(*pActionId)) == 0)
         {
             /** @todo don't apply to obvious NT components... */
-            vboxWinDrvInterceptedWinVerifyTrustPrint("DRIVER_ACTION_VERIFY: Changing it to WINTRUST_ACTION_GENERIC_VERIFY_V2");
+            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "DRIVER_ACTION_VERIFY: Changing it to WINTRUST_ACTION_GENERIC_VERIFY_V2");
             pActionId = (GUID *)&s_GuidActionGenericVerify2;
         }
         else if (memcmp(pActionId, &s_GuidActionGenericChainVerify, sizeof(*pActionId)) == 0)
-            vboxWinDrvInterceptedWinVerifyTrustPrint("WINTRUST_ACTION_GENERIC_CHAIN_VERIFY");
+            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "WINTRUST_ACTION_GENERIC_CHAIN_VERIFY");
         else if (memcmp(pActionId, &s_GuidActionGenericVerify2, sizeof(*pActionId)) == 0)
-            vboxWinDrvInterceptedWinVerifyTrustPrint("WINTRUST_ACTION_GENERIC_VERIFY_V2");
+            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "WINTRUST_ACTION_GENERIC_VERIFY_V2");
         else
-            vboxWinDrvInterceptedWinVerifyTrustPrint("WINTRUST_ACTION_UNKNOWN");
+            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "WINTRUST_ACTION_UNKNOWN");
     }
 
     /*
@@ -1073,87 +1179,87 @@ static LONG WINAPI vboxWinDrvInterceptedWinVerifyTrust(HWND hwnd, GUID *pActionI
     if (pvData)
     {
         WINTRUST_DATA *pData = (WINTRUST_DATA *)pvData;
-        vboxWinDrvInterceptedWinVerifyTrustPrint("                  cbStruct = %ld", pData->cbStruct);
+        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "                  cbStruct = %ld", pData->cbStruct);
 # ifdef DEBUG
-        vboxWinDrvInterceptedWinVerifyTrustPrint("                dwUIChoice = %ld", pData->dwUIChoice);
-        vboxWinDrvInterceptedWinVerifyTrustPrint("       fdwRevocationChecks = %ld", pData->fdwRevocationChecks);
-        vboxWinDrvInterceptedWinVerifyTrustPrint("             dwStateAction = %ld", pData->dwStateAction);
-        vboxWinDrvInterceptedWinVerifyTrustPrint("             hWVTStateData = %p", (uintptr_t)pData->hWVTStateData);
+        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "                dwUIChoice = %ld", pData->dwUIChoice);
+        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "       fdwRevocationChecks = %ld", pData->fdwRevocationChecks);
+        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "             dwStateAction = %ld", pData->dwStateAction);
+        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "             hWVTStateData = %p", (uintptr_t)pData->hWVTStateData);
 # endif
         if (pData->cbStruct >= 7*sizeof(uint32_t))
         {
             switch (pData->dwUnionChoice)
             {
                 case WTD_CHOICE_FILE:
-                    vboxWinDrvInterceptedWinVerifyTrustPrint("                     pFile = %p", (uintptr_t)pData->pFile);
+                    vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "                     pFile = %p", (uintptr_t)pData->pFile);
                     if (RT_VALID_PTR(pData->pFile))
                     {
-                        vboxWinDrvInterceptedWinVerifyTrustPrint("           pFile->cbStruct = %ld", pData->pFile->cbStruct);
+                        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "           pFile->cbStruct = %ld", pData->pFile->cbStruct);
 # ifndef DEBUG
                         if (pData->pFile->hFile)
 # endif
-                            vboxWinDrvInterceptedWinVerifyTrustPrint("              pFile->hFile = %p", (uintptr_t)pData->pFile->hFile);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "              pFile->hFile = %p", (uintptr_t)pData->pFile->hFile);
                         if (RT_VALID_PTR(pData->pFile->pcwszFilePath))
-                            vboxWinDrvInterceptedWinVerifyTrustPrint("      pFile->pcwszFilePath = %ls", pData->pFile->pcwszFilePath);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "      pFile->pcwszFilePath = %ls", pData->pFile->pcwszFilePath);
 # ifdef DEBUG
                         else
-                            vboxWinDrvInterceptedWinVerifyTrustPrint("      pFile->pcwszFilePath = %ls", (uintptr_t)pData->pFile->pcwszFilePath);
-                        vboxWinDrvInterceptedWinVerifyTrustPrint("     pFile->pgKnownSubject = %p", (uintptr_t)pData->pFile->pgKnownSubject);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "      pFile->pcwszFilePath = %ls", (uintptr_t)pData->pFile->pcwszFilePath);
+                        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "     pFile->pgKnownSubject = %p", (uintptr_t)pData->pFile->pgKnownSubject);
 # endif
                     }
                     break;
 
                 case WTD_CHOICE_CATALOG:
-                    vboxWinDrvInterceptedWinVerifyTrustPrint("                  pCatalog = %p", (uintptr_t)pData->pCatalog);
+                    vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "                  pCatalog = %p", (uintptr_t)pData->pCatalog);
                     if (RT_VALID_PTR(pData->pCatalog))
                     {
-                        vboxWinDrvInterceptedWinVerifyTrustPrint("            pCat->cbStruct = %ld", pData->pCatalog->cbStruct);
+                        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "            pCat->cbStruct = %ld", pData->pCatalog->cbStruct);
 # ifdef DEBUG
-                        vboxWinDrvInterceptedWinVerifyTrustPrint("    pCat->dwCatalogVersion = %ld", pData->pCatalog->dwCatalogVersion);
+                        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "    pCat->dwCatalogVersion = %ld", pData->pCatalog->dwCatalogVersion);
 # endif
                         if (RT_VALID_PTR(pData->pCatalog->pcwszCatalogFilePath))
-                            vboxWinDrvInterceptedWinVerifyTrustPrint("pCat->pcwszCatalogFilePath = %ls", pData->pCatalog->pcwszCatalogFilePath);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "pCat->pcwszCatalogFilePath = %ls", pData->pCatalog->pcwszCatalogFilePath);
 # ifdef DEBUG
                         else
-                            vboxWinDrvInterceptedWinVerifyTrustPrint("pCat->pcwszCatalogFilePath =  %ls", (uintptr_t)pData->pCatalog->pcwszCatalogFilePath);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "pCat->pcwszCatalogFilePath =  %ls", (uintptr_t)pData->pCatalog->pcwszCatalogFilePath);
 # endif
                         if (RT_VALID_PTR(pData->pCatalog->pcwszMemberTag))
-                            vboxWinDrvInterceptedWinVerifyTrustPrint("      pCat->pcwszMemberTag = %ls", pData->pCatalog->pcwszMemberTag);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "      pCat->pcwszMemberTag = %ls", pData->pCatalog->pcwszMemberTag);
 # ifdef DEBUG
                         else
-                            vboxWinDrvInterceptedWinVerifyTrustPrint("      pCat->pcwszMemberTag = %ls", (uintptr_t)pData->pCatalog->pcwszMemberTag);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "      pCat->pcwszMemberTag = %ls", (uintptr_t)pData->pCatalog->pcwszMemberTag);
 # endif
                         if (RT_VALID_PTR(pData->pCatalog->pcwszMemberFilePath))
-                            vboxWinDrvInterceptedWinVerifyTrustPrint(" pCat->pcwszMemberFilePath = %ls", pData->pCatalog->pcwszMemberFilePath);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, " pCat->pcwszMemberFilePath = %ls", pData->pCatalog->pcwszMemberFilePath);
 # ifdef DEBUG
                         else
-                            vboxWinDrvInterceptedWinVerifyTrustPrint(" pCat->pcwszMemberFilePath = %ls", (uintptr_t)pData->pCatalog->pcwszMemberFilePath);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, " pCat->pcwszMemberFilePath = %ls", (uintptr_t)pData->pCatalog->pcwszMemberFilePath);
 # else
                         if (pData->pCatalog->hMemberFile)
 # endif
-                            vboxWinDrvInterceptedWinVerifyTrustPrint("         pCat->hMemberFile = %p", (uintptr_t)pData->pCatalog->hMemberFile);
+                            vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "         pCat->hMemberFile = %p", (uintptr_t)pData->pCatalog->hMemberFile);
 # ifdef DEBUG
-                        vboxWinDrvInterceptedWinVerifyTrustPrint("pCat->pbCalculatedFileHash = %p", (uintptr_t)pData->pCatalog->pbCalculatedFileHash);
-                        vboxWinDrvInterceptedWinVerifyTrustPrint("pCat->cbCalculatedFileHash = %ld", pData->pCatalog->cbCalculatedFileHash);
-                        vboxWinDrvInterceptedWinVerifyTrustPrint("    pCat->pcCatalogContext = %p", (uintptr_t)pData->pCatalog->pcCatalogContext);
+                        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "pCat->pbCalculatedFileHash = %p", (uintptr_t)pData->pCatalog->pbCalculatedFileHash);
+                        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "pCat->cbCalculatedFileHash = %ld", pData->pCatalog->cbCalculatedFileHash);
+                        vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "    pCat->pcCatalogContext = %p", (uintptr_t)pData->pCatalog->pcCatalogContext);
 # endif
                     }
                     break;
 
                 case WTD_CHOICE_BLOB:
-                    vboxWinDrvInterceptedWinVerifyTrustPrint("                     pBlob = %p\n", (uintptr_t)pData->pBlob);
+                    vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "                     pBlob = %p\n", (uintptr_t)pData->pBlob);
                     break;
 
                 case WTD_CHOICE_SIGNER:
-                    vboxWinDrvInterceptedWinVerifyTrustPrint("                     pSgnr = %p", (uintptr_t)pData->pSgnr);
+                    vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "                     pSgnr = %p", (uintptr_t)pData->pSgnr);
                     break;
 
                 case WTD_CHOICE_CERT:
-                    vboxWinDrvInterceptedWinVerifyTrustPrint("                     pCert = %p", (uintptr_t)pData->pCert);
+                    vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "                     pCert = %p", (uintptr_t)pData->pCert);
                     break;
 
                 default:
-                    vboxWinDrvInterceptedWinVerifyTrustPrint("             dwUnionChoice = %ld", pData->dwUnionChoice);
+                    vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "             dwUnionChoice = %ld", pData->dwUnionChoice);
                     break;
             }
         }
@@ -1162,9 +1268,9 @@ static LONG WINAPI vboxWinDrvInterceptedWinVerifyTrust(HWND hwnd, GUID *pActionI
     /*
      * Make the call.
      */
-    vboxWinDrvInterceptedWinVerifyTrustPrint("Calling WinVerifyTrust ...");
+    vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "Calling WinVerifyTrust ...");
     LONG iRet = pfnRealWinVerifyTrust(hwnd, pActionId, pvData);
-    vboxWinDrvInterceptedWinVerifyTrustPrint("WinVerifyTrust returns %ld", iRet);
+    vboxWinDrvInstLogVerbose(s_vboxWinDrvInterceptedWinVerifyTrustCtx, 1, "WinVerifyTrust returns %ld", iRet);
 
     return iRet;
 }
@@ -1176,23 +1282,29 @@ static LONG WINAPI vboxWinDrvInterceptedWinVerifyTrust(HWND hwnd, GUID *pActionI
  * This is a very crude hack to lower the WHQL check to just require a valid
  * Authenticode signature by intercepting the verification call.
  *
- * @return Ignored, just a convenience for saving space in error paths.
+ * @returns VBox status code.
+ * @param   pCtx                Windows driver installer context.
  */
-static int vboxWinDrvInstallWinVerifyTrustInterceptorInSetupApi(void)
+static int vboxWinDrvInstallWinVerifyTrustInterceptorInSetupApi(PVBOXWINDRVINSTINTERNAL pCtx)
 {
     /* Check the version: */
     OSVERSIONINFOW VerInfo = { sizeof(VerInfo) };
     GetVersionExW(&VerInfo);
     if (VerInfo.dwMajorVersion != 5)
-        return 1;
+    {
+        vboxWinDrvInstLogVerbose(pCtx, 1, "OS not supported to intercept WinVerifyTrust, skipping");
+        return VERR_NOT_SUPPORTED;
+    }
+
+# define PRINT_ERROR_AND_RETURN(a_Msg, ...) \
+    return vboxWinDrvInstLogErrorRetIgn(pCtx, VERR_NOT_SUPPORTED, a_Msg, __VA_ARGS__);
 
     /* The the target module: */
-    HMODULE hModSetupApi = GetModuleHandleW(L"SETUPAPI.DLL");
+    HMODULE const hModSetupApi = GetModuleHandleW(L"SETUPAPI.DLL");
     if (!hModSetupApi)
     {
         DWORD const dwLastErr = GetLastError();
-        return vboxWinDrvInterceptedWinVerifyTrustError("Failed to locate SETUPAPI.DLL in the process: %ld / %#x",
-                                                        dwLastErr, dwLastErr);
+        PRINT_ERROR_AND_RETURN("Failed to locate SETUPAPI.DLL in the process: %ld / %#x", dwLastErr, dwLastErr);
     }
 
     /*
@@ -1202,22 +1314,23 @@ static int vboxWinDrvInstallWinVerifyTrustInterceptorInSetupApi(void)
     IMAGE_NT_HEADERS const *pNtHdrs = (IMAGE_NT_HEADERS const *)(  (uintptr_t)hModSetupApi
                                                                  + (  pDosHdr->e_magic == IMAGE_DOS_SIGNATURE
                                                                     ? pDosHdr->e_lfanew : 0));
+
     if (pNtHdrs->Signature != IMAGE_NT_SIGNATURE)
-        return vboxWinDrvInterceptedWinVerifyTrustError("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception:");
+        PRINT_ERROR_AND_RETURN("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception: #1");
     if (pNtHdrs->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR_MAGIC)
-        return vboxWinDrvInterceptedWinVerifyTrustError("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception:");
+        PRINT_ERROR_AND_RETURN("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception: #2");
     if (pNtHdrs->OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT)
-        return vboxWinDrvInterceptedWinVerifyTrustError("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception:");
+        PRINT_ERROR_AND_RETURN("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception: #3");
 
     uint32_t const cbDir = pNtHdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT].Size;
     if (cbDir < sizeof(IMAGE_DELAYLOAD_DESCRIPTOR))
-        return vboxWinDrvInterceptedWinVerifyTrustError("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception:");
+        PRINT_ERROR_AND_RETURN("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception: #4");
     uint32_t const cbImages = pNtHdrs->OptionalHeader.SizeOfImage;
     if (cbDir >= cbImages)
-        return vboxWinDrvInterceptedWinVerifyTrustError("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception:");
+        PRINT_ERROR_AND_RETURN("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception: #5");
     uint32_t const offDir = pNtHdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT].VirtualAddress;
     if (offDir > cbImages - cbDir)
-        return vboxWinDrvInterceptedWinVerifyTrustError("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception:");
+        PRINT_ERROR_AND_RETURN("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception: #6");
 
     /*
      * Scan the entries looking for wintrust.dll.
@@ -1241,15 +1354,17 @@ static int vboxWinDrvInstallWinVerifyTrustInterceptorInSetupApi(void)
                 IMAGE_IMPORT_BY_NAME const * const pName = (IMAGE_IMPORT_BY_NAME const *)&pchRva2Ptr[pauNameRvas[iSym]];
                 if (RTStrCmp(pName->Name, "WinVerifyTrust") == 0)
                 {
-                    vboxWinDrvInterceptedWinVerifyTrustPrint("Intercepting WinVerifyTrust for SETUPAPI.DLL (old: %p)", paIat[iSym]);
+                    vboxWinDrvInstLogVerbose(pCtx, 1, "Intercepting WinVerifyTrust for SETUPAPI.DLL (old: %p)", paIat[iSym]);
                     paIat[iSym] = (uintptr_t)vboxWinDrvInterceptedWinVerifyTrust;
                     return 0;
                 }
             }
-            return vboxWinDrvInterceptedWinVerifyTrustError("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception:");
+            PRINT_ERROR_AND_RETURN("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception: #9");
         }
     }
-    return vboxWinDrvInterceptedWinVerifyTrustError("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception:");
+    PRINT_ERROR_AND_RETURN("Failed to parse SETUPAPI.DLL for WinVerifyTrust interception: #10");
+
+# undef PRINT_ERROR_AND_RETURN
 }
 #endif /* RT_ARCH_X86 */
 
@@ -1274,73 +1389,91 @@ static int vboxWinDrvInstallPerform(PVBOXWINDRVINSTINTERNAL pCtx, PVBOXWINDRVINS
             BOOL fReboot = FALSE;
 
 #ifdef RT_ARCH_X86
-            vboxWinDrvInstallWinVerifyTrustInterceptorInSetupApi();
+            s_vboxWinDrvInterceptedWinVerifyTrustCtx = pCtx; /* Hand over the driver installer context. */
+            vboxWinDrvInstallWinVerifyTrustInterceptorInSetupApi(pCtx);
 #endif
             /*
              * Pre-install driver.
              */
             DWORD dwInstallFlags = 0;
-            if (pCtx->uOsVer >= RTSYSTEM_MAKE_NT_VERSION(6, 0, 0)) /* for Vista / 2008 Server and up. */
+
+            /* Note: We don't use the following installation method as the default for
+             *       Windows >= Vista anymore, as this might cause unrelated (system) device
+             *       removal / re-adding, which makes the installation process a lot longer
+             *       and can have other side effects.
+             *
+             *       As a new default we use the block for Windows 2000 below.
+             *
+             *       However, we leave this code enabled in case it needs testing / re-evaluation.
+             *       Needs the OS version set to >= 99 (i.e. --debug-os-ver "99:0"). Intentionally undocumented.
+             */
+            if (pCtx->uOsVer >= RTSYSTEM_MAKE_NT_VERSION(99, 0, 0))
             {
-                if (pParms->fFlags & VBOX_WIN_DRIVERINSTALL_F_FORCE)
-                    dwInstallFlags |= DIIRFLAG_FORCE_INF;
-
-                vboxWinDrvInstLogVerbose(pCtx, 1, "Using g_pfnDiInstallDriverW(), dwInstallFlags=%#x", dwInstallFlags);
-
-                if (!(pParms->fFlags & VBOX_WIN_DRIVERINSTALL_F_DRYRUN))
-                    fRc = g_pfnDiInstallDriverW(NULL /* hWndParent */, pParms->pwszInfFile, dwInstallFlags, &fReboot);
-                else
-                    fRc = TRUE;
-                if (!fRc)
+                if (g_pfnDiInstallDriverW)
                 {
-                    DWORD const dwErr = GetLastError();
+                    if (pParms->fFlags & VBOX_WIN_DRIVERINSTALL_F_FORCE)
+                        dwInstallFlags |= DIIRFLAG_FORCE_INF;
 
-                    /*
-                     * Work around an error code wich only appears on old(er) Windows Server editions (e.g. 2012 R2 or 2016)
-                     * where SetupAPI tells "unable to mark devices that match new inf", which ultimately results in
-                     * ERROR_LINE_NOT_FOUND. This probably is because of primitive drivers which don't have a PnP ID set in
-                     * the INF file.
-                     *
-                     * pnputil.exe also gives the same error in the SetupAPI log when handling the very same INF file.
-                     *
-                     * So skip this error and pretend everything is fine. */
-                    if (dwErr == ERROR_LINE_NOT_FOUND)
-                        fRc = true;
+                    vboxWinDrvInstLogVerbose(pCtx, 1, "Using g_pfnDiInstallDriverW(), dwInstallFlags=%#x", dwInstallFlags);
 
-                    /*
-                     * Work around an error which occurs on Windows Vista, where DiInstallDriverW() can't handle
-                     * primitive drivers (i.e. [Manufacturer] section is missing). So try installing the detected
-                     * INF section in the next block below.
-                     */
-                    if (dwErr == ERROR_WRONG_INF_TYPE)
-                        fRc = true;
-
-                    /* For anything else we want to get notified that something isn't working. */
+                    if (!(pParms->fFlags & VBOX_WIN_DRIVERINSTALL_F_DRYRUN))
+                        fRc = g_pfnDiInstallDriverW(NULL /* hWndParent */, pParms->pwszInfFile, dwInstallFlags, &fReboot);
+                    else
+                        fRc = TRUE;
                     if (!fRc)
                     {
-                        switch (dwErr)
-                        {
-                            case ERROR_AUTHENTICODE_TRUST_NOT_ESTABLISHED:
-                            {
-                                /* For silent installs give a clue why this might have failed. */
-                                if (pParms->fFlags & VBOX_WIN_DRIVERINSTALL_F_SILENT)
-                                    vboxWinDrvInstLogWarn(pCtx, "Silent installation was selected, but required certificates "
-                                                                "were not pre-installed into the Windows drvier store, so "
-                                                                "the installation will be rejected automatically");
-                                RT_FALL_THROUGH();
-                            }
+                        DWORD const dwErr = GetLastError();
 
-                            default:
-                                rc = vboxWinDrvInstLogLastError(pCtx, "DiInstallDriverW() failed");
-                                break;
+                        /*
+                         * Work around an error code wich only appears on old(er) Windows Server editions (e.g. 2012 R2 or 2016)
+                         * where SetupAPI tells "unable to mark devices that match new inf", which ultimately results in
+                         * ERROR_LINE_NOT_FOUND. This probably is because of primitive drivers which don't have a PnP ID set in
+                         * the INF file.
+                         *
+                         * pnputil.exe also gives the same error in the SetupAPI log when handling the very same INF file.
+                         *
+                         * So skip this error and pretend everything is fine. */
+                        if (dwErr == ERROR_LINE_NOT_FOUND)
+                            fRc = true;
+
+                        /*
+                         * Work around an error which occurs on Windows Vista, where DiInstallDriverW() can't handle
+                         * primitive drivers (i.e. [Manufacturer] section is missing). So try installing the detected
+                         * INF section in the next block below.
+                         */
+                        if (dwErr == ERROR_WRONG_INF_TYPE)
+                            fRc = true;
+
+                        /* For anything else we want to get notified that something isn't working. */
+                        if (!fRc)
+                        {
+                            switch (dwErr)
+                            {
+                                case ERROR_AUTHENTICODE_TRUST_NOT_ESTABLISHED:
+                                {
+                                    /* For silent installs give a clue why this might have failed. */
+                                    if (pParms->fFlags & VBOX_WIN_DRIVERINSTALL_F_SILENT)
+                                        vboxWinDrvInstLogWarn(pCtx, "Silent installation was selected, but required certificates "
+                                                                    "were not pre-installed into the Windows drvier store, so "
+                                                                    "the installation will be rejected automatically");
+                                    RT_FALL_THROUGH();
+                                }
+
+                                default:
+                                    rc = vboxWinDrvInstLogLastError(pCtx, "DiInstallDriverW() failed");
+                                    break;
+                            }
                         }
                     }
-                }
 
-                if (fRc)
-                    rc = vboxWinDrvTryInfSection(pCtx,
-                                                 pParms->pwszInfFile, pParms->u.UnInstall.pwszSection,
-                                                 vboxWinDrvInstallTryInfSectionCallback);
+                    if (fRc)
+                        rc = vboxWinDrvTryInfSection(pCtx,
+                                                     pParms->pwszInfFile, pParms->u.UnInstall.pwszSection,
+                                                     vboxWinDrvInstallTryInfSectionCallback);
+                }
+                else
+                    vboxWinDrvInstLogError(pCtx, "DiInstallDriverW() not available on this platform");
+
             }
             else /* For Windows 2000 and below. */
             {
@@ -1433,15 +1566,39 @@ static int vboxWinDrvInstallPerform(PVBOXWINDRVINSTINTERNAL pCtx, PVBOXWINDRVINS
                         if (fRc)
                             vboxWinDrvInstLogInfo(pCtx, "Copying OEM INF successful");
                         else
-                            rc = vboxWinDrvInstLogLastError(pCtx, "Installation(SetupCopyOEMInfW) failed");
+                        {
+                            DWORD const dwErr = GetLastError();
+                            switch (dwErr)
+                            {
+                                /* Will happen on Windows Vista (for VBoxMouse).
+                                 * Harmless and can be skipped. */
+                                case ERROR_WRONG_INF_TYPE:
+                                    vboxWinDrvInstLogWarn(pCtx, "Copying OEM INF file not possible, reported wrong "
+                                                                "INF type. Ignoring.");
+                                    break;
+
+                                case CERT_E_UNTRUSTEDROOT:
+                                    vboxWinDrvInstLogError(pCtx, "Not able to copy OEM INF into the system, as the "
+                                                                 "certificate chain terminated in an untrusted root "
+                                                                 "certificate. If this is a custom / debug build, "
+                                                                 "the required certificates need to be installed into the "
+                                                                 "driver store first.");
+                                    break;
+
+                                default:
+                                    rc = vboxWinDrvInstLogLastError(pCtx, "Installation(SetupCopyOEMInfW) failed");
+                                    break;
+                            }
+                        }
                     }
                 }
                 else
                     rc = vboxWinDrvInstLogLastError(pCtx, "GetFullPathNameW() failed");
 
-                rc = vboxWinDrvTryInfSection(pCtx,
-                                             pParms->pwszInfFile, pParms->u.UnInstall.pwszSection,
-                                             vboxWinDrvInstallTryInfSectionCallback);
+                if (RT_SUCCESS(rc))
+                    rc = vboxWinDrvTryInfSection(pCtx,
+                                                 pParms->pwszInfFile, pParms->u.UnInstall.pwszSection,
+                                                 vboxWinDrvInstallTryInfSectionCallback);
             }
 
             if (RT_FAILURE(rc))
@@ -1986,6 +2143,8 @@ static int vboxWinDrvUninstallFromDriverStore(PVBOXWINDRVINSTINTERNAL pCtx,
                 vboxWinDrvInstLogVerbose(pCtx, 1, "DiUninstallDriverW() failed with %#x (%d)", dwErr, dwErr);
             }
         }
+        else
+            vboxWinDrvInstLogVerbose(pCtx, 1, "DiUninstallDriverW() not available on this platform");
 
         /* Not (yet) successful? Try harder using an older API. */
         if (   !fRc
@@ -2087,6 +2246,9 @@ static int vboxWinDrvInstMain(PVBOXWINDRVINSTINTERNAL pCtx, PVBOXWINDRVINSTPARMS
     /* Note: Other parameters might be optional, depending on the mode. */
     AssertReturn(!(pParms->fFlags & ~VBOX_WIN_DRIVERINSTALL_F_VALID_MASK), VERR_INVALID_PARAMETER);
 
+    /* Make sure we start w/o any last errors set. */
+    SetLastError(0);
+
     bool const fInstall = pParms->enmMode == VBOXWINDRVINSTMODE_INSTALL
                        || pParms->enmMode == VBOXWINDRVINSTMODE_INSTALL_INFSECTION;
 
@@ -2139,11 +2301,6 @@ static int vboxWinDrvInstMain(PVBOXWINDRVINSTINTERNAL pCtx, PVBOXWINDRVINSTPARMS
     else if (pCtx->cWarnings)
         vboxWinDrvInstLogEx(pCtx, VBOXWINDRIVERLOGTYPE_WARN, "%sstalling driver(s) succeeded with %u warnings",
                             fInstall ? "In" : "Unin", pCtx->cWarnings);
-
-    if (   pCtx->cErrors
-        || pCtx->uVerbosity)
-        /* ignore rc */ vboxWinDrvInstSetupAPILog(pCtx, pCtx->uVerbosity <= 1 ? 1 : 3 /* Last sections */);
-
     return rc;
 }
 
@@ -2502,6 +2659,7 @@ int VBoxWinDrvInstExecuteInfWorker(VBOXWINDRVINST hDrvInst,
     int rc = RTStrToUtf16(pszInfFile, &pCtx->Parms.pwszInfFile);
     if (RT_SUCCESS(rc) && pszSection) /* pszSection is optional. */
         rc = RTStrToUtf16(pszSection, &pCtx->Parms.u.ExecuteInf.pwszSection);
+    AssertRCReturn(rc, rc);
 
     pCtx->Parms.enmMode = fInstall ? VBOXWINDRVINSTMODE_INSTALL_INFSECTION : VBOXWINDRVINSTMODE_UNINSTALL_INFSECTION;
     pCtx->Parms.fFlags  = fFlags;
@@ -2542,6 +2700,56 @@ int VBoxWinDrvInstUninstallExecuteInf(VBOXWINDRVINST hDrvInst, const char *pszIn
     return VBoxWinDrvInstExecuteInfWorker(hDrvInst, false /* fInstall */, pszInfFile, pszSection, fFlags);
 }
 
+#ifdef VBOX_WINDRVINST_USE_NT_APIS
+/**
+ * Queries the target in the NT namespace of the given symbolic link.
+ *
+ * @returns VBox status code.
+ * @param   pwszLinkNt      The symbolic link to query the target for.
+ * @param   ppwszLinkTarget Where to store the link target in the NT namespace on success.
+ *                          Must be freed with RTUtf16Free().
+ */
+int VBoxWinDrvInstQueryNtLinkTarget(PCRTUTF16 pwszLinkNt, PRTUTF16 *ppwszLinkTarget)
+{
+    int                 rc    = VINF_SUCCESS;
+    HANDLE              hFile = RTNT_INVALID_HANDLE_VALUE;
+    IO_STATUS_BLOCK     Ios   = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+    UNICODE_STRING      NtName;
+
+    NtName.Buffer        = (PWSTR)pwszLinkNt;
+    NtName.Length        = (USHORT)(RTUtf16Len(pwszLinkNt) * sizeof(RTUTF16));
+    NtName.MaximumLength = NtName.Length + sizeof(RTUTF16);
+
+    OBJECT_ATTRIBUTES ObjAttr;
+    InitializeObjectAttributes(&ObjAttr, &NtName, OBJ_CASE_INSENSITIVE, NULL /*hRootDir*/, NULL /*pSecDesc*/);
+
+    NTSTATUS rcNt = g_pfnNtOpenSymbolicLinkObject(&hFile, SYMBOLIC_LINK_QUERY, &ObjAttr);
+    if (NT_SUCCESS(rcNt))
+    {
+        UNICODE_STRING UniStr;
+        RTUTF16 awszBuf[1024];
+        RT_ZERO(awszBuf);
+        UniStr.Buffer = awszBuf;
+        UniStr.MaximumLength = sizeof(awszBuf);
+        rcNt = g_pfnNtQuerySymbolicLinkObject(hFile, &UniStr, NULL);
+        if (NT_SUCCESS(rcNt))
+        {
+            *ppwszLinkTarget = RTUtf16Dup((PRTUTF16)UniStr.Buffer);
+            if (!*ppwszLinkTarget)
+                rc = VERR_NO_STR_MEMORY;
+        }
+        else
+            rc = RTErrConvertFromNtStatus(rcNt);
+
+        CloseHandle(hFile);
+    }
+    else
+        rc = RTErrConvertFromNtStatus(rcNt);
+
+    return rc;
+}
+#endif /* VBOX_WINDRVINST_USE_NT_APIS */
+
 /**
  * Controls a Windows service, internal version.
  *
@@ -2555,7 +2763,7 @@ int VBoxWinDrvInstUninstallExecuteInf(VBOXWINDRVINST hDrvInst, const char *pszIn
  * @param   fFlags              Service control flags (of type VBOXWINDRVSVCFN_F_XXX) to use.
  * @param   msTimeout           Timeout (in ms) to use. Ignored if VBOXWINDRVSVCFN_F_WAIT is missing in \a fFlags.
  */
-static int vboxWinDrvInstControlServiceEx(PVBOXWINDRVINSTINTERNAL pCtx,
+static int vboxWinDrvInstServiceControlEx(PVBOXWINDRVINSTINTERNAL pCtx,
                                           const char *pszService, VBOXWINDRVSVCFN enmFn, uint32_t fFlags, RTMSINTERVAL msTimeout)
 {
     AssertPtrReturn(pszService, VERR_INVALID_POINTER);
@@ -2757,14 +2965,14 @@ static int vboxWinDrvInstControlServiceEx(PVBOXWINDRVINSTINTERNAL pCtx,
  * @param   fFlags              Service control flags (of type VBOXWINDRVSVCFN_F_XXX) to use.
  * @param   msTimeout           Timeout (in ms) to use. Only being used if VBOXWINDRVSVCFN_F_WAIT is specified in \a fFlags.
  */
-int VBoxWinDrvInstControlServiceEx(VBOXWINDRVINST hDrvInst,
-                                    const char *pszService, VBOXWINDRVSVCFN enmFn, uint32_t fFlags, RTMSINTERVAL msTimeout)
+int VBoxWinDrvInstServiceControlEx(VBOXWINDRVINST hDrvInst,
+                                   const char *pszService, VBOXWINDRVSVCFN enmFn, uint32_t fFlags, RTMSINTERVAL msTimeout)
 {
     PVBOXWINDRVINSTINTERNAL pCtx = hDrvInst;
     VBOXWINDRVINST_VALID_RETURN(pCtx);
 
 #define CONTROL_SERVICE(a_Fn) \
-    vboxWinDrvInstControlServiceEx(pCtx, pszService, a_Fn, fFlags, msTimeout);
+    vboxWinDrvInstServiceControlEx(pCtx, pszService, a_Fn, fFlags, msTimeout);
 
     int rc;
     if (enmFn == VBOXWINDRVSVCFN_RESTART)
@@ -2791,12 +2999,421 @@ int VBoxWinDrvInstControlServiceEx(VBOXWINDRVINST hDrvInst,
  * @note    Function waits 30s for the service to reach the desired control function.
  *          Use VBooxWinDrvInstControlServiceEx() for more flexibility.
  */
-int VBoxWinDrvInstControlService(VBOXWINDRVINST hDrvInst, const char *pszService, VBOXWINDRVSVCFN enmFn)
+int VBoxWinDrvInstServiceControl(VBOXWINDRVINST hDrvInst, const char *pszService, VBOXWINDRVSVCFN enmFn)
 {
     PVBOXWINDRVINSTINTERNAL pCtx = hDrvInst;
     VBOXWINDRVINST_VALID_RETURN(pCtx);
 
-    return VBoxWinDrvInstControlServiceEx(pCtx, pszService, enmFn, VBOXWINDRVSVCFN_F_WAIT, RT_MS_30SEC);
+    return VBoxWinDrvInstServiceControlEx(pCtx, pszService, enmFn, VBOXWINDRVSVCFN_F_WAIT, RT_MS_30SEC);
+}
+
+/**
+ * Destroys a service information structure, internal version.
+ *
+ * @param   pSvcInfo                 Service information structure to destroy.
+ */
+static void vboxWinDrvInstServiceInfoDestroy(PVBOXWINDRVSVCINFO pSvcInfo)
+{
+    if (pSvcInfo->pStatus)
+    {
+        RTMemFree(pSvcInfo->pStatus);
+        pSvcInfo->pStatus = NULL;
+    }
+
+    if (pSvcInfo->pConfig)
+    {
+        RTMemFree(pSvcInfo->pConfig);
+        pSvcInfo->pConfig = NULL;
+    }
+}
+
+/**
+ * Destroys a service information structure.
+ *
+ * @param   pSvcInfo                 Service information structure to destroy.
+ */
+void VBoxWinDrvInstServiceInfoDestroy(PVBOXWINDRVSVCINFO pSvcInfo)
+{
+    vboxWinDrvInstServiceInfoDestroy(pSvcInfo);
+}
+
+/**
+ * Queries information about a system service (or driver).
+ *
+ * @returns VBox status code.
+ * @retval  VERR_NOT_SUPPORTED if querying for system services is not supported (NT4).
+ * @param   hSCM                SCM handle to use.
+ * @param   pszService          Service (or driver) name to query information for.
+ * @param   pSvcInfo            Where to store the queried information on success.
+ *                              Must be destroyed with VBoxWinDrvInstServiceInfoDestroy().
+ */
+static int vboxWinDrvInstServiceQueryExInternal(SC_HANDLE hSCM, const char *pszService, PVBOXWINDRVSVCINFO pSvcInfo)
+{
+    if (!g_pfnQueryServiceStatusEx)
+        return VERR_NOT_SUPPORTED;
+
+    PRTUTF16 pwszService = NULL;
+    int rc = RTStrToUtf16(pszService, &pwszService);
+    AssertRCReturn(rc, rc);
+
+    SC_HANDLE const hSvc = OpenServiceW(hSCM, pwszService, SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS);
+
+    RTUtf16Free(pwszService);
+    pwszService = NULL;
+
+    if (hSvc == NULL)
+        return RTErrConvertFromWin32(GetLastError());
+
+    RT_BZERO(pSvcInfo, sizeof(VBOXWINDRVSVCINFO));
+
+    DWORD dwBytesNeeded;
+    g_pfnQueryServiceStatusEx(hSvc, SC_STATUS_PROCESS_INFO, NULL, 0, &dwBytesNeeded);
+    DWORD dwLastErr = GetLastError();
+    if (dwLastErr == ERROR_INSUFFICIENT_BUFFER)
+    {
+        pSvcInfo->pStatus = (LPSERVICE_STATUS_PROCESS)RTMemAlloc(dwBytesNeeded);
+        if (pSvcInfo->pStatus)
+        {
+            if (g_pfnQueryServiceStatusEx(hSvc, SC_STATUS_PROCESS_INFO, (LPBYTE)pSvcInfo->pStatus, dwBytesNeeded, &dwBytesNeeded))
+            {
+
+            }
+            else
+                rc = RTErrConvertFromWin32(dwLastErr);
+        }
+        else
+            rc = VERR_NO_MEMORY;
+    }
+    else
+        rc = RTErrConvertFromWin32(dwLastErr);
+
+    if (RT_SUCCESS(rc))
+    {
+        QueryServiceConfigW(hSvc, pSvcInfo->pConfig, 0, &dwBytesNeeded);
+        dwLastErr = GetLastError();
+        if (dwLastErr == ERROR_INSUFFICIENT_BUFFER)
+        {
+            pSvcInfo->pConfig = (LPQUERY_SERVICE_CONFIGW)RTMemAlloc(dwBytesNeeded);
+            if (pSvcInfo->pConfig)
+            {
+                if (QueryServiceConfigW(hSvc, pSvcInfo->pConfig, dwBytesNeeded, &dwBytesNeeded))
+                {
+
+                }
+                else
+                    rc = RTErrConvertFromWin32(dwLastErr);
+            }
+            else
+                rc = VERR_NO_MEMORY;
+        }
+        else
+           rc = RTErrConvertFromWin32(dwLastErr);
+    }
+
+    int const rc2 = VBoxWinDrvInstFileQueryVersionUtf16(pSvcInfo->pConfig->lpBinaryPathName,
+                                                        pSvcInfo->szVer, sizeof(pSvcInfo->szVer));
+    /* If the file was not found we wanted to query the version from, don't return this as
+     * an error to the caller. We still potentially have the service information from above. */
+    if (rc2 != VERR_FILE_NOT_FOUND)
+    {
+        if (RT_SUCCESS(rc))
+            rc = rc2;
+    }
+
+    if (RT_FAILURE(rc))
+        vboxWinDrvInstServiceInfoDestroy(pSvcInfo);
+
+    CloseServiceHandle(hSvc);
+    return rc;
+}
+
+/**
+ * Queries information about a system service (or driver).
+ *
+ * @returns VBox status code.
+ * @param   pszService          Service (or driver) name to query information for.
+ * @param   pSvcInfo            Where to store the queried information on success.
+ *                              Must be destroyed with VBoxWinDrvInstServiceInfoDestroy().
+ */
+int VBoxWinDrvInstServiceQuery(const char *pszService, PVBOXWINDRVSVCINFO pSvcInfo)
+{
+    int rc;
+
+    SC_HANDLE const hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ENUMERATE_SERVICE);
+    if (hSCM != NULL)
+    {
+        rc = vboxWinDrvInstServiceQueryExInternal(hSCM, pszService, pSvcInfo);
+        CloseServiceHandle(hSCM);
+    }
+    else
+        rc = RTErrConvertFromWin32(GetLastError());
+
+    return rc;
+}
+
+/**
+ * Replaces all occurrences of a given pattern set within a string.
+ *
+ * @returns VBox status code.
+ * @param   pszInput            Input string to replace patterns in.
+ * @param   paPatterns          Array of patterns to process.
+ * @param   cPatterns           Number of patterns in \a paPatterns.
+ * @param   ppszOutput          Where to return the ouptut string on success.
+ *                              Must be free'd with RTStrFree().
+ */
+int VBoxWinDrvPatternReplace(const char *pszInput, const PVBOXWINDRVSTRPATTERN paPatterns, size_t cPatterns, char **ppszOutput)
+{
+    size_t cchSrc = strlen(pszInput);
+    size_t cchDst = cchSrc + 1;
+
+    for (size_t i = 0; i < cPatterns; i++)
+    {
+        PVBOXWINDRVSTRPATTERN pPatt = &paPatterns[i];
+
+        size_t const cchPattern = strlen(pPatt->psz);
+        AssertReturn(cchPattern, VERR_INVALID_PARAMETER);
+
+        size_t cFound = 0;
+        const char *psz = pszInput;
+        while ((psz = strstr(psz, pPatt->psz)) != NULL)
+        {
+            cFound++;
+            psz += cchPattern;
+        }
+
+        if (cFound)
+        {
+            pPatt->rep = pPatt->pfn(pPatt->psz, pPatt->pvUser);
+            size_t const cchPatt = strlen(pPatt->psz);
+            size_t const cchRep  = pPatt->rep ? strlen(pPatt->rep) : cchPatt;
+            size_t const cchDiff = cchRep > cchPatt ? cchRep - cchPatt : 0;
+            cchDst += cFound * cchDiff;
+        }
+    }
+
+    int rc;
+
+    char *pszOutput = (char *)RTStrAlloc(cchDst);
+    if (pszOutput)
+    {
+        size_t idxDst = 0;
+        size_t idxSrc = 0;
+        while (idxSrc < cchSrc)
+        {
+            size_t cReplaced = 0;
+            for (size_t p = 0; p < cPatterns; p++)
+            {
+                size_t const cchPatt = strlen(paPatterns[p].psz);
+                if (   cchPatt
+                    && strncmp(&pszInput[idxSrc], paPatterns[p].psz, cchPatt) == 0)
+                {
+                    size_t const cchRep = paPatterns[p].rep ? strlen(paPatterns[p].rep) : 0;
+                    if (cchRep)
+                    {
+                        memcpy(pszOutput + idxDst, paPatterns[p].rep, cchRep);
+                        idxDst += cchRep;
+                    }
+                    idxSrc += cchPatt;
+                    cReplaced = 1;
+                    break;
+                }
+            }
+            if (!cReplaced)
+                pszOutput[idxDst++] = pszInput[idxSrc++];
+        }
+
+        pszOutput[idxDst] = '\0';
+        rc = VINF_SUCCESS;
+    }
+    else
+        rc = VERR_NO_STR_MEMORY;
+
+    for (size_t i = 0; i < cPatterns; i++)
+    {
+        RTStrFree(paPatterns[i].rep);
+        paPatterns[i].rep = NULL;
+    }
+
+    *ppszOutput = pszOutput;
+    return rc;
+}
+
+/**
+ * Callback function for resolving patterns to environment variables.
+ *
+ * @sa FNVBOXWINDRVSTRPATTERN
+ */
+DECLCALLBACK(char *) vboxWinDrvInstPatternToEnvCallback(const char *pszPattern, void *pvUser)
+{
+    RT_NOREF(pvUser);
+
+    const char *pszRessolvedPattern;
+    if (RTStrICmp(pszPattern, "\\SystemRoot") == 0)
+        pszRessolvedPattern = "SystemRoot";
+    else
+        pszRessolvedPattern = pszPattern;
+
+    char szVal[RTPATH_MAX];
+    int rc = RTEnvGetEx(RTENV_DEFAULT, pszRessolvedPattern, szVal, sizeof(szVal), NULL);
+    if (RT_SUCCESS(rc))
+        return RTStrDup(szVal);
+
+    return NULL;
+}
+
+/**
+ * Resolves a registry path.
+ *
+ * @returns VBox status code.
+ * @param   pszPath             Path to resolve.
+ * @param   ppszResolved        Where to return the resolved path on success.
+ *                              Must be free'd using RTStrFree().
+ */
+int vboxWinDrvInstRegResolveRegPath(const char *pszPath, char **ppszResolved)
+{
+    static VBOXWINDRVSTRPATTERN s_aPatterns[] =
+    {
+        { "\\SystemRoot", vboxWinDrvInstPatternToEnvCallback, NULL, NULL },
+        { "\\??\\", vboxWinDrvInstPatternToEnvCallback, NULL, NULL }
+    };
+
+    return VBoxWinDrvPatternReplace(pszPath, s_aPatterns, RT_ELEMENTS(s_aPatterns), ppszResolved);
+}
+
+/**
+ * Worker for vboxDrvInstQueryFileVersion.
+ *
+ * @returns VBox status code.
+ * @param   pszPath             ASCII & ANSI & UTF-8 compliant name.
+ * @param   puMajor             Where to return the major version number.
+ * @param   puMinor             Where to return the minor version number.
+ * @param   puBuildNumber       Where to return the build number.
+ * @param   puRevisionNumber    Where to return the revision number.
+ *
+ * @note    Copied from vgsvcUtilGetFileVersion(). Merge this?
+ */
+int VBoxWinDrvInstFileQueryVersionEx(const char *pszPath, uint32_t *puMajor, uint32_t *puMinor, uint32_t *puBuildNumber,
+                                     uint32_t *puRevisionNumber)
+{
+    int rc;
+
+    *puMajor = *puMinor = *puBuildNumber = *puRevisionNumber = 0;
+
+    char *pszPathTmp = RTStrDup(pszPath);
+    AssertPtrReturn(pszPathTmp, VERR_NO_TMP_MEMORY);
+
+    /* Remove quotes (if any). */
+    char *pszSrc = pszPathTmp;
+    char *pszDst = pszPathTmp;
+    while (*pszSrc)
+    {
+        if (*pszSrc != '"')
+            *pszDst++ = *pszSrc;
+        pszSrc++;
+    }
+    *pszDst = L'\0';
+
+    /*
+     * Get the file version info.
+     */
+    DWORD dwHandleIgnored;
+    DWORD cbVerData = GetFileVersionInfoSizeA(pszPathTmp, &dwHandleIgnored);
+    if (cbVerData)
+    {
+        LPTSTR pVerData = (LPTSTR)RTMemTmpAllocZ(cbVerData);
+        if (pVerData)
+        {
+            if (GetFileVersionInfoA(pszPathTmp, dwHandleIgnored, cbVerData, pVerData))
+            {
+                /* Always use VS_FIXEDFILEINFO, to make comparing file versions of different binaries possible / consistent. */
+                UINT                 cbFileInfoIgnored = 0;
+                VS_FIXEDFILEINFO    *pFileInfo = NULL;
+                if (VerQueryValueW(pVerData, L"\\", (LPVOID *)&pFileInfo, &cbFileInfoIgnored))
+                {
+                    *puMajor          = HIWORD(pFileInfo->dwFileVersionMS);
+                    *puMinor          = LOWORD(pFileInfo->dwFileVersionMS);
+                    *puBuildNumber    = HIWORD(pFileInfo->dwFileVersionLS);
+                    *puRevisionNumber = LOWORD(pFileInfo->dwFileVersionLS);
+                    rc = VINF_SUCCESS;
+                }
+                else
+                    rc = RTErrConvertFromWin32(GetLastError());
+            }
+            else
+                rc = RTErrConvertFromWin32(GetLastError());
+
+            RTMemTmpFree(pVerData);
+        }
+        else
+            rc = VERR_NO_TMP_MEMORY;
+    }
+    else
+        rc = RTErrConvertFromWin32(GetLastError());
+
+    RTStrFree(pszPathTmp);
+    return rc;
+}
+
+/**
+ * Gets a re-formatted version string from the VS_FIXEDFILEINFO table.
+ *
+ * @returns VBox status code.  The output buffer is always valid and the status
+ *          code can safely be ignored.
+ *
+ * @param   pszPath         Absolute path to the file to query.
+ * @param   pszVersion      Where to return the version string.
+ * @param   cbVersion       The size of the version string buffer. This MUST be
+ *                          at least 2 bytes!
+ *
+ * @note    On failure the returned version string always will contain '-'.
+ * @note    Copied from VGSvcUtilWinGetFileVersionString(). Merge this?
+ */
+int VBoxWinDrvInstFileQueryVersion(const char *pszPath, char *pszVersion, size_t cbVersion)
+{
+    /*
+     * We will ALWAYS return with a valid output buffer.
+     */
+    AssertReturn(cbVersion >= 2, VERR_BUFFER_OVERFLOW);
+    pszVersion[0] = '-';
+    pszVersion[1] = '\0';
+
+    char *pszTarget;
+    int rc = vboxWinDrvInstRegResolveRegPath(pszPath, &pszTarget);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t uMajor, uMinor, uBuild, uRev;
+        rc = VBoxWinDrvInstFileQueryVersionEx(pszTarget, &uMajor, &uMinor, &uBuild, &uRev);
+        if (RT_SUCCESS(rc))
+            RTStrPrintf(pszVersion, cbVersion, "%u.%u.%ur%u", uMajor, uMinor, uBuild, uRev);
+
+        RTStrFree(pszTarget);
+    }
+    return rc;
+}
+
+/**
+ * Gets a re-formatted version string from the VS_FIXEDFILEINFO table, UTF-16 version.
+ *
+ * @returns VBox status code.  The output buffer is always valid and the status
+ *          code can safely be ignored.
+ * @param   pszwPath        Absolute path to the file to query.
+ * @param   pszVersion      Where to return the version string.
+ * @param   cbVersion       The size of the version string buffer. This MUST be
+ *                          at least 2 bytes!
+ *
+ * @note    On failure the returned version string always will contain '-'.
+ */
+int VBoxWinDrvInstFileQueryVersionUtf16(PCRTUTF16 pwszPath, char *pszVersion, size_t cbVersion)
+{
+    char *pszPath;
+    int rc = RTUtf16ToUtf8(pwszPath, &pszPath);
+    if (RT_SUCCESS(rc))
+    {
+        rc = VBoxWinDrvInstFileQueryVersion(pszPath, pszVersion, cbVersion);
+        RTStrFree(pszPath);
+    }
+
+    return rc;
 }
 
 #ifdef TESTCASE

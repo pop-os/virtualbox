@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -43,7 +43,8 @@ struct UIDataSettingsGlobalDisplay
 {
     /** Constructs data. */
     UIDataSettingsGlobalDisplay()
-        : m_fActivateHoveredMachineWindow(false)
+        : m_iFontScalingFactor(0)
+        , m_fActivateHoveredMachineWindow(false)
         , m_fDisableHostScreenSaver(false)
     {}
 

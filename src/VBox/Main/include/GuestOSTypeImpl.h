@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -80,7 +80,6 @@ private:
     HRESULT getRecommendedRAM(ULONG *RAMSize);
     HRESULT getRecommendedGraphicsController(GraphicsControllerType_T *aRecommendedGraphicsController);
     HRESULT getRecommendedVRAM(ULONG *aVRAMSize);
-    HRESULT getRecommended2DVideoAcceleration(BOOL *aRecommended2DVideoAcceleration);
     HRESULT getRecommended3DAcceleration(BOOL *aRecommended3DAcceleration);
     HRESULT getRecommendedHDD(LONG64 *aHDDSize);
     HRESULT getAdapterType(NetworkAdapterType_T *aNetworkAdapterType);

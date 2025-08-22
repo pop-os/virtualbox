@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -90,11 +90,14 @@ private:
     // wrapped IRecordingSettings properties
     HRESULT getEnabled(BOOL *enabled);
     HRESULT setEnabled(BOOL enable);
+    HRESULT getPaused(BOOL *paused);
+    HRESULT setPaused(BOOL paused);
     HRESULT getScreens(std::vector<ComPtr<IRecordingScreenSettings> > &aRecordScreenSettings);
     HRESULT getProgress(ComPtr<IProgress> &aProgress);
 
     // wrapped IRecordingSettings methods
     HRESULT getScreenSettings(ULONG uScreenId, ComPtr<IRecordingScreenSettings> &aRecordScreenSettings);
+    HRESULT resume(void);
     HRESULT start(ComPtr<IProgress> &aProgress);
 
 private:

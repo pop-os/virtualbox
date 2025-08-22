@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -141,6 +141,38 @@ EFI_PHYSICAL_ADDRESS EFIAPI VBoxArmPlatformMmio32StartGetPhysAddr(VOID);
  * @returns Size of the MMIO32 region.
  */
 UINTN EFIAPI VBoxArmPlatformMmio32SizeGet(VOID);
+
+
+/**
+ * Returns the physical address of the start of the ACPI XSDP.
+ *
+ * @returns Physical address of the ACPI XSDP table.
+ */
+EFI_PHYSICAL_ADDRESS EFIAPI VBoxArmPlatformAcpiXsdpStartGetPhysAddr(VOID);
+
+
+/**
+ * Returns the size of the ACPI XSDP.
+ *
+ * @returns Size of the ACPI XSDP in bytes.
+ */
+UINTN EFIAPI VBoxArmPlatformAcpiXsdpSizeGet(VOID);
+
+
+/**
+ * Returns the physical address of the start of the ACPI tables.
+ *
+ * @returns Physical address of the ACPI table region start.
+ */
+EFI_PHYSICAL_ADDRESS EFIAPI VBoxArmPlatformAcpiStartGetPhysAddr(VOID);
+
+
+/**
+ * Returns the physical address of the start of the ACPI tables.
+ *
+ * @returns Size of the ACPI region in bytes.
+ */
+UINTN EFIAPI VBoxArmPlatformAcpiSizeGet(VOID);
 
 #endif
 

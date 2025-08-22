@@ -214,6 +214,7 @@ cmds = [
     ('SVGA_3D_CMD_DEFINE_GB_SCREENTARGET', 'SVGA3dCmdDefineGBScreenTarget', (), None),
     ('SVGA_3D_CMD_BIND_GB_SCREENTARGET', 'SVGA3dCmdBindGBScreenTarget', (), None),
     ('SVGA_3D_CMD_UPDATE_GB_SCREENTARGET', 'SVGA3dCmdUpdateGBScreenTarget', (), None),
+    ('SVGA_3D_CMD_DESTROY_GB_SCREENTARGET', 'SVGA3dCmdDestroyGBScreenTarget', (), None),
     ('SVGA_3D_CMD_UPDATE_GB_IMAGE', 'SVGA3dCmdUpdateGBImage', (), None),
     ('SVGA_3D_CMD_DEFINE_GB_SURFACE', 'SVGA3dCmdDefineGBSurface', (), None),
     ('SVGA_3D_CMD_BIND_GB_SURFACE', 'SVGA3dCmdBindGBSurface', (), None),

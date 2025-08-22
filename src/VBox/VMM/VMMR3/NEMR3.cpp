@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -103,7 +103,7 @@ VMMR3_INT_DECL(int) NEMR3InitConfig(PVM pVM)
                                   "|VmxPleWindow"
                                   "|VmxLbr"
 #endif
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
                                   "|VTimerInterrupt"
 #endif
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
@@ -197,7 +197,7 @@ VMMR3_INT_DECL(int) NEMR3InitConfig(PVM pVM)
         VMCC_FOR_EACH_VMCPU_STMT(pVM, pVCpu->nem.s.fMdsClearOnSched = false);
 #endif /* VBOX_VMM_TARGET_X86 */
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
     /** @cfgm{/NEM/VTimerInterrupt, uint32_t}
      * Specifies the interrupt identifier for the VTimer. */
     rc = CFGMR3QueryU32(pCfgNem, "VTimerInterrupt", &pVM->nem.s.u32GicPpiVTimer);
@@ -239,8 +239,9 @@ VMMR3_INT_DECL(int) NEMR3Init(PVM pVM, bool fFallback, bool fForced)
         {
             if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
             {
-#ifdef RT_OS_WINDOWS /* The WHv* API is extremely slow at handling VM exits. The AppleHv and
-                        KVM APIs are much faster, thus the different mode name. :-) */
+#ifdef VBOX_WITH_HWVIRT /* Don't complain if there are no other alternatives. */
+# ifdef RT_OS_WINDOWS /* The WHv* API is extremely slow at handling VM exits. The AppleHv and
+                         KVM APIs are much faster, thus the different mode name. :-) */
                 LogRel(("NEM:\n"
                         "NEM: NEMR3Init: Snail execution mode is active!\n"
                         "NEM: Note! VirtualBox is not able to run at its full potential in this execution mode.\n"
@@ -248,11 +249,12 @@ VMMR3_INT_DECL(int) NEMR3Init(PVM pVM, bool fFallback, bool fForced)
                         "NEM:       making use of Hyper-V.  That is a moving target, so google how and carefully\n"
                         "NEM:       consider the consequences of disabling these features.\n"
                         "NEM:\n"));
-#else
+# else
                 LogRel(("NEM:\n"
                         "NEM: NEMR3Init: Turtle execution mode is active!\n"
                         "NEM: Note! VirtualBox is not able to run at its full potential in this execution mode.\n"
                         "NEM:\n"));
+# endif
 #endif
             }
             else
@@ -373,8 +375,8 @@ VMMR3_INT_DECL(int) NEMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
      */
     int rc = VINF_SUCCESS;
 #ifdef VBOX_WITH_NATIVE_NEM
-    if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
-        rc = nemR3NativeInitCompleted(pVM, enmWhat);
+    if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API && enmWhat == VMINITCOMPLETED_RING3)
+        rc = nemR3NativeInitCompletedRing3(pVM);
 #else
     RT_NOREF(pVM, enmWhat);
 #endif
@@ -514,16 +516,13 @@ VMMR3DECL(const char *) NEMR3GetExitName(uint32_t uExit)
 }
 
 
+#ifndef VBOX_WITH_NATIVE_NEM
 VMMR3_INT_DECL(VBOXSTRICTRC) NEMR3RunGC(PVM pVM, PVMCPU pVCpu)
 {
-    Assert(VM_IS_NEM_ENABLED(pVM));
-#ifdef VBOX_WITH_NATIVE_NEM
-    return nemR3NativeRunGC(pVM, pVCpu);
-#else
     NOREF(pVM); NOREF(pVCpu);
     return VERR_INTERNAL_ERROR_3;
-#endif
 }
+#endif
 
 
 #ifndef VBOX_WITH_NATIVE_NEM

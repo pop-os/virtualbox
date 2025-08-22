@@ -4,7 +4,7 @@
 # VirtualBox linux uninstallation script
 
 #
-# Copyright (C) 2009-2024 Oracle and/or its affiliates.
+# Copyright (C) 2009-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -109,6 +109,7 @@ rm -f \
   /usr/bin/vboxaudiotest \
   /usr/bin/vboxbugreport \
   "$PREV_INSTALLATION/components/VBoxVMM.so" \
+  "$PREV_INSTALLATION/components/VBoxVMMArm.so" \
   "$PREV_INSTALLATION/components/VBoxREM.so" \
   "$PREV_INSTALLATION/components/VBoxRT.so" \
   "$PREV_INSTALLATION/components/VBoxDDU.so" \

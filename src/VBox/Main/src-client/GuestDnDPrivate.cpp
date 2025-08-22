@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -820,6 +820,7 @@ GuestDnD* GuestDnD::s_pInstance = NULL;
 
 GuestDnD::GuestDnD(const ComObjPtr<Guest> &pGuest)
     : m_pGuest(pGuest)
+    , m_pState(NULL)
     , m_cTransfersPending(0)
 {
     LogFlowFuncEnter();
@@ -1292,6 +1293,7 @@ std::vector<DnDAction_T> GuestDnD::toMainActions(VBOXDNDACTIONLIST dndActionList
 GuestDnDBase::GuestDnDBase(VirtualBoxBase *pBase)
     : m_pBase(pBase)
     , m_fIsPending(false)
+    , m_pState(NULL)
 {
     /* Initialize public attributes. */
     m_lstFmtSupported = GuestDnDInst()->defaultFormats();

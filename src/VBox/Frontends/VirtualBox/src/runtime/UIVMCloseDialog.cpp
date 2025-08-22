@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -161,13 +161,13 @@ void UIVMCloseDialog::sltRetranslateUI()
                                         "operating system type and the amount of memory you assigned to the virtual "
                                         "machine.</p>"));
     m_pRadioButtonShutdown->setText(tr("S&end the shutdown signal"));
-    m_pRadioButtonShutdown->setWhatsThis(tr("<p>Sends the ACPI Power Button press event to the virtual machine.</p>"
+    m_pRadioButtonShutdown->setWhatsThis(tr("<p>Sends the ACPI power button press event to the virtual machine.</p>"
                                             "<p>Normally, the guest operating system running inside the virtual machine will "
                                             "detect this event and perform a clean shutdown procedure. This is a recommended "
                                             "way to turn off the virtual machine because all applications running inside it "
                                             "will get a chance to save their data and state.</p>"
                                             "<p>If the machine doesn't respond to this action then the guest operating system "
-                                            "may be misconfigured or doesn't understand ACPI Power Button events at all. In "
+                                            "may be misconfigured or doesn't understand ACPI power button events at all. In "
                                             "this case you should select the <b>Power off the machine</b> action to stop "
                                             "virtual machine execution.</p>"));
     m_pRadioButtonPowerOff->setText(tr("&Power off the machine"));
@@ -523,7 +523,7 @@ void UIVMCloseDialog::prepareButtonBox()
                                        | QDialogButtonBox::Ok);
         connect(pButtonBox, &QIDialogButtonBox::accepted, this, &UIVMCloseDialog::accept);
         connect(pButtonBox, &QIDialogButtonBox::rejected, this, &UIVMCloseDialog::reject);
-        uiCommon().setHelpKeyword(pButtonBox->button(QIDialogButtonBox::Help), "intro-save-machine-state");
+        uiCommon().setHelpKeyword(pButtonBox->button(QIDialogButtonBox::Help), "ct_intro-save-machine-state" /* help keyword */);
         connect(pButtonBox->button(QIDialogButtonBox::Help), &QPushButton::pressed,
                 pButtonBox, &QIDialogButtonBox::sltHandleHelpRequest);
         pButtonBox->button(QIDialogButtonBox::Help)->setShortcut(UIShortcutPool::standardSequence(QKeySequence::HelpContents));

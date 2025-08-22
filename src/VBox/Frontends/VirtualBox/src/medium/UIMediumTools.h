@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -99,6 +99,17 @@ namespace UIMediumTools
                                                        const QString &strMachineFolder = QString(),
                                                        const QString &strMachineName = QString(),
                                                        const QString &strMachineGuestOSTypeId = QString());
+
+    /** Creates and shows a dialog (wizard) to edit a medium of type @a enmMediumType. For now only for DVD (VISO).
+      * @param  pActionPool              Brings the action-pool.
+      * @param  pParent                  Brings the parent of the dialog,
+      * @param  enmMediumType            Brings the medium type,
+      * @param  strMediumPath            Brings the medium file path,
+      * returns QUuid of the modified medium. */
+    SHARED_LIBRARY_STUFF QUuid openMediumEditDialog(UIActionPool *pActionPool,
+                                                    QWidget *pParent,
+                                                    UIMediumDeviceType enmMediumType,
+                                                    const QString &strMediumPath);
 
     /** Prepares storage menu according passed parameters.
       * @param  pMenu              Brings the #QMenu to be prepared.

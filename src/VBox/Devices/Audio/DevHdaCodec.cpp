@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2198,7 +2198,6 @@ static DECLCALLBACK(int) vrbProcR3SetStreamId(PHDACODECR3 pThis, uint32_t uCmd, 
     }
     else
     {
-        enmDir = PDMAUDIODIR_UNKNOWN;
         LogRel2(("HDA: Warning: Unhandled set stream ID command for NID0x%02x: 0x%x\n", CODEC_NID(uCmd), uCmd));
         return VINF_SUCCESS;
     }

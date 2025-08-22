@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -97,17 +97,17 @@ void UIMiniToolbarSettingsEditor::setMinimumLayoutIndent(int iIndent)
 void UIMiniToolbarSettingsEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Mini ToolBar:"));
+        m_pLabel->setText(tr("Mini ToolBar"));
     if (m_pCheckBoxShowMiniToolBar)
     {
         m_pCheckBoxShowMiniToolBar->setText(tr("Show in &Full-screen/Seamless"));
-        m_pCheckBoxShowMiniToolBar->setToolTip(tr("When checked, show the Mini ToolBar in full-screen and seamless modes."));
+        m_pCheckBoxShowMiniToolBar->setToolTip(tr("Show the Mini ToolBar in full-screen and seamless modes"));
     }
     if (m_pCheckBoxMiniToolBarAtTop)
     {
         m_pCheckBoxMiniToolBarAtTop->setText(tr("Show at &Top of Screen"));
-        m_pCheckBoxMiniToolBarAtTop->setToolTip(tr("When checked, show the Mini ToolBar at the top of the screen, rather than in "
-                                                   "its default position at the bottom of the screen."));
+        m_pCheckBoxMiniToolBarAtTop->setToolTip(tr("Show the Mini ToolBar at the top of the screen, "
+                                                   "rather than in its default position at the bottom of the screen"));
     }
 }
 

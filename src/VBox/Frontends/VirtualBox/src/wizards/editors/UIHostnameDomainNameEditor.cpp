@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -68,24 +68,28 @@ QString UIHostnameDomainNameEditor::hostname() const
     return QString();
 }
 
-bool UIHostnameDomainNameEditor::isComplete() const
+bool UIHostnameDomainNameEditor::hostDomainNameComplete() const
 {
     return m_pHostnameLineEdit && m_pHostnameLineEdit->hasAcceptableInput() &&
         m_pDomainNameLineEdit && m_pDomainNameLineEdit->hasAcceptableInput();
 }
 
-void UIHostnameDomainNameEditor::mark()
+void UIHostnameDomainNameEditor::mark(bool fProductKeyRequired)
 {
     if (m_pHostnameLineEdit)
         m_pHostnameLineEdit->mark(!m_pHostnameLineEdit->hasAcceptableInput(),
-                                  tr("Hostname should be at least 2 character long. "
+                                  tr("Host name should be at least 2 character long. "
                                      "Allowed characters are alphanumerics, \"-\" and \".\""),
-                                  tr("Hostname is valid"));
+                                  tr("Host name is valid"));
     if (m_pDomainNameLineEdit)
         m_pDomainNameLineEdit->mark(!m_pDomainNameLineEdit->hasAcceptableInput(),
                                     tr("Domain name should be at least 2 character long. "
                                        "Allowed characters are alphanumerics, \"-\" and \".\""),
                                     tr("Domain name is valid"));
+    if (m_pProductKeyLineEdit)
+        m_pProductKeyLineEdit->mark(fProductKeyRequired && !m_pProductKeyLineEdit->hasAcceptableInput(),
+                                    tr("Selected OS requires a valid product key"),
+                                    tr("Product key is valid"));
 }
 
 void UIHostnameDomainNameEditor::setHostname(const QString &strHostname)
@@ -117,23 +121,22 @@ QString UIHostnameDomainNameEditor::hostnameDomainName() const
 void UIHostnameDomainNameEditor::sltRetranslateUI()
 {
     if (m_pHostnameLabel)
-        m_pHostnameLabel->setText(tr("Hostna&me:"));
+        m_pHostnameLabel->setText(tr("Host Na&me"));
     if (m_pHostnameLineEdit)
-        m_pHostnameLineEdit->setToolTip(tr("Holds the hostname."));
+        m_pHostnameLineEdit->setToolTip(tr("Host name to be assigned to the virtual machine"));
     if (m_pDomainNameLabel)
-        m_pDomainNameLabel->setText(tr("&Domain Name:"));
+        m_pDomainNameLabel->setText(tr("&Domain Name"));
     if (m_pDomainNameLineEdit)
-        m_pDomainNameLineEdit->setToolTip(tr("Holds the domain name."));
+        m_pDomainNameLineEdit->setToolTip(tr("Domain name to be assigned to the virtual machine"));
     if (m_pProductKeyLabel)
-        m_pProductKeyLabel->setText(UIWizardNewVM::tr("&Product Key:"));
+        m_pProductKeyLabel->setText(UIWizardNewVM::tr("&Product Key"));
     if (m_pProductKeyLineEdit)
-        m_pProductKeyLineEdit->setToolTip(UIWizardNewVM::tr("Holds the product key."));
+        m_pProductKeyLineEdit->setToolTip(UIWizardNewVM::tr("The product key"));
 
     if (m_pStartHeadlessCheckBox)
     {
         m_pStartHeadlessCheckBox->setText(UIWizardNewVM::tr("&Install in Background"));
-        m_pStartHeadlessCheckBox->setToolTip(UIWizardNewVM::tr("When checked, headless boot (with no GUI) will be enabled for "
-                                                               "unattended guest OS installation of newly created virtual machine."));
+        m_pStartHeadlessCheckBox->setToolTip(UIWizardNewVM::tr("Start the virtual machine without a GUI"));
     }
 }
 
@@ -206,10 +209,10 @@ void UIHostnameDomainNameEditor::prepare()
 void UIHostnameDomainNameEditor::sltHostnameChanged()
 {
     m_pHostnameLineEdit->mark(!m_pHostnameLineEdit->hasAcceptableInput(),
-                              tr("Hostname should be at least 2 character long. "
+                              tr("Host name should be at least 2 character long. "
                                  "Allowed characters are alphanumerics, \"-\" and \".\""),
-                              tr("Hostname is valid"));
-    emit sigHostnameDomainNameChanged(hostnameDomainName(), isComplete());
+                              tr("Host name is valid"));
+    emit sigHostnameDomainNameChanged(hostnameDomainName(), hostDomainNameComplete());
 }
 
 void UIHostnameDomainNameEditor::sltDomainChanged()
@@ -218,7 +221,7 @@ void UIHostnameDomainNameEditor::sltDomainChanged()
                                 tr("Domain name should be at least 2 character long. "
                                    "Allowed characters are alphanumerics, \"-\" and \".\""),
                                 tr("Domain name is valid"));
-    emit sigHostnameDomainNameChanged(hostnameDomainName(), isComplete());
+    emit sigHostnameDomainNameChanged(hostnameDomainName(), hostDomainNameComplete());
 }
 
 void UIHostnameDomainNameEditor::disableEnableProductKeyWidgets(bool fEnabled)
@@ -227,4 +230,11 @@ void UIHostnameDomainNameEditor::disableEnableProductKeyWidgets(bool fEnabled)
         m_pProductKeyLabel->setEnabled(fEnabled);
     if (m_pProductKeyLineEdit)
         m_pProductKeyLineEdit->setEnabled(fEnabled);
+}
+
+bool UIHostnameDomainNameEditor::hasProductKeyAcceptableInput() const
+{
+    if (m_pProductKeyLineEdit)
+        return m_pProductKeyLineEdit->hasAcceptableInput();
+    return false;
 }

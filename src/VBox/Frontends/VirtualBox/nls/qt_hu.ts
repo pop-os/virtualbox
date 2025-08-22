@@ -40,21 +40,15 @@
     </message>
 </context>
 <context>
-    <name>Print Device Input Slot</name>
-    <message>
-        <source>Automatic</source>
-        <translation type="unfinished">Automatikus</translation>
-    </message>
-</context>
-<context>
-    <name>Print Device Output Bin</name>
-    <message>
-        <source>Automatic</source>
-        <translation type="unfinished">Automatikus</translation>
-    </message>
-</context>
-<context>
     <name>QAbstractSocket</name>
+    <message>
+        <source>Socket operation timed out</source>
+        <translation>Foglalatművelet időtúllépés</translation>
+    </message>
+    <message>
+        <source>Operation on socket is not supported</source>
+        <translation>A művelet foglalaton nem támogatott</translation>
+    </message>
     <message>
         <source>Host not found</source>
         <translation>A gép nem található</translation>
@@ -72,16 +66,8 @@
         <translation>Kapcsolódási kísérlet, miközben a kapcsolat folyamatban van</translation>
     </message>
     <message>
-        <source>Socket operation timed out</source>
-        <translation>Foglalatművelet időtúllépés</translation>
-    </message>
-    <message>
         <source>Socket is not connected</source>
         <translation>A foglalat nem kapcsolódott</translation>
-    </message>
-    <message>
-        <source>Operation on socket is not supported</source>
-        <translation>A művelet foglalaton nem támogatott</translation>
     </message>
     <message>
         <source>Network unreachable</source>
@@ -91,16 +77,16 @@
 <context>
     <name>QAbstractSpinBox</name>
     <message>
+        <source>&amp;Select All</source>
+        <translation>Ö&amp;sszes kijelölése</translation>
+    </message>
+    <message>
         <source>&amp;Step up</source>
         <translation>Lépés &amp;felfelé</translation>
     </message>
     <message>
         <source>Step &amp;down</source>
         <translation>Lépés &amp;lefelé</translation>
-    </message>
-    <message>
-        <source>&amp;Select All</source>
-        <translation>Ö&amp;sszes kijelölése</translation>
     </message>
 </context>
 <context>
@@ -130,30 +116,6 @@
         <translation>Váltás</translation>
     </message>
     <message>
-        <source>Triggers the action</source>
-        <translation>Aktiválja a műveletet</translation>
-    </message>
-    <message>
-        <source>Increase the value</source>
-        <translation>Az érték növelése</translation>
-    </message>
-    <message>
-        <source>Decrease the value</source>
-        <translation>Az érték csökkentése</translation>
-    </message>
-    <message>
-        <source>Shows the menu</source>
-        <translation>Megjeleníti a menüt</translation>
-    </message>
-    <message>
-        <source>Sets the focus</source>
-        <translation>Beállítja a fókuszt</translation>
-    </message>
-    <message>
-        <source>Toggles the state</source>
-        <translation>Átváltja az állapotot</translation>
-    </message>
-    <message>
         <source>Scroll Left</source>
         <translation>Görgetés balra</translation>
     </message>
@@ -178,6 +140,30 @@
         <translation>Következő oldal</translation>
     </message>
     <message>
+        <source>Triggers the action</source>
+        <translation>Aktiválja a műveletet</translation>
+    </message>
+    <message>
+        <source>Increase the value</source>
+        <translation>Az érték növelése</translation>
+    </message>
+    <message>
+        <source>Decrease the value</source>
+        <translation>Az érték csökkentése</translation>
+    </message>
+    <message>
+        <source>Shows the menu</source>
+        <translation>Megjeleníti a menüt</translation>
+    </message>
+    <message>
+        <source>Sets the focus</source>
+        <translation>Beállítja a fókuszt</translation>
+    </message>
+    <message>
+        <source>Toggles the state</source>
+        <translation>Átváltja az állapotot</translation>
+    </message>
+    <message>
         <source>Scrolls to the left</source>
         <translation>Balra görget</translation>
     </message>
@@ -195,11 +181,11 @@
     </message>
     <message>
         <source>Goes back a page</source>
-        <translation>Visszamegy egy oldalra</translation>
+        <translation>Visszalép egy oldalt</translation>
     </message>
     <message>
         <source>Goes to the next page</source>
-        <translation>Átmegy a következő oldalra</translation>
+        <translation>A következő oldalra lép</translation>
     </message>
 </context>
 <context>
@@ -224,12 +210,12 @@
 <context>
     <name>QApplication</name>
     <message>
-        <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>A(z) „%1” futtatható Qt %2-t igényel, de Qt %3 található.</translation>
+        <source>Application &quot;%1&quot; requires Qt %2, found Qt %3.</source>
+        <translation>A(z) „%1” alkalmazás a Qt %2 verziót igényli, de a Qt %3 található.</translation>
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
-        <translation>Nem kompatibilis Qt függvénykönyvtár hiba</translation>
+        <translation>Inkompatibilis Qt függvénykönyvtár hiba</translation>
     </message>
 </context>
 <context>
@@ -325,22 +311,6 @@
         <translation>A&amp;lfa csatorna:</translation>
     </message>
     <message>
-        <source>Select Color</source>
-        <translation>Szín kiválasztása</translation>
-    </message>
-    <message>
-        <source>&amp;Basic colors</source>
-        <translation>&amp;Alap színek</translation>
-    </message>
-    <message>
-        <source>&amp;Custom colors</source>
-        <translation>&amp;Egyéni színek</translation>
-    </message>
-    <message>
-        <source>&amp;Add to Custom Colors</source>
-        <translation>&amp;Hozzáadás az egyéni színekhez</translation>
-    </message>
-    <message>
         <source>&amp;HTML:</source>
         <translation>&amp;HTML:</translation>
     </message>
@@ -351,12 +321,32 @@ Press ESC to cancel</source>
 Nyomja meg az ESC billentyűt a megszakításhoz</translation>
     </message>
     <message>
+        <source>Select Color</source>
+        <translation>Szín kiválasztása</translation>
+    </message>
+    <message>
+        <source>&amp;Basic colors</source>
+        <translation>&amp;Alapszínek</translation>
+    </message>
+    <message>
+        <source>&amp;Custom colors</source>
+        <translation>&amp;Egyéni színek</translation>
+    </message>
+    <message>
+        <source>&amp;Add to Custom Colors</source>
+        <translation>&amp;Hozzáadás az egyéni színekhez</translation>
+    </message>
+    <message>
         <source>&amp;Pick Screen Color</source>
         <translation>&amp;Képernyő színének kiválasztása</translation>
     </message>
 </context>
 <context>
     <name>QComboBox</name>
+    <message>
+        <source>Open the combo box selection popup</source>
+        <translation>A legördülő menü kiválasztás felugrójának megnyitása</translation>
+    </message>
     <message>
         <source>False</source>
         <translation>Hamis</translation>
@@ -365,16 +355,20 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
         <source>True</source>
         <translation>Igaz</translation>
     </message>
-    <message>
-        <source>Open the combo box selection popup</source>
-        <translation>A legördülő menü kiválasztás felugrójának megnyitása</translation>
-    </message>
 </context>
 <context>
     <name>QCommandLineParser</name>
     <message>
         <source>Displays version information.</source>
         <translation>Megjeleníti a verzióinformációkat.</translation>
+    </message>
+    <message>
+        <source>Displays help on commandline options.</source>
+        <translation>Megjeleníti a parancssori kapcsolók súgóját.</translation>
+    </message>
+    <message>
+        <source>Displays help, including generic Qt options.</source>
+        <translation>Megjeleníti a súgót, az általános Qt kapcsolókkal együtt.</translation>
     </message>
     <message>
         <source>Unknown option &apos;%1&apos;.</source>
@@ -408,32 +402,6 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
         <source>Arguments:</source>
         <translation>Argumentumok:</translation>
     </message>
-    <message>
-        <source>Displays help on commandline options.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Displays help including Qt specific options.</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QCoreApplication</name>
-    <message>
-        <source>%1: key is empty</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: a kulcs üres</translation>
-    </message>
-    <message>
-        <source>%1: unable to make key</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: nem lehet elkészíteni a kulcsot</translation>
-    </message>
-    <message>
-        <source>%1: ftok failed</source>
-        <comment>QSystemSemaphore</comment>
-        <translation>%1: az ftok sikertelen</translation>
-    </message>
 </context>
 <context>
     <name>QCupsJobWidget</name>
@@ -459,7 +427,7 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
     </message>
     <message>
         <source>Banner Pages</source>
-        <translation>Reklám oldalak</translation>
+        <translation>Elválasztó lapok</translation>
     </message>
     <message>
         <source>End:</source>
@@ -477,7 +445,7 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
     </message>
     <message>
         <source>Hold Indefinitely</source>
-        <translation>Tartás határozatlan időre</translation>
+        <translation>Felfüggesztés határozatlan időre</translation>
     </message>
     <message>
         <source>Day (06:00 to 17:59)</source>
@@ -540,29 +508,6 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
     </message>
 </context>
 <context>
-    <name>QCupsPrinterSupport</name>
-    <message>
-        <source>Authentication Needed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Authentication needed to use %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Authentication needed to use %1 on %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Username:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Password:</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
@@ -574,7 +519,7 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nem görgethető vissza a tranzakció</translation>
+        <translation>Nem vonható vissza a tranzakció</translation>
     </message>
     <message>
         <source>Unable to set autocommit</source>
@@ -616,25 +561,6 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
     </message>
 </context>
 <context>
-    <name>QDateTimeParser</name>
-    <message>
-        <source>AM</source>
-        <translation>DE</translation>
-    </message>
-    <message>
-        <source>am</source>
-        <translation>de</translation>
-    </message>
-    <message>
-        <source>PM</source>
-        <translation>DU</translation>
-    </message>
-    <message>
-        <source>pm</source>
-        <translation>du</translation>
-    </message>
-</context>
-<context>
     <name>QDialog</name>
     <message>
         <source>What&apos;s This?</source>
@@ -649,54 +575,22 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
     </message>
 </context>
 <context>
-    <name>QDirModel</name>
-    <message>
-        <source>Name</source>
-        <translation>Név</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <translation>Méret</translation>
-    </message>
-    <message>
-        <source>Kind</source>
-        <comment>Match OS X Finder</comment>
-        <translation>Fajta</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <comment>All other platforms</comment>
-        <translation>Típus</translation>
-    </message>
-    <message>
-        <source>Date Modified</source>
-        <translation>Módosítás dátuma</translation>
-    </message>
-</context>
-<context>
     <name>QDnsLookup</name>
     <message>
         <source>Operation cancelled</source>
         <translation>Művelet megszakítva</translation>
     </message>
-</context>
-<context>
-    <name>QDnsLookupRunnable</name>
     <message>
         <source>Invalid domain name</source>
-        <translation>Érvénytelen tartománynév</translation>
+        <translation>Érvénytelen domainnév</translation>
     </message>
     <message>
-        <source>Not yet supported on Android</source>
-        <translation>Még nincs támogatva Androidon</translation>
+        <source>SSL/TLS support not present</source>
+        <translation>Nincs SSL/TLS támogatás</translation>
     </message>
     <message>
-        <source>Resolver functions not found</source>
-        <translation>Feloldófüggvények nem találhatók</translation>
-    </message>
-    <message>
-        <source>Resolver initialization failed</source>
-        <translation>A feloldó előkészítése sikertelen</translation>
+        <source>Request timed out</source>
+        <translation>A kérés túllépte az időkorlátot</translation>
     </message>
     <message>
         <source>Server could not process query</source>
@@ -708,19 +602,35 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
     </message>
     <message>
         <source>Non existent domain</source>
-        <translation>Nem létező tartomány</translation>
+        <translation>Nem létező domain</translation>
     </message>
     <message>
         <source>Server refused to answer</source>
         <translation>A kiszolgáló visszautasította a válaszadást</translation>
     </message>
     <message>
+        <source>Invalid reply received (rcode %1)</source>
+        <translation>Érvénytelen válasz érkezett (válaszkód: %1)</translation>
+    </message>
+    <message>
         <source>Invalid reply received</source>
         <translation>Érvénytelen válasz érkezett</translation>
     </message>
     <message>
+        <source>Invalid reply received (%1)</source>
+        <translation>Érvénytelen válasz érkezett (%1)</translation>
+    </message>
+    <message>
+        <source>IPv6 nameservers are currently not supported on this OS</source>
+        <translation>Az operációs rendszer nem támogatja az IPv6 névkiszolgálókat</translation>
+    </message>
+    <message>
+        <source>Reply was too large</source>
+        <translation>A válasz túl nagy volt</translation>
+    </message>
+    <message>
         <source>Could not expand domain name</source>
-        <translation>Nem sikerült kibővíteni a tartománynevet</translation>
+        <translation>Nem sikerült kibővíteni a domainnevet</translation>
     </message>
     <message>
         <source>Invalid IPv4 address record</source>
@@ -751,49 +661,36 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
         <translation>Érvénytelen szolgáltatás rekord</translation>
     </message>
     <message>
+        <source>Invalid TLS association record</source>
+        <translation>Érvénytelen TLS társítási rekord</translation>
+    </message>
+    <message>
         <source>Invalid text record</source>
         <translation>Érvénytelen szöveg rekord</translation>
     </message>
+</context>
+<context>
+    <name>QDnsLookupRunnable</name>
     <message>
-        <source>Resolver library can&apos;t be loaded: No runtime library loading support</source>
-        <translation>A feloldó függvénykönyvtárát nem lehet betölteni: nincs futásidejű függvénykönyvtár betöltés támogatás</translation>
-    </message>
-    <message>
-        <source>IPv6 addresses for nameservers are currently not supported</source>
-        <translation>Az IPv6 címek a névkiszolgálóknál jelenleg nem támogatottak</translation>
-    </message>
-    <message>
-        <source>No hostname given</source>
-        <translation>Nincs gépnév megadva</translation>
-    </message>
-    <message>
-        <source>Invalid hostname</source>
-        <translation>Érvénytelen gépnév</translation>
-    </message>
-    <message>
-        <source>Host %1 could not be found.</source>
-        <translation>A(z) %1 gép nem található.</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <source>Not yet supported on this OS</source>
+        <translation>Még nincs támogatva ezen az operációs rendszeren</translation>
     </message>
 </context>
 <context>
     <name>QDockWidget</name>
     <message>
-        <source>Close</source>
-        <extracomment>Accessible name for button closing a dock widget</extracomment>
-        <translation>Bezárás</translation>
-    </message>
-    <message>
         <source>Float</source>
         <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
-        <translation>Lebegő</translation>
+        <translation>Lebegtetés</translation>
     </message>
     <message>
         <source>Undocks and re-attaches the dock widget</source>
         <translation>Eltávolítja a dokkolást és újracsatolja a dokk felületi elemet</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
+        <translation>Bezárás</translation>
     </message>
     <message>
         <source>Closes the dock widget</source>
@@ -801,197 +698,11 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
     </message>
 </context>
 <context>
-    <name>QDomParser</name>
-    <message>
-        <source>Error occurred while processing XML declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Multiple DTD sections are not allowed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing document type declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing comment</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing a processing instruction</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing a start element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected end element &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing an end element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing the element content</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing comments</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing an entity reference</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected token</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Tag mismatch</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing entity declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error occurred while processing notation declaration</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QDtls</name>
-    <message>
-        <source>Invalid (empty) secret</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Multicast and broadcast addresses are not supported</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot set peer after handshake started</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid address</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot set verification name after handshake started</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot set configuration after handshake started</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot start/continue handshake, invalid handshake state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid (nullptr) socket</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>To start a handshake you must set peer&apos;s address and port first</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>To start a handshake, DTLS server requires non-empty datagram (client hello)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot start handshake, already done/in progress</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A valid QUdpSocket and non-empty datagram are needed to continue the handshake</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot continue handshake, not in InProgress state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot resume, not in VerificationError state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No handshake in progress, nothing to abort</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot send shutdown alert, not encrypted</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot write a datagram, not in encrypted state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot read a datagram, not in encrypted state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 failed</source>
-        <extracomment>%1: Some function</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid SslMode, SslServerMode or SslClientMode expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid protocol version, DTLS protocol expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>BIO_ADD_new failed, cannot start handshake</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot start the handshake, verified client hello expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Peer verification failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The DTLS connection has been closed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error while writing: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The DTLS connection has been shutdown</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Error while reading: %1</source>
-        <translation type="unfinished">Hiba az olvasás közben: %1</translation>
-    </message>
-</context>
-<context>
-    <name>QDtlsClientVerifier</name>
-    <message>
-        <source>A valid UDP socket, non-empty datagram, valid address/port were expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>BIO_ADDR_new failed, ignoring client hello</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>QErrorMessage</name>
+    <message>
+        <source>An error occurred</source>
+        <translation>Hiba történt</translation>
+    </message>
     <message>
         <source>Debug Message:</source>
         <translation>Hibakeresési üzenet:</translation>
@@ -1001,8 +712,16 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
         <translation>Figyelmeztetés:</translation>
     </message>
     <message>
+        <source>Critical Error:</source>
+        <translation>Kritikus hiba:</translation>
+    </message>
+    <message>
         <source>Fatal Error:</source>
         <translation>Végzetes hiba:</translation>
+    </message>
+    <message>
+        <source>Information:</source>
+        <translation>Információ:</translation>
     </message>
     <message>
         <source>&amp;Show this message again</source>
@@ -1012,20 +731,28 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
         <source>&amp;OK</source>
         <translation>&amp;OK</translation>
     </message>
-    <message>
-        <source>Critical Error:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Information:</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>QFile</name>
     <message>
+        <source>Destination file is the same file.</source>
+        <translation>A célfájl ugyanaz a fájl.</translation>
+    </message>
+    <message>
+        <source>Source file does not exist.</source>
+        <translation>A forrásfájl nem létezik.</translation>
+    </message>
+    <message>
         <source>Destination file exists</source>
         <translation>A célfájl létezik</translation>
+    </message>
+    <message>
+        <source>Error while renaming: %1</source>
+        <translation>Hiba az átnevezéskor: %1</translation>
+    </message>
+    <message>
+        <source>Unable to restore from %1: %2</source>
+        <translation>Nem lehet visszaállítani innen: %1: %2</translation>
     </message>
     <message>
         <source>Will not rename sequential file using block copy</source>
@@ -1036,249 +763,98 @@ Nyomja meg az ESC billentyűt a megszakításhoz</translation>
         <translation>Nem lehet eltávolítani a forrásfájlt</translation>
     </message>
     <message>
-        <source>Cannot open %1 for input</source>
-        <translation>A(z) %1 nem nyitható meg a bemenethez</translation>
-    </message>
-    <message>
-        <source>Failure to write block</source>
-        <translation>Hiba a blokk írásakor</translation>
-    </message>
-    <message>
-        <source>Cannot create %1 for output</source>
-        <translation>A(z) %1 nem hozható létre a kimenethez</translation>
-    </message>
-    <message>
-        <source>Destination file is the same file.</source>
-        <translation>A célfájl ugyanaz a fájl.</translation>
-    </message>
-    <message>
-        <source>Source file does not exist.</source>
-        <translation>A forrásfájl nem létezik.</translation>
-    </message>
-    <message>
-        <source>Unable to restore from %1: %2</source>
-        <translation>Nem lehet visszaállítani innen: %1: %2</translation>
-    </message>
-    <message>
-        <source>Error while renaming: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Cannot open destination file: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Nem lehet megnyitni a célfájlt: %1</translation>
+    </message>
+    <message>
+        <source>Cannot open %1 for input</source>
+        <translation>A(z) %1 nem nyitható meg bemenetként</translation>
     </message>
     <message>
         <source>Cannot open for output: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>A(z) %1 nem nyitható meg kimenetként</translation>
+    </message>
+    <message>
+        <source>Failure to write block: %1</source>
+        <translation>Hiba a blokk írásakor: %1</translation>
+    </message>
+    <message>
+        <source>Cannot create %1 for output: %2</source>
+        <translation>A(z) %1 nem hozható meg kimenetként: %2</translation>
     </message>
 </context>
 <context>
     <name>QFileDevice</name>
     <message>
         <source>No file engine available or engine does not support UnMapExtension</source>
-        <translation>Nem érhető el fájlmotor, vagy a motor nem támogatja az UnMapExtension funkciót</translation>
+        <translation>Nem érhető el fájlalrendszer, vagy az alrendszer nem támogatja az UnMapExtension funkciót</translation>
     </message>
     <message>
         <source>No file engine available</source>
-        <translation type="unfinished"></translation>
+        <translation>Nem érhető el fájlalrendszer</translation>
     </message>
 </context>
 <context>
     <name>QFileDialog</name>
     <message>
-        <source>All Files (*)</source>
-        <translation>Minden fájl (*)</translation>
-    </message>
-    <message>
-        <source>Directories</source>
-        <translation>Könyvtárak</translation>
-    </message>
-    <message>
-        <source>&amp;Open</source>
-        <translation>&amp;Megnyitás</translation>
-    </message>
-    <message>
-        <source>&amp;Save</source>
-        <translation>Menté&amp;s</translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation>Megnyitás</translation>
-    </message>
-    <message>
-        <source>%1 already exists.
-Do you want to replace it?</source>
-        <translation>%1 már létezik.
-Szeretné lecserélni?</translation>
-    </message>
-    <message>
-        <source>%1
-File not found.
-Please verify the correct file name was given.</source>
-        <translation>%1
-A fájl nem található.
-Ellenőrizze, hogy jól adta-e meg a fájl nevét.</translation>
-    </message>
-    <message>
-        <source>Delete</source>
-        <translation>Törlés</translation>
-    </message>
-    <message>
-        <source>Are you sure you want to delete &apos;%1&apos;?</source>
-        <translation>Biztosan törölni szeretné: „%1”?</translation>
-    </message>
-    <message>
-        <source>Recent Places</source>
-        <translation>Legutóbbi helyek</translation>
-    </message>
-    <message>
-        <source>My Computer</source>
-        <translation>Saját számítógép</translation>
-    </message>
-    <message>
-        <source>&amp;Rename</source>
-        <translation>Át&amp;nevezés</translation>
-    </message>
-    <message>
-        <source>&amp;Delete</source>
-        <translation>&amp;Törlés</translation>
-    </message>
-    <message>
-        <source>Show &amp;hidden files</source>
-        <translation>&amp;Rejtett fájlok megjelenítése</translation>
+        <source>Look in:</source>
+        <translation>Keresés itt:</translation>
     </message>
     <message>
         <source>Back</source>
         <translation>Vissza</translation>
     </message>
     <message>
-        <source>Parent Directory</source>
-        <translation>Szülőkönyvtár</translation>
+        <source>Go back</source>
+        <translation>Ugrás vissza</translation>
     </message>
     <message>
-        <source>List View</source>
-        <translation>Listanézet</translation>
-    </message>
-    <message>
-        <source>Detail View</source>
-        <translation>Részletes nézet</translation>
-    </message>
-    <message>
-        <source>Files of type:</source>
-        <translation>Fájlok típusa:</translation>
-    </message>
-    <message>
-        <source>Directory:</source>
-        <translation>Könyvtár:</translation>
-    </message>
-    <message>
-        <source>%1
-Directory not found.
-Please verify the correct directory name was given.</source>
-        <translation>%1
-A könyvtár nem található.
-Ellenőrizze, hogy jól adta-e meg a könyvtár nevét.</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is write protected.
-Do you want to delete it anyway?</source>
-        <translation>„%1” írásvédett.
-Mindenképp törölni szeretné?</translation>
-    </message>
-    <message>
-        <source>Could not delete directory.</source>
-        <translation>Nem sikerült törölni a könyvtárat.</translation>
-    </message>
-    <message>
-        <source>Save As</source>
-        <translation>Mentés másként</translation>
-    </message>
-    <message>
-        <source>Drive</source>
-        <translation>Meghajtó</translation>
-    </message>
-    <message>
-        <source>File</source>
-        <translation>Fájl</translation>
-    </message>
-    <message>
-        <source>File Folder</source>
-        <comment>Match Windows Explorer</comment>
-        <translation>Fájlmappa</translation>
-    </message>
-    <message>
-        <source>Folder</source>
-        <comment>All other platforms</comment>
-        <translation>Mappa</translation>
-    </message>
-    <message>
-        <source>Shortcut</source>
-        <comment>All other platforms</comment>
-        <translation>Parancsikon</translation>
-    </message>
-    <message>
-        <source>Unknown</source>
-        <translation>Ismeretlen</translation>
-    </message>
-    <message>
-        <source>Find Directory</source>
-        <translation>Könyvtár keresése</translation>
-    </message>
-    <message>
-        <source>Show </source>
-        <translation>Megjelenítés </translation>
+        <source>Alt+Left</source>
+        <translation>Alt+Bal</translation>
     </message>
     <message>
         <source>Forward</source>
         <translation>Előre</translation>
     </message>
     <message>
-        <source>New Folder</source>
-        <translation>Új mappa</translation>
-    </message>
-    <message>
-        <source>&amp;New Folder</source>
-        <translation>Ú&amp;j mappa</translation>
-    </message>
-    <message>
-        <source>&amp;Choose</source>
-        <translation>&amp;Kiválasztás</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>Eltávolítás</translation>
-    </message>
-    <message>
-        <source>File &amp;name:</source>
-        <translation>Fájl &amp;neve:</translation>
-    </message>
-    <message>
-        <source>Look in:</source>
-        <translation>Keresés itt:</translation>
-    </message>
-    <message>
-        <source>Create New Folder</source>
-        <translation>Új mappa létrehozása</translation>
-    </message>
-    <message>
-        <source>Go back</source>
-        <translation>Ugrás vissza</translation>
-    </message>
-    <message>
         <source>Go forward</source>
         <translation>Ugrás előre</translation>
+    </message>
+    <message>
+        <source>Alt+Right</source>
+        <translation>Alt+Jobb</translation>
+    </message>
+    <message>
+        <source>Parent Directory</source>
+        <translation>Szülőkönyvtár</translation>
     </message>
     <message>
         <source>Go to the parent directory</source>
         <translation>Ugrás a szülőkönyvtárba</translation>
     </message>
     <message>
+        <source>Alt+Up</source>
+        <translation>Alt+Fel</translation>
+    </message>
+    <message>
+        <source>Create New Folder</source>
+        <translation>Új mappa létrehozása</translation>
+    </message>
+    <message>
         <source>Create a New Folder</source>
         <translation>Egy új mappa létrehozása</translation>
     </message>
     <message>
+        <source>List View</source>
+        <translation>Listanézet</translation>
+    </message>
+    <message>
         <source>Change to list view mode</source>
         <translation>Váltás listanézet módra</translation>
+    </message>
+    <message>
+        <source>Detail View</source>
+        <translation>Részletes nézet</translation>
     </message>
     <message>
         <source>Change to detail view mode</source>
@@ -1297,38 +873,128 @@ Mindenképp törölni szeretné?</translation>
         <translation>Fájlok</translation>
     </message>
     <message>
-        <source>Alt+Left</source>
-        <translation>Alt+Bal</translation>
+        <source>Files of type:</source>
+        <translation>Fájlok típusa:</translation>
     </message>
     <message>
-        <source>Alt+Right</source>
-        <translation>Alt+Jobb</translation>
+        <source>Find Directory</source>
+        <translation>Könyvtár keresése</translation>
     </message>
     <message>
-        <source>Alt+Up</source>
-        <translation>Alt+Fel</translation>
+        <source>Open</source>
+        <translation>Megnyitás</translation>
+    </message>
+    <message>
+        <source>Save As</source>
+        <translation>Mentés másként</translation>
+    </message>
+    <message>
+        <source>Directory:</source>
+        <translation>Könyvtár:</translation>
+    </message>
+    <message>
+        <source>File &amp;name:</source>
+        <translation>Fájl&amp;név:</translation>
+    </message>
+    <message>
+        <source>&amp;Open</source>
+        <translation>&amp;Megnyitás</translation>
+    </message>
+    <message>
+        <source>&amp;Choose</source>
+        <translation>&amp;Kiválasztás</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation>Menté&amp;s</translation>
+    </message>
+    <message>
+        <source>All Files (*)</source>
+        <translation>Minden fájl (*)</translation>
+    </message>
+    <message>
+        <source>Show </source>
+        <translation>Megjelenítés </translation>
+    </message>
+    <message>
+        <source>&amp;Rename</source>
+        <translation>Át&amp;nevezés</translation>
+    </message>
+    <message>
+        <source>&amp;Delete</source>
+        <translation>&amp;Törlés</translation>
+    </message>
+    <message>
+        <source>Show &amp;hidden files</source>
+        <translation>&amp;Rejtett fájlok megjelenítése</translation>
+    </message>
+    <message>
+        <source>&amp;New Folder</source>
+        <translation>Ú&amp;j mappa</translation>
     </message>
     <message>
         <source>All files (*)</source>
         <translation>Minden fájl (*)</translation>
     </message>
     <message>
-        <source>%1 File</source>
-        <extracomment>%1 is a file name suffix, for example txt</extracomment>
-        <translation>%1 fájl</translation>
+        <source>Directories</source>
+        <translation>Könyvtárak</translation>
     </message>
     <message>
-        <source>Alias</source>
-        <comment>OS X Finder</comment>
-        <translation>Álnév</translation>
+        <source>%1
+Directory not found.
+Please verify the correct directory name was given.</source>
+        <translation>%1
+A könyvtár nem található.
+Ellenőrizze, hogy jól adta-e meg a könyvtár nevét.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <translation>%1 már létezik.
+Szeretné lecserélni?</translation>
+    </message>
+    <message>
+        <source>%1
+File not found.
+Please verify the correct file name was given.</source>
+        <translation>%1
+A fájl nem található.
+Ellenőrizze, hogy jól adta-e meg a fájl nevét.</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>Új mappa</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Törlés</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is write protected.
+Do you want to delete it anyway?</source>
+        <translation>„%1” írásvédett.
+Mindenképp törölni szeretné?</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to delete &apos;%1&apos;?</source>
+        <translation>Biztosan törölni szeretné: „%1”?</translation>
+    </message>
+    <message>
+        <source>Could not delete directory.</source>
+        <translation>Nem sikerült törölni a könyvtárat.</translation>
+    </message>
+    <message>
+        <source>Recent Places</source>
+        <translation>Legutóbbi helyek</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>Eltávolítás</translation>
     </message>
 </context>
 <context>
     <name>QFileSystemModel</name>
-    <message>
-        <source>Invalid filename</source>
-        <translation>Érvénytelen fájlnév</translation>
-    </message>
     <message>
         <source>Name</source>
         <translation>Név</translation>
@@ -1359,33 +1025,56 @@ Mindenképp törölni szeretné?</translation>
         <source>Computer</source>
         <translation>Számítógép</translation>
     </message>
-    <message>
-        <source>&lt;b&gt;The name &quot;%1&quot; cannot be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuation marks.</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>QFontDatabase</name>
     <message>
+        <source>Normal</source>
+        <comment>The Normal or Regular font weight</comment>
+        <translation>Normál</translation>
+    </message>
+    <message>
         <source>Bold</source>
-        <translation>Kövér</translation>
+        <translation>Félkövér</translation>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation>Középkövér</translation>
+        <translation>Kicsit kövér</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <comment>The Medium font weight</comment>
+        <translation>Közepes</translation>
     </message>
     <message>
         <source>Black</source>
-        <translation>Extra nehéz</translation>
+        <translation>Nagyon kövér</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>Sovány</translation>
+    </message>
+    <message>
+        <source>Thin</source>
+        <translation>Vékony</translation>
+    </message>
+    <message>
+        <source>Extra Light</source>
+        <translation>Nagyon sovány</translation>
+    </message>
+    <message>
+        <source>Extra Bold</source>
+        <translation>Nagyon kövér</translation>
+    </message>
+    <message>
+        <source>Extra</source>
+        <extracomment>The word for &quot;Extra&quot; as in &quot;Extra Bold, Extra Thin&quot; used as a pattern for string searches</extracomment>
+        <translation>Nagyon</translation>
     </message>
     <message>
         <source>Demi</source>
         <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
-        <translation>Közép</translation>
-    </message>
-    <message>
-        <source>Light</source>
-        <translation>Könnyű</translation>
+        <translation>Kicsit</translation>
     </message>
     <message>
         <source>Italic</source>
@@ -1525,42 +1214,19 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>Runic</source>
-        <translation>Rúnákkal rótt</translation>
+        <translation>Rúnaírás</translation>
     </message>
     <message>
         <source>N&apos;Ko</source>
         <translation>N&apos;Ko</translation>
     </message>
-    <message>
-        <source>Normal</source>
-        <comment>The Normal or Regular font weight</comment>
-        <translation>Normál</translation>
-    </message>
-    <message>
-        <source>Medium</source>
-        <comment>The Medium font weight</comment>
-        <translation>Közepes</translation>
-    </message>
-    <message>
-        <source>Thin</source>
-        <translation>Vékony</translation>
-    </message>
-    <message>
-        <source>Extra Light</source>
-        <translation>Extra könnyű</translation>
-    </message>
-    <message>
-        <source>Extra Bold</source>
-        <translation>Extra kövér</translation>
-    </message>
-    <message>
-        <source>Extra</source>
-        <extracomment>The word for &quot;Extra&quot; as in &quot;Extra Bold, Extra Thin&quot; used as a pattern for string searches</extracomment>
-        <translation>Extra</translation>
-    </message>
 </context>
 <context>
     <name>QFontDialog</name>
+    <message>
+        <source>Select Font</source>
+        <translation>Betűkészlet kiválasztása</translation>
+    </message>
     <message>
         <source>&amp;Font</source>
         <translation>&amp;Betűkészlet</translation>
@@ -1592,99 +1258,6 @@ Mindenképp törölni szeretné?</translation>
     <message>
         <source>Wr&amp;iting System</source>
         <translation>Í&amp;rásrendszer</translation>
-    </message>
-    <message>
-        <source>Select Font</source>
-        <translation>Betűkészlet kiválasztása</translation>
-    </message>
-</context>
-<context>
-    <name>QFtp</name>
-    <message>
-        <source>Not connected</source>
-        <translation>Nincs kapcsolódva</translation>
-    </message>
-    <message>
-        <source>Host %1 not found</source>
-        <translation>A(z) %1 gép nem található</translation>
-    </message>
-    <message>
-        <source>Connection refused to host %1</source>
-        <translation>A kapcsolódás visszautasítva a(z) %1 géphez</translation>
-    </message>
-    <message>
-        <source>Connection timed out to host %1</source>
-        <translation>A kapcsolat túllépte az időkorlátot a(z) %1 géphez</translation>
-    </message>
-    <message>
-        <source>Connected to host %1</source>
-        <translation>Kapcsolódva a(z) %1 géphez</translation>
-    </message>
-    <message>
-        <source>Data Connection refused</source>
-        <translation>Az adatkapcsolat visszautasítva</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
-    </message>
-    <message>
-        <source>Connecting to host failed:
-%1</source>
-        <translation>A kapcsolódás a géphez sikertelen:
-%1</translation>
-    </message>
-    <message>
-        <source>Login failed:
-%1</source>
-        <translation>A bejelentkezés sikertelen:
-%1</translation>
-    </message>
-    <message>
-        <source>Listing directory failed:
-%1</source>
-        <translation>A könyvtár listázása sikertelen:
-%1</translation>
-    </message>
-    <message>
-        <source>Changing directory failed:
-%1</source>
-        <translation>A könyvtárváltás sikertelen:
-%1</translation>
-    </message>
-    <message>
-        <source>Downloading file failed:
-%1</source>
-        <translation>A fájl letöltése sikertelen:
-%1</translation>
-    </message>
-    <message>
-        <source>Uploading file failed:
-%1</source>
-        <translation>A fájl feltöltése sikertelen:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing file failed:
-%1</source>
-        <translation>A fájl eltávolítása sikertelen:
-%1</translation>
-    </message>
-    <message>
-        <source>Creating directory failed:
-%1</source>
-        <translation>A könyvtár létrehozása sikertelen:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing directory failed:
-%1</source>
-        <translation>A könyvtár eltávolítása sikertelen:
-%1</translation>
-    </message>
-    <message>
-        <source>Connection closed</source>
-        <translation>A kapcsolat lezárva</translation>
     </message>
 </context>
 <context>
@@ -1719,116 +1292,116 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>QPA plugin. See QGuiApplication documentation for available options for each plugin.</source>
-        <translation type="unfinished"></translation>
+        <translation>QPA bővítmény. Lásd a QGuiApplication dokumentációját az egyes bővítmények elérhető kapcsolóiért.</translation>
     </message>
     <message>
         <source>Path to the platform plugins.</source>
-        <translation type="unfinished"></translation>
+        <translation>A platformbővítmények elérési útja.</translation>
     </message>
     <message>
         <source>Platform theme.</source>
-        <translation type="unfinished"></translation>
+        <translation>Platformtéma.</translation>
     </message>
     <message>
         <source>Additional plugins to load, can be specified multiple times.</source>
-        <translation type="unfinished"></translation>
+        <translation>További betöltendő bővítmények, többször is megadható.</translation>
     </message>
     <message>
         <source>Window geometry for the main window, using the X11-syntax, like 100x100+50+50.</source>
-        <translation type="unfinished"></translation>
+        <translation>A főablak ablakgeometriája az X11 szintaxis használatával, például 100x100+50+50.</translation>
     </message>
     <message>
         <source>Default window icon.</source>
-        <translation type="unfinished"></translation>
+        <translation>Alapértelmezett ablakikon.</translation>
     </message>
     <message>
         <source>Title of the first window.</source>
-        <translation type="unfinished"></translation>
+        <translation>Az első ablak címe.</translation>
     </message>
     <message>
         <source>Sets the application&apos;s layout direction to Qt::RightToLeft (debugging helper).</source>
-        <translation type="unfinished"></translation>
+        <translation>Az alkalmazás elrendezési irányát Qt::RightToLeft értékre állítja (hibakeresési segédprogram).</translation>
     </message>
     <message>
         <source>Restores the application from an earlier session.</source>
-        <translation type="unfinished"></translation>
+        <translation>Visszaállítja az alkalmazást egy korábbi munkamenetből.</translation>
     </message>
     <message>
         <source>Display name, overrides $DISPLAY.</source>
-        <translation type="unfinished"></translation>
+        <translation>Képernyőnév, felülírja a $DISPLAY változót.</translation>
     </message>
     <message>
         <source>Instance name according to ICCCM 4.1.2.5.</source>
-        <translation type="unfinished"></translation>
+        <translation>Az ICCCM 4.1.2.5. pontja szerinti példánynév.</translation>
     </message>
     <message>
         <source>Disable mouse grabbing (useful in debuggers).</source>
-        <translation type="unfinished"></translation>
+        <translation>Az egérelkapás kikapcsolása (hibakeresőkben hasznos).</translation>
     </message>
     <message>
         <source>Force mouse grabbing (even when running in a debugger).</source>
-        <translation type="unfinished"></translation>
+        <translation>Egérelkapás kényszerítése (még hibakeresőben is).</translation>
     </message>
     <message>
         <source>ID of the X11 Visual to use.</source>
-        <translation type="unfinished"></translation>
+        <translation>A használandó X11 Visual azonosítója.</translation>
     </message>
     <message>
-        <source>Alias for --windowgeometry.</source>
-        <translation type="unfinished"></translation>
+        <source>Alias for --qwindowgeometry.</source>
+        <translation>A --qwindowgeometry álneve.</translation>
     </message>
     <message>
-        <source>Alias for --windowicon.</source>
-        <translation type="unfinished"></translation>
+        <source>Alias for --qwindowicon.</source>
+        <translation>A --qwindowicon álneve.</translation>
     </message>
     <message>
-        <source>Alias for --windowtitle.</source>
-        <translation type="unfinished"></translation>
+        <source>Alias for --qwindowtitle.</source>
+        <translation>A --qwindowtitle álneve.</translation>
     </message>
 </context>
 <context>
     <name>QHostInfo</name>
     <message>
-        <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <source>No host name given</source>
+        <translation>Nincs megadva gépnév</translation>
     </message>
     <message>
-        <source>No host name given</source>
-        <translation>Nincs gépnév megadva</translation>
+        <source>Unknown error</source>
+        <translation>Ismeretlen hiba</translation>
     </message>
 </context>
 <context>
     <name>QHostInfoAgent</name>
     <message>
-        <source>Host not found</source>
-        <translation>A gép nem található</translation>
+        <source>No host name given</source>
+        <translation>Nincs megadva gépnév</translation>
+    </message>
+    <message>
+        <source>Invalid hostname</source>
+        <translation>Érvénytelen gépnév</translation>
     </message>
     <message>
         <source>Unknown address type</source>
         <translation>Ismeretlen címtípus</translation>
     </message>
     <message>
-        <source>No host name given</source>
-        <translation>Nincs gépnév megadva</translation>
-    </message>
-    <message>
-        <source>Invalid hostname</source>
-        <translation>Érvénytelen gépnév</translation>
+        <source>Host not found</source>
+        <translation>A gép nem található</translation>
     </message>
 </context>
 <context>
     <name>QHttp</name>
     <message>
-        <source>Connection refused</source>
-        <translation>A kapcsolat visszautasítva</translation>
-    </message>
-    <message>
         <source>Host %1 not found</source>
         <translation>A(z) %1 gép nem található</translation>
     </message>
     <message>
+        <source>Connection refused</source>
+        <translation>Kapcsolat visszautasítva</translation>
+    </message>
+    <message>
         <source>Connection closed</source>
-        <translation>A kapcsolat lezárva</translation>
+        <translation>Kapcsolat lezárva</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
@@ -1858,13 +1431,33 @@ Mindenképp törölni szeretné?</translation>
         <source>Insecure redirect</source>
         <translation>Nem biztonságos átirányítás</translation>
     </message>
+    <message>
+        <source>Unsupported content encoding: %1</source>
+        <translation>Nem támogatott tartalomkódolás: %1</translation>
+    </message>
+    <message>
+        <source>Failed to initialize the compression decoder.</source>
+        <translation>A tömörítési dekódoló előkészítése sikertelen.</translation>
+    </message>
+    <message>
+        <source>The decompressed output exceeds the limits specified by QNetworkRequest::decompressedSafetyCheckThreshold()</source>
+        <translation>A kibontott kimenet túllépi a QNetworkRequest::decompressedSafetyCheckThreshold() által megadott korlátot</translation>
+    </message>
+    <message>
+        <source>Decompression failed: %1</source>
+        <translation>A kibontás sikertelen: %1</translation>
+    </message>
+    <message>
+        <source>Data downloaded is too large to store</source>
+        <translation>A letöltött adat túl nagy a tároláshoz</translation>
+    </message>
+    <message>
+        <source>Failed to initialize decompression: %1</source>
+        <translation>A kibontás előkészítése sikertelen: %1</translation>
+    </message>
 </context>
 <context>
     <name>QHttpSocketEngine</name>
-    <message>
-        <source>Authentication required</source>
-        <translation>Hitelesítés szükséges</translation>
-    </message>
     <message>
         <source>Did not receive HTTP response from proxy</source>
         <translation>Nem érkezett HTTP-válasz a proxytól</translation>
@@ -1872,6 +1465,10 @@ Mindenképp törölni szeretné?</translation>
     <message>
         <source>Error parsing authentication request from proxy</source>
         <translation>Hiba a proxytól érkező hitelesítési kérelem feldolgozásakor</translation>
+    </message>
+    <message>
+        <source>Authentication required</source>
+        <translation>Hitelesítés szükséges</translation>
     </message>
     <message>
         <source>Proxy denied connection</source>
@@ -1914,7 +1511,15 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nem görgethető vissza a tranzakció</translation>
+        <translation>Nem vonható vissza a tranzakció</translation>
+    </message>
+    <message>
+        <source>Could not subscribe to event notifications for %1.</source>
+        <translation>Nem sikerült feliratkozni a(z) %1 eseményértesítéseire.</translation>
+    </message>
+    <message>
+        <source>Could not unsubscribe from event notifications for %1.</source>
+        <translation>Nem sikerült leiratkozni a(z) %1 eseményértesítéseiről.</translation>
     </message>
 </context>
 <context>
@@ -1942,6 +1547,18 @@ Mindenképp törölni szeretné?</translation>
     <message>
         <source>Could not get array data</source>
         <translation>Nem sikerült lekérni a tömbadatokat</translation>
+    </message>
+    <message>
+        <source>Array size mismatch. Field name: %3, expected size: %1. Supplied size: %2</source>
+        <translation>Tömbméreteltérés. Mezőnév: %3, várt méret: %1. Megadott méret: %2</translation>
+    </message>
+    <message>
+        <source>Array dimensions mismatch. Field name: %1</source>
+        <translation>Tömbdimenzió-eltérés. Mezőnév: %1</translation>
+    </message>
+    <message>
+        <source>Array size mismatch: size of %1 is %2, size of provided list is %3</source>
+        <translation>Tömbméreteltérés: %1 mérete %2, a megadott lista mérete %3</translation>
     </message>
     <message>
         <source>Could not get query info</source>
@@ -1996,7 +1613,7 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>Too many open files</source>
-        <translation>Túl sok nyitott fájl</translation>
+        <translation>Túl sok megnyitott fájl</translation>
     </message>
     <message>
         <source>No such file or directory</source>
@@ -2007,12 +1624,12 @@ Mindenképp törölni szeretné?</translation>
         <translation>Nincs több hely az eszközön</translation>
     </message>
     <message>
-        <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
-    </message>
-    <message>
         <source>file to open is a directory</source>
         <translation>a megnyitandó fájl egy könyvtár</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Ismeretlen hiba</translation>
     </message>
 </context>
 <context>
@@ -2049,6 +1666,10 @@ Mindenképp törölni szeretné?</translation>
         <translation>Az eszköz nincs beállítva</translation>
     </message>
     <message>
+        <source>Cannot open device for writing: %1</source>
+        <translation>Nem lehet megnyitni az eszközt írásra: %1</translation>
+    </message>
+    <message>
         <source>Device not writable</source>
         <translation>Az eszköz nem írható</translation>
     </message>
@@ -2057,12 +1678,8 @@ Mindenképp törölni szeretné?</translation>
         <translation>Nem támogatott képformátum</translation>
     </message>
     <message>
-        <source>Cannot open device for writing: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Image is empty</source>
-        <translation type="unfinished"></translation>
+        <translation>A kép üres</translation>
     </message>
 </context>
 <context>
@@ -2108,7 +1725,7 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>invalid escape sequence</source>
-        <translation>érvénytelen elfedési sorrend</translation>
+        <translation>érvénytelen feloldókarakter</translation>
     </message>
     <message>
         <source>invalid UTF8 string</source>
@@ -2139,7 +1756,7 @@ Mindenképp törölni szeretné?</translation>
     <name>QKeySequenceEdit</name>
     <message>
         <source>Press shortcut</source>
-        <translation>Lenyomás parancsikon</translation>
+        <translation>Nyomja meg a billentyűparancsot</translation>
     </message>
     <message>
         <source>%1, ...</source>
@@ -2150,48 +1767,48 @@ Mindenképp törölni szeretné?</translation>
 <context>
     <name>QLibrary</name>
     <message>
-        <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
-        <translation>A(z) „%1” bővítmény nem összeegyeztethető Qt függvénykönyvtárat használ. (%2.%3.%4) [%5]</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <source>Failed to extract plugin meta data from &apos;%1&apos;: %2</source>
+        <translation>A bővítmény metaadatának kibontása sikertelen innen: „%1”: %2</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
-        <translation>Az osztott függvénykönyvtár nem található.</translation>
+        <translation>Az osztott programkönyvtár nem található.</translation>
+    </message>
+    <message>
+        <source>Could not resolve &apos;qt_plugin_instance&apos; function</source>
+        <translation>Nem sikerült feloldani a „qt_plugin_instance” függvényt</translation>
+    </message>
+    <message>
+        <source>metadata too small</source>
+        <translation>a metaadatok túl kicsik</translation>
+    </message>
+    <message>
+        <source>entrypoint to query the plugin meta data not found</source>
+        <translation>a belépési pont a bővítmény metaadatainak lekérdezéséhez nem található</translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
         <translation>A(z) „%1” fájl nem érvényes Qt bővítmény.</translation>
     </message>
     <message>
+        <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
+        <translation>A(z) „%1” bővítmény nem kompatibilis Qt programkönyvtárat használ. (%2.%3.%4) [%5]</translation>
+    </message>
+    <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translation>A(z) „%1” bővítmény nem összeegyeztethető Qt függvénykönyvtárat használ. (Nem lehet keverni a hibakeresési és a kiadási függvénykönyvtárakat.)</translation>
+        <translation>A(z) „%1” bővítmény nem kompatibilis Qt programkönyvtárat használ. (Nem lehet keverni a hibakeresési és a kiadási programkönyvtárakat.)</translation>
     </message>
     <message>
-        <source>&apos;%1&apos; is not an ELF object (%2)</source>
-        <translation>A(z) „%1” nem ELF objektum (%2)</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is not an ELF object</source>
-        <translation>A(z) „%1” nem ELF objektum</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos; is an invalid ELF object (%2)</source>
-        <translation>A(z) „%1” egy érvénytelen ELF objektum (%2)</translation>
+        <source>Unknown error</source>
+        <translation>Ismeretlen hiba</translation>
     </message>
     <message>
         <source>Cannot load library %1: %2</source>
-        <translation>Nem lehet betölteni a(z) %1 függvénykönyvtárat: %2</translation>
+        <translation>Nem lehet betölteni a(z) %1 programkönyvtárat: %2</translation>
     </message>
     <message>
         <source>Cannot unload library %1: %2</source>
-        <translation>Nem lehet eltávolítani a(z) %1 függvénykönyvtárat: %2</translation>
-    </message>
-    <message>
-        <source>Failed to extract plugin meta data from &apos;%1&apos;</source>
-        <translation>A bővítmény metaadatának kinyerése sikertelen innen: „%1”</translation>
+        <translation>Nem lehet eltávolítani a(z) %1 programkönyvtárat: %2</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not a valid Mach-O binary (%2)</source>
@@ -2202,8 +1819,68 @@ Mindenképp törölni szeretné?</translation>
         <translation>a fájl sérült</translation>
     </message>
     <message>
+        <source>file is for the wrong endianness</source>
+        <translation>a fájl bájtsorrendje téves</translation>
+    </message>
+    <message>
+        <source>file has an unknown ELF version</source>
+        <translation>a fájl ELF verziója ismeretlen</translation>
+    </message>
+    <message>
+        <source>file has an unexpected ABI</source>
+        <translation>a fájlnak váratlan ABI-ja van</translation>
+    </message>
+    <message>
+        <source>file is not a shared object</source>
+        <translation>a fájl nem osztott objektum</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a valid ELF object (%2)</source>
+        <translation>A(z) „%1” nem érvényes ELF objektum (%2)</translation>
+    </message>
+    <message>
+        <source>unimplemented: PN_XNUM program headers</source>
+        <translation>nem megvalósított: PN_XNUM programfejlécek</translation>
+    </message>
+    <message>
+        <source>program header table extends past the end of the file</source>
+        <translation>a program fejléctáblája túlnyúlik a fájl végén</translation>
+    </message>
+    <message>
+        <source>a program header entry extends past the end of the file</source>
+        <translation>egy programfejléc-bejegyzés túlnyúlik a fájl végén</translation>
+    </message>
+    <message>
+        <source>a note segment start is not properly aligned (offset 0x%1, alignment %2)</source>
+        <translation>a megjegyzésszegmens kezdete nincs megfelelően igazítva (eltolás 0x%1, igazítás %2)</translation>
+    </message>
+    <message>
+        <source>section table extends past the end of the file</source>
+        <translation>a szakasztábla túlnyúlik a fájl végén</translation>
+    </message>
+    <message>
+        <source>section header string table extends past the end of the file</source>
+        <translation>a szakaszfejlác karakterlánc-táblája túlnyúlik a fájl végén</translation>
+    </message>
+    <message>
+        <source>a section name extends past the end of the file</source>
+        <translation>egy szakasznév túlnyúlik a fájl végén</translation>
+    </message>
+    <message>
         <source>file too small</source>
         <translation>a fájl túl kicsi</translation>
+    </message>
+    <message>
+        <source>unexpected program header entry size (%1)</source>
+        <translation>váratlan programfejléc-bejegyzésméret (%1)</translation>
+    </message>
+    <message>
+        <source>unexpected section entry size (%1)</source>
+        <translation>váratlan szakaszbejegyzés-méret (%1)</translation>
+    </message>
+    <message>
+        <source>e_shstrndx greater than the number of sections e_shnum (%1 &gt;= %2)</source>
+        <translation>az e_shstrndx nagyobb, mint az e_shnum szakaszainak száma (%1 &gt;= %2)</translation>
     </message>
     <message>
         <source>no suitable architecture in fat binary</source>
@@ -2211,7 +1888,7 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>invalid magic %1</source>
-        <translation>érvénytelen mágia: %1</translation>
+        <translation>érvénytelen varázsszám: %1</translation>
     </message>
     <message>
         <source>wrong architecture</source>
@@ -2219,57 +1896,75 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>not a dynamic library</source>
-        <translation>nem dinamikus függvénykönyvtár</translation>
+        <translation>nem dinamikus programkönyvtár</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not a Qt plugin</source>
         <translation>A(z) „%1” nem Qt bővítmény</translation>
     </message>
     <message>
-        <source>odd cpu architecture</source>
-        <translation type="unfinished"></translation>
+        <source>&apos;%1&apos; is not a valid Windows DLL (%2)</source>
+        <translation>A(z) „%1” nem érvényes Windows DLL (%2)</translation>
     </message>
     <message>
-        <source>wrong cpu architecture</source>
-        <translation type="unfinished"></translation>
+        <source>&apos;%1&apos; is too small</source>
+        <translation>A(z) „%1” túl kicsi</translation>
     </message>
     <message>
-        <source>odd endianness</source>
-        <translation type="unfinished"></translation>
+        <source>&apos;%1&apos; is not a Qt plugin (%2)</source>
+        <translation>A(z) „%1” nem Qt bővítmény (%2)</translation>
     </message>
     <message>
-        <source>unexpected e_shsize</source>
-        <translation type="unfinished"></translation>
+        <source>metadata not found</source>
+        <translation>a metaadat nem található</translation>
     </message>
     <message>
-        <source>unexpected e_shentsize</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>announced %n section(s), each %1 byte(s), exceed file size</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-        </translation>
+        <source>invalid signature</source>
+        <translation>érvénytelen aláírás</translation>
     </message>
     <message>
-        <source>shstrtab section header seems to be at %1</source>
-        <translation type="unfinished"></translation>
+        <source>file is for a different processor</source>
+        <translation>a fájl egy másik processzorhoz való</translation>
     </message>
     <message>
-        <source>string table seems to be at %1</source>
-        <translation type="unfinished"></translation>
+        <source>file has no sections</source>
+        <translation>a fájlnak nincsenek szakaszai</translation>
     </message>
     <message>
-        <source>section name %1 of %2 behind end of file</source>
-        <translation type="unfinished"></translation>
+        <source>wrong characteristics</source>
+        <translation>hibás tulajdonságok</translation>
     </message>
     <message>
-        <source>empty .rodata. not a library.</source>
-        <translation type="unfinished"></translation>
+        <source>file is for a different word size</source>
+        <translation>a fájl egy másik szómérethez tartozik</translation>
     </message>
     <message>
-        <source>missing section data. This is not a library.</source>
-        <translation type="unfinished"></translation>
+        <source>file has no code</source>
+        <translation>a fájlnak nincs kódja</translation>
+    </message>
+    <message>
+        <source>a section name is empty or extends past the end of the file</source>
+        <translation>egy szakasznév üres vagy túlnyúlik a fájl végén</translation>
+    </message>
+    <message>
+        <source>section contents extend past the end of the file</source>
+        <translation>a szakasztartalmak túlnyúlnak a fájl végén</translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is too small</source>
+        <translation>a .qtmetadata szakasz túl kicsi</translation>
+    </message>
+    <message>
+        <source>.qtmetadata section has incorrect magic</source>
+        <translation>a qtmetadata szakasznak helytelen varázsszáma van</translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is writable</source>
+        <translation>a .qtmetadata szakasz írható</translation>
+    </message>
+    <message>
+        <source>.qtmetadata section is executable</source>
+        <translation>a .qtmetadata szakasz végrehajtható</translation>
     </message>
 </context>
 <context>
@@ -2326,7 +2021,7 @@ Mindenképp törölni szeretné?</translation>
     <name>QLocalSocket</name>
     <message>
         <source>%1: Connection refused</source>
-        <translation>%1: a kapcsolat visszautasítva</translation>
+        <translation>%1: kapcsolat visszautasítva</translation>
     </message>
     <message>
         <source>%1: Remote closed</source>
@@ -2362,11 +2057,15 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>%1: Operation not permitted when socket is in this state</source>
-        <translation>%1: a művelet nem engedélyezett, ha foglalat van ebben az állapotban</translation>
+        <translation>%1: a művelet nem engedélyezett, ha a foglalat ebben az állapotban van</translation>
     </message>
     <message>
         <source>%1: Unknown error</source>
         <translation>%1: ismeretlen hiba</translation>
+    </message>
+    <message>
+        <source>Trying to connect while connection is in progress</source>
+        <translation>Kapcsolódási kísérlet, miközben a kapcsolat folyamatban van</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
@@ -2377,16 +2076,24 @@ Mindenképp törölni szeretné?</translation>
         <translation>%1: hozzáférés megtagadva</translation>
     </message>
     <message>
-        <source>Trying to connect while connection is in progress</source>
-        <translation>Kapcsolódási kísérlet, miközben a kapcsolat folyamatban van</translation>
+        <source>Socket is not connected</source>
+        <translation>A foglalat nincs kapcsolódva</translation>
     </message>
     <message>
-        <source>Socket is not connected</source>
-        <translation type="unfinished">A foglalat nem kapcsolódott</translation>
+        <source>Remote closed</source>
+        <translation>Távoli lezárás</translation>
     </message>
 </context>
 <context>
     <name>QMYSQLDriver</name>
+    <message>
+        <source>Unable to allocate a MYSQL object</source>
+        <translation>Nem foglalható le egy MySQL objektum</translation>
+    </message>
+    <message>
+        <source>Unable to open database &apos;%1&apos;</source>
+        <translation>Nem nyitható meg a(z) „%1” adatbázis</translation>
+    </message>
     <message>
         <source>Unable to connect</source>
         <translation>Nem lehet kapcsolódni</translation>
@@ -2401,15 +2108,7 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nem görgethető vissza a tranzakció</translation>
-    </message>
-    <message>
-        <source>Unable to open database &apos;%1&apos;</source>
-        <translation>Nem nyitható meg a(z) „%1” adatbázis</translation>
-    </message>
-    <message>
-        <source>Unable to allocate a MYSQL object</source>
-        <translation>Nem foglalható le egy MySQL objektum</translation>
+        <translation>Nem vonható vissza a tranzakció</translation>
     </message>
 </context>
 <context>
@@ -2425,6 +2124,14 @@ Mindenképp törölni szeretné?</translation>
     <message>
         <source>Unable to store result</source>
         <translation>Nem tárolható el az eredmény</translation>
+    </message>
+    <message>
+        <source>Unable to execute next query</source>
+        <translation>Nem hajtható végre a következő lekérdezés</translation>
+    </message>
+    <message>
+        <source>Unable to store next result</source>
+        <translation>Nem tárolható el a következő eredmény</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
@@ -2450,14 +2157,6 @@ Mindenképp törölni szeretné?</translation>
         <source>Unable to store statement results</source>
         <translation>Nem tárolhatók el az utasítás eredményei</translation>
     </message>
-    <message>
-        <source>Unable to execute next query</source>
-        <translation>Nem hajtható végre a következő lekérdezés</translation>
-    </message>
-    <message>
-        <source>Unable to store next result</source>
-        <translation>Nem tárolható el a következő eredmény</translation>
-    </message>
 </context>
 <context>
     <name>QMdiArea</name>
@@ -2469,20 +2168,48 @@ Mindenképp törölni szeretné?</translation>
 <context>
     <name>QMdiSubWindow</name>
     <message>
-        <source>%1 - [%2]</source>
-        <translation>%1 – [%2]</translation>
+        <source>- [%1]</source>
+        <translation>– [%1]</translation>
     </message>
     <message>
-        <source>Close</source>
-        <translation>Bezárás</translation>
+        <source>%1 - [%2]</source>
+        <translation>%1 – [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
         <translation>Kis méret</translation>
     </message>
     <message>
+        <source>Maximize</source>
+        <translation>Teljes méret</translation>
+    </message>
+    <message>
+        <source>Unshade</source>
+        <translation>Legördítés</translation>
+    </message>
+    <message>
+        <source>Shade</source>
+        <translation>Felgördítés</translation>
+    </message>
+    <message>
         <source>Restore Down</source>
         <translation>Visszaállítás le</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation>Visszaállítás</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Bezárás</translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation>Súgó</translation>
+    </message>
+    <message>
+        <source>Menu</source>
+        <translation>Menü</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
@@ -2512,41 +2239,9 @@ Mindenképp törölni szeretné?</translation>
         <source>&amp;Close</source>
         <translation>&amp;Bezárás</translation>
     </message>
-    <message>
-        <source>- [%1]</source>
-        <translation>– [%1]</translation>
-    </message>
-    <message>
-        <source>Maximize</source>
-        <translation>Teljes méret</translation>
-    </message>
-    <message>
-        <source>Unshade</source>
-        <translation>Legördítés</translation>
-    </message>
-    <message>
-        <source>Shade</source>
-        <translation>Felgördítés</translation>
-    </message>
-    <message>
-        <source>Restore</source>
-        <translation>Visszaállítás</translation>
-    </message>
-    <message>
-        <source>Help</source>
-        <translation>Súgó</translation>
-    </message>
-    <message>
-        <source>Menu</source>
-        <translation>Menü</translation>
-    </message>
 </context>
 <context>
     <name>QMessageBox</name>
-    <message>
-        <source>About Qt</source>
-        <translation>A Qt névjegye</translation>
-    </message>
     <message>
         <source>Show Details...</source>
         <translation>Részletek megjelenítése…</translation>
@@ -2560,13 +2255,29 @@ Mindenképp törölni szeretné?</translation>
         <translation>&lt;h3&gt;A Qt névjegye&lt;/h3&gt;&lt;p&gt;Ez a program a Qt %1 verzióját használja.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) %1 The Qt Company Ltd and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd product developed as an open source project. See &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under multiple licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of GNU (L)GPL.&lt;/p&gt;&lt;p&gt;Qt licensed under GNU (L)GPL is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the respective licenses.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;https://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) The Qt Company Ltd. and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd. product developed as an open source project. See &lt;a href=&quot;https://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
         <extracomment>Leave this text untranslated or include a verbatim copy of it below and note that it is the authoritative version in case of doubt.</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;A Qt egy C++ eszközkészlet keresztplatformos alkalmazásfejlesztéshez.&lt;/p&gt;&lt;p&gt;A Qt hordozhatóságot biztosít minden nagyobb asztali operációs rendszerhez egyetlen forráskódból. Beágyazott Linux és más beágyazott és mobil operációs rendszerekhez is elérhető.&lt;/p&gt;&lt;p&gt;A Qt többféle licencelési lehetőséggel érhető el, hogy megfeleljen a különböző felhasználók igényeinek.&lt;/p&gt;&lt;p&gt;A kereskedelmi licencszerződésünk alapján licencelt Qt olyan zárt/kereskedelmi szoftverek fejlesztésére alkalmas, ahol nem kíván forráskódot megosztani harmadik féllel, vagy más módon nem tud megfelelni a GNU (L)GPL feltételeinek.&lt;/p&gt;&lt;p&gt;A GNU (L)GPL alatt licencelt Qt alkalmas a Qt&amp;nbsp;alkalmazások fejlesztésére, feltéve, hogy a vonatkozó licencek feltételeinek megfelel.&lt;/p&gt;&lt;p&gt;A Qt licencelésének áttekintéséhez keresse fel a &lt;a href=&quot;https://%2/&quot;&gt;%2&lt;/a&gt; weboldalt.&lt;/p&gt;&lt;p&gt;Copyright (C) A The Qt Company Ltd. és más közreműködők.&lt;/p&gt;&lt;p&gt;A Qt és a Qt logó a The Qt Company Ltd. védjegyei.&lt;/p&gt;&lt;p&gt;A Qt a The Qt Company Ltd. nyílt forráskódú projektként fejlesztett terméke. További információkért lásd a &lt;a href=&quot;https://%3/&quot;&gt;%3&lt;/a&gt; weboldalt.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>About Qt</source>
+        <translation>A Qt névjegye</translation>
     </message>
 </context>
 <context>
     <name>QNativeSocketEngine</name>
+    <message>
+        <source>Unable to initialize non-blocking socket</source>
+        <translation>Nem készíthető elő a nem blokkoló foglalat</translation>
+    </message>
+    <message>
+        <source>Unable to initialize broadcast socket</source>
+        <translation>Nem készíthető elő az üzenetszóró foglalat</translation>
+    </message>
+    <message>
+        <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
+        <translation>IPv6 foglalat használatának kísérlete IPv6 támogatás nélküli platformon</translation>
+    </message>
     <message>
         <source>The remote host closed the connection</source>
         <translation>A távoli gép lezárta a kapcsolatot</translation>
@@ -2590,6 +2301,10 @@ Mindenképp törölni szeretné?</translation>
     <message>
         <source>Invalid socket descriptor</source>
         <translation>Érvénytelen foglalatleíró</translation>
+    </message>
+    <message>
+        <source>Host unreachable</source>
+        <translation>A gép nem érhető el</translation>
     </message>
     <message>
         <source>Network unreachable</source>
@@ -2620,6 +2335,10 @@ Mindenképp törölni szeretné?</translation>
         <translation>A cím védett</translation>
     </message>
     <message>
+        <source>Datagram was too large to send</source>
+        <translation>Az adatcsomag túl nagy volt a küldéshez</translation>
+    </message>
+    <message>
         <source>Unable to send a message</source>
         <translation>Nem küldhető el egy üzenet</translation>
     </message>
@@ -2640,40 +2359,16 @@ Mindenképp törölni szeretné?</translation>
         <translation>Egy másik foglalat már figyel ugyanezen a porton</translation>
     </message>
     <message>
-        <source>Temporary error</source>
-        <translation>Átmeneti hiba</translation>
-    </message>
-    <message>
-        <source>Unable to initialize non-blocking socket</source>
-        <translation>Nem készíthető elő a nem blokkoló foglalat</translation>
-    </message>
-    <message>
-        <source>Unable to initialize broadcast socket</source>
-        <translation>Nem készíthető elő az üzenetszóró foglalat</translation>
-    </message>
-    <message>
-        <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
-        <translation>IPv6 foglalat használatának kísérlete IPv6 támogatás nélküli platformon</translation>
-    </message>
-    <message>
-        <source>Host unreachable</source>
-        <translation>A gép nem érhető el</translation>
-    </message>
-    <message>
-        <source>Datagram was too large to send</source>
-        <translation>Az adatcsomag túl nagy volt a küldéshez</translation>
-    </message>
-    <message>
         <source>Operation on non-socket</source>
         <translation>Művelet egy nem foglalaton</translation>
     </message>
     <message>
-        <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
-    </message>
-    <message>
         <source>The proxy type is invalid for this operation</source>
         <translation>A proxy típusa érvénytelen ehhez a művelethez</translation>
+    </message>
+    <message>
+        <source>Temporary error</source>
+        <translation>Átmeneti hiba</translation>
     </message>
     <message>
         <source>Network dropped connection on reset</source>
@@ -2682,6 +2377,10 @@ Mindenképp törölni szeretné?</translation>
     <message>
         <source>Connection reset by peer</source>
         <translation>A partner visszaállította a kapcsolatot</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Ismeretlen hiba</translation>
     </message>
 </context>
 <context>
@@ -2702,7 +2401,7 @@ Mindenképp törölni szeretné?</translation>
     <name>QNetworkAccessDebugPipeBackend</name>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Írási hiba a(z) %1 kiírásakor: %2</translation>
+        <translation>Írási hiba a következőbe íráskor: %1: %2</translation>
     </message>
     <message>
         <source>Socket error on %1: %2</source>
@@ -2725,11 +2424,11 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Írási hiba a(z) %1 kiírásakor: %2</translation>
+        <translation>Írási hiba a következőbe íráskor: %1: %2</translation>
     </message>
     <message>
         <source>Cannot open %1: Path is a directory</source>
-        <translation>Nem lehet megnyitni: %1: az útvonal egy könyvtár</translation>
+        <translation>A(z) %1 nem nyitható meg: az útvonal egy könyvtár</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
@@ -2737,60 +2436,25 @@ Mindenképp törölni szeretné?</translation>
     </message>
 </context>
 <context>
-    <name>QNetworkAccessFtpBackend</name>
-    <message>
-        <source>Cannot open %1: is a directory</source>
-        <translation>Nem lehet megnyitni: %1: ez egy könyvtár</translation>
-    </message>
-    <message>
-        <source>Logging in to %1 failed: authentication required</source>
-        <translation>A bejelentkezés sikertelen ide: %1: hitelesítés szükséges</translation>
-    </message>
-    <message>
-        <source>Error while downloading %1: %2</source>
-        <translation>Hiba a(z) %1 letöltésekor: %2</translation>
-    </message>
-    <message>
-        <source>Error while uploading %1: %2</source>
-        <translation>Hiba a(z) %1 feltöltésekor: %2</translation>
-    </message>
-    <message>
-        <source>No suitable proxy found</source>
-        <translation>Nem található megfelelő proxy</translation>
-    </message>
-</context>
-<context>
     <name>QNetworkReply</name>
     <message>
-        <source>Protocol &quot;%1&quot; is unknown</source>
-        <translation>A(z) „%1” protokoll ismeretlen</translation>
-    </message>
-    <message>
-        <source>Background request not allowed.</source>
-        <translation>A háttérkérés nem engedélyezett.</translation>
-    </message>
-    <message>
-        <source>Network session error.</source>
-        <translation>Hálózati munkamenet hiba.</translation>
+        <source>Error transferring %1 - server replied: %2</source>
+        <translation>Hiba a(z) %1 átvitele során - a kiszolgáló válasza: %2</translation>
     </message>
     <message>
         <source>backend start error.</source>
         <translation>háttérprogram indítási hiba.</translation>
     </message>
     <message>
-        <source>Temporary network failure.</source>
-        <translation>Átmeneti hálózati hiba.</translation>
-    </message>
-    <message>
-        <source>Error transferring %1 - server replied: %2</source>
-        <translation>Hiba a(z) %1 átvitele során - a kiszolgáló válasza: %2</translation>
+        <source>Protocol &quot;%1&quot; is unknown</source>
+        <translation>A(z) „%1” protokoll ismeretlen</translation>
     </message>
 </context>
 <context>
     <name>QNetworkReplyHttpImpl</name>
     <message>
         <source>Operation canceled</source>
-        <translation>A művelet megszakítva</translation>
+        <translation>Művelet megszakítva</translation>
     </message>
     <message>
         <source>No suitable proxy found</source>
@@ -2801,49 +2465,19 @@ Mindenképp törölni szeretné?</translation>
     <name>QNetworkReplyImpl</name>
     <message>
         <source>Operation canceled</source>
-        <translation>A művelet megszakítva</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkSession</name>
-    <message>
-        <source>Invalid configuration.</source>
-        <translation>Érvénytelen beállítás.</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkSessionPrivateImpl</name>
-    <message>
-        <source>Unknown session error.</source>
-        <translation>Ismeretlen munkamenet hiba.</translation>
-    </message>
-    <message>
-        <source>The session was aborted by the user or system.</source>
-        <translation>A munkamenetet a felhasználó vagy a rendszer megszakította.</translation>
-    </message>
-    <message>
-        <source>The requested operation is not supported by the system.</source>
-        <translation>A kért műveletet a rendszer nem támogatja.</translation>
-    </message>
-    <message>
-        <source>The specified configuration cannot be used.</source>
-        <translation>A megadott beállítás nem használható.</translation>
-    </message>
-    <message>
-        <source>Roaming was aborted or is not possible.</source>
-        <translation>A barangolást megszakították vagy nem lehetséges.</translation>
+        <translation>Művelet megszakítva</translation>
     </message>
 </context>
 <context>
     <name>QOCIDriver</name>
     <message>
-        <source>Unable to logon</source>
-        <translation>Nem lehet bejelentkezni</translation>
-    </message>
-    <message>
         <source>Unable to initialize</source>
         <comment>QOCIDriver</comment>
         <translation>Nem készíthető elő</translation>
+    </message>
+    <message>
+        <source>Unable to logon</source>
+        <translation>Nem lehet bejelentkezni</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -2855,7 +2489,7 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nem görgethető vissza a tranzakció</translation>
+        <translation>Nem vonható vissza a tranzakció</translation>
     </message>
 </context>
 <context>
@@ -2913,7 +2547,7 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nem görgethető vissza a tranzakció</translation>
+        <translation>Nem vonható vissza a tranzakció</translation>
     </message>
     <message>
         <source>Unable to enable autocommit</source>
@@ -2923,32 +2557,28 @@ Mindenképp törölni szeretné?</translation>
 <context>
     <name>QODBCResult</name>
     <message>
+        <source>Unable to fetch last</source>
+        <translation>Nem olvasható ki az utolsó</translation>
+    </message>
+    <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translation>QODBCResult::reset: nem állítható be az „SQL_CURSOR_STATIC” utasítás attribútumként. Ellenőrizze az ODBC meghajtó beállítását</translation>
+        <translation>QODBCResult::reset: nem állítható be az „SQL_CURSOR_STATIC” utasítás attribútumaként. Ellenőrizze az ODBC meghajtó beállítását</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
         <translation>Nem hajtható végre az utasítás</translation>
     </message>
     <message>
-        <source>Unable to fetch next</source>
-        <translation>Nem olvasható ki a következő</translation>
-    </message>
-    <message>
-        <source>Unable to prepare statement</source>
-        <translation>Nem készíthető elő az utasítás</translation>
-    </message>
-    <message>
-        <source>Unable to bind variable</source>
-        <translation>Nem köthető hozzá a változó</translation>
-    </message>
-    <message>
-        <source>Unable to fetch last</source>
-        <translation>Nem olvasható ki az utolsó</translation>
+        <source>QODBCResult::reset: Unable to set &apos;SQL_ATTR_CURSOR_TYPE&apos; as statement attribute. Please check your ODBC driver configuration</source>
+        <translation>QODBCResult::reset: Az „SQL_ATTR_CURSOR_TYPE” nem állítható be utasítás attribútumaként. Kérjük, ellenőrizze az OBDC illesztőprogram beállításait</translation>
     </message>
     <message>
         <source>Unable to fetch</source>
         <translation>Nem olvasható ki</translation>
+    </message>
+    <message>
+        <source>Unable to fetch next</source>
+        <translation>Nem olvasható ki a következő</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
@@ -2958,12 +2588,24 @@ Mindenképp törölni szeretné?</translation>
         <source>Unable to fetch previous</source>
         <translation>Nem olvasható ki az előző</translation>
     </message>
+    <message>
+        <source>Unable to prepare statement</source>
+        <translation>Nem készíthető elő az utasítás</translation>
+    </message>
+    <message>
+        <source>Unable to bind variable</source>
+        <translation>Nem köthető hozzá a változó</translation>
+    </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
     <message>
         <source>Unable to connect</source>
         <translation>Nem lehet kapcsolódni</translation>
+    </message>
+    <message>
+        <source>Unable to set client encoding to &apos;UNICODE&apos;</source>
+        <translation>Nem állítható be a kliens kódolása „UNICODE”-ra</translation>
     </message>
     <message>
         <source>Could not begin transaction</source>
@@ -2975,7 +2617,7 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>Could not rollback transaction</source>
-        <translation>Nem sikerült visszagörgetni a tranzakciót</translation>
+        <translation>Nem sikerült visszavonni a tranzakciót</translation>
     </message>
     <message>
         <source>Unable to subscribe</source>
@@ -2989,40 +2631,28 @@ Mindenképp törölni szeretné?</translation>
 <context>
     <name>QPSQLResult</name>
     <message>
+        <source>Query results lost - probably discarded on executing another SQL query.</source>
+        <translation>A lekérdezés eredményei elvesztek - talán egy másik SQL lekérdezés végrehajtásakor kerültek eldobásra.</translation>
+    </message>
+    <message>
         <source>Unable to create query</source>
         <translation>Nem hozható létre lekérdezés</translation>
+    </message>
+    <message>
+        <source>Unable to get result</source>
+        <translation>Nem kérhető le az eredmény</translation>
+    </message>
+    <message>
+        <source>Unable to send query</source>
+        <translation>Nem küldhető el a lekérdezés</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
         <translation>Nem készíthető elő az utasítás</translation>
     </message>
-    <message>
-        <source>Query results lost - probably discarded on executing another SQL query.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unable to get result</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unable to send query</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>QPageSetupWidget</name>
-    <message>
-        <source>Millimeters (mm)</source>
-        <translation>Milliméter (mm)</translation>
-    </message>
-    <message>
-        <source>Inches (in)</source>
-        <translation>Hüvelyk (in)</translation>
-    </message>
-    <message>
-        <source>Points (pt)</source>
-        <translation>Pont (pt)</translation>
-    </message>
     <message>
         <source>Form</source>
         <translation>Űrlap</translation>
@@ -3098,6 +2728,18 @@ Mindenképp törölni szeretné?</translation>
     <message>
         <source>Pages per sheet:</source>
         <translation>Oldalak laponként:</translation>
+    </message>
+    <message>
+        <source>Millimeters (mm)</source>
+        <translation>Milliméter (mm)</translation>
+    </message>
+    <message>
+        <source>Inches (in)</source>
+        <translation>Hüvelyk (in)</translation>
+    </message>
+    <message>
+        <source>Points (pt)</source>
+        <translation>Pont (pt)</translation>
     </message>
     <message>
         <source>Pica (P̸)</source>
@@ -3433,7 +3075,7 @@ Mindenképp törölni szeretné?</translation>
     </message>
     <message>
         <source>Statement</source>
-        <translation>Utasítás</translation>
+        <translation>Statement</translation>
     </message>
     <message>
         <source>Super A</source>
@@ -3702,73 +3344,19 @@ Mindenképp törölni szeretné?</translation>
 <context>
     <name>QPluginLoader</name>
     <message>
-        <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
-    </message>
-    <message>
         <source>The plugin was not loaded.</source>
         <translation>A bővítmény nem lett betöltve.</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Ismeretlen hiba</translation>
     </message>
 </context>
 <context>
     <name>QPrintDialog</name>
     <message>
-        <source>Print To File ...</source>
-        <translation>Nyomtatás fájlba…</translation>
-    </message>
-    <message>
-        <source>File %1 is not writable.
-Please choose a different file name.</source>
-        <translation>A(z) %1 fájl nem írható.
-Válasszon egy másik fájlnevet.</translation>
-    </message>
-    <message>
-        <source>%1 already exists.
-Do you want to overwrite it?</source>
-        <translation>A(z) %1 már létezik.
-Szeretné felülírni?</translation>
-    </message>
-    <message>
-        <source>%1 is a directory.
-Please choose a different file name.</source>
-        <translation>A(z) %1 egy könyvtár.
-Válasszon egy másik fájlnevet.</translation>
-    </message>
-    <message>
-        <source>&amp;Options &gt;&gt;</source>
-        <translation>&amp;Beállítások &gt;&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Print</source>
-        <translation>&amp;Nyomtatás</translation>
-    </message>
-    <message>
-        <source>&amp;Options &lt;&lt;</source>
-        <translation>&amp;Beállítások &lt;&lt;</translation>
-    </message>
-    <message>
-        <source>Print to File (PDF)</source>
-        <translation>Nyomtatás fájlba (PDF)</translation>
-    </message>
-    <message>
-        <source>Write PDF file</source>
-        <translation>PDF-fájl írása</translation>
-    </message>
-    <message>
-        <source>Local file</source>
-        <translation>Helyi fájl</translation>
-    </message>
-    <message>
         <source>Print</source>
         <translation>Nyomtatás</translation>
-    </message>
-    <message>
-        <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
-        <translation>Az „Ettől” értéke nem lehet nagyobb mint az „Eddig” értéke.</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
     </message>
     <message>
         <source>Left to Right, Top to Bottom</source>
@@ -3839,26 +3427,76 @@ Válasszon egy másik fájlnevet.</translation>
         <translation>Páros oldalak</translation>
     </message>
     <message>
+        <source>&amp;Options &gt;&gt;</source>
+        <translation>&amp;Beállítások &gt;&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Print</source>
+        <translation>&amp;Nyomtatás</translation>
+    </message>
+    <message>
+        <source>&amp;Options &lt;&lt;</source>
+        <translation>&amp;Beállítások &lt;&lt;</translation>
+    </message>
+    <message>
+        <source>Invalid Pages Definition</source>
+        <translation>Érvénytelen oldalbeállítás</translation>
+    </message>
+    <message>
+        <source>%1 does not follow the correct syntax. Please use &apos;,&apos; to separate ranges and pages, &apos;-&apos; to define ranges and make sure ranges do not intersect with each other.</source>
+        <translation>A(z) %1 nem követi a helyes szintaxist. Használjon vesszőt a tartományok és oldalakelválasztásához, kötőjelet a tartományok definiálásához és ellenőrizze, hogy a tartományok nem metszik-e egymást.</translation>
+    </message>
+    <message>
+        <source>Duplex Settings Conflicts</source>
+        <translation>Ellentmondásos kétoldalas beállítások</translation>
+    </message>
+    <message>
+        <source>There are conflicts in duplex settings. Do you want to fix them?</source>
+        <translation>Ellentmondások vannak a kétoldalas beállításokban. Szeretné javítani azokat?</translation>
+    </message>
+    <message>
+        <source>Print to File (PDF)</source>
+        <translation>Nyomtatás fájlba (PDF)</translation>
+    </message>
+    <message>
+        <source>Local file</source>
+        <translation>Helyi fájl</translation>
+    </message>
+    <message>
+        <source>Write PDF file</source>
+        <translation>PDF-fájl írása</translation>
+    </message>
+    <message>
+        <source>Print To File ...</source>
+        <translation>Nyomtatás fájlba…</translation>
+    </message>
+    <message>
+        <source>%1 is a directory.
+Please choose a different file name.</source>
+        <translation>A(z) %1 egy könyvtár.
+Válasszon egy másik fájlnevet.</translation>
+    </message>
+    <message>
+        <source>File %1 is not writable.
+Please choose a different file name.</source>
+        <translation>A(z) %1 fájl nem írható.
+Válasszon egy másik fájlnevet.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to overwrite it?</source>
+        <translation>A(z) %1 már létezik.
+Szeretné felülírni?</translation>
+    </message>
+    <message>
         <source>Options &apos;Pages Per Sheet&apos; and &apos;Page Set&apos; cannot be used together.
 Please turn one of those options off.</source>
         <translation>Az „Oldalak laponként” és az „Oldalkészlet” beállítások nem használhatók együtt.
 Kapcsoljon ki ezen beállítások közül egyet.</translation>
     </message>
     <message>
-        <source>Invalid Pages Definition</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 does not follow the correct syntax. Please use &apos;,&apos; to separate ranges and pages, &apos;-&apos; to define ranges and make sure ranges do not intersect with each other.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Duplex Settings Conflicts</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>There are conflicts in duplex settings. Do you want to fix them?</source>
-        <translation type="unfinished"></translation>
+        <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
+        <translation>Az „Ettől” értéke nem lehet nagyobb mint az „Eddig” értéke.</translation>
     </message>
 </context>
 <context>
@@ -3866,6 +3504,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     <message>
         <source>Page Setup</source>
         <translation>Oldalbeállítás</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
     </message>
     <message>
         <source>Print Preview</source>
@@ -3935,10 +3577,6 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <source>Export to PDF</source>
         <translation>Exportálás PDF-be</translation>
     </message>
-    <message>
-        <source>%1%</source>
-        <translation>%1%</translation>
-    </message>
 </context>
 <context>
     <name>QPrintPropertiesDialog</name>
@@ -3952,19 +3590,19 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     </message>
     <message>
         <source>Page Setup Conflicts</source>
-        <translation type="unfinished"></translation>
+        <translation>Ellentmondásos oldalbeállítások</translation>
     </message>
     <message>
         <source>There are conflicts in page setup options. Do you want to fix them?</source>
-        <translation type="unfinished"></translation>
+        <translation>Ellentmondások vannak az oldalbeállításokban. Szeretné javítani azokat?</translation>
     </message>
     <message>
         <source>Advanced Option Conflicts</source>
-        <translation type="unfinished"></translation>
+        <translation>Ellentmondásos speciális beállítások</translation>
     </message>
     <message>
         <source>There are conflicts in some advanced options. Do you want to fix them?</source>
-        <translation type="unfinished"></translation>
+        <translation>Ellentmondások vannak néhány speciális beállításban. Szeretné javítani azokat?</translation>
     </message>
 </context>
 <context>
@@ -3979,11 +3617,11 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     </message>
     <message>
         <source>Advanced</source>
-        <translation type="unfinished"></translation>
+        <translation>Speciális</translation>
     </message>
     <message>
         <source>There are conflicts in some options. Please fix them.</source>
-        <translation type="unfinished"></translation>
+        <translation>Néhány beállítás ellentmondásos. Kérjük, javítsa azokat.</translation>
     </message>
 </context>
 <context>
@@ -4013,8 +3651,16 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>eddig</translation>
     </message>
     <message>
+        <source>Current Page</source>
+        <translation>Jelenlegi oldal</translation>
+    </message>
+    <message>
         <source>Selection</source>
         <translation>Kijelölés</translation>
+    </message>
+    <message>
+        <source>Page Set:</source>
+        <translation>Oldalkészlet:</translation>
     </message>
     <message>
         <source>Output Settings</source>
@@ -4042,43 +3688,35 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     </message>
     <message>
         <source>Color</source>
-        <translation>Szín</translation>
+        <translation>Színes</translation>
     </message>
     <message>
         <source>Grayscale</source>
         <translation>Szürkeárnyalatos</translation>
     </message>
     <message>
-        <source>Current Page</source>
-        <translation>Jelenlegi oldal</translation>
-    </message>
-    <message>
-        <source>Page Set:</source>
-        <translation>Oldalkészlet:</translation>
-    </message>
-    <message>
         <source>Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Oldalak</translation>
     </message>
     <message>
         <source>Specify pages or ranges separated by commas. Ranges are specified by two numbers separated by a hyphen. E.g: 3,5-7,9 prints pages 3, 5, 6, 7 and 9.</source>
-        <translation type="unfinished"></translation>
+        <translation>Adjon meg oldalakat vagy tartományokat vesszővel elválasztva. A tartományokat két, kötőjellel elválasztott számmal kell megadni. Például: 3,5-7,9 a 3., 5., 6., 7. és 9. oldalakat nyomtatja ki.</translation>
     </message>
     <message>
         <source>Double Sided Printing</source>
-        <translation type="unfinished"></translation>
+        <translation>Két oldalas nyomtatás</translation>
     </message>
     <message>
         <source>Off</source>
-        <translation type="unfinished"></translation>
+        <translation>Ki</translation>
     </message>
     <message>
         <source>Long side binding</source>
-        <translation type="unfinished"></translation>
+        <translation>Hosszú oldali kötés</translation>
     </message>
     <message>
         <source>Short side binding</source>
-        <translation type="unfinished"></translation>
+        <translation>Rövid oldali kötés</translation>
     </message>
 </context>
 <context>
@@ -4123,16 +3761,24 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
 <context>
     <name>QProcess</name>
     <message>
+        <source>Process failed to start</source>
+        <translation>A folyamat elindítása sikertelen</translation>
+    </message>
+    <message>
+        <source>Process crashed</source>
+        <translation>A folyamat összeomlott</translation>
+    </message>
+    <message>
+        <source>Process operation timed out</source>
+        <translation>A folyamatművelet túllépte az időkorlátot</translation>
+    </message>
+    <message>
         <source>Error reading from process</source>
         <translation>Hiba a folyamatból való olvasáskor</translation>
     </message>
     <message>
         <source>Error writing to process</source>
         <translation>Hiba a folyamatba való íráskor</translation>
-    </message>
-    <message>
-        <source>Process crashed</source>
-        <translation>A folyamat összeomlott</translation>
     </message>
     <message>
         <source>No program defined</source>
@@ -4143,24 +3789,32 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Nem sikerült megnyitni a bemenet átirányítást az olvasáshoz</translation>
     </message>
     <message>
-        <source>Could not open output redirection for writing</source>
-        <translation>Nem sikerült megnyitni a kimenet átirányítást az íráshoz</translation>
-    </message>
-    <message>
         <source>Resource error (fork failure): %1</source>
         <translation>Erőforráshiba (sikertelen elágaztatás): %1</translation>
     </message>
     <message>
-        <source>Process operation timed out</source>
-        <translation>A folyamatművelet túllépte az időkorlátot</translation>
+        <source>Child process modifier threw an exception: %1</source>
+        <translation>A gyermekfolyamat-módosító kivételt dobott: %1</translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1</source>
+        <translation>A gyermekfolyamat-módosító hibát jelentett: %1</translation>
+    </message>
+    <message>
+        <source>Child process modifier reported error: %1: %2</source>
+        <translation>A gyermekfolyamat-módosító hibát jelentett: %1: %2</translation>
+    </message>
+    <message>
+        <source>Child process set up failed: %1: %2</source>
+        <translation>A gyermekfolyamat beállítása sikertelen: %1: %2</translation>
+    </message>
+    <message>
+        <source>Could not open output redirection for writing</source>
+        <translation>Nem sikerült megnyitni a kimenet átirányítást az íráshoz</translation>
     </message>
     <message>
         <source>Process failed to start: %1</source>
         <translation>A folyamat elindítása sikertelen: %1</translation>
-    </message>
-    <message>
-        <source>Process failed to start</source>
-        <translation>A folyamat elindítása sikertelen</translation>
     </message>
 </context>
 <context>
@@ -4168,57 +3822,6 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     <message>
         <source>Cancel</source>
         <translation>Mégse</translation>
-    </message>
-</context>
-<context>
-    <name>QRegExp</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>nem történt hiba</translation>
-    </message>
-    <message>
-        <source>disabled feature used</source>
-        <translation>letiltott lehetőség használva</translation>
-    </message>
-    <message>
-        <source>bad char class syntax</source>
-        <translation>rossz karakterosztály-szintaxis</translation>
-    </message>
-    <message>
-        <source>bad lookahead syntax</source>
-        <translation>rossz előretekintés-szintaxis</translation>
-    </message>
-    <message>
-        <source>lookbehinds not supported, see QTBUG-2371</source>
-        <translation>a hátratekintés nem támogatott, lásd: QTBUG-2371</translation>
-    </message>
-    <message>
-        <source>bad repetition syntax</source>
-        <translation>rossz ismétlés-szintaxis</translation>
-    </message>
-    <message>
-        <source>invalid octal value</source>
-        <translation>érvénytelen oktális érték</translation>
-    </message>
-    <message>
-        <source>missing left delim</source>
-        <translation>hiányzó baloldali határoló</translation>
-    </message>
-    <message>
-        <source>unexpected end</source>
-        <translation>váratlan befejezés</translation>
-    </message>
-    <message>
-        <source>met internal limit</source>
-        <translation>belső korlát elérve</translation>
-    </message>
-    <message>
-        <source>invalid interval</source>
-        <translation>érvénytelen intervallum</translation>
-    </message>
-    <message>
-        <source>invalid category</source>
-        <translation>érvénytelen kategória</translation>
     </message>
 </context>
 <context>
@@ -4356,8 +3959,528 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>nem oktális karakter a \o{}-ben (hiányzó záró kapcsos zárójel?)</translation>
     </message>
     <message>
+        <source>escape sequence is invalid in character class</source>
+        <translation>feloldókarakter érvénytelen egy karakterosztályban</translation>
+    </message>
+    <message>
+        <source>quantifier does not follow a repeatable item</source>
+        <translation>a kvantor nem ismétlődő elemet követ</translation>
+    </message>
+    <message>
+        <source>missing closing parenthesis</source>
+        <translation>hiányzó záró zárójel</translation>
+    </message>
+    <message>
+        <source>pattern passed as NULL</source>
+        <translation>NULL-ként átadott minta</translation>
+    </message>
+    <message>
+        <source>unrecognised compile-time option bit(s)</source>
+        <translation>azonosítatlan fordításidejű kapcsoló bit(ek)</translation>
+    </message>
+    <message>
+        <source>missing ) after (?# comment</source>
+        <translation>hiányzó ) a (?# megjegyzés után</translation>
+    </message>
+    <message>
+        <source>failed to allocate heap memory</source>
+        <translation>a kupacmemória lefoglalása sikertelen</translation>
+    </message>
+    <message>
+        <source>unmatched closing parenthesis</source>
+        <translation>páratlan záró zárójel</translation>
+    </message>
+    <message>
+        <source>missing closing parenthesis for condition</source>
+        <translation>hiányzó záró zárójel a feltételhez</translation>
+    </message>
+    <message>
+        <source>a relative value of zero is not allowed</source>
+        <translation>a nulla relatív érték nem megengedett</translation>
+    </message>
+    <message>
+        <source>conditional subpattern contains more than two branches</source>
+        <translation>a feltételes alminta kettőnél több ágat tartalmaz</translation>
+    </message>
+    <message>
+        <source>assertion expected after (?( or (?(?C)</source>
+        <translation>kijelentés várt a (?( vagy (?(?C) után</translation>
+    </message>
+    <message>
+        <source>digit expected after (?+ or (?-</source>
+        <translation>számjegy várt a (?+ vagy (?- után</translation>
+    </message>
+    <message>
+        <source>internal error in pcre2_study(): should not occur</source>
+        <translation>belső hiba a pcre2_study()-ban: nem fordulhat elő</translation>
+    </message>
+    <message>
+        <source>this version of PCRE2 does not have Unicode support</source>
+        <translation>a PCRE2 ezen verziója nem támogatja a Unicode-ot</translation>
+    </message>
+    <message>
+        <source>character code point value in \x{} or \o{} is too large</source>
+        <translation>a karakter kódpontértéke túl nagy ezekben: \x{} vagy \o{}</translation>
+    </message>
+    <message>
+        <source>lookbehind is too complicated</source>
+        <translation>a hátratekintő túl komplikált</translation>
+    </message>
+    <message>
+        <source>\C is not allowed in a lookbehind assertion in UTF-16 mode</source>
+        <translation>a \C nem megengedett hátratekintő kijelentésben UTF-16 módban</translation>
+    </message>
+    <message>
+        <source>PCRE2 does not support \F, \L, \l, \N{name}, \U, or \u</source>
+        <translation>a PCRE2 nem támogatja ezeket: \F, \L, \I, \N{név}, \U vagy \u</translation>
+    </message>
+    <message>
+        <source>number after (?C is greater than 255</source>
+        <translation>a (?C utáni szám nagyobb mint 255</translation>
+    </message>
+    <message>
+        <source>closing parenthesis for (?C expected</source>
+        <translation>záró zárójel várt a (?C esetén</translation>
+    </message>
+    <message>
+        <source>invalid escape sequence in (*VERB) name</source>
+        <translation>érvénytelen feloldókarakter a (*VERB) névben</translation>
+    </message>
+    <message>
+        <source>syntax error in subpattern name (missing terminator?)</source>
+        <translation>szintaktikai hiba a részminta nevében (hiányzó lezáró?)</translation>
+    </message>
+    <message>
+        <source>two named subpatterns have the same name (PCRE2_DUPNAMES not set)</source>
+        <translation>két elnevezett részmintának ugyanaz a neve (PCRE2_DUPNAMES nincs beállítva)</translation>
+    </message>
+    <message>
+        <source>subpattern name must start with a non-digit</source>
+        <translation>a részminta neve nem kezdődhet számjeggyel</translation>
+    </message>
+    <message>
+        <source>this version of PCRE2 does not have support for \P, \p, or \X</source>
+        <translation>a PCRE2 nem támogatja ezeket: \P, \p vagy \X</translation>
+    </message>
+    <message>
+        <source>subpattern name is too long (maximum 32 code units)</source>
+        <translation>a részminta neve túl hosszú (maximum 32 kódegység)</translation>
+    </message>
+    <message>
+        <source>octal value is greater than \377 in 8-bit non-UTF-8 mode</source>
+        <translation>az oktális érték nagyobb mint \377 8 bites UTF-8 módban</translation>
+    </message>
+    <message>
+        <source>DEFINE subpattern contains more than one branch</source>
+        <translation>a DEFINE részminta egynél több ágat tartalmaz</translation>
+    </message>
+    <message>
         <source>missing opening brace after \o</source>
         <translation>hiányzó nyitó kapcsos zárójel a \o után</translation>
+    </message>
+    <message>
+        <source>internal error: unknown newline setting</source>
+        <translation>belső hiba: ismeretlen újsor beállítás</translation>
+    </message>
+    <message>
+        <source>(?R (recursive pattern call) must be followed by a closing parenthesis</source>
+        <translation>a (?R (rekurzív mintahívás) után záró zárójelnek kell következnie</translation>
+    </message>
+    <message>
+        <source>obsolete error (should not occur)</source>
+        <translation>elavult hiba (nem fordulhat elő)</translation>
+    </message>
+    <message>
+        <source>(*VERB) not recognized or malformed</source>
+        <translation>a (*VERB) azonosítatlan vagy helytelenül formázott</translation>
+    </message>
+    <message>
+        <source>subpattern number is too big</source>
+        <translation>a részminták száma túl nagy</translation>
+    </message>
+    <message>
+        <source>internal error: parsed pattern overflow</source>
+        <translation>belső hiba: feldolgozott minta túlcsordulás</translation>
+    </message>
+    <message>
+        <source>\c must be followed by a printable ASCII character</source>
+        <translation>a \c után egy nyomtatható ASCII karakternek kell következnie</translation>
+    </message>
+    <message>
+        <source>\c must be followed by a letter or one of [\]^_?</source>
+        <translation>a \c után egy betűnek kell következnie, vagy ezek egyikének: [\]^_?</translation>
+    </message>
+    <message>
+        <source>internal error: unknown meta code in check_lookbehinds()</source>
+        <translation>belső hiba: ismeretlen metaadat a check_lookbehinds() függvényben</translation>
+    </message>
+    <message>
+        <source>callout string is too long</source>
+        <translation>a hívott karakterlánc túl hosszú</translation>
+    </message>
+    <message>
+        <source>using UTF is disabled by the application</source>
+        <translation>az alkalmazás kikapcsolta az UTF használatát</translation>
+    </message>
+    <message>
+        <source>using UCP is disabled by the application</source>
+        <translation>az alkalmazás kikapcsolta az UCP használatát</translation>
+    </message>
+    <message>
+        <source>character code point value in \u.... sequence is too large</source>
+        <translation>a karakter kódpontértéke a \u.... szekvenciában túl nagy</translation>
+    </message>
+    <message>
+        <source>digits missing in \x{} or \o{} or \N{U+}</source>
+        <translation>számjegyek hiányoznak ezekben: \x{} vagy \o{} vagy \N{U+}</translation>
+    </message>
+    <message>
+        <source>syntax error or number too big in (?(VERSION condition</source>
+        <translation>szintaktikai hiba vagy a szám túl nagy a (?(VERSION feltételben</translation>
+    </message>
+    <message>
+        <source>internal error: unknown opcode in auto_possessify()</source>
+        <translation>belső hiba: ismeretlen kapcsolókód az auto_possessify() függvényben</translation>
+    </message>
+    <message>
+        <source>missing terminating delimiter for callout with string argument</source>
+        <translation>hiányzó lezáró elválasztójel karakterlánc argumentumos hívásnál</translation>
+    </message>
+    <message>
+        <source>unrecognized string delimiter follows (?C</source>
+        <translation>(?C után azonosítatlan karakterlánc-elválasztó</translation>
+    </message>
+    <message>
+        <source>using \C is disabled by the application</source>
+        <translation>az alkalmazás kikapcsolta a \C használatát</translation>
+    </message>
+    <message>
+        <source>(?| and/or (?J: or (?x: parentheses are too deeply nested</source>
+        <translation>a (?| és/vagy (?J: vagy (?x: zárójelek túl mélyen vannak egymásba ágyazva</translation>
+    </message>
+    <message>
+        <source>using \C is disabled in this PCRE2 library</source>
+        <translation>a \C használata ki van kapcsolva ebben a PCRE2 programkönyvtárban</translation>
+    </message>
+    <message>
+        <source>regular expression is too complicated</source>
+        <translation>a reguláris kifejezés túl bonyolult</translation>
+    </message>
+    <message>
+        <source>lookbehind assertion is too long</source>
+        <translation>a hátratekintő kijelentés túl hosszú</translation>
+    </message>
+    <message>
+        <source>pattern string is longer than the limit set by the application</source>
+        <translation>a mintakarakterlánc hosszabb mint az alkalmazás által beállított korlát</translation>
+    </message>
+    <message>
+        <source>internal error: unknown code in parsed pattern</source>
+        <translation>belső hiba: ismeretlen kód a feldolgozott mintában</translation>
+    </message>
+    <message>
+        <source>internal error: bad code value in parsed_skip()</source>
+        <translation>belső hiba: hibás kódérték a parsed_skip() függvényben</translation>
+    </message>
+    <message>
+        <source>PCRE2_EXTRA_ALLOW_SURROGATE_ESCAPES is not allowed in UTF-16 mode</source>
+        <translation>a PCRE2_EXTRA_ALLOW_SURROGATE_ESCAPES nem megengedett UTF-16 módban</translation>
+    </message>
+    <message>
+        <source>invalid option bits with PCRE2_LITERAL</source>
+        <translation>érvénytelen kapcsolóbitek PCRE2_LITERAL esetén</translation>
+    </message>
+    <message>
+        <source>\N{U+dddd} is supported only in Unicode (UTF) mode</source>
+        <translation>a \N{U+dddd} csak Unicode (UTF) módban támogatott</translation>
+    </message>
+    <message>
+        <source>invalid hyphen in option setting</source>
+        <translation>érvénytelen kötőjel a kapcsolóbeállításban</translation>
+    </message>
+    <message>
+        <source>(*alpha_assertion) not recognized</source>
+        <translation>az (*alpha_assertion) azonosítatlan</translation>
+    </message>
+    <message>
+        <source>script runs require Unicode support, which this version of PCRE2 does not have</source>
+        <translation>a parancsfájl futtatás Unicode támogatást igényel, amellyel a PCRE2 ezen verziója nem rendelkezik</translation>
+    </message>
+    <message>
+        <source>too many capturing groups (maximum 65535)</source>
+        <translation>túl sok rögzítőcsoport (maximum 65535)</translation>
+    </message>
+    <message>
+        <source>atomic assertion expected after (?( or (?(?C)</source>
+        <translation>atomi állítás várt (?( vagy (?(C) után</translation>
+    </message>
+    <message>
+        <source>no match</source>
+        <translation>nincs egyezés</translation>
+    </message>
+    <message>
+        <source>partial match</source>
+        <translation>részleges egyezés</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: 1 byte missing at end</source>
+        <translation>UTF-8 hiba: 1 bájt hiányzik a végén</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: 2 bytes missing at end</source>
+        <translation>UTF-8 hiba: 2 bájt hiányzik a végén</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: 3 bytes missing at end</source>
+        <translation>UTF-8 hiba: 3 bájt hiányzik a végén</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: 4 bytes missing at end</source>
+        <translation>UTF-8 hiba: 4 bájt hiányzik a végén</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: 5 bytes missing at end</source>
+        <translation>UTF-8 hiba: 5 bájt hiányzik a végén</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: byte 2 top bits not 0x80</source>
+        <translation>UTF-8 hiba: a 2. bájt felső bitjeinek értéke nem 0x80</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: byte 3 top bits not 0x80</source>
+        <translation>UTF-8 hiba: a 3. bájt felső bitjeinek értéke nem 0x80</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: byte 4 top bits not 0x80</source>
+        <translation>UTF-8 hiba: a 4. bájt felső bitjeinek értéke nem 0x80</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: byte 5 top bits not 0x80</source>
+        <translation>UTF-8 hiba: a 5. bájt felső bitjeinek értéke nem 0x80</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: byte 6 top bits not 0x80</source>
+        <translation>UTF-8 hiba: a 6. bájt felső bitjeinek értéke nem 0x80</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: 5-byte character is not allowed (RFC 3629)</source>
+        <translation>UTF-8 hiba: 5 bájtos karakter nem megengedett (RFC 3629)</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: 6-byte character is not allowed (RFC 3629)</source>
+        <translation>UTF-8 hiba: 6 bájtos karakter nem megengedett (RFC 3629)</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: code points greater than 0x10ffff are not defined</source>
+        <translation>UTF-8 hiba: a 0x10ffff értéknél nagyobb kódpontok nem definiáltak</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: code points 0xd800-0xdfff are not defined</source>
+        <translation>UTF-8 hiba: a 0xd800-0xdffff közötti kódpontok nem definiáltak</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: overlong 2-byte sequence</source>
+        <translation>UTF-8 hiba: túl hosszú 2 bájtos szekvencia</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: overlong 3-byte sequence</source>
+        <translation>UTF-8 hiba: túl hosszú 3 bájtos szekvencia</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: overlong 4-byte sequence</source>
+        <translation>UTF-8 hiba: túl hosszú 4 bájtos szekvencia</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: overlong 5-byte sequence</source>
+        <translation>UTF-8 hiba: túl hosszú 5 bájtos szekvencia</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: overlong 6-byte sequence</source>
+        <translation>UTF-8 hiba: túl hosszú 6 bájtos szekvencia</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: isolated byte with 0x80 bit set</source>
+        <translation>UTF-8 hiba: elszigetelt bájt 0x80 bitbeállítással</translation>
+    </message>
+    <message>
+        <source>UTF-8 error: illegal byte (0xfe or 0xff)</source>
+        <translation>UTF-8 hiba: illegális bájt (0xfe vagy 0xff)</translation>
+    </message>
+    <message>
+        <source>UTF-16 error: missing low surrogate at end</source>
+        <translation>UTF-16 hiba: hiányzó alsó helyettesítő a végén</translation>
+    </message>
+    <message>
+        <source>UTF-16 error: invalid low surrogate</source>
+        <translation>UTF-16 hiba: érvénytelen alsó helyettesítő</translation>
+    </message>
+    <message>
+        <source>UTF-16 error: isolated low surrogate</source>
+        <translation>UTF-16: elszigetelt alsó helyettesítő</translation>
+    </message>
+    <message>
+        <source>UTF-32 error: code points 0xd800-0xdfff are not defined</source>
+        <translation>UTF-32 hiba: a 0xd800-0xdffff közötti kódpontok nem definiáltak</translation>
+    </message>
+    <message>
+        <source>UTF-32 error: code points greater than 0x10ffff are not defined</source>
+        <translation>UTF-32 hiba: a 0x10ffff értéknél nagyobb kódpontok nem definiáltak</translation>
+    </message>
+    <message>
+        <source>bad data value</source>
+        <translation>hibás adatérték</translation>
+    </message>
+    <message>
+        <source>patterns do not all use the same character tables</source>
+        <translation>a minták nem ugyanazt a karaktertáblát használják</translation>
+    </message>
+    <message>
+        <source>magic number missing</source>
+        <translation>a varázsszám hiányzik</translation>
+    </message>
+    <message>
+        <source>pattern compiled in wrong mode: 8/16/32-bit error</source>
+        <translation>a minta hibás módban lett fordítva: 8/16/32 bites hiba</translation>
+    </message>
+    <message>
+        <source>bad offset value</source>
+        <translation>hibás eltolásérték</translation>
+    </message>
+    <message>
+        <source>bad option value</source>
+        <translation>hibás kapcsolóérték</translation>
+    </message>
+    <message>
+        <source>invalid replacement string</source>
+        <translation>érvénytelen helyettesítő karakterlánc</translation>
+    </message>
+    <message>
+        <source>bad offset into UTF string</source>
+        <translation>hibás eltolás az UTF karakterláncban</translation>
+    </message>
+    <message>
+        <source>callout error code</source>
+        <translation>hívás hibakód</translation>
+    </message>
+    <message>
+        <source>invalid data in workspace for DFA restart</source>
+        <translation>érvénytelen adatok a munkaterületen a DFA újraindításához</translation>
+    </message>
+    <message>
+        <source>too much recursion for DFA matching</source>
+        <translation>túl sok rekurzió a DFA illesztéséhez</translation>
+    </message>
+    <message>
+        <source>backreference condition or recursion test is not supported for DFA matching</source>
+        <translation>a visszahivatkozási feltétel vagy a rekurzióteszt nem támogatott a DFA illesztésnél</translation>
+    </message>
+    <message>
+        <source>function is not supported for DFA matching</source>
+        <translation>a függvény nem támogatott DFA illesztésnél</translation>
+    </message>
+    <message>
+        <source>pattern contains an item that is not supported for DFA matching</source>
+        <translation>a minta egy olyan elemet tartalmaz, ami nem támogatott DFA illesztésnél</translation>
+    </message>
+    <message>
+        <source>workspace size exceeded in DFA matching</source>
+        <translation>munkaterületméret-túllépés a DFA illesztésben</translation>
+    </message>
+    <message>
+        <source>internal error - pattern overwritten?</source>
+        <translation>belső hiba - a mintát felülírták?</translation>
+    </message>
+    <message>
+        <source>bad JIT option</source>
+        <translation>hibás JIT opció</translation>
+    </message>
+    <message>
+        <source>JIT stack limit reached</source>
+        <translation>a JIT veremkorlát elérve</translation>
+    </message>
+    <message>
+        <source>match limit exceeded</source>
+        <translation>illesztési korlát túllépve</translation>
+    </message>
+    <message>
+        <source>no more memory</source>
+        <translation>nincs több memória</translation>
+    </message>
+    <message>
+        <source>unknown substring</source>
+        <translation>ismeretlen részkarakterlánc</translation>
+    </message>
+    <message>
+        <source>non-unique substring name</source>
+        <translation>nem egyedi részkarakterláncnév</translation>
+    </message>
+    <message>
+        <source>NULL argument passed</source>
+        <translation>NULL argumentum átadva</translation>
+    </message>
+    <message>
+        <source>nested recursion at the same subject position</source>
+        <translation>beágyazott rekurzió ugyanazon a tárgyi pozíción</translation>
+    </message>
+    <message>
+        <source>matching depth limit exceeded</source>
+        <translation>illesztési mélység korlátja túllépve</translation>
+    </message>
+    <message>
+        <source>requested value is not available</source>
+        <translation>a kért érték nem érhető el</translation>
+    </message>
+    <message>
+        <source>requested value is not set</source>
+        <translation>a kért érték nincs beállítva</translation>
+    </message>
+    <message>
+        <source>offset limit set without PCRE2_USE_OFFSET_LIMIT</source>
+        <translation>eltolási korlát beállítva PCRE2_USE_OFFSET_LIMIT nélkül</translation>
+    </message>
+    <message>
+        <source>bad escape sequence in replacement string</source>
+        <translation>hibás feloldókarakter a helyettesítő karakterláncban</translation>
+    </message>
+    <message>
+        <source>expected closing curly bracket in replacement string</source>
+        <translation>várt záró szögletes zárójel a helyettesítő karakterláncban</translation>
+    </message>
+    <message>
+        <source>bad substitution in replacement string</source>
+        <translation>hibás helyettesítés a helyettesítő karakterláncban</translation>
+    </message>
+    <message>
+        <source>match with end before start or start moved backwards is not supported</source>
+        <translation>nem támogatott olyan illesztés, aminek a vége az eleje előtt van, vagy az eleje visszafelé mozgatott</translation>
+    </message>
+    <message>
+        <source>too many replacements (more than INT_MAX)</source>
+        <translation>túl sok helyettesítés (több mint INT_MAX)</translation>
+    </message>
+    <message>
+        <source>bad serialized data</source>
+        <translation>hibásan szerializált adat</translation>
+    </message>
+    <message>
+        <source>heap limit exceeded</source>
+        <translation>kupac korlátja túllépve</translation>
+    </message>
+    <message>
+        <source>invalid syntax</source>
+        <translation>érvénytelen szintaxis</translation>
+    </message>
+    <message>
+        <source>internal error - duplicate substitution match</source>
+        <translation>belső hiba - duplikált helyettesítési egyezés</translation>
+    </message>
+    <message>
+        <source>PCRE2_MATCH_INVALID_UTF is not supported for DFA matching</source>
+        <translation>a PCRE2_MATCH_INVALID_UTF nem támogatott DFA illesztésnél</translation>
+    </message>
+    <message>
+        <source>INTERNAL ERROR: invalid substring offset</source>
+        <translation>BELSŐ HIBA: érvénytelen részkarakterlánc-eltolás</translation>
     </message>
     <message>
         <source>parentheses are too deeply nested</source>
@@ -4370,552 +4493,6 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     <message>
         <source>parentheses are too deeply nested (stack check)</source>
         <translation>a zárójelek túl mélyen vannak egymásba ágyazva (veremellenőrzés)</translation>
-    </message>
-    <message>
-        <source>escape sequence is invalid in character class</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>quantifier does not follow a repeatable item</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>missing closing parenthesis</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>pattern passed as NULL</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>unrecognised compile-time option bit(s)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>missing ) after (?# comment</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>failed to allocate heap memory</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>unmatched closing parenthesis</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>missing closing parenthesis for condition</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>a relative value of zero is not allowed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>conditional subpattern contains more than two branches</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>assertion expected after (?( or (?(?C)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>digit expected after (?+ or (?-</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>internal error in pcre2_study(): should not occur</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>this version of PCRE2 does not have Unicode support</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>character code point value in \x{} or \o{} is too large</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>lookbehind is too complicated</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>\C is not allowed in a lookbehind assertion in UTF-16 mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PCRE2 does not support \F, \L, \l, \N{name}, \U, or \u</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>number after (?C is greater than 255</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>closing parenthesis for (?C expected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>invalid escape sequence in (*VERB) name</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>syntax error in subpattern name (missing terminator?)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>two named subpatterns have the same name (PCRE2_DUPNAMES not set)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>subpattern name must start with a non-digit</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>this version of PCRE2 does not have support for \P, \p, or \X</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>subpattern name is too long (maximum 32 code units)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>octal value is greater than \377 in 8-bit non-UTF-8 mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>DEFINE subpattern contains more than one branch</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>internal error: unknown newline setting</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(?R (recursive pattern call) must be followed by a closing parenthesis</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>obsolete error (should not occur)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(*VERB) not recognized or malformed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>subpattern number is too big</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>internal error: parsed pattern overflow</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>\c must be followed by a printable ASCII character</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>\c must be followed by a letter or one of [\]^_?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>internal error: unknown meta code in check_lookbehinds()</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>callout string is too long</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>using UTF is disabled by the application</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>using UCP is disabled by the application</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>character code point value in \u.... sequence is too large</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>digits missing in \x{} or \o{} or \N{U+}</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>syntax error or number too big in (?(VERSION condition</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>internal error: unknown opcode in auto_possessify()</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>missing terminating delimiter for callout with string argument</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>unrecognized string delimiter follows (?C</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>using \C is disabled by the application</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(?| and/or (?J: or (?x: parentheses are too deeply nested</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>using \C is disabled in this PCRE2 library</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>regular expression is too complicated</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>lookbehind assertion is too long</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>pattern string is longer than the limit set by the application</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>internal error: unknown code in parsed pattern</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>internal error: bad code value in parsed_skip()</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PCRE2_EXTRA_ALLOW_SURROGATE_ESCAPES is not allowed in UTF-16 mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>invalid option bits with PCRE2_LITERAL</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>\N{U+dddd} is supported only in Unicode (UTF) mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>invalid hyphen in option setting</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(*alpha_assertion) not recognized</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>script runs require Unicode support, which this version of PCRE2 does not have</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>too many capturing groups (maximum 65535)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>atomic assertion expected after (?( or (?(?C)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>no match</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>partial match</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: 1 byte missing at end</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: 2 bytes missing at end</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: 3 bytes missing at end</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: 4 bytes missing at end</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: 5 bytes missing at end</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: byte 2 top bits not 0x80</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: byte 3 top bits not 0x80</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: byte 4 top bits not 0x80</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: byte 5 top bits not 0x80</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: byte 6 top bits not 0x80</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: 5-byte character is not allowed (RFC 3629)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: 6-byte character is not allowed (RFC 3629)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: code points greater than 0x10ffff are not defined</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: code points 0xd800-0xdfff are not defined</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: overlong 2-byte sequence</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: overlong 3-byte sequence</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: overlong 4-byte sequence</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: overlong 5-byte sequence</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: overlong 6-byte sequence</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: isolated byte with 0x80 bit set</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-8 error: illegal byte (0xfe or 0xff)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-16 error: missing low surrogate at end</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-16 error: invalid low surrogate</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-16 error: isolated low surrogate</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-32 error: code points 0xd800-0xdfff are not defined</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>UTF-32 error: code points greater than 0x10ffff are not defined</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>bad data value</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>patterns do not all use the same character tables</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>magic number missing</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>pattern compiled in wrong mode: 8/16/32-bit error</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>bad offset value</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>bad option value</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>invalid replacement string</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>bad offset into UTF string</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>callout error code</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>invalid data in workspace for DFA restart</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>too much recursion for DFA matching</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>backreference condition or recursion test is not supported for DFA matching</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>function is not supported for DFA matching</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>pattern contains an item that is not supported for DFA matching</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>workspace size exceeded in DFA matching</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>internal error - pattern overwritten?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>bad JIT option</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>JIT stack limit reached</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>match limit exceeded</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>no more memory</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>unknown substring</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>non-unique substring name</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>NULL argument passed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>nested recursion at the same subject position</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>matching depth limit exceeded</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>requested value is not available</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>requested value is not set</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>offset limit set without PCRE2_USE_OFFSET_LIMIT</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>bad escape sequence in replacement string</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>expected closing curly bracket in replacement string</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>bad substitution in replacement string</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>match with end before start or start moved backwards is not supported</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>too many replacements (more than INT_MAX)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>bad serialized data</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>heap limit exceeded</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>invalid syntax</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>internal error - duplicate substitution match</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PCRE2_MATCH_INVALID_UTF is not supported for DFA matching</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QSQLite2Driver</name>
-    <message>
-        <source>Unable to begin transaction</source>
-        <translation>Nem kezdhető meg a tranzakció</translation>
-    </message>
-    <message>
-        <source>Unable to commit transaction</source>
-        <translation>Nem véglegesíthető a tranzakció</translation>
-    </message>
-    <message>
-        <source>Unable to rollback transaction</source>
-        <translation>Nem görgethető vissza a tranzakció</translation>
-    </message>
-    <message>
-        <source>Error opening database</source>
-        <translation>Hiba az adatbázis megnyitásakor</translation>
-    </message>
-</context>
-<context>
-    <name>QSQLite2Result</name>
-    <message>
-        <source>Unable to fetch results</source>
-        <translation>Nem olvashatók ki az eredmények</translation>
-    </message>
-    <message>
-        <source>Unable to execute statement</source>
-        <translation>Nem hajtható végre az utasítás</translation>
     </message>
 </context>
 <context>
@@ -4938,7 +4515,7 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nem görgethető vissza a tranzakció</translation>
+        <translation>Nem vonható vissza a tranzakció</translation>
     </message>
 </context>
 <context>
@@ -4946,6 +4523,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     <message>
         <source>Unable to fetch row</source>
         <translation>Nem olvasható ki a sor</translation>
+    </message>
+    <message>
+        <source>No query</source>
+        <translation>Nincs lekérdezés</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
@@ -4967,10 +4548,6 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <source>Parameter count mismatch</source>
         <translation>Paraméterszám eltérés</translation>
     </message>
-    <message>
-        <source>No query</source>
-        <translation>Nincs lekérdezés</translation>
-    </message>
 </context>
 <context>
     <name>QSaveFile</name>
@@ -4983,12 +4560,12 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>A fájlnév egy könyvtárra hivatkozik</translation>
     </message>
     <message>
-        <source>Writing canceled by application</source>
-        <translation>Az alkalmazás megszakította az írást</translation>
+        <source>QSaveFile cannot open &apos;%1&apos; without direct write fallback enabled.</source>
+        <translation>A QSaveFile nem tudja megnyitni ezt: „%1” a közvetlen írási tartalék bekapcsolása nélkül.</translation>
     </message>
     <message>
-        <source>QSaveFile cannot open &apos;%1&apos; without direct write fallback enabled.</source>
-        <translation type="unfinished"></translation>
+        <source>Writing canceled by application</source>
+        <translation>Az alkalmazás megszakította az írást</translation>
     </message>
 </context>
 <context>
@@ -5047,18 +4624,7 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     </message>
 </context>
 <context>
-    <name>QSctpSocket</name>
-    <message>
-        <source>The remote host closed the connection</source>
-        <translation type="unfinished">A távoli gép lezárta a kapcsolatot</translation>
-    </message>
-</context>
-<context>
     <name>QSharedMemory</name>
-    <message>
-        <source>%1: unable to set key on lock</source>
-        <translation>%1: nem állítható be kulcs a záron</translation>
-    </message>
     <message>
         <source>%1: create size is less then 0</source>
         <translation>%1: a létrehozási méret kisebb mint 0</translation>
@@ -5072,36 +4638,12 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>%1: nem oldható fel</translation>
     </message>
     <message>
-        <source>%1: permission denied</source>
-        <translation>%1: hozzáférés megtagadva</translation>
-    </message>
-    <message>
-        <source>%1: already exists</source>
-        <translation>%1: már létezik</translation>
-    </message>
-    <message>
-        <source>%1: doesn&apos;t exist</source>
-        <translation>%1: nem létezik</translation>
-    </message>
-    <message>
-        <source>%1: UNIX key file doesn&apos;t exist</source>
-        <translation>%1: a UNIX kulcsfájl nem létezik</translation>
-    </message>
-    <message>
-        <source>%1: out of resources</source>
-        <translation>%1: elfogytak az erőforrások</translation>
-    </message>
-    <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: ismeretlen hiba %2</translation>
-    </message>
-    <message>
         <source>%1: key is empty</source>
         <translation>%1: a kulcs üres</translation>
     </message>
     <message>
-        <source>%1: ftok failed</source>
-        <translation>%1: az ftok sikertelen</translation>
+        <source>%1: bad name</source>
+        <translation>%1: rossz név</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
@@ -5116,20 +4658,44 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>%1: nincs csatolva</translation>
     </message>
     <message>
+        <source>%1: unsupported key type</source>
+        <translation>%1: nem támogatott kulcstípus</translation>
+    </message>
+    <message>
+        <source>%1: unable to set key on lock (%2)</source>
+        <translation>%1: nem állítható be kulcs a záron (%2)</translation>
+    </message>
+    <message>
+        <source>%1: permission denied</source>
+        <translation>%1: hozzáférés megtagadva</translation>
+    </message>
+    <message>
+        <source>%1: already exists</source>
+        <translation>%1: már létezik</translation>
+    </message>
+    <message>
+        <source>%1: doesn&apos;t exist</source>
+        <translation>%1: nem létezik</translation>
+    </message>
+    <message>
+        <source>%1: out of resources</source>
+        <translation>%1: elfogytak az erőforrások</translation>
+    </message>
+    <message>
+        <source>%1: unknown error: %2</source>
+        <translation>%1: ismeretlen hiba: %2</translation>
+    </message>
+    <message>
         <source>%1: invalid size</source>
         <translation>%1: érvénytelen méret</translation>
     </message>
     <message>
         <source>%1: key error</source>
-        <translation>%1: kulcs hiba</translation>
+        <translation>%1: kulcshiba</translation>
     </message>
     <message>
         <source>%1: size query failed</source>
         <translation>%1: a méretlekérdezés sikertelen</translation>
-    </message>
-    <message>
-        <source>%1: bad name</source>
-        <translation>%1: rossz név</translation>
     </message>
 </context>
 <context>
@@ -5265,23 +4831,23 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     </message>
     <message>
         <source>Bass Boost</source>
-        <translation>Mély hang kiemelése</translation>
+        <translation>Basszuserősítés</translation>
     </message>
     <message>
         <source>Bass Up</source>
-        <translation>Mély hang növelése</translation>
+        <translation>Basszus növelése</translation>
     </message>
     <message>
         <source>Bass Down</source>
-        <translation>Mély hang csökkentése</translation>
+        <translation>Basszus csökkentése</translation>
     </message>
     <message>
         <source>Treble Up</source>
-        <translation>Magas hang növelése</translation>
+        <translation>Hármashangzat növelése</translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translation>Magas hang csökkentése</translation>
+        <translation>Hármashangzat csökkentése</translation>
     </message>
     <message>
         <source>Media Play</source>
@@ -5312,6 +4878,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <source>Toggle Media Play/Pause</source>
         <extracomment>Media player button to toggle between playing and paused</extracomment>
         <translation>Média lejátszása/szüneteltetése</translation>
+    </message>
+    <message>
+        <source>Home Page</source>
+        <translation>Kezdőlap</translation>
     </message>
     <message>
         <source>Favorites</source>
@@ -5402,6 +4972,14 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>(F) indítása</translation>
     </message>
     <message>
+        <source>Launch (G)</source>
+        <translation>(G) indítása</translation>
+    </message>
+    <message>
+        <source>Launch (H)</source>
+        <translation>(H) indítása</translation>
+    </message>
+    <message>
         <source>Monitor Brightness Up</source>
         <translation>Monitor fényességének növelése</translation>
     </message>
@@ -5478,6 +5056,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Közösség</translation>
     </message>
     <message>
+        <source>Media Rewind</source>
+        <translation>Média visszatekerése</translation>
+    </message>
+    <message>
         <source>Back Forward</source>
         <translation>Vissza előre</translation>
     </message>
@@ -5502,6 +5084,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Számológép</translation>
     </message>
     <message>
+        <source>Calendar</source>
+        <translation>Naptár</translation>
+    </message>
+    <message>
         <source>Clear</source>
         <translation>Törlés</translation>
     </message>
@@ -5512,6 +5098,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     <message>
         <source>Close</source>
         <translation>Bezárás</translation>
+    </message>
+    <message>
+        <source>Adjust contrast</source>
+        <translation>Kontraszt beállítása</translation>
     </message>
     <message>
         <source>Copy</source>
@@ -5564,6 +5154,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     <message>
         <source>Meeting</source>
         <translation>Találkozó</translation>
+    </message>
+    <message>
+        <source>Memo</source>
+        <translation>Emlékeztető</translation>
     </message>
     <message>
         <source>Keyboard Menu</source>
@@ -5646,6 +5240,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Terminál</translation>
     </message>
     <message>
+        <source>To-do list</source>
+        <translation>Feladatlista</translation>
+    </message>
+    <message>
         <source>Tools</source>
         <translation>Eszközök</translation>
     </message>
@@ -5714,6 +5312,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Ultra széles sáv</translation>
     </message>
     <message>
+        <source>Media Fast Forward</source>
+        <translation>Média gyors előretekerése</translation>
+    </message>
+    <message>
         <source>Audio Repeat</source>
         <translation>Hangismétlés</translation>
     </message>
@@ -5734,6 +5336,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Idő</translation>
     </message>
     <message>
+        <source>Hibernate</source>
+        <translation>Hibernálás</translation>
+    </message>
+    <message>
         <source>View</source>
         <translation>Nézet</translation>
     </message>
@@ -5742,12 +5348,80 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Legfelső menü</translation>
     </message>
     <message>
+        <source>Power Down</source>
+        <translation>Kikapcsolás</translation>
+    </message>
+    <message>
         <source>Suspend</source>
         <translation>Felfüggesztés</translation>
     </message>
     <message>
-        <source>Hibernate</source>
-        <translation>Hibernálás</translation>
+        <source>Microphone Mute</source>
+        <translation>Mikrofon némítás</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>Vörös</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>Zöld</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Sárga</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>Kék</translation>
+    </message>
+    <message>
+        <source>Channel Up</source>
+        <translation>Csatorna fel</translation>
+    </message>
+    <message>
+        <source>Channel Down</source>
+        <translation>Csatorna le</translation>
+    </message>
+    <message>
+        <source>Guide</source>
+        <translation>Programajánló</translation>
+    </message>
+    <message>
+        <source>Info</source>
+        <translation>Információ</translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation>Beállítások</translation>
+    </message>
+    <message>
+        <source>Microphone Volume Up</source>
+        <translation>Mikrofon hangerejének növelése</translation>
+    </message>
+    <message>
+        <source>Microphone Volume Down</source>
+        <translation>Mikrofon hangerejének csökkentése</translation>
+    </message>
+    <message>
+        <source>New</source>
+        <translation>Új</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>Megnyitás</translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation>Keresés</translation>
+    </message>
+    <message>
+        <source>Undo</source>
+        <translation>Visszavonás</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Újra</translation>
     </message>
     <message>
         <source>Print Screen</source>
@@ -5794,9 +5468,51 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Rendszer kérés</translation>
     </message>
     <message>
+        <source>Select</source>
+        <translation>Kijelölés</translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation>Igen</translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation>Nem</translation>
+    </message>
+    <message>
+        <source>Context1</source>
+        <translation>1. környezet</translation>
+    </message>
+    <message>
+        <source>Context2</source>
+        <translation>2. környezet</translation>
+    </message>
+    <message>
+        <source>Context3</source>
+        <translation>3. környezet</translation>
+    </message>
+    <message>
+        <source>Context4</source>
+        <translation>4. környezet</translation>
+    </message>
+    <message>
+        <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
+        <translation>Hívás</translation>
+    </message>
+    <message>
+        <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
+        <translation>Lerakás</translation>
+    </message>
+    <message>
         <source>Toggle Call/Hangup</source>
         <extracomment>Button that will hang up if we&apos;re in call, or make a call if we&apos;re not.</extracomment>
         <translation>Hívás/lerakás</translation>
+    </message>
+    <message>
+        <source>Flip</source>
+        <translation>Csere</translation>
     </message>
     <message>
         <source>Voice Dial</source>
@@ -5939,157 +5655,6 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Hangul különleges</translation>
     </message>
     <message>
-        <source>Select</source>
-        <translation>Kijelölés</translation>
-    </message>
-    <message>
-        <source>Yes</source>
-        <translation>Igen</translation>
-    </message>
-    <message>
-        <source>No</source>
-        <translation>Nem</translation>
-    </message>
-    <message>
-        <source>Context1</source>
-        <translation>1. környezet</translation>
-    </message>
-    <message>
-        <source>Context2</source>
-        <translation>2. környezet</translation>
-    </message>
-    <message>
-        <source>Context3</source>
-        <translation>3. környezet</translation>
-    </message>
-    <message>
-        <source>Context4</source>
-        <translation>4. környezet</translation>
-    </message>
-    <message>
-        <source>Call</source>
-        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
-        <translation>Hívás</translation>
-    </message>
-    <message>
-        <source>Hangup</source>
-        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
-        <translation>Lerakás</translation>
-    </message>
-    <message>
-        <source>Flip</source>
-        <translation>Csere</translation>
-    </message>
-    <message>
-        <source>Ctrl</source>
-        <translation>Ctrl</translation>
-    </message>
-    <message>
-        <source>Shift</source>
-        <translation>Shift</translation>
-    </message>
-    <message>
-        <source>Alt</source>
-        <translation>Alt</translation>
-    </message>
-    <message>
-        <source>Meta</source>
-        <translation>Meta</translation>
-    </message>
-    <message>
-        <source>+</source>
-        <extracomment>Key separator in shortcut string</extracomment>
-        <translation>+</translation>
-    </message>
-    <message>
-        <source>F%1</source>
-        <translation>F%1</translation>
-    </message>
-    <message>
-        <source>Home Page</source>
-        <translation>Kezdőlap</translation>
-    </message>
-    <message>
-        <source>Media Rewind</source>
-        <translation>Média visszatekerése</translation>
-    </message>
-    <message>
-        <source>Media Fast Forward</source>
-        <translation>Média gyors előretekerése</translation>
-    </message>
-    <message>
-        <source>Power Down</source>
-        <translation>Kikapcsolás</translation>
-    </message>
-    <message>
-        <source>Microphone Mute</source>
-        <translation>Mikrofon némítás</translation>
-    </message>
-    <message>
-        <source>Red</source>
-        <translation>Vörös</translation>
-    </message>
-    <message>
-        <source>Green</source>
-        <translation>Zöld</translation>
-    </message>
-    <message>
-        <source>Yellow</source>
-        <translation>Sárga</translation>
-    </message>
-    <message>
-        <source>Blue</source>
-        <translation>Kék</translation>
-    </message>
-    <message>
-        <source>Channel Up</source>
-        <translation>Csatorna fel</translation>
-    </message>
-    <message>
-        <source>Channel Down</source>
-        <translation>Csatorna le</translation>
-    </message>
-    <message>
-        <source>Guide</source>
-        <translation>Vezető</translation>
-    </message>
-    <message>
-        <source>Info</source>
-        <translation>Információ</translation>
-    </message>
-    <message>
-        <source>Settings</source>
-        <translation>Beállítások</translation>
-    </message>
-    <message>
-        <source>Microphone Volume Up</source>
-        <translation>Mikrofon hangerejének növelése</translation>
-    </message>
-    <message>
-        <source>Microphone Volume Down</source>
-        <translation>Mikrofon hangerejének csökkentése</translation>
-    </message>
-    <message>
-        <source>New</source>
-        <translation>Új</translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation>Megnyitás</translation>
-    </message>
-    <message>
-        <source>Find</source>
-        <translation>Keres</translation>
-    </message>
-    <message>
-        <source>Undo</source>
-        <translation>Visszavonás</translation>
-    </message>
-    <message>
-        <source>Redo</source>
-        <translation>Újra</translation>
-    </message>
-    <message>
         <source>Cancel</source>
         <translation>Mégse</translation>
     </message>
@@ -6126,40 +5691,41 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <translation>Érintőtábla ki</translation>
     </message>
     <message>
+        <source>Control</source>
+        <translation>Control</translation>
+    </message>
+    <message>
+        <source>Ctrl</source>
+        <translation>Ctrl</translation>
+    </message>
+    <message>
+        <source>Shift</source>
+        <translation>Shift</translation>
+    </message>
+    <message>
+        <source>Alt</source>
+        <translation>Alt</translation>
+    </message>
+    <message>
+        <source>Meta</source>
+        <translation>Meta</translation>
+    </message>
+    <message>
         <source>Num</source>
         <translation>Num</translation>
     </message>
     <message>
-        <source>Launch (G)</source>
-        <translation type="unfinished"></translation>
+        <source>+</source>
+        <extracomment>Key separator in shortcut string</extracomment>
+        <translation>+</translation>
     </message>
     <message>
-        <source>Launch (H)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Calendar</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Adjust contrast</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Memo</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>To-do list</source>
-        <translation type="unfinished"></translation>
+        <source>F%1</source>
+        <translation>F%1</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
-    <message>
-        <source>Network operation timed out</source>
-        <translation>A hálózati művelet túllépte az időkorlátot</translation>
-    </message>
     <message>
         <source>Connection to proxy refused</source>
         <translation>A proxyhoz kapcsolódás visszautasítva</translation>
@@ -6212,6 +5778,10 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
         <source>Unknown SOCKSv5 proxy error code 0x%1</source>
         <translation>Ismeretlen SOCKSv5 proxy hibakód: 0x%1</translation>
     </message>
+    <message>
+        <source>Network operation timed out</source>
+        <translation>A hálózati művelet túllépte az időkorlátot</translation>
+    </message>
 </context>
 <context>
     <name>QSpiAccessibleBridge</name>
@@ -6262,9 +5832,7 @@ Kapcsoljon ki ezen beállítások közül egyet.</translation>
     </message>
     <message>
         <source>frame</source>
-        <extracomment>Role of an accessible object: a window with frame and title
-----------
-Role of an accessible object</extracomment>
+        <extracomment>Role of an accessible object: a window with frame and title</extracomment>
         <translation>keret</translation>
     </message>
     <message>
@@ -6568,82 +6136,91 @@ Role of an accessible object</extracomment>
         <translation>kiegészítő tartalom</translation>
     </message>
     <message>
-        <source>unknown</source>
-        <extracomment>Role of an accessible object</extracomment>
-        <translation>ismeretlen</translation>
-    </message>
-    <message>
         <source>terminal</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>terminál</translation>
     </message>
     <message>
         <source>desktop</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>asztal</translation>
     </message>
     <message>
         <source>notification</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>QSslDiffieHellmanParameter</name>
-    <message>
-        <source>No error</source>
-        <translation type="unfinished">Nincs hiba</translation>
+        <translation>értesítés</translation>
     </message>
     <message>
-        <source>Invalid input data</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The given Diffie-Hellman parameters are deemed unsafe</source>
-        <translation type="unfinished"></translation>
+        <source>unknown</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation>ismeretlen</translation>
     </message>
 </context>
 <context>
     <name>QSslSocket</name>
     <message>
-        <source>Unable to write data: %1</source>
-        <translation>Nem írhatók ki az adatok: %1</translation>
+        <source>Error when setting the OpenSSL configuration (%1)</source>
+        <translation>Hiba az OpenSSL konfiguráció beállításakor (%1)</translation>
     </message>
     <message>
-        <source>Error while reading: %1</source>
-        <translation>Hiba az olvasás közben: %1</translation>
-    </message>
-    <message>
-        <source>Error during SSL handshake: %1</source>
-        <translation>Hiba az SSL kézfogás közben: %1</translation>
+        <source>Error when setting the elliptic curves (%1)</source>
+        <translation>Hiba az elliptikus görbék beállításakor (%1)</translation>
     </message>
     <message>
         <source>Error creating SSL context (%1)</source>
         <translation>Hiba az SSL környezet létrehozásakor (%1)</translation>
     </message>
     <message>
+        <source>unsupported protocol</source>
+        <translation>nem támogatott protokoll</translation>
+    </message>
+    <message>
+        <source>Error while setting the minimal protocol version</source>
+        <translation>Hiba a minimális protokollverzió beállításakor</translation>
+    </message>
+    <message>
+        <source>Error while setting the maximum protocol version</source>
+        <translation>Hiba a maximális protokollverzió beállításakor</translation>
+    </message>
+    <message>
         <source>Invalid or empty cipher list (%1)</source>
         <translation>Érvénytelen vagy üres titkosítólista (%1)</translation>
     </message>
     <message>
-        <source>Error creating SSL session, %1</source>
-        <translation>Hiba az SSL munkamenet létrehozásakor, %1</translation>
+        <source>Cannot provide a certificate with no key</source>
+        <translation>Nem lehet tanúsítványt kiállítani kulcs nélkül</translation>
     </message>
     <message>
-        <source>Error creating SSL session: %1</source>
-        <translation>Hiba az SSL munkamenet létrehozásakor: %1</translation>
+        <source>Diffie-Hellman parameters are not valid</source>
+        <translation>A Diffie-Hellman paraméterek nem érvényesek</translation>
     </message>
     <message>
-        <source>Unable to init SSL Context: %1</source>
-        <translation>Nem készíthető elő az SSL környezet: %1</translation>
+        <source>OpenSSL version with disabled elliptic curves</source>
+        <translation>OpenSSL verzió kikapcsolt elliptikus görbékkel</translation>
     </message>
     <message>
-        <source>Unable to decrypt data: %1</source>
-        <translation>Nem fejthetők vissza az adatok: %1</translation>
+        <source>Expecting QByteArray for %1</source>
+        <translation>QByteArray várt ehhez: %1</translation>
     </message>
     <message>
-        <source>Cannot provide a certificate with no key, %1</source>
-        <translation>Nem lehet tanúsítványt kiállítani kulcs nélkül, %1</translation>
+        <source>An error occurred attempting to set %1 to %2</source>
+        <translation>Hiba történt a(z) %1 %2 értéke állítására tett kísérlet során</translation>
+    </message>
+    <message>
+        <source>Wrong value for %1 (%2)</source>
+        <translation>Hibás érték ehhez: %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Unrecognized command %1 = %2</source>
+        <translation>Azonosítatlan parancs %1 = %2</translation>
+    </message>
+    <message>
+        <source>SSL_CONF_finish() failed</source>
+        <translation>SSL_CONF_finish() sikertelen</translation>
+    </message>
+    <message>
+        <source>SSL_CONF_CTX_new() failed</source>
+        <translation>SSL_CONF_CTX_new() sikertelen</translation>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>
@@ -6750,268 +6327,244 @@ Role of an accessible object</extracomment>
         <translation>A partner tanúsítványa feketelistán van</translation>
     </message>
     <message>
+        <source>No OCSP status response found</source>
+        <translation>Nem található OCSP állapotválasz</translation>
+    </message>
+    <message>
+        <source>The OCSP status request had invalid syntax</source>
+        <translation>Az OCSP állapotválasz szintaxisa érvénytelen</translation>
+    </message>
+    <message>
+        <source>OCSP response contains an unexpected number of SingleResponse structures</source>
+        <translation>Az OCSP válasz váratlan számú SingleResponse struktúrát tartalmaz</translation>
+    </message>
+    <message>
+        <source>OCSP responder reached an inconsistent internal state</source>
+        <translation>Az OCSP-válaszadó inkonzisztens belső állapotot ért el</translation>
+    </message>
+    <message>
+        <source>OCSP responder was unable to return a status for the requested certificate</source>
+        <translation>Az OCSP-válaszadó nem tudta visszaadni a kért tanúsítvány állapotát</translation>
+    </message>
+    <message>
+        <source>The server requires the client to sign the OCSP request in order to construct a response</source>
+        <translation>A kiszolgáló megköveteli a klienstől az OCSP-kérelem aláírását a válasz megalkotásához</translation>
+    </message>
+    <message>
+        <source>The client is not authorized to request OCSP status from this server</source>
+        <translation>A kliens nem jogosult OCSP állapotot kérni ettől a kiszolgálótól</translation>
+    </message>
+    <message>
+        <source>OCSP responder&apos;s identity cannot be verified</source>
+        <translation>Az OCSP-válaszadó identitása nem ellenőrizhető</translation>
+    </message>
+    <message>
+        <source>The identity of a certificate in an OCSP response cannot be established</source>
+        <translation>Az OCSP-válaszban szereplő tanúsítvány személyazonossága nem állapítható meg</translation>
+    </message>
+    <message>
+        <source>The certificate status response has expired</source>
+        <translation>A tanúsítvány állapotválasza lejárt</translation>
+    </message>
+    <message>
+        <source>The certificate&apos;s status is unknown</source>
+        <translation>A tanúsítvány állapota ismeretlen</translation>
+    </message>
+    <message>
         <source>Unknown error</source>
         <translation>Ismeretlen hiba</translation>
-    </message>
-    <message>
-        <source>Error when setting the elliptic curves (%1)</source>
-        <translation>Hiba az elliptikus görbék beállításakor (%1)</translation>
-    </message>
-    <message>
-        <source>unsupported protocol</source>
-        <translation>nem támogatott protokoll</translation>
     </message>
     <message>
         <source>The TLS/SSL connection has been closed</source>
         <translation>A TLS/SSL kapcsolat lezáródott</translation>
     </message>
     <message>
-        <source>Error when setting the OpenSSL configuration (%1)</source>
-        <translation type="unfinished"></translation>
+        <source>Error creating SSL session, %1</source>
+        <translation>Hiba az SSL munkamenet létrehozásakor, %1</translation>
     </message>
     <message>
-        <source>Error while setting the minimal protocol version</source>
-        <translation type="unfinished"></translation>
+        <source>Error creating SSL session: %1</source>
+        <translation>Hiba az SSL munkamenet létrehozásakor: %1</translation>
     </message>
     <message>
-        <source>Error while setting the maximum protocol version</source>
-        <translation type="unfinished"></translation>
+        <source>Unable to init SSL Context: %1</source>
+        <translation>Nem készíthető elő az SSL környezet: %1</translation>
     </message>
     <message>
-        <source>Diffie-Hellman parameters are not valid</source>
-        <translation type="unfinished"></translation>
+        <source>Unable to write data: %1</source>
+        <translation>Nem írhatók ki az adatok: %1</translation>
     </message>
     <message>
-        <source>OpenSSL version with disabled elliptic curves</source>
-        <translation type="unfinished"></translation>
+        <source>Unable to decrypt data: %1</source>
+        <translation>Nem fejthetők vissza az adatok: %1</translation>
     </message>
     <message>
-        <source>Expecting QByteArray for %1</source>
-        <translation type="unfinished"></translation>
+        <source>TLS certificate unexpectedly changed during renegotiation!</source>
+        <translation>A TLS-tanúsítvány váratlanul megváltozott az újraegyeztetés közben!</translation>
     </message>
     <message>
-        <source>An error occurred attempting to set %1 to %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Wrong value for %1 (%2)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unrecognized command %1 = %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>SSL_CONF_finish() failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>SSL_CONF_CTX_new() failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No OCSP status response found</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The OCSP status request had invalid syntax</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>OCSP response contains an unexpected number of SingleResponse structures</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>OCSP responder reached an inconsistent internal state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>OCSP responder was unable to return a status for the requested certificate</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The server requires the client to sign the OCSP request in order to construct a response</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The client is not authorized to request OCSP status from this server</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>OCSP responder&apos;s identity cannot be verified</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The identity of a certificate in an OCSP response cannot be established</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The certificate status response has expired</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The certificate&apos;s status is unknown</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>TLS initialization failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Attempted to use an unsupported protocol.</source>
-        <translation type="unfinished"></translation>
+        <source>Error while reading: %1</source>
+        <translation>Hiba az olvasás közben: %1</translation>
     </message>
     <message>
         <source>Server-side QSslSocket does not support OCSP stapling</source>
-        <translation type="unfinished"></translation>
+        <translation>A kiszolgáló oldali QSslSocket nem támogatja az OCSP funkciókapcsolást</translation>
     </message>
     <message>
         <source>Failed to enable OCSP stapling</source>
-        <translation type="unfinished"></translation>
+        <translation>Az OCSP funkciókapcsolás engedélyezése sikertelen</translation>
     </message>
     <message>
         <source>Client-side sockets do not send OCSP responses</source>
-        <translation type="unfinished"></translation>
+        <translation>A kliens oldali foglalatok nem küldenek OCSP válaszokat</translation>
     </message>
     <message>
         <source>Failed to decode OCSP response</source>
-        <translation type="unfinished"></translation>
+        <translation>Az OCSP válasz dekódolása sikertelen</translation>
     </message>
     <message>
         <source>Failed to extract basic OCSP response</source>
-        <translation type="unfinished"></translation>
+        <translation>Az alapszintű OCSP válasz kibontása sikertelen</translation>
     </message>
     <message>
         <source>No certificate verification store, cannot verify OCSP response</source>
-        <translation type="unfinished"></translation>
+        <translation>Nincs tanúsítvány-hitelesítési tároló, az OCSP válasz nem ellenőrizhető</translation>
     </message>
     <message>
         <source>Failed to decode a SingleResponse from OCSP status response</source>
-        <translation type="unfinished"></translation>
+        <translation>Egy SingleResponse dekódolása az OCSP állapotválaszból sikertelen</translation>
     </message>
     <message>
         <source>Failed to extract &apos;this update time&apos; from the SingleResponse</source>
-        <translation type="unfinished"></translation>
+        <translation>A „this update time” kibontása a SingleResponse-ból sikertelen</translation>
+    </message>
+    <message>
+        <source>Error during SSL handshake: %1</source>
+        <translation>Hiba az SSL kézfogás közben: %1</translation>
+    </message>
+    <message>
+        <source>TLS initialization failed</source>
+        <translation>TLS előkészítés sikertelen</translation>
+    </message>
+    <message>
+        <source>Attempted to use an unsupported protocol.</source>
+        <translation>Kísérlet nem támogatott protokoll használatára.</translation>
     </message>
     <message>
         <source>Insufficient memory</source>
-        <translation type="unfinished"></translation>
+        <translation>A memória nem elegendő</translation>
     </message>
     <message>
         <source>Internal error</source>
-        <translation type="unfinished"></translation>
+        <translation>Belső hiba</translation>
     </message>
     <message>
         <source>An internal handle was invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>Egy belső leíró érvénytelen volt</translation>
     </message>
     <message>
         <source>An internal token was invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>Egy belső token érvénytelen volt</translation>
     </message>
     <message>
         <source>Access denied</source>
-        <translation type="unfinished"></translation>
+        <translation>Hozzáférés megtagadva</translation>
     </message>
     <message>
         <source>No authority could be contacted for authorization</source>
-        <translation type="unfinished"></translation>
+        <translation>Nem sikerült kapcsolatba lépni hatósággal a hitelesítéshez</translation>
     </message>
     <message>
         <source>No credentials</source>
-        <translation type="unfinished"></translation>
+        <translation>Nincsenek hitelesítési adatok</translation>
     </message>
     <message>
         <source>The target is unknown or unreachable</source>
-        <translation type="unfinished"></translation>
+        <translation>A cél ismeretlen vagy nem érhető el</translation>
     </message>
     <message>
         <source>An unsupported function was requested</source>
-        <translation type="unfinished"></translation>
+        <translation>Nem támogatott funkciót kértek</translation>
     </message>
     <message>
         <source>The hostname provided does not match the one received from the peer</source>
-        <translation type="unfinished"></translation>
+        <translation>A gépnév nem egyezik a partnertől kapottal</translation>
     </message>
     <message>
         <source>No common protocol exists between the client and the server</source>
-        <translation type="unfinished"></translation>
+        <translation>A kliensnek és a kiszolgálónak nincs közös protokollja</translation>
     </message>
     <message>
         <source>Unexpected or badly-formatted message received</source>
-        <translation type="unfinished"></translation>
+        <translation>Váratlan vagy rosszul formázott üzenet érkezett</translation>
     </message>
     <message>
         <source>The data could not be encrypted</source>
-        <translation type="unfinished"></translation>
+        <translation>Az adatok titkosítása nem sikerült</translation>
     </message>
     <message>
         <source>No cipher suites in common</source>
-        <translation type="unfinished"></translation>
+        <translation>Nincsenek közös titkosítócsomagok</translation>
     </message>
     <message>
         <source>The credentials were not recognized / Invalid argument</source>
-        <translation type="unfinished"></translation>
+        <translation>A hitelesítő adatok nem kerültek felismerésre / Érvénytelen argumentum</translation>
     </message>
     <message>
         <source>The message was tampered with, damaged or out of sequence.</source>
-        <translation type="unfinished"></translation>
+        <translation>Az üzenetet manipulálták, megsérült vagy nem a megfelelő sorrendben érkezett.</translation>
     </message>
     <message>
         <source>A message was received out of sequence.</source>
-        <translation type="unfinished"></translation>
+        <translation>Egy üzenet soron kívül érkezett.</translation>
     </message>
     <message>
         <source>Unknown error occurred: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Ismeretlen hiba történt: %1</translation>
     </message>
     <message>
         <source>Invalid protocol chosen</source>
-        <translation type="unfinished"></translation>
+        <translation>Érvénytelen protokoll került kiválasztásra</translation>
     </message>
     <message>
         <source>The certificate provided cannot be used for a client.</source>
-        <translation type="unfinished"></translation>
+        <translation>A megadott tanúsítvány nem használható klienshez.</translation>
     </message>
     <message>
         <source>The certificate provided cannot be used for a server.</source>
-        <translation type="unfinished"></translation>
+        <translation>A megadott tanúsítvány nem használható kiszolgálóhoz.</translation>
     </message>
     <message>
         <source>Server did not accept any certificate we could present.</source>
-        <translation type="unfinished"></translation>
+        <translation>A kiszolgáló nem fogadta el az általunk bemutatott tanúsítványokat.</translation>
     </message>
     <message>
         <source>Algorithm mismatch</source>
-        <translation type="unfinished"></translation>
+        <translation>Algoritmus-eltérés</translation>
     </message>
     <message>
         <source>Handshake failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sikertelen kézfogás: %1</translation>
     </message>
     <message>
         <source>Failed to query the TLS context: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>A TLS környezet lekérdezése sikertelen: %1</translation>
     </message>
     <message>
         <source>Did not get the required attributes for the connection.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nem érkeztek meg a kapcsolathoz szükséges attribútumok.</translation>
     </message>
     <message>
         <source>Unwanted protocol was negotiated</source>
-        <translation type="unfinished"></translation>
+        <translation>Nem kívánt protokoll került egyeztetésre</translation>
     </message>
     <message>
         <source>Renegotiation was unsuccessful: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Az újraegyeztetés sikertelen volt: %1</translation>
     </message>
     <message>
         <source>Schannel failed to encrypt data: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot provide a certificate with no key</source>
-        <translation type="unfinished"></translation>
+        <translation>A Schannel nem tudta titkosítani az adatokat: %1</translation>
     </message>
 </context>
 <context>
@@ -7053,12 +6606,12 @@ Role of an accessible object</extracomment>
         <translation>Saját könyvtár</translation>
     </message>
     <message>
-        <source>Application Data</source>
-        <translation>Alkalmazás adatai</translation>
-    </message>
-    <message>
         <source>Cache</source>
         <translation>Gyorsítótár</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Állapot</translation>
     </message>
     <message>
         <source>Shared Data</source>
@@ -7073,47 +6626,49 @@ Role of an accessible object</extracomment>
         <translation>Beállítás</translation>
     </message>
     <message>
+        <source>Shared Configuration</source>
+        <translation>Megosztott beállítás</translation>
+    </message>
+    <message>
         <source>Shared Cache</source>
         <translation>Megosztott gyorsítótár</translation>
+    </message>
+    <message>
+        <source>Shared State</source>
+        <translation>Megosztott állapot</translation>
     </message>
     <message>
         <source>Download</source>
         <translation>Letöltés</translation>
     </message>
     <message>
-        <source>Shared Configuration</source>
-        <translation>Megosztott beállítás</translation>
+        <source>Public</source>
+        <translation>Nyilvános</translation>
+    </message>
+    <message>
+        <source>Templates</source>
+        <translation>Sablonok</translation>
+    </message>
+    <message>
+        <source>Application Data</source>
+        <translation>Alkalmazás adatai</translation>
     </message>
     <message>
         <source>Application Configuration</source>
         <translation>Alkalmazás beállításai</translation>
     </message>
-</context>
-<context>
-    <name>QStateMachine</name>
     <message>
-        <source>Missing initial state in compound state &apos;%1&apos;</source>
-        <translation>Hiányzó kezdeti állapot a(z) „%1” összetett állapotban</translation>
-    </message>
-    <message>
-        <source>Missing default state in history state &apos;%1&apos;</source>
-        <translation>Hiányzó alapértelmezett állapot a(z) „%1” előzményállapotban</translation>
-    </message>
-    <message>
-        <source>No common ancestor for targets and source of transition from state &apos;%1&apos;</source>
-        <translation>Nincs közös ős céloknál és a(z) „%1” állapotból való átmenet forrásánál</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
-    </message>
-    <message>
-        <source>Child mode of state machine &apos;%1&apos; is not &apos;ExclusiveStates&apos;.</source>
-        <translation type="unfinished"></translation>
+        <source>Temporary Items</source>
+        <extracomment>macOS: Temporary directory</extracomment>
+        <translation>Átmeneti elemek</translation>
     </message>
 </context>
 <context>
     <name>QSystemSemaphore</name>
+    <message>
+        <source>%1: unsupported key type</source>
+        <translation>%1: nem támogatott kulcstípus</translation>
+    </message>
     <message>
         <source>%1: permission denied</source>
         <translation>%1: hozzáférés megtagadva</translation>
@@ -7131,19 +6686,28 @@ Role of an accessible object</extracomment>
         <translation>%1: elfogytak az erőforrások</translation>
     </message>
     <message>
-        <source>%1: unknown error %2</source>
-        <translation>%1: ismeretlen hiba %2</translation>
-    </message>
-</context>
-<context>
-    <name>QTDSDriver</name>
-    <message>
-        <source>Unable to open connection</source>
-        <translation>Nem nyitható meg a kapcsolat</translation>
+        <source>%1: key too long</source>
+        <translation>%1: a kulcs túl hosszú</translation>
     </message>
     <message>
-        <source>Unable to use database</source>
-        <translation>Nem használható az adatbázis</translation>
+        <source>%1: unknown error: %2</source>
+        <translation>%1: ismeretlen hiba: %2</translation>
+    </message>
+    <message>
+        <source>%1: key is empty</source>
+        <translation>%1: a kulcs üres</translation>
+    </message>
+    <message>
+        <source>%1: System V semaphores are not available for sandboxed applications. Please build Qt with -feature-ipc_posix</source>
+        <translation>%1: a System V szemaforok nem érhetők el homokozóban futtatott alkalmazásokhoz. Építse újra a Qt-ot a -feature-ipc_posix kapcsolóval</translation>
+    </message>
+    <message>
+        <source>%1: unable to make key</source>
+        <translation>%1: nem készíthető kulcs</translation>
+    </message>
+    <message>
+        <source>%1: ftok failed</source>
+        <translation>%1: az ftok sikertelen</translation>
     </message>
 </context>
 <context>
@@ -7162,17 +6726,6 @@ Role of an accessible object</extracomment>
     <message>
         <source>Operation on socket is not supported</source>
         <translation>A művelet foglalaton nem támogatott</translation>
-    </message>
-</context>
-<context>
-    <name>QUdpSocket</name>
-    <message>
-        <source>Unable to send a datagram</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No datagram available for reading</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7267,10 +6820,6 @@ Role of an accessible object</extracomment>
         <translation>PDF normál irányú formázási jelölő</translation>
     </message>
     <message>
-        <source>Insert Unicode control character</source>
-        <translation>Unicode vezérlőkarakter beszúrása</translation>
-    </message>
-    <message>
         <source>LRI Left-to-right isolate</source>
         <translation>LRI balról jobbra elkülönítés</translation>
     </message>
@@ -7285,6 +6834,10 @@ Role of an accessible object</extracomment>
     <message>
         <source>PDI Pop directional isolate</source>
         <translation>PDI normál irányú elkülönítés</translation>
+    </message>
+    <message>
+        <source>Insert Unicode control character</source>
+        <translation>Unicode vezérlőkarakter beszúrása</translation>
     </message>
 </context>
 <context>
@@ -7339,16 +6892,16 @@ Role of an accessible object</extracomment>
 <context>
     <name>QWindowsDirect2DIntegration</name>
     <message>
-        <source>Cannot load direct2d platform plugin</source>
-        <translation>Nem lehet betölteni a direct2d platform bővítményt</translation>
-    </message>
-    <message>
         <source>Qt cannot load the direct2d platform plugin because the Direct2D version on this system is too old. The minimum system requirement for this platform plugin is Windows 7 SP1 with Platform Update.
 
 The minimum Direct2D version required is %1. The Direct2D version on this system is %2.</source>
-        <translation type="unfinished">A Qt nem tudja betölteni a direct2d platform bővítményt, mert a Direct2D verziója túl régi ezen a rendszeren. A minimális rendszerkövetelmény ennél a platform bővítménynél platformfrissítéssel rendelkező Windows 7 SP1.
+        <translation>A Qt nem tudja betölteni a direct2d platform bővítményt, mert a Direct2D verziója túl régi ezen a rendszeren. A minimális rendszerkövetelmény ennél a platform bővítménynél platformfrissítéssel rendelkező Windows 7 SP1.
 
-A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen a rendszeren %5.%6.%7.%8. {2d?} {2D?} {7 ?} {1 ?} {2D?} {1.?} {2D?} {2.?}</translation>
+A szükséges minimális Direct2D verzió %1. A Direct2D verziója ezen a rendszeren %2.</translation>
+    </message>
+    <message>
+        <source>Cannot load direct2d platform plugin</source>
+        <translation>Nem lehet betölteni a direct2d platform bővítményt</translation>
     </message>
 </context>
 <context>
@@ -7358,8 +6911,20 @@ A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen
         <translation>Ugrás vissza</translation>
     </message>
     <message>
+        <source>&lt; &amp;Back</source>
+        <translation>&lt; &amp;Vissza</translation>
+    </message>
+    <message>
         <source>Continue</source>
         <translation>Folytatás</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation>&amp;Következő</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation>&amp;Következő &gt;</translation>
     </message>
     <message>
         <source>Commit</source>
@@ -7370,14 +6935,6 @@ A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen
         <translation>Kész</translation>
     </message>
     <message>
-        <source>Help</source>
-        <translation>Súgó</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Vissza</translation>
-    </message>
-    <message>
         <source>&amp;Finish</source>
         <translation>&amp;Befejezés</translation>
     </message>
@@ -7386,111 +6943,12 @@ A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen
         <translation>Mégse</translation>
     </message>
     <message>
+        <source>Help</source>
+        <translation>Súgó</translation>
+    </message>
+    <message>
         <source>&amp;Help</source>
         <translation>&amp;Súgó</translation>
-    </message>
-    <message>
-        <source>&amp;Next</source>
-        <translation>&amp;Következő </translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>&amp;Következő &gt;</translation>
-    </message>
-</context>
-<context>
-    <name>QXml</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>nem történt hiba</translation>
-    </message>
-    <message>
-        <source>error triggered by consumer</source>
-        <translation>a fogyasztó által aktivált hiba</translation>
-    </message>
-    <message>
-        <source>unexpected end of file</source>
-        <translation>váratlan fájlvég</translation>
-    </message>
-    <message>
-        <source>more than one document type definition</source>
-        <translation>egynél több dokumentumtípus meghatározás</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing element</source>
-        <translation>hiba történt az elem feldolgozása során</translation>
-    </message>
-    <message>
-        <source>tag mismatch</source>
-        <translation>címkeeltérés</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing content</source>
-        <translation>hiba történt a tartalom feldolgozása során</translation>
-    </message>
-    <message>
-        <source>unexpected character</source>
-        <translation>váratlan karakter</translation>
-    </message>
-    <message>
-        <source>invalid name for processing instruction</source>
-        <translation>érvénytelen név a feldolgozási utasításnál</translation>
-    </message>
-    <message>
-        <source>version expected while reading the XML declaration</source>
-        <translation>verzió várt az XML deklaráció olvasása során</translation>
-    </message>
-    <message>
-        <source>wrong value for standalone declaration</source>
-        <translation>hibás érték az önálló deklarációban</translation>
-    </message>
-    <message>
-        <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>kódolási deklaráció vagy önálló deklaráció várt az XML deklarációból olvasása során</translation>
-    </message>
-    <message>
-        <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>önálló deklaráció várt az XML deklaráció olvasása során</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing document type definition</source>
-        <translation>hiba történt a dokumentumtípus meghatározásának feldolgozása során</translation>
-    </message>
-    <message>
-        <source>letter is expected</source>
-        <translation>betű várt</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing comment</source>
-        <translation>hiba történt a megjegyzés feldolgozása során</translation>
-    </message>
-    <message>
-        <source>error occurred while parsing reference</source>
-        <translation>hiba történt a hivatkozás feldolgozása során</translation>
-    </message>
-    <message>
-        <source>internal general entity reference not allowed in DTD</source>
-        <translation>belső általános entitáshivatkozás nem engedélyezett a DTD-ben</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>külső feldolgozású általános entitáshivatkozás nem engedélyezett attribútum értékében</translation>
-    </message>
-    <message>
-        <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>külső feldolgozású általános entitáshivatkozás nem engedélyezett a DTD-ben</translation>
-    </message>
-    <message>
-        <source>unparsed entity reference in wrong context</source>
-        <translation>feldolgozatlan entitáshivatkozás egy rossz környezetben</translation>
-    </message>
-    <message>
-        <source>recursive entities</source>
-        <translation>rekurzív entitások</translation>
-    </message>
-    <message>
-        <source>error in the text declaration of an external entity</source>
-        <translation>hiba egy külső entitás szövegdeklarációjában</translation>
     </message>
 </context>
 <context>
@@ -7512,8 +6970,20 @@ A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen
         <translation>A „]]&gt;” sorozat nem engedélyezett a tartalomban.</translation>
     </message>
     <message>
+        <source>Encountered incorrectly encoded content.</source>
+        <translation>Érvénytelenül kódolt tartalom fordult elő.</translation>
+    </message>
+    <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
         <translation>A(z) „%1” névtérelőtag nincs deklarálva</translation>
+    </message>
+    <message>
+        <source>Illegal namespace declaration.</source>
+        <translation>Érvénytelen névtér deklaráció.</translation>
+    </message>
+    <message>
+        <source>Attribute &apos;%1&apos; redefined.</source>
+        <translation>A(z) „%1” attribútumot újradefiniálták.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
@@ -7521,11 +6991,15 @@ A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen
     </message>
     <message>
         <source>Invalid XML version string.</source>
-        <translation>Érvénytelen XML verzió karakterlánc.</translation>
+        <translation>Érvénytelen XML verzió-karakterlánc.</translation>
     </message>
     <message>
         <source>Unsupported XML version.</source>
         <translation>Nem támogatott XML verzió.</translation>
+    </message>
+    <message>
+        <source>The standalone pseudo attribute must appear after the encoding.</source>
+        <translation>Az önálló pszeudo-attribútumnak a kódolás után kell szerepelniük.</translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
@@ -7540,8 +7014,52 @@ A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen
         <translation>Az önálló csak igent vagy nemet fogad el.</translation>
     </message>
     <message>
-        <source>Invalid attribute in XML declaration.</source>
-        <translation>Érvénytelen attribútum az XML deklarációban.</translation>
+        <source>Invalid attribute in XML declaration: %1 = %2</source>
+        <translation>Érvénytelen attribútum az XML deklarációban: %1 = %2</translation>
+    </message>
+    <message>
+        <source>Length of XML attribute name exceeds implementation limits (4KiB characters).</source>
+        <translation>Az XML attribútum neve túllépi az implementáció korlátját (4 KiB-nyi karakter).</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos;</source>
+        <comment>expected</comment>
+        <extracomment>&apos;&lt;first option&gt;&apos;</extracomment>
+        <translation>„%1”</translation>
+    </message>
+    <message>
+        <source>%1 or &apos;%2&apos;</source>
+        <comment>expected</comment>
+        <extracomment>&lt;first option&gt;, &apos;&lt;second option&gt;&apos;</extracomment>
+        <translation>%1 vagy „%2”</translation>
+    </message>
+    <message>
+        <source>%1, &apos;%2&apos;</source>
+        <comment>expected</comment>
+        <extracomment>&lt;options so far&gt;, &apos;&lt;next option&gt;&apos;</extracomment>
+        <translation>%1, „%2”</translation>
+    </message>
+    <message>
+        <source>%1, or &apos;%2&apos;</source>
+        <comment>expected</comment>
+        <extracomment>&lt;options so far&gt;, or &apos;&lt;final option&gt;&apos;</extracomment>
+        <translation>%1, vagy „%2”</translation>
+    </message>
+    <message>
+        <source>Expected %1, but got &apos;%2&apos;.</source>
+        <translation>%1 várt, de „%2” érkezett.</translation>
+    </message>
+    <message>
+        <source>Unexpected &apos;%1&apos;.</source>
+        <translation>Váratlan „%1”.</translation>
+    </message>
+    <message>
+        <source>Unexpected token type %1 in %2.</source>
+        <translation>Váratlan tokentípus (%1) itt: %2.</translation>
+    </message>
+    <message>
+        <source>Found second DTD token in %1.</source>
+        <translation>A második DTD token itt található: %1.</translation>
     </message>
     <message>
         <source>Premature end of document.</source>
@@ -7560,24 +7078,24 @@ A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen
         <translation>Kezdőcímke várt.</translation>
     </message>
     <message>
+        <source>NDATA in parameter entity declaration.</source>
+        <translation>NDATA a paraméterentitás deklarációjában.</translation>
+    </message>
+    <message>
         <source>XML declaration not at start of document.</source>
         <translation>Az XML deklaráció nem a dokumentum elején van.</translation>
     </message>
     <message>
-        <source>NDATA in parameter entity declaration.</source>
-        <translation>NDATA a paraméterentitás deklarációban.</translation>
-    </message>
-    <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translation>A(z) %1 egy érvénytelen feldolgozási utasítás név.</translation>
+        <translation>A(z) %1 egy érvénytelen feldolgozó utasításnév.</translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translation>Érvénytelen feldolgozási utasítás név.</translation>
+        <translation>Érvénytelen feldolgozási utasításnév.</translation>
     </message>
     <message>
-        <source>Illegal namespace declaration.</source>
-        <translation>Érvénytelen névtér deklaráció.</translation>
+        <source>%1 is an invalid PUBLIC identifier.</source>
+        <translation>A(z) %1 egy érvénytelen PUBLIC azonosító.</translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
@@ -7588,12 +7106,12 @@ A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen
         <translation>A nyitó- és a zárócímke nem egyezik.</translation>
     </message>
     <message>
-        <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation>Hivatkozás egy feldolgozatlan „%1” entitásra.</translation>
-    </message>
-    <message>
         <source>Entity &apos;%1&apos; not declared.</source>
         <translation>A(z) „%1” entitás nincs deklarálva.</translation>
+    </message>
+    <message>
+        <source>Reference to unparsed entity &apos;%1&apos;.</source>
+        <translation>Hivatkozás egy feldolgozatlan „%1” entitásra.</translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
@@ -7604,60 +7122,474 @@ A szükséges minimális Direct2D verzió %1.%2.%3.%4. A Direct2D verziója ezen
         <translation>Érvénytelen karakterhivatkozás.</translation>
     </message>
     <message>
-        <source>Encountered incorrectly encoded content.</source>
-        <translation>Érvénytelenül kódolt tartalom fordult elő.</translation>
-    </message>
-    <message>
-        <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation>Az önálló pszeudo-attribútumnak a kódolás után kell szerepelniük.</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid PUBLIC identifier.</source>
-        <translation>A(z) %1 egy érvénytelen PUBLIC azonosító.</translation>
-    </message>
-    <message>
-        <source>Attribute &apos;%1&apos; redefined.</source>
-        <translation>A(z) „%1” attribútum újra meg van határozva.</translation>
-    </message>
-    <message>
-        <source>&apos;%1&apos;</source>
-        <comment>expected</comment>
-        <extracomment>&apos;&lt;first option&gt;&apos;</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 or &apos;%2&apos;</source>
-        <comment>expected</comment>
-        <extracomment>&lt;first option&gt;, &apos;&lt;second option&gt;&apos;</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1, &apos;%2&apos;</source>
-        <comment>expected</comment>
-        <extracomment>&lt;options so far&gt;, &apos;&lt;next option&gt;&apos;</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1, or &apos;%2&apos;</source>
-        <comment>expected</comment>
-        <extracomment>&lt;options so far&gt;, or &apos;&lt;final option&gt;&apos;</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Expected %1, but got &apos;%2&apos;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unexpected &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Self-referencing entity detected.</source>
-        <translation type="unfinished"></translation>
+        <translation>Önhivatkozó entitás észlelve.</translation>
     </message>
     <message>
         <source>Entity expands to more characters than the entity expansion limit.</source>
-        <translation type="unfinished"></translation>
+        <translation>Az entitás több karakterre bontódik ki, mint az entitáskiterjesztési korlát.</translation>
+    </message>
+</context>
+<context>
+    <name>QFactoryLoader</name>
+    <message>
+        <source>Invalid metadata version</source>
+        <translation>Érvénytelen metaadat-verzió</translation>
+    </message>
+    <message>
+        <source>Metadata parsing error: %1</source>
+        <translation>Metaadat-feldolgozási hiba: %1</translation>
+    </message>
+    <message>
+        <source>Unexpected metadata contents</source>
+        <translation>Váratlan metaadat-tartalom</translation>
+    </message>
+</context>
+<context>
+    <name>QAbstractFileIconProvider</name>
+    <message>
+        <source>Drive</source>
+        <translation>Meghajtó</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>Fájl</translation>
+    </message>
+    <message>
+        <source>File Folder</source>
+        <comment>Match Windows Explorer</comment>
+        <translation>Fájlmappa</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <comment>All other platforms</comment>
+        <translation>Mappa</translation>
+    </message>
+    <message>
+        <source>Alias</source>
+        <comment>macOS Finder</comment>
+        <translation>Álnév</translation>
+    </message>
+    <message>
+        <source>Shortcut</source>
+        <comment>All other platforms</comment>
+        <translation>Parancsikon</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Ismeretlen</translation>
+    </message>
+</context>
+<context>
+    <name>QSctpSocket</name>
+    <message>
+        <source>The remote host closed the connection</source>
+        <translation>A távoli gép lezárta a kapcsolatot</translation>
+    </message>
+</context>
+<context>
+    <name>QUdpSocket</name>
+    <message>
+        <source>Unable to send a datagram</source>
+        <translation>Nem lehet elküldeni egy datagramot</translation>
+    </message>
+    <message>
+        <source>No datagram available for reading</source>
+        <translation>Nincs olvasásra elérhető datagram</translation>
+    </message>
+</context>
+<context>
+    <name>QDtls</name>
+    <message>
+        <source>Multicast and broadcast addresses are not supported</source>
+        <translation>A csoportos küldési és szórási címek nem támogatottak</translation>
+    </message>
+    <message>
+        <source>Cannot set peer after handshake started</source>
+        <translation>Nem lehet megadni partnert a kézfogás megkezdése után</translation>
+    </message>
+    <message>
+        <source>Invalid address</source>
+        <translation>Érvénytelen cím</translation>
+    </message>
+    <message>
+        <source>Cannot set verification name after handshake started</source>
+        <translation>Nem lehet beállítani a hitelesítési nevet a kézfogás megkezdése után</translation>
+    </message>
+    <message>
+        <source>Cannot set configuration after handshake started</source>
+        <translation>Nem lehet beállítani a konfigurációt a kézfogás megkezdése után</translation>
+    </message>
+    <message>
+        <source>Cannot start/continue handshake, invalid handshake state</source>
+        <translation>Nem lehet megkezdeni/folytatni a kézfogást, érvénytelen kézfogási állapot</translation>
+    </message>
+    <message>
+        <source>Invalid (nullptr) socket</source>
+        <translation>Érvénytelen (nullptr) foglalat</translation>
+    </message>
+    <message>
+        <source>To start a handshake you must set peer&apos;s address and port first</source>
+        <translation>A kézfogás megkezdéséhez először meg kell adnia a partner címét és portját</translation>
+    </message>
+    <message>
+        <source>To start a handshake, DTLS server requires non-empty datagram (client hello)</source>
+        <translation>A kézfogás megkezdéséhez a DTLS kiszolgálónak egy nem üres datagramra van szüksége (client hello)</translation>
+    </message>
+    <message>
+        <source>Cannot start handshake, already done/in progress</source>
+        <translation>Nem lehet megkezdeni a kézfogást, már készen/folyamatban van</translation>
+    </message>
+    <message>
+        <source>A valid QUdpSocket and non-empty datagram are needed to continue the handshake</source>
+        <translation>A kézfogás folytatásához érvényes QUdpSocket és nem üres datagram szükséges</translation>
+    </message>
+    <message>
+        <source>Cannot continue handshake, not in InProgress state</source>
+        <translation>Nem folytatható a kézfogás, nem InProgress állapotban van</translation>
+    </message>
+    <message>
+        <source>Cannot resume, not in VerificationError state</source>
+        <translation>Nem lehet folytatni, nem VerificationError állapotban van</translation>
+    </message>
+    <message>
+        <source>No handshake in progress, nothing to abort</source>
+        <translation>Nincs folyamatban kézfogás, nincs mit megszakítani</translation>
+    </message>
+    <message>
+        <source>Cannot send shutdown alert, not encrypted</source>
+        <translation>Nem lehet küldeni kikapcsolási figyelmeztetést, nincs titkosítva</translation>
+    </message>
+    <message>
+        <source>Cannot write a datagram, not in encrypted state</source>
+        <translation>Nem lehet írni a datagramot, nincs titkosított állapotban</translation>
+    </message>
+    <message>
+        <source>Cannot read a datagram, not in encrypted state</source>
+        <translation>Nem lehet olvasni a datagramot, nincs titkosított állapotban</translation>
+    </message>
+    <message>
+        <source>%1 failed</source>
+        <extracomment>%1: Some function</extracomment>
+        <translation>%1 sikertelen</translation>
+    </message>
+    <message>
+        <source>Invalid SslMode, SslServerMode or SslClientMode expected</source>
+        <translation>Érvénytelen SslMode, SslServerMode vagy SslClientMode várt</translation>
+    </message>
+    <message>
+        <source>Invalid protocol version, DTLS protocol expected</source>
+        <translation>Érvénytelen protokollverzió, DTLS protokoll várt</translation>
+    </message>
+    <message>
+        <source>BIO_ADD_new failed, cannot start handshake</source>
+        <translation>BIO_ADD_new sikertelen, nem lehet megkezdeni a kézfogást</translation>
+    </message>
+    <message>
+        <source>Cannot start the handshake, verified client hello expected</source>
+        <translation>Nem lehet megkezdeni a kézfogást, ellenőrzött client hello várt</translation>
+    </message>
+    <message>
+        <source>Peer verification failed</source>
+        <translation>Partnerellenőrzés sikertelen</translation>
+    </message>
+    <message>
+        <source>The DTLS connection has been closed</source>
+        <translation>A DTLS kapcsolat lezáródott</translation>
+    </message>
+    <message>
+        <source>Error while writing: %1</source>
+        <translation>Hiba az írás közben: %1</translation>
+    </message>
+    <message>
+        <source>The DTLS connection has been shutdown</source>
+        <translation>A DTLS kapcsolat leállítódott</translation>
+    </message>
+    <message>
+        <source>Error while reading: %1</source>
+        <translation>Hiba az olvasás közben: %1</translation>
+    </message>
+    <message>
+        <source>Invalid (empty) secret</source>
+        <translation>Érvénytelen (üres) titkos érték</translation>
+    </message>
+</context>
+<context>
+    <name>QDtlsClientVerifier</name>
+    <message>
+        <source>A valid UDP socket, non-empty datagram, and valid address/port were expected</source>
+        <translation>Érvényes UDP foglalat, nem üres datagram és érvényes cím/port várt</translation>
+    </message>
+    <message>
+        <source>BIO_ADDR_new failed, ignoring client hello</source>
+        <translation>BIO_ADDR_new sikertelen, client hello mellőzése</translation>
+    </message>
+</context>
+<context>
+    <name>QSslDiffieHellmanParameter</name>
+    <message>
+        <source>No error</source>
+        <translation>Nincs hiba</translation>
+    </message>
+    <message>
+        <source>Invalid input data</source>
+        <translation>Érvénytelen bemeneti adat</translation>
+    </message>
+    <message>
+        <source>The given Diffie-Hellman parameters are deemed unsafe</source>
+        <translation>A megadott Diffie-Hellman paraméterek nem minősülnek biztonságosnak</translation>
+    </message>
+</context>
+<context>
+    <name>QCocoaMenuBar</name>
+    <message>
+        <source>Edit</source>
+        <translation>Szerkesztés</translation>
+    </message>
+</context>
+<context>
+    <name>quiaccessibilityelement</name>
+    <message>
+        <source>checked</source>
+        <translation>bejelölve</translation>
+    </message>
+    <message>
+        <source>unchecked</source>
+        <translation>nincs bejelölve</translation>
+    </message>
+</context>
+<context>
+    <name>QCupsPrinterSupport</name>
+    <message>
+        <source>Authentication Needed</source>
+        <translation>Hitelesítés szükséges</translation>
+    </message>
+    <message>
+        <source>Authentication needed to use %1.</source>
+        <translation>Hitelesítés szükséges a(z) %1 használatához.</translation>
+    </message>
+    <message>
+        <source>Authentication needed to use %1 on %2.</source>
+        <translation>Hitelesítés szükséges a(z) %1 használatához ezen: %2.</translation>
+    </message>
+    <message>
+        <source>Username:</source>
+        <translation>Felhasználónév:</translation>
+    </message>
+    <message>
+        <source>Password:</source>
+        <translation>Jelszó:</translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQL</name>
+    <message>
+        <source>No Mimer SQL error for code %1</source>
+        <translation>Nincs Mimer SQL hiba a(z) %1 kódhoz</translation>
+    </message>
+    <message>
+        <source>Generic Mimer SQL error</source>
+        <translation>Általános Mimer SQL hiba</translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult</name>
+    <message>
+        <source>Could not get %1, column %2</source>
+        <extracomment>Data type, column</extracomment>
+        <translation>A(z) %1 nem kérhető le, %2. oszlop</translation>
+    </message>
+    <message>
+        <source>Could not set %1, parameter %2</source>
+        <extracomment>Data type, parameter</extracomment>
+        <translation>A(z) %1 nem állítható be, %2. paraméter</translation>
+    </message>
+    <message>
+        <source>Could not close cursor</source>
+        <translation>Nem sikerült bezárni a kurzort</translation>
+    </message>
+    <message>
+        <source>Could not close statement</source>
+        <translation>Nem sikerült bezárni az utasítást</translation>
+    </message>
+    <message>
+        <source>Fetch did not succeed</source>
+        <translation>A lekérés nem sikerült</translation>
+    </message>
+    <message>
+        <source>Fetch first did not succeed</source>
+        <translation>Az első lekérése nem sikerült</translation>
+    </message>
+    <message>
+        <source>Could not fetch next row</source>
+        <translation>Nem sikerült lekérni a következő sort</translation>
+    </message>
+    <message>
+        <source>Unknown data type %1</source>
+        <translation>Ismeretlen adattípus: %1</translation>
+    </message>
+    <message>
+        <source>Could not check null, column %1</source>
+        <translation>Nem sikerült ellenőrizni a nullt, %1. oszlop</translation>
+    </message>
+    <message>
+        <source>Could not prepare/execute statement</source>
+        <translation>Nem sikerült előkészíteni/végrehajtani az utasítást</translation>
+    </message>
+    <message>
+        <source>Wrong number of parameters</source>
+        <translation>Hibás paraméterszám</translation>
+    </message>
+    <message>
+        <source>Unknown datatype, parameter %1</source>
+        <translation>Ismeretlen adattípus, %1. paraméter</translation>
+    </message>
+    <message>
+        <source>Could not execute statement/open cursor</source>
+        <translation>Nem sikerült végrehajtani az utasítást/megnyitni a kurzort</translation>
+    </message>
+    <message>
+        <source>Only input parameters can be used in batch operations</source>
+        <translation>Csak bemenő paraméterek használhatók kötegelt műveletekben</translation>
+    </message>
+    <message>
+        <source>Could not add batch %1</source>
+        <extracomment>%1 is the batch number</extracomment>
+        <translation>Nem sikerült hozzáadni a(z) %1. köteget</translation>
+    </message>
+    <message>
+        <source>Could not execute batch</source>
+        <translation>Nem sikerült végrehajtani a köteget</translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLResult:</name>
+    <message>
+        <source>Fetch last did not succeed</source>
+        <translation>Az utolsó lekérése nem sikerült</translation>
+    </message>
+    <message>
+        <source>Column %1 out of range</source>
+        <translation>A(z) %1. oszlop tartományon kívüli</translation>
+    </message>
+</context>
+<context>
+    <name>QMimerSQLDriver</name>
+    <message>
+        <source>Could not connect to database</source>
+        <translation>Nem sikerült csatlakozni az adatbázishoz</translation>
+    </message>
+    <message>
+        <source>Could not start transaction</source>
+        <translation>Nem sikerült elindítani a tranzakciót</translation>
+    </message>
+    <message>
+        <source>Could not commit transaction</source>
+        <translation>Nem sikerült véglegesíteni a tranzakciót</translation>
+    </message>
+    <message>
+        <source>Could not roll back transaction</source>
+        <translation>Nem sikerült visszavonni a tranzakciót</translation>
+    </message>
+</context>
+<context>
+    <name>Print Device Input Slot</name>
+    <message>
+        <source>Automatic</source>
+        <translation>Automatikus</translation>
+    </message>
+</context>
+<context>
+    <name>Print Device Output Bin</name>
+    <message>
+        <source>Automatic</source>
+        <translation>Automatikus</translation>
+    </message>
+</context>
+<context>
+    <name>QDomParser</name>
+    <message>
+        <source>Error occurred while processing XML declaration</source>
+        <translation>Hiba történt az XML deklaráció feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Multiple DTD sections are not allowed</source>
+        <translation>Több DTD szakasz nem megengedett</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing document type declaration</source>
+        <translation>Hiba történt a dokumentumtípus-deklaráció feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing comment</source>
+        <translation>Hiba történt a megjegyzés feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing a processing instruction</source>
+        <translation>Hiba történt egy feldolgozó utasítás feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing a start element</source>
+        <translation>Hiba történt egy kezdőelem feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Unexpected end element &apos;%1&apos;</source>
+        <translation>Váratlan záróelem: „%1”</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing an end element</source>
+        <translation>Hiba történt egy záróelem feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing the element content</source>
+        <translation>Hiba történt az elem tartalmának feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing comments</source>
+        <translation>Hiba történt a megjegyzések feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing an entity reference</source>
+        <translation>Hiba történt egy entitáshivatkozás feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Unexpected token</source>
+        <translation>Váratlan token</translation>
+    </message>
+    <message>
+        <source>Tag mismatch</source>
+        <translation>Címkeeltérés</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing entity declaration</source>
+        <translation>Hiba történt az entitásdeklaráció feldolgozása során</translation>
+    </message>
+    <message>
+        <source>Error occurred while processing notation declaration</source>
+        <translation>Hiba történt a jelölésdeklaráció feldolgozása során</translation>
+    </message>
+</context>
+<context>
+    <name>Assets::Downloader::AssetDownloader</name>
+    <message>
+        <source>Downloading JSON file...</source>
+        <translation>JSON-fájl letöltése…</translation>
+    </message>
+    <message>
+        <source>Downloading zip file...</source>
+        <translation>ZIP-fájl letöltése…</translation>
+    </message>
+    <message>
+        <source>Unzipping...</source>
+        <translation>Kibontás…</translation>
+    </message>
+    <message>
+        <source>Downloading assets...</source>
+        <translation>Objektumok letöltése…</translation>
+    </message>
+    <message>
+        <source>Copying assets...</source>
+        <translation>Objektumok másolása…</translation>
     </message>
 </context>
 </TS>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2450,7 +2450,7 @@ public:
     /** Constructs action passing @a pParent to the base-class. */
     UIActionSimpleVISOCreatorOpen(UIActionPool *pParent)
         : UIActionSimple(pParent,
-                         ":/cd_remove_16px.png", ":/cd_remove_32px.png")
+                         ":/cd_open_16px.png", ":/cd_open_32px.png")
     {
         setShortcutContext(Qt::WidgetWithChildrenShortcut);
     }
@@ -2794,6 +2794,40 @@ protected:
     }
 };
 
+/** Simple action extension, used as 'EditCD' action class. */
+class UIActionMenuMediumSelectorEditCD  : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionMenuMediumSelectorEditCD(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/cd_edit_32px.png",  ":/cd_edit_16px.png",
+                         ":/cd_edit_disabled_32px.png", ":/cd_edit_disabled_16px.png")
+    {
+        setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    }
+
+protected:
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const RT_OVERRIDE
+    {
+        return QString("MediumSelectorEditCD");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() RT_OVERRIDE
+    {
+        setName(QApplication::translate("UIActionPool", "&Edit..."));
+        setShortcutScope(QApplication::translate("UIActionPool", "Medium Selector"));
+        setStatusTip(QApplication::translate("UIActionPool", "Edit existing disk image file"));
+        setToolTip(  QApplication::translate("UIActionPool", "Edit Disk Image File")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
+    }
+};
+
 /** Simple action extension, used as 'Add' action class. */
 class UIActionMenuMediumSelectorAddFD  : public UIActionSimple
 {
@@ -2981,7 +3015,7 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Activity"));
+        setName(QApplication::translate("UIActionPool", "&Resource Use"));
     }
 };
 
@@ -3047,10 +3081,10 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Activity Overview..."));
+        setName(QApplication::translate("UIActionPool", "&Resources..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Activity Monitor"));
-        setStatusTip(QApplication::translate("UIActionPool", "Navigate to the vm activity overview"));
-        setToolTip(  QApplication::translate("UIActionPool", "Navigate to VM Activity Overview")
+        setStatusTip(QApplication::translate("UIActionPool", "Navigate to the global resources view"));
+        setToolTip(  QApplication::translate("UIActionPool", "Navigate to the Global Resources View")
                    + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
@@ -3414,6 +3448,7 @@ void UIActionPool::preparePool()
     m_pool[UIActionIndex_M_MediumSelector_CreateHD] = new UIActionMenuMediumSelectorCreateHD(this);
     m_pool[UIActionIndex_M_MediumSelector_CreateCD] = new UIActionMenuMediumSelectorCreateCD(this);
     m_pool[UIActionIndex_M_MediumSelector_CreateFD] = new UIActionMenuMediumSelectorCreateFD(this);
+    m_pool[UIActionIndex_M_MediumSelector_EditCD] = new UIActionMenuMediumSelectorEditCD(this);
     m_pool[UIActionIndex_M_MediumSelector_Refresh] = new UIActionMenuMediumSelectorRefresh(this);
 
     /* Prepare update-handlers for known menus: */
@@ -3547,6 +3582,10 @@ void UIActionPool::sltRetranslateUI()
 
 bool UIActionPool::addAction(UIMenu *pMenu, UIAction *pAction, bool fReallyAdd /* = true */)
 {
+    /* Sanity check: */
+    AssertPtrReturn(pMenu, false);
+    AssertPtrReturn(pAction, false);
+
     /* Check if action is allowed: */
     const bool fIsActionAllowed = pAction->isAllowed();
 
@@ -3675,6 +3714,9 @@ void UIActionPool::updateMenuApplication()
     /* 'Close' action: */
     fSeparator = addAction(pMenu, action(UIActionIndex_M_Application_S_Close)) || fSeparator;
 
+    /* Remove if fSeparator is used: */
+    Q_UNUSED(fSeparator);
+
     /* Mark menu as valid: */
     m_invalidations.remove(UIActionIndex_M_Application);
 }
@@ -3741,6 +3783,9 @@ void UIActionPool::updateMenuHelp()
     fSeparator = addAction(pMenu, action(UIActionIndex_Simple_About)) || fSeparator;
 #endif
 
+    /* Remove if fSeparator is used: */
+    Q_UNUSED(fSeparator);
+
     /* Mark menu as valid: */
     m_invalidations.remove(UIActionIndex_Menu_Help);
 }
@@ -3800,6 +3845,9 @@ void UIActionPool::updateMenuLogViewerWrapper(UIMenu *pMenu)
     /* 'Refresh' action: */
     fSeparator = addAction(pMenu, action(UIActionIndex_M_Log_S_Refresh)) || fSeparator;
     fSeparator = addAction(pMenu, action(UIActionIndex_M_Log_S_Reload)) || fSeparator;
+
+    /* Remove if fSeparator is used: */
+    Q_UNUSED(fSeparator);
 }
 
 void UIActionPool::updateMenuVMActivityMonitor()

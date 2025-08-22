@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -248,7 +248,7 @@ static int rtFuzzCfgLoad(PRTFUZZCFGINT pThis, PRTERRINFO pErrInfo)
     int rc = rtFuzzCfgGrabFileFromTarball(pThis->hVfsFile, RTFUZZ_CFG_INDEX_FILE_NAME, true /*fValidateUtf8*/, &hVfsJson);
     if (RT_SUCCESS(rc))
     {
-        rc = RTJsonParseFromVfsFile(&pThis->hJsonRoot, hVfsJson, pErrInfo);
+        rc = RTJsonParseFromVfsFile(&pThis->hJsonRoot, 0 /*fFlags*/, hVfsJson, pErrInfo);
         if (RT_SUCCESS(rc))
         {
             /* Look for the custom config in the JSON and find it in the VFS file. */

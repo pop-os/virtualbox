@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -81,11 +81,9 @@ void UIExecutionCapEditor::setMinimumLayoutIndent(int iIndent)
 void UIExecutionCapEditor::sltRetranslateUI()
 {
     if (m_pLabelExecCap)
-        m_pLabelExecCap->setText(tr("&Execution Cap:"));
+        m_pLabelExecCap->setText(tr("&Processing Cap"));
 
-    const QString strToolTip(tr("Limits the amount of time that each virtual CPU is allowed to run for. "
-                                "Each virtual CPU will be allowed to use up to this percentage of the processing "
-                                "time available on one physical CPU."));
+    const QString strToolTip(tr("Percentage of processing time allowed per virtual CPU"));
     if (m_pSlider)
         m_pSlider->setToolTip(strToolTip);
     if (m_pSpinBox)
@@ -97,12 +95,12 @@ void UIExecutionCapEditor::sltRetranslateUI()
     if (m_pLabelExecCapMin)
     {
         m_pLabelExecCapMin->setText(QString("%1%").arg(m_uMinExecCap));
-        m_pLabelExecCapMin->setToolTip(tr("Minimum possible execution cap."));
+        m_pLabelExecCapMin->setToolTip(tr("Minimum execution cap"));
     }
     if (m_pLabelExecCapMax)
     {
         m_pLabelExecCapMax->setText(QString("%1%").arg(m_uMaxExecCap));
-        m_pLabelExecCapMax->setToolTip(tr("Maximum possible virtual CPU count."));
+        m_pLabelExecCapMax->setToolTip(tr("Maximum execution cap"));
     }
 }
 

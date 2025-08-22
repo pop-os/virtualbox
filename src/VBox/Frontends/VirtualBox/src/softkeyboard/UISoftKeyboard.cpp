@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -63,6 +63,7 @@
 #include "UIModalWindowManager.h"
 #include "UISoftKeyboard.h"
 #include "UITranslationEventListener.h"
+#include "UISession.h"
 #ifdef VBOX_WS_MAC
 # include "VBoxUtils-darwin.h"
 #endif
@@ -687,8 +688,8 @@ public:
     void colorsFromStringList(const QString &strColorThemeName, const QStringList &colorStringList);
 
     /** Unlike modifier and ordinary keys we update the state of the Lock keys thru event signals we receieve
-      * from the guest OS. Parameter f???State is true if the corresponding key is locked. */
-    void updateLockKeyStates(bool fCapsLockState, bool fNumLockState, bool fScrollLockState);
+      * from the guest OS. */
+    void updateLockKeyStates();
     void reset();
 
     QStringList colorThemeNames() const;
@@ -2696,8 +2697,27 @@ void UISoftKeyboardWidget::colorsFromStringList(const QString &strColorThemeName
     pTheme->colorsFromStringList(colorStringList);
 }
 
-void UISoftKeyboardWidget::updateLockKeyStates(bool fCapsLockState, bool fNumLockState, bool fScrollLockState)
+void UISoftKeyboardWidget::updateLockKeyStates()
 {
+    if (!m_pMachine)
+        return;
+    UISession *pSession = m_pMachine->uisession();
+    if (!pSession)
+        return;
+    CKeyboard keyboard = pSession->keyboard();
+    QVector<KKeyboardLED> leds = keyboard.GetKeyboardLEDs();
+    bool fCapsLockState = false;
+    bool fNumLockState = false;
+    bool fScrollLockState  = false;
+    for (int i = 0; i < leds.size(); ++i)
+    {
+        if (leds[i] == KKeyboardLED_NumLock)
+            fNumLockState = true;
+        else if (leds[i] == KKeyboardLED_CapsLock)
+            fCapsLockState = true;
+        else if (leds[i] == KKeyboardLED_ScrollLock)
+            fScrollLockState = true;
+    }
     for (int i = 0; i < m_physicalLayouts.size(); ++i)
         m_physicalLayouts[i].updateLockKeyStates(fCapsLockState, fNumLockState, fScrollLockState);
     update();
@@ -3225,6 +3245,7 @@ void UISoftKeyboardWidget::loadLayouts()
     blockSignals(true);
     setCurrentLayout(m_layouts.firstKey());
     blockSignals(false);
+    updateLockKeyStates();
 }
 
 void UISoftKeyboardWidget::prepareObjects()
@@ -3328,13 +3349,7 @@ const QVector<UISoftKeyboardPhysicalLayout> &UISoftKeyboardWidget::physicalLayou
 
 void UISoftKeyboardWidget::sltKeyboardLedsChange()
 {
-    if (m_pMachine)
-    {
-        bool fNumLockLed = m_pMachine->isNumLock();
-        bool fCapsLockLed = m_pMachine->isCapsLock();
-        bool fScrollLockLed = m_pMachine->isScrollLock();
-        updateLockKeyStates(fCapsLockLed, fNumLockLed, fScrollLockLed);
-    }
+    updateLockKeyStates();
 }
 
 void UISoftKeyboardWidget::putKeyboardSequence(QVector<LONG> sequence)
@@ -3987,7 +4002,7 @@ UISoftKeyboard::UISoftKeyboard(QWidget *pParent, UIMachine *pMachine,
 
     loadSettings();
     configure();
-    uiCommon().setHelpKeyword(this, "soft-keyb");
+    uiCommon().setHelpKeyword(this, "ct_soft-keyb" /* help keyword */);
 }
 
 bool UISoftKeyboard::shouldBeMaximized() const

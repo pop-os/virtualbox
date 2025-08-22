@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -71,27 +71,23 @@ void UIUpdateSettingsEditor::sltRetranslateUI()
     if (m_mapRadioButtons.value(KUpdateChannel_Stable))
     {
         m_mapRadioButtons.value(KUpdateChannel_Stable)->setText(tr("&Stable Release Versions"));
-        m_mapRadioButtons.value(KUpdateChannel_Stable)->setToolTip(tr("When chosen, you will be notified "
-                                                                      "about stable updates to VirtualBox."));
+        m_mapRadioButtons.value(KUpdateChannel_Stable)->setToolTip(tr("Notify about stable updates to VirtualBox"));
     }
     if (m_mapRadioButtons.value(KUpdateChannel_All))
     {
         m_mapRadioButtons.value(KUpdateChannel_All)->setText(tr("&All New Releases"));
-        m_mapRadioButtons.value(KUpdateChannel_All)->setToolTip(tr("When chosen, you will be notified "
-                                                                   "about all new VirtualBox releases."));
+        m_mapRadioButtons.value(KUpdateChannel_All)->setToolTip(tr("Notify about all new VirtualBox releases"));
     }
     if (m_mapRadioButtons.value(KUpdateChannel_WithBetas))
     {
         m_mapRadioButtons.value(KUpdateChannel_WithBetas)->setText(tr("All New Releases and &Pre-Releases"));
-        m_mapRadioButtons.value(KUpdateChannel_WithBetas)->setToolTip(tr("When chosen, you will be notified "
-                                                                         "about all new VirtualBox releases and "
-                                                                         "pre-release versions of VirtualBox."));
+        m_mapRadioButtons.value(KUpdateChannel_WithBetas)->setToolTip(tr("Notify about all new VirtualBox releases "
+                                                                         "and pre-release versions of VirtualBox"));
     }
     if (m_mapRadioButtons.value(KUpdateChannel_WithTesting))
     {
         m_mapRadioButtons.value(KUpdateChannel_WithTesting)->setText(tr("All New Releases, &Pre-Releases and Testing Builds"));
-        m_mapRadioButtons.value(KUpdateChannel_WithTesting)->setToolTip(tr("When chosen, you will be notified "
-                                                                           "about all new VirtualBox releases, "
+        m_mapRadioButtons.value(KUpdateChannel_WithTesting)->setToolTip(tr("Notify about all new VirtualBox releases, "
                                                                            "pre-release versions and testing builds of "
                                                                            "VirtualBox."));
     }
@@ -99,17 +95,17 @@ void UIUpdateSettingsEditor::sltRetranslateUI()
     /* Translate check-box: */
     if (m_pCheckBox)
     {
-        m_pCheckBox->setToolTip(tr("When checked, the application will periodically connect to the VirtualBox "
-                                   "website and check whether a new VirtualBox version is available."));
+        m_pCheckBox->setToolTip(tr("Periodically connect to the VirtualBox website "
+                                   "and check whether a new VirtualBox version is available"));
         m_pCheckBox->setText(tr("&Check for Updates"));
     }
 
     /* Translate period widgets: */
     if (m_pLabelUpdatePeriod)
-        m_pLabelUpdatePeriod->setText(tr("&Once per:"));
+        m_pLabelUpdatePeriod->setText(tr("&Once per"));
     if (m_pComboUpdatePeriod)
     {
-        m_pComboUpdatePeriod->setToolTip(tr("Selects how often the new version check should be performed."));
+        m_pComboUpdatePeriod->setToolTip(tr("How often the new version check should be performed"));
         const int iCurrenIndex = m_pComboUpdatePeriod->currentIndex();
         m_pComboUpdatePeriod->clear();
         VBoxUpdateData::populate();
@@ -117,7 +113,7 @@ void UIUpdateSettingsEditor::sltRetranslateUI()
         m_pComboUpdatePeriod->setCurrentIndex(iCurrenIndex == -1 ? 0 : iCurrenIndex);
     }
     if (m_pLabelUpdateDate)
-        m_pLabelUpdateDate->setText(tr("Next Check:"));
+        m_pLabelUpdateDate->setText(tr("Next Check"));
 }
 
 void UIUpdateSettingsEditor::handleFilterChange()

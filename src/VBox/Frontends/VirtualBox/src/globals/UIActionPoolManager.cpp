@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -171,18 +171,18 @@ protected:
     }
 };
 
-/** Simple action extension, used as 'Show Welcome Screen' action class. */
-class UIActionToggleManagerToolsGlobalShowWelcomeScreen : public UIActionToggle
+/** Simple action extension, used as 'Show Home Screen' action class. */
+class UIActionToggleManagerToolsGlobalShowHomeScreen : public UIActionToggle
 {
     Q_OBJECT;
 
 public:
 
     /** Constructs action passing @a pParent to the base-class. */
-    UIActionToggleManagerToolsGlobalShowWelcomeScreen(UIActionPool *pParent)
+    UIActionToggleManagerToolsGlobalShowHomeScreen(UIActionPool *pParent)
         : UIActionToggle(pParent)
     {
-        setProperty("UIToolType", QVariant::fromValue(UIToolType_Welcome));
+        setProperty("UIToolType", QVariant::fromValue(UIToolType_Home));
         /// @todo use icons with check-boxes
         setIcon(UIIconPool::iconSetFull(":/welcome_screen_24px.png", ":/welcome_screen_24px.png",
                                         ":/welcome_screen_24px.png", ":/welcome_screen_24px.png"));
@@ -193,14 +193,46 @@ protected:
     /** Returns shortcut extra-data ID. */
     virtual QString shortcutExtraDataID() const RT_OVERRIDE
     {
-        return QString("WelcomeScreen");
+        return QString("HomeScreen");
     }
 
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Welcome Screen"));
-        setStatusTip(QApplication::translate("UIActionPool", "Open the Welcome Screen"));
+        setName(QApplication::translate("UIActionPool", "&Home"));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the Home Screen"));
+    }
+};
+
+/** Simple action extension, used as 'Machine Manager' action class. */
+class UIActionToggleManagerToolsGlobalShowMachineManager : public UIActionToggle
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionToggleManagerToolsGlobalShowMachineManager(UIActionPool *pParent)
+        : UIActionToggle(pParent)
+    {
+        setProperty("UIToolType", QVariant::fromValue(UIToolType_Machines));
+        /// @todo use icons with check-boxes
+        setIcon(UIIconPool::iconSetFull(":/machine_24px.png", ":/machine_16px.png"));
+    }
+
+protected:
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const RT_OVERRIDE
+    {
+        return QString("ToolsGlobalMachineManager");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() RT_OVERRIDE
+    {
+        setName(QApplication::translate("UIActionPool", "&Machines"));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the Machine Manager"));
     }
 };
 
@@ -238,7 +270,7 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Extension Pack Manager"));
+        setName(QApplication::translate("UIActionPool", "&Extensions"));
         setStatusTip(QApplication::translate("UIActionPool", "Open the Extension Pack Manager"));
     }
 };
@@ -277,7 +309,7 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Virtual Media Manager"));
+        setName(QApplication::translate("UIActionPool", "&Media"));
         setStatusTip(QApplication::translate("UIActionPool", "Open the Virtual Media Manager"));
     }
 };
@@ -316,7 +348,7 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Network Manager"));
+        setName(QApplication::translate("UIActionPool", "&Network"));
         setStatusTip(QApplication::translate("UIActionPool", "Open the Network Manager"));
     }
 };
@@ -355,7 +387,7 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Cloud Profile Manager"));
+        setName(QApplication::translate("UIActionPool", "&Cloud"));
         setStatusTip(QApplication::translate("UIActionPool", "Open the Cloud Profile Manager"));
     }
 };
@@ -371,7 +403,7 @@ public:
     UIActionToggleManagerToolsGlobalShowVMActivityOverview(UIActionPool *pParent)
         : UIActionToggle(pParent)
     {
-        setProperty("UIToolType", QVariant::fromValue(UIToolType_VMActivityOverview));
+        setProperty("UIToolType", QVariant::fromValue(UIToolType_Resources));
         /// @todo use icons with check-boxes
         setIcon(UIIconPool::iconSetFull(":/resources_monitor_24px.png", ":/resources_monitor_16px.png",
                                         ":/resources_monitor_disabled_24px.png", ":/resources_monitor_disabled_16px.png"));
@@ -388,7 +420,7 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&VM Activity Overview"));
+        setName(QApplication::translate("UIActionPool", "&Resources"));
         setStatusTip(QApplication::translate("UIActionPool", "Open the VM Activity Overview"));
     }
 };
@@ -557,10 +589,9 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        /// @todo replace that one with separate "Add" before 6.2
-        setIconText(QApplication::translate("UIActionPool", "&Add...").remove('.'));
-        setName(QApplication::translate("UIActionPool", "&Add Machine..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Add existing virtual machine"));
+        setIconText(QApplication::translate("UIActionPool", "&Open"));
+        setName(QApplication::translate("UIActionPool", "&Open Machine..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Open existing virtual machine"));
         setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
@@ -739,8 +770,8 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Add..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Add existing virtual machine"));
+        setName(QApplication::translate("UIActionPool", "&Open..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Open existing virtual machine"));
         setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
@@ -768,8 +799,8 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "[New]", "group"));
-        setStatusTip(QApplication::translate("UIActionPool", "Add new group based on selected virtual machines"));
+        setName(QApplication::translate("UIActionPool", "New Group"));
+        setStatusTip(QApplication::translate("UIActionPool", "Create new group based on selected virtual machines"));
     }
 };
 
@@ -1008,15 +1039,15 @@ protected:
     }
 };
 
-/** Menu action extension, used as 'Start or Show' menu class. */
-class UIActionStateManagerCommonStartOrShow : public UIActionMenu
+/** Menu action extension, used as 'Start' menu class. */
+class UIActionMenuManagerCommonStart : public UIActionMenu
 {
     Q_OBJECT;
 
 public:
 
     /** Constructs action passing @a pParent to the base-class. */
-    UIActionStateManagerCommonStartOrShow(UIActionPool *pParent)
+    UIActionMenuManagerCommonStart(UIActionPool *pParent)
         : UIActionMenu(pParent,
                        ":/vm_start_32px.png", ":/vm_start_16px.png",
                        ":/vm_start_disabled_32px.png", ":/vm_start_disabled_16px.png")
@@ -1027,25 +1058,34 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        switch (state())
-        {
-            case 0:
-            {
-                setName(QApplication::translate("UIActionPool", "S&tart"));
-                setStatusTip(QApplication::translate("UIActionPool", "Start selected virtual machines"));
-                setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
-                break;
-            }
-            case 1:
-            {
-                setName(QApplication::translate("UIActionPool", "S&how"));
-                setStatusTip(QApplication::translate("UIActionPool", "Switch to the windows of selected virtual machines"));
-                setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
-                break;
-            }
-            default:
-                break;
-        }
+        setName(QApplication::translate("UIActionPool", "S&tart"));
+        setStatusTip(QApplication::translate("UIActionPool", "Start selected virtual machines"));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
+    }
+};
+
+/** Menu action extension, used as 'Show' menu class. */
+class UIActionSimpleManagerCommonShow : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionSimpleManagerCommonShow(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/vm_start_32px.png", ":/vm_start_16px.png",
+                         ":/vm_start_disabled_32px.png", ":/vm_start_disabled_16px.png")
+    {}
+
+protected:
+
+    /** Handles translation event. */
+    virtual void retranslateUi() RT_OVERRIDE
+    {
+        setName(QApplication::translate("UIActionPool", "S&how"));
+        setStatusTip(QApplication::translate("UIActionPool", "Switch to the windows of selected virtual machines"));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1072,8 +1112,8 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Normal Start"));
-        setStatusTip(QApplication::translate("UIActionPool", "Start selected virtual machines"));
+        setName(QApplication::translate("UIActionPool", "Start with &GUI"));
+        setStatusTip(QApplication::translate("UIActionPool", "Start selected virtual machines with GUI"));
     }
 };
 
@@ -1100,7 +1140,7 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Headless Start"));
+        setName(QApplication::translate("UIActionPool", "Start with&out GUI"));
         setStatusTip(QApplication::translate("UIActionPool", "Start selected virtual machines in the background"));
     }
 };
@@ -1128,8 +1168,8 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Detachable Start"));
-        setStatusTip(QApplication::translate("UIActionPool", "Start selected virtual machines with option of continuing in background"));
+        setName(QApplication::translate("UIActionPool", "Start with &detachable GUI"));
+        setStatusTip(QApplication::translate("UIActionPool", "Start selected virtual machines with option of continuing in the background"));
     }
 };
 
@@ -1693,8 +1733,8 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "ACPI Sh&utdown"));
-        setStatusTip(QApplication::translate("UIActionPool", "Send ACPI Shutdown signal to selected virtual machines"));
+        setName(QApplication::translate("UIActionPool", "Sh&ut Down"));
+        setStatusTip(QApplication::translate("UIActionPool", "Send ACPI shutdown signal to selected virtual machines"));
     }
 };
 
@@ -1853,7 +1893,7 @@ protected:
     }
 };
 
-/** Simple action extension, used as 'Show VM Activity Monitor' action class. */
+/** Simple action extension, used as 'Show VM Activity Tool' action class. */
 class UIActionToggleManagerToolsMachineShowActivity : public UIActionToggle
 {
     Q_OBJECT;
@@ -1864,7 +1904,7 @@ public:
     UIActionToggleManagerToolsMachineShowActivity(UIActionPool *pParent)
         : UIActionToggle(pParent)
     {
-        setProperty("UIToolType", QVariant::fromValue(UIToolType_VMActivity));
+        setProperty("UIToolType", QVariant::fromValue(UIToolType_ResourceUse));
         /// @todo use icons with check-boxes
         setIcon(UIIconPool::iconSetFull(":/performance_monitor_32px.png", ":/performance_monitor_16px.png",
                                         ":/performance_monitor_disabled_32px.png", ":/performance_monitor_disabled_16px.png"));
@@ -2719,6 +2759,42 @@ protected:
     }
 };
 
+/** Simple action extension, used as 'Perform Edit' action class. */
+class UIActionMenuManagerMediumPerformEdit : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionMenuManagerMediumPerformEdit(UIActionPool *pParent)
+        : UIActionSimple(pParent)
+    {
+        setShortcutContext(Qt::WidgetWithChildrenShortcut);
+        setIcon(1, UIIconPool::iconSetFull(":/cd_edit_32px.png",          ":/cd_edit_16px.png",
+                                           ":/cd_edit_disabled_32px.png", ":/cd_edit_disabled_16px.png"));
+
+    }
+
+protected:
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const RT_OVERRIDE
+    {
+        return QString("Edit");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() RT_OVERRIDE
+    {
+        setName(QApplication::translate("UIActionPool", "&Edit"));
+        setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
+        setStatusTip(QApplication::translate("UIActionPool", "Edit selected media"));
+        setToolTip(  QApplication::translate("UIActionPool", "Edit Media")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
+    }
+};
+
 /** Menu action extension, used as 'Network' menu class. */
 class UIActionMenuManagerNetwork : public UIActionMenu
 {
@@ -3469,10 +3545,10 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "VM Activity"));
-        setShortcutScope(QApplication::translate("UIActionPool", "VM Activity Overview"));
-        setStatusTip(QApplication::translate("UIActionPool", "Switch to selected virtual machine's activity monitor pane"));
-        setToolTip(  QApplication::translate("UIActionPool", "Switch to selected virtual machine's activity monitor pane")
+        setName(QApplication::translate("UIActionPool", "Resource Use"));
+        setShortcutScope(QApplication::translate("UIActionPool", "Resources"));
+        setStatusTip(QApplication::translate("UIActionPool", "View resource use of the selected virtual machine"));
+        setToolTip(  QApplication::translate("UIActionPool", "View Resource Use of the Selected Virtual Machine")
                    + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
@@ -3494,7 +3570,8 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexMN_M_File_S_ImportAppliance] = new UIActionSimpleManagerFileShowImportApplianceWizard(this);
     m_pool[UIActionIndexMN_M_File_S_ExportAppliance] = new UIActionSimpleManagerFileShowExportApplianceWizard(this);
     m_pool[UIActionIndexMN_M_File_M_Tools] = new UIActionMenuManagerToolsGlobal(this);
-    m_pool[UIActionIndexMN_M_File_M_Tools_T_WelcomeScreen] = new UIActionToggleManagerToolsGlobalShowWelcomeScreen(this);
+    m_pool[UIActionIndexMN_M_File_M_Tools_T_HomeScreen] = new UIActionToggleManagerToolsGlobalShowHomeScreen(this);
+    m_pool[UIActionIndexMN_M_File_M_Tools_T_MachineManager] = new UIActionToggleManagerToolsGlobalShowMachineManager(this);
     m_pool[UIActionIndexMN_M_File_M_Tools_T_ExtensionPackManager] = new UIActionToggleManagerToolsGlobalShowExtensionPackManager(this);
     m_pool[UIActionIndexMN_M_File_M_Tools_T_VirtualMediaManager] = new UIActionToggleManagerToolsGlobalShowVirtualMediaManager(this);
     m_pool[UIActionIndexMN_M_File_M_Tools_T_NetworkManager] = new UIActionToggleManagerToolsGlobalShowNetworkManager(this);
@@ -3505,10 +3582,10 @@ void UIActionPoolManager::preparePool()
 #endif
     m_pool[UIActionIndexMN_M_File_S_Close] = new UIActionSimpleManagerFilePerformExit(this);
 
-    /* 'Welcome' actions: */
-    m_pool[UIActionIndexMN_M_Welcome] = new UIActionMenuManagerMachine(this);
-    m_pool[UIActionIndexMN_M_Welcome_S_New] = new UIActionSimpleManagerMachinePerformCreate(this);
-    m_pool[UIActionIndexMN_M_Welcome_S_Add] = new UIActionSimpleManagerMachinePerformAdd(this);
+    /* 'Home' actions: */
+    m_pool[UIActionIndexMN_M_Home] = new UIActionMenuManagerMachine(this);
+    m_pool[UIActionIndexMN_M_Home_S_New] = new UIActionSimpleManagerMachinePerformCreate(this);
+    m_pool[UIActionIndexMN_M_Home_S_Add] = new UIActionSimpleManagerMachinePerformAdd(this);
 
     /* 'Group' actions: */
     m_pool[UIActionIndexMN_M_Group] = new UIActionMenuManagerGroup(this);
@@ -3517,10 +3594,11 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexMN_M_Group_S_Rename] = new UIActionSimpleManagerGroupPerformRename(this);
     m_pool[UIActionIndexMN_M_Group_S_Remove] = new UIActionSimpleManagerGroupPerformRemove(this);
     m_pool[UIActionIndexMN_M_Group_M_MoveToGroup] = new UIActionMenuManagerCommonMoveToGroup(this);
-    m_pool[UIActionIndexMN_M_Group_M_StartOrShow] = new UIActionStateManagerCommonStartOrShow(this);
-    m_pool[UIActionIndexMN_M_Group_M_StartOrShow_S_StartNormal] = new UIActionSimpleManagerCommonPerformStartNormal(this);
-    m_pool[UIActionIndexMN_M_Group_M_StartOrShow_S_StartHeadless] = new UIActionSimpleManagerCommonPerformStartHeadless(this);
-    m_pool[UIActionIndexMN_M_Group_M_StartOrShow_S_StartDetachable] = new UIActionSimpleManagerCommonPerformStartDetachable(this);
+    m_pool[UIActionIndexMN_M_Group_M_Start] = new UIActionMenuManagerCommonStart(this);
+    m_pool[UIActionIndexMN_M_Group_M_Start_S_Normal] = new UIActionSimpleManagerCommonPerformStartNormal(this);
+    m_pool[UIActionIndexMN_M_Group_M_Start_S_Headless] = new UIActionSimpleManagerCommonPerformStartHeadless(this);
+    m_pool[UIActionIndexMN_M_Group_M_Start_S_Detachable] = new UIActionSimpleManagerCommonPerformStartDetachable(this);
+    m_pool[UIActionIndexMN_M_Group_S_Show] = new UIActionSimpleManagerCommonShow(this);
     m_pool[UIActionIndexMN_M_Group_T_Pause] = new UIActionToggleManagerCommonPauseAndResume(this);
     m_pool[UIActionIndexMN_M_Group_S_Reset] = new UIActionSimpleManagerCommonPerformReset(this);
     m_pool[UIActionIndexMN_M_Group_S_Detach] = new UIActionSimpleManagerCommonPerformDetach(this);
@@ -3557,10 +3635,11 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexMN_M_Machine_S_Remove] = new UIActionSimpleManagerMachinePerformRemove(this);
     m_pool[UIActionIndexMN_M_Machine_M_MoveToGroup] = new UIActionMenuManagerCommonMoveToGroup(this);
     m_pool[UIActionIndexMN_M_Machine_M_MoveToGroup_S_New] = new UIActionSimpleManagerMachineMoveToGroupNew(this);
-    m_pool[UIActionIndexMN_M_Machine_M_StartOrShow] = new UIActionStateManagerCommonStartOrShow(this);
-    m_pool[UIActionIndexMN_M_Machine_M_StartOrShow_S_StartNormal] = new UIActionSimpleManagerCommonPerformStartNormal(this);
-    m_pool[UIActionIndexMN_M_Machine_M_StartOrShow_S_StartHeadless] = new UIActionSimpleManagerCommonPerformStartHeadless(this);
-    m_pool[UIActionIndexMN_M_Machine_M_StartOrShow_S_StartDetachable] = new UIActionSimpleManagerCommonPerformStartDetachable(this);
+    m_pool[UIActionIndexMN_M_Machine_M_Start] = new UIActionMenuManagerCommonStart(this);
+    m_pool[UIActionIndexMN_M_Machine_M_Start_S_Normal] = new UIActionSimpleManagerCommonPerformStartNormal(this);
+    m_pool[UIActionIndexMN_M_Machine_M_Start_S_Headless] = new UIActionSimpleManagerCommonPerformStartHeadless(this);
+    m_pool[UIActionIndexMN_M_Machine_M_Start_S_Detachable] = new UIActionSimpleManagerCommonPerformStartDetachable(this);
+    m_pool[UIActionIndexMN_M_Machine_S_Show] = new UIActionSimpleManagerCommonShow(this);
     m_pool[UIActionIndexMN_M_Machine_T_Pause] = new UIActionToggleManagerCommonPauseAndResume(this);
     m_pool[UIActionIndexMN_M_Machine_S_Reset] = new UIActionSimpleManagerCommonPerformReset(this);
     m_pool[UIActionIndexMN_M_Machine_S_Detach] = new UIActionSimpleManagerCommonPerformDetach(this);
@@ -3605,7 +3684,7 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexMN_M_Extension_S_Install] = new UIActionSimpleManagerExtensionPerformInstall(this);
     m_pool[UIActionIndexMN_M_Extension_S_Uninstall] = new UIActionSimpleManagerExtensionPerformUninstall(this);
 
-    /* Virtual Medium Manager actions: */
+    /* Virtual Media Manager actions: */
     m_pool[UIActionIndexMN_M_MediumWindow] = new UIActionMenuManagerMedium(this);
     m_pool[UIActionIndexMN_M_Medium] = new UIActionMenuManagerMedium(this);
     m_pool[UIActionIndexMN_M_Medium_S_Add] = new UIActionMenuManagerMediumPerformAdd(this);
@@ -3618,6 +3697,7 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexMN_M_Medium_T_Search] = new UIActionMenuManagerMediumToggleSearch(this);
     m_pool[UIActionIndexMN_M_Medium_S_Refresh] = new UIActionMenuManagerMediumPerformRefresh(this);
     m_pool[UIActionIndexMN_M_Medium_S_Clear] = new UIActionMenuManagerMediumPerformClear(this);
+    m_pool[UIActionIndexMN_M_Medium_S_Edit] = new UIActionMenuManagerMediumPerformEdit(this);
 
     /* Network Manager actions: */
     m_pool[UIActionIndexMN_M_NetworkWindow] = new UIActionMenuManagerNetwork(this);
@@ -3653,12 +3733,13 @@ void UIActionPoolManager::preparePool()
 
     /* 'File' action groups: */
     m_groupPool[UIActionIndexMN_M_File_M_Tools] = new QActionGroup(m_pool.value(UIActionIndexMN_M_File_M_Tools));
-    m_groupPool[UIActionIndexMN_M_File_M_Tools]->addAction(m_pool.value(UIActionIndexMN_M_File_M_Tools_T_WelcomeScreen));
+    m_groupPool[UIActionIndexMN_M_File_M_Tools]->addAction(m_pool.value(UIActionIndexMN_M_File_M_Tools_T_HomeScreen));
     m_groupPool[UIActionIndexMN_M_File_M_Tools]->addAction(m_pool.value(UIActionIndexMN_M_File_M_Tools_T_ExtensionPackManager));
     m_groupPool[UIActionIndexMN_M_File_M_Tools]->addAction(m_pool.value(UIActionIndexMN_M_File_M_Tools_T_VirtualMediaManager));
     m_groupPool[UIActionIndexMN_M_File_M_Tools]->addAction(m_pool.value(UIActionIndexMN_M_File_M_Tools_T_NetworkManager));
     m_groupPool[UIActionIndexMN_M_File_M_Tools]->addAction(m_pool.value(UIActionIndexMN_M_File_M_Tools_T_CloudProfileManager));
     m_groupPool[UIActionIndexMN_M_File_M_Tools]->addAction(m_pool.value(UIActionIndexMN_M_File_M_Tools_T_VMActivityOverview));
+    m_groupPool[UIActionIndexMN_M_File_M_Tools]->addAction(m_pool.value(UIActionIndexMN_M_File_M_Tools_T_MachineManager));
 
     /* 'Group' action groups: */
     m_groupPool[UIActionIndexMN_M_Group_M_Tools] = new QActionGroup(m_pool.value(UIActionIndexMN_M_Group_M_Tools));
@@ -3679,13 +3760,13 @@ void UIActionPoolManager::preparePool()
     /* Prepare update-handlers for known menus: */
     m_menuUpdateHandlers[UIActionIndexMN_M_File].ptfm =                  &UIActionPoolManager::updateMenuFile;
     m_menuUpdateHandlers[UIActionIndexMN_M_File_M_Tools].ptfm =          &UIActionPoolManager::updateMenuFileTools;
-    m_menuUpdateHandlers[UIActionIndexMN_M_Welcome].ptfm =               &UIActionPoolManager::updateMenuWelcome;
+    m_menuUpdateHandlers[UIActionIndexMN_M_Home].ptfm =                  &UIActionPoolManager::updateMenuHome;
     m_menuUpdateHandlers[UIActionIndexMN_M_Group].ptfm =                 &UIActionPoolManager::updateMenuGroup;
     m_menuUpdateHandlers[UIActionIndexMN_M_Machine].ptfm =               &UIActionPoolManager::updateMenuMachine;
     m_menuUpdateHandlers[UIActionIndexMN_M_Group_M_MoveToGroup].ptfm =   &UIActionPoolManager::updateMenuGroupMoveToGroup;
     m_menuUpdateHandlers[UIActionIndexMN_M_Machine_M_MoveToGroup].ptfm = &UIActionPoolManager::updateMenuMachineMoveToGroup;
-    m_menuUpdateHandlers[UIActionIndexMN_M_Group_M_StartOrShow].ptfm =   &UIActionPoolManager::updateMenuGroupStartOrShow;
-    m_menuUpdateHandlers[UIActionIndexMN_M_Machine_M_StartOrShow].ptfm = &UIActionPoolManager::updateMenuMachineStartOrShow;
+    m_menuUpdateHandlers[UIActionIndexMN_M_Group_M_Start].ptfm =         &UIActionPoolManager::updateMenuGroupStart;
+    m_menuUpdateHandlers[UIActionIndexMN_M_Machine_M_Start].ptfm =       &UIActionPoolManager::updateMenuMachineStart;
     m_menuUpdateHandlers[UIActionIndexMN_M_Group_M_Console].ptfm =       &UIActionPoolManager::updateMenuGroupConsole;
     m_menuUpdateHandlers[UIActionIndexMN_M_Machine_M_Console].ptfm =     &UIActionPoolManager::updateMenuMachineConsole;
     m_menuUpdateHandlers[UIActionIndexMN_M_Group_M_Stop].ptfm =          &UIActionPoolManager::updateMenuGroupClose;
@@ -3749,9 +3830,9 @@ void UIActionPoolManager::updateMenus()
     /* 'File' / 'Tools' menu: */
     updateMenuFileTools();
 
-    /* 'Welcome' menu: */
-    addMenu(m_mainMenus, action(UIActionIndexMN_M_Welcome));
-    updateMenuWelcome();
+    /* 'Home' menu: */
+    addMenu(m_mainMenus, action(UIActionIndexMN_M_Home));
+    updateMenuHome();
     /* 'Group' menu: */
     addMenu(m_mainMenus, action(UIActionIndexMN_M_Group));
     updateMenuGroup();
@@ -3761,10 +3842,10 @@ void UIActionPoolManager::updateMenus()
 
     /* 'Machine' / 'Move to Group' menu: */
     updateMenuMachineMoveToGroup();
-    /* 'Group' / 'Start or Show' menu: */
-    updateMenuGroupStartOrShow();
-    /* 'Machine' / 'Start or Show' menu: */
-    updateMenuMachineStartOrShow();
+    /* 'Group' / 'Start' menu: */
+    updateMenuGroupStart();
+    /* 'Machine' / 'Start' menu: */
+    updateMenuMachineStart();
     /* 'Group' / 'Close' menu: */
     updateMenuGroupClose();
     /* 'Machine' / 'Close' menu: */
@@ -3822,10 +3903,10 @@ void UIActionPoolManager::setShortcutsVisible(int iIndex, bool fVisible)
     /* Handle known menus: */
     switch (iIndex)
     {
-        case UIActionIndexMN_M_Welcome:
+        case UIActionIndexMN_M_Home:
         {
-            actions << action(UIActionIndexMN_M_Welcome_S_New)
-                    << action(UIActionIndexMN_M_Welcome_S_Add);
+            actions << action(UIActionIndexMN_M_Home_S_New)
+                    << action(UIActionIndexMN_M_Home_S_Add);
             break;
         }
         case UIActionIndexMN_M_Group:
@@ -3835,7 +3916,8 @@ void UIActionPoolManager::setShortcutsVisible(int iIndex, bool fVisible)
                     << action(UIActionIndexMN_M_Group_S_Rename)
                     << action(UIActionIndexMN_M_Group_S_Remove)
                     << action(UIActionIndexMN_M_Group_M_MoveToGroup)
-                    << action(UIActionIndexMN_M_Group_M_StartOrShow)
+                    << action(UIActionIndexMN_M_Group_M_Start)
+                    << action(UIActionIndexMN_M_Group_S_Show)
                     << action(UIActionIndexMN_M_Group_T_Pause)
                     << action(UIActionIndexMN_M_Group_S_Reset)
                     // << action(UIActionIndexMN_M_Group_S_Detach)
@@ -3844,9 +3926,9 @@ void UIActionPoolManager::setShortcutsVisible(int iIndex, bool fVisible)
                     << action(UIActionIndexMN_M_Group_S_ShowInFileManager)
                     << action(UIActionIndexMN_M_Group_S_CreateShortcut)
                     << action(UIActionIndexMN_M_Group_S_Sort)
-                    << action(UIActionIndexMN_M_Group_M_StartOrShow_S_StartNormal)
-                    << action(UIActionIndexMN_M_Group_M_StartOrShow_S_StartHeadless)
-                    << action(UIActionIndexMN_M_Group_M_StartOrShow_S_StartDetachable)
+                    << action(UIActionIndexMN_M_Group_M_Start_S_Normal)
+                    << action(UIActionIndexMN_M_Group_M_Start_S_Headless)
+                    << action(UIActionIndexMN_M_Group_M_Start_S_Detachable)
                     << action(UIActionIndexMN_M_Group_M_Console_S_CreateConnection)
                     << action(UIActionIndexMN_M_Group_M_Console_S_DeleteConnection)
                     << action(UIActionIndexMN_M_Group_M_Console_S_ConfigureApplications)
@@ -3870,7 +3952,8 @@ void UIActionPoolManager::setShortcutsVisible(int iIndex, bool fVisible)
                     << action(UIActionIndexMN_M_Machine_S_ExportToOCI)
                     << action(UIActionIndexMN_M_Machine_S_Remove)
                     << action(UIActionIndexMN_M_Machine_M_MoveToGroup)
-                    << action(UIActionIndexMN_M_Machine_M_StartOrShow)
+                    << action(UIActionIndexMN_M_Machine_M_Start)
+                    << action(UIActionIndexMN_M_Machine_S_Show)
                     << action(UIActionIndexMN_M_Machine_T_Pause)
                     << action(UIActionIndexMN_M_Machine_S_Reset)
                     // << action(UIActionIndexMN_M_Machine_S_Detach)
@@ -3880,9 +3963,9 @@ void UIActionPoolManager::setShortcutsVisible(int iIndex, bool fVisible)
                     << action(UIActionIndexMN_M_Machine_S_CreateShortcut)
                     << action(UIActionIndexMN_M_Machine_S_SortParent)
                     << action(UIActionIndexMN_M_Machine_M_MoveToGroup_S_New)
-                    << action(UIActionIndexMN_M_Machine_M_StartOrShow_S_StartNormal)
-                    << action(UIActionIndexMN_M_Machine_M_StartOrShow_S_StartHeadless)
-                    << action(UIActionIndexMN_M_Machine_M_StartOrShow_S_StartDetachable)
+                    << action(UIActionIndexMN_M_Machine_M_Start_S_Normal)
+                    << action(UIActionIndexMN_M_Machine_M_Start_S_Headless)
+                    << action(UIActionIndexMN_M_Machine_M_Start_S_Detachable)
                     << action(UIActionIndexMN_M_Machine_M_Console_S_CreateConnection)
                     << action(UIActionIndexMN_M_Machine_M_Console_S_DeleteConnection)
                     << action(UIActionIndexMN_M_Machine_M_Console_S_CopyCommandSerialUnix)
@@ -4021,6 +4104,8 @@ void UIActionPoolManager::updateMenuFileTools()
 
     /* Populate 'File' / 'Tools' menu: */
     const bool fExpertMode = gEDataManager->isSettingsInExpertMode();
+    pMenu->addAction(action(UIActionIndexMN_M_File_M_Tools_T_HomeScreen));
+    pMenu->addAction(action(UIActionIndexMN_M_File_M_Tools_T_MachineManager));
     pMenu->addAction(action(UIActionIndexMN_M_File_M_Tools_T_ExtensionPackManager));
     if (fExpertMode)
     {
@@ -4029,25 +4114,26 @@ void UIActionPoolManager::updateMenuFileTools()
     }
     pMenu->addAction(action(UIActionIndexMN_M_File_M_Tools_T_CloudProfileManager));
     pMenu->addAction(action(UIActionIndexMN_M_File_M_Tools_T_VMActivityOverview));
+    //pMenu->addAction(action(UIActionIndexMN_M_File_M_Tools_T_MachineManager));
 
     /* Mark menu as valid: */
     m_invalidations.remove(UIActionIndexMN_M_File_M_Tools);
 }
 
-void UIActionPoolManager::updateMenuWelcome()
+void UIActionPoolManager::updateMenuHome()
 {
     /* Get corresponding menu: */
-    UIMenu *pMenu = action(UIActionIndexMN_M_Welcome)->menu();
+    UIMenu *pMenu = action(UIActionIndexMN_M_Home)->menu();
     AssertPtrReturnVoid(pMenu);
     /* Clear contents: */
     pMenu->clear();
 
-    /* Populate 'Welcome' menu: */
-    pMenu->addAction(action(UIActionIndexMN_M_Welcome_S_New));
-    pMenu->addAction(action(UIActionIndexMN_M_Welcome_S_Add));
+    /* Populate 'Home' menu: */
+    pMenu->addAction(action(UIActionIndexMN_M_Home_S_New));
+    pMenu->addAction(action(UIActionIndexMN_M_Home_S_Add));
 
     /* Mark menu as valid: */
-    m_invalidations.remove(UIActionIndexMN_M_Welcome);
+    m_invalidations.remove(UIActionIndexMN_M_Home);
 }
 
 void UIActionPoolManager::updateMenuGroup()
@@ -4113,38 +4199,38 @@ void UIActionPoolManager::updateMenuMachineMoveToGroup()
     /* This menu always remains invalid.. */
 }
 
-void UIActionPoolManager::updateMenuGroupStartOrShow()
+void UIActionPoolManager::updateMenuGroupStart()
 {
     /* Get corresponding menu: */
-    UIMenu *pMenu = action(UIActionIndexMN_M_Group_M_StartOrShow)->menu();
+    UIMenu *pMenu = action(UIActionIndexMN_M_Group_M_Start)->menu();
     AssertPtrReturnVoid(pMenu);
     /* Clear contents: */
     pMenu->clear();
 
-    /* Populate 'Group' / 'Start or Show' menu: */
-    pMenu->addAction(action(UIActionIndexMN_M_Group_M_StartOrShow_S_StartNormal));
-    pMenu->addAction(action(UIActionIndexMN_M_Group_M_StartOrShow_S_StartHeadless));
-    pMenu->addAction(action(UIActionIndexMN_M_Group_M_StartOrShow_S_StartDetachable));
+    /* Populate 'Group' / 'Start' menu: */
+    pMenu->addAction(action(UIActionIndexMN_M_Group_M_Start_S_Normal));
+    pMenu->addAction(action(UIActionIndexMN_M_Group_M_Start_S_Headless));
+    pMenu->addAction(action(UIActionIndexMN_M_Group_M_Start_S_Detachable));
 
     /* Mark menu as valid: */
-    m_invalidations.remove(UIActionIndexMN_M_Group_M_StartOrShow);
+    m_invalidations.remove(UIActionIndexMN_M_Group_M_Start);
 }
 
-void UIActionPoolManager::updateMenuMachineStartOrShow()
+void UIActionPoolManager::updateMenuMachineStart()
 {
     /* Get corresponding menu: */
-    UIMenu *pMenu = action(UIActionIndexMN_M_Machine_M_StartOrShow)->menu();
+    UIMenu *pMenu = action(UIActionIndexMN_M_Machine_M_Start)->menu();
     AssertPtrReturnVoid(pMenu);
     /* Clear contents: */
     pMenu->clear();
 
-    /* Populate 'Machine' / 'Start or Show' menu: */
-    pMenu->addAction(action(UIActionIndexMN_M_Machine_M_StartOrShow_S_StartNormal));
-    pMenu->addAction(action(UIActionIndexMN_M_Machine_M_StartOrShow_S_StartHeadless));
-    pMenu->addAction(action(UIActionIndexMN_M_Machine_M_StartOrShow_S_StartDetachable));
+    /* Populate 'Machine' / 'Start' menu: */
+    pMenu->addAction(action(UIActionIndexMN_M_Machine_M_Start_S_Normal));
+    pMenu->addAction(action(UIActionIndexMN_M_Machine_M_Start_S_Headless));
+    pMenu->addAction(action(UIActionIndexMN_M_Machine_M_Start_S_Detachable));
 
     /* Mark menu as valid: */
-    m_invalidations.remove(UIActionIndexMN_M_Machine_M_StartOrShow);
+    m_invalidations.remove(UIActionIndexMN_M_Machine_M_Start);
 }
 
 void UIActionPoolManager::updateMenuGroupConsole()
@@ -4315,6 +4401,8 @@ void UIActionPoolManager::updateMenuMediumWrapper(UIMenu *pMenu)
         fSeparator = false;
     }
 
+    /* 'Edit' action: */
+    fSeparator = addAction(pMenu, action(UIActionIndexMN_M_Medium_S_Edit)) || fSeparator;
     /* 'Copy' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexMN_M_Medium_S_Copy)) || fSeparator;
     /* 'Move' action: */
@@ -4339,6 +4427,9 @@ void UIActionPoolManager::updateMenuMediumWrapper(UIMenu *pMenu)
 
     /* 'Refresh' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexMN_M_Medium_S_Refresh)) || fSeparator;;
+
+    /* Remove if fSeparator is used: */
+    Q_UNUSED(fSeparator);
 }
 
 void UIActionPoolManager::updateMenuNetworkWindow()
@@ -4391,6 +4482,9 @@ void UIActionPoolManager::updateMenuNetworkWrapper(UIMenu *pMenu)
 
 //    /* 'Refresh' action: */
 //    fSeparator = addAction(pMenu, action(UIActionIndexMN_M_Network_S_Refresh)) || fSeparator;;
+
+    /* Remove if fSeparator is used: */
+    Q_UNUSED(fSeparator);
 }
 
 void UIActionPoolManager::updateMenuCloudWindow()
@@ -4447,6 +4541,9 @@ void UIActionPoolManager::updateMenuCloudWrapper(UIMenu *pMenu)
     fSeparator = addAction(pMenu, action(UIActionIndexMN_M_Cloud_S_TryPage)) || fSeparator;
     /* 'Help' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexMN_M_Cloud_S_Help)) || fSeparator;
+
+    /* Remove if fSeparator is used: */
+    Q_UNUSED(fSeparator);
 }
 
 void UIActionPoolManager::updateMenuCloudConsoleWindow()
@@ -4501,6 +4598,9 @@ void UIActionPoolManager::updateMenuCloudConsoleWrapper(UIMenu *pMenu)
 
     /* 'Properties' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexMN_M_CloudConsole_T_Details)) || fSeparator;
+
+    /* Remove if fSeparator is used: */
+    Q_UNUSED(fSeparator);
 }
 
 void UIActionPoolManager::updateMenuVMActivityOverview()

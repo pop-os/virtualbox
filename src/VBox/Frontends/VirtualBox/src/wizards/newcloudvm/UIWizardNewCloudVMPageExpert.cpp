@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -258,7 +258,7 @@ void UIWizardNewCloudVMPageExpert::sltRetranslateUI()
 
     /* Translate cloud VM properties table: */
     if (m_pLabelOptions)
-        m_pLabelOptions->setText(UIWizardNewCloudVM::tr("&Options:"));
+        m_pLabelOptions->setText(UIWizardNewCloudVM::tr("&Settings:"));
     if (m_pFormEditor)
         m_pFormEditor->setWhatsThis(UIWizardNewCloudVM::tr("Lists all the cloud VM properties."));
 }

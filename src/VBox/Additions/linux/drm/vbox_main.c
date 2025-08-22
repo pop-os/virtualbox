@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  * This file is based on ast_main.c
  * Copyright 2012 Red Hat Inc.
  *
@@ -180,7 +180,9 @@ int vbox_framebuffer_init(struct drm_device *dev,
 {
 	int ret;
 
-#if RTLNX_VER_MIN(4,11,0) || RTLNX_RHEL_MAJ_PREREQ(7,5)
+#if RTLNX_VER_MIN(6,17,0)
+	drm_helper_mode_fill_fb_struct(dev, &vbox_fb->base, NULL, mode_cmd);
+#elif RTLNX_VER_MIN(4,11,0) || RTLNX_RHEL_MAJ_PREREQ(7,5)
 	drm_helper_mode_fill_fb_struct(dev, &vbox_fb->base, mode_cmd);
 #else
 	drm_helper_mode_fill_fb_struct(&vbox_fb->base, mode_cmd);
@@ -198,6 +200,9 @@ int vbox_framebuffer_init(struct drm_device *dev,
 static struct drm_framebuffer *vbox_user_framebuffer_create(
 		struct drm_device *dev,
 		struct drm_file *filp,
+#if RTLNX_VER_MIN(6,17,0)
+		const struct drm_format_info *info,
+#endif
 #if RTLNX_VER_MIN(4,5,0) || RTLNX_RHEL_MAJ_PREREQ(7,3)
 		const struct drm_mode_fb_cmd2 *mode_cmd)
 #else

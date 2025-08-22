@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -327,7 +327,8 @@ enum ResourceType_T
     ResourceType_LogicalDisk    = 31,
     ResourceType_StorageVolume  = 32,
     ResourceType_EthernetConnection = 33,
-    ResourceType_SoundCard  = 35    /**< @todo r=klaus: Not part of OVF/CIM spec, should use "Other" or some value from 0x8000..0xffff. */
+    ResourceType_SoundCard  = 35,   /**< @todo r=klaus: Not part of OVF/CIM spec, should use "Other" or some value from 0x8000..0xffff. */
+    ResourceType_NVRAM  = 0x8000
 };
 
 
@@ -390,6 +391,7 @@ public:
         , fResourceRequired(false)
         , fAutomaticAllocation(false)
         , fAutomaticDeallocation(false)
+        , lAddress(0)
         , ullVirtualQuantity(0)
         , ullReservation(0)
         , ullLimit(0)
@@ -531,7 +533,7 @@ protected:
 private:
     RTCString itemName;
 
-    virtual const RTCString& _getItemName()
+    virtual const RTCString &_getItemName()
     {
         return itemName;
     }
@@ -559,10 +561,21 @@ public:
         clear();
     }
 
-    /* There is no copying of this vector.  We'd need something like shared_ptr for that. */
-private:
-    HardwareItemVector(const VirtualSystem &);
+    /* We only support copying if the vector is empty, we'd need something like
+       shared_ptr for dealing with a populated list. (Problem found by VS 2022.) */
+    HardwareItemVector(const HardwareItemVector &a_rThat)
+        : std::vector<VirtualHardwareItem *>()
+    {
+        Assert(a_rThat.begin() == a_rThat.end());
+        RT_NOREF(a_rThat);
+    }
 
+private:
+#if RT_CPLUSPLUS_PREREQ(201100) /* VC2022: No copy assignment operator (see copy constructor). */
+    HardwareItemVector &operator=(const HardwareItemVector &) = delete;
+#else
+    HardwareItemVector &operator=(const HardwareItemVector &);
+#endif
 };
 
 struct HardDiskController
@@ -583,7 +596,8 @@ struct HardDiskController
                                                 // false for the next (e.g. IDE secondary ctler)
 
     HardDiskController()
-        : lAddress(0),
+        : system(IDE),
+          lAddress(0),
           fPrimary(true)
     { }
 };
@@ -663,18 +677,26 @@ struct VirtualSystem
     RTCString    strProductUrl;          // product info if any; receives contents of VirtualSystem/ProductSection/ProductUrl
     RTCString    strVendorUrl;           // product info if any; receives contents of VirtualSystem/ProductSection/VendorUrl
 
+    RTCString    strNvramPath;           // path to the VM's NVRAM path, if present
+
     const xml::ElementNode *pelmVBoxMachine; // pointer to <vbox:Machine> element under <VirtualSystem> element or NULL if not present
 
     VirtualSystem()
-        : cimos(CIMOSType_CIMOS_Unknown),
-          ullMemorySize(0),
-          cCPUs(1),
-          fHasFloppyDrive(false),
-          fHasCdromDrive(false),
-          fHasUsbController(false),
-          pelmVBoxMachine(NULL)
+        : cimos(CIMOSType_CIMOS_Unknown)
+        , ullMemorySize(0)
+        , cCPUs(1)
+        , fHasFloppyDrive(false)
+        , fHasCdromDrive(false)
+        , fHasUsbController(false)
+        , pelmVBoxMachine(NULL)
     {
     }
+
+#if RT_CPLUSPLUS_PREREQ(201100) /* VC2022: Excplit default copy constructor and copy assignment operator to avoid warnings. */
+    /* Note! HardwareItemVector only allow copying if it's empty. */
+    VirtualSystem(VirtualSystem const &) = default;
+    VirtualSystem &operator=(VirtualSystem const &) = delete;
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -725,7 +747,7 @@ private:
     void LoopThruSections(const xml::ElementNode *pReferencesElem, const xml::ElementNode *pCurElem);
     void HandleDiskSection(const xml::ElementNode *pReferencesElem, const xml::ElementNode *pSectionElem);
     void HandleNetworkSection(const xml::ElementNode *pSectionElem);
-    void HandleVirtualSystemContent(const xml::ElementNode *pContentElem);
+    void HandleVirtualSystemContent(const xml::ElementNode *pReferencesElem, const xml::ElementNode *pContentElem);
 };
 
 } // end namespace ovf

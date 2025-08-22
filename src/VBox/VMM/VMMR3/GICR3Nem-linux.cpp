@@ -1,10 +1,10 @@
 /* $Id: GICR3Nem-linux.cpp $ */
 /** @file
- * GIC - Generic Interrupt Controller Architecture (GICv3) - KVM in kernel interface.
+ * GIC - Generic Interrupt Controller Architecture (GIC) - KVM in kernel interface.
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -29,11 +29,11 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_DEV_APIC
+#define LOG_GROUP LOG_GROUP_DEV_GIC
 #include <VBox/log.h>
 #include "GICInternal.h"
 #include "NEMInternal.h" /* Need access to the VM file descriptor. */
-#include <VBox/vmm/gic.h>
+#include <VBox/vmm/pdmgic.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/mm.h>
@@ -86,9 +86,9 @@ typedef GICKVMDEV const *PCGICKVMDEV;
 *********************************************************************************************************************************/
 #if 0
 /**
- * System register ranges for the GICv3.
+ * System register ranges for the GIC.
  */
-static CPUMSYSREGRANGE const g_aSysRegRanges_GICv3[] =
+static CPUMSYSREGRANGE const g_aSysRegRanges_GIC[] =
 {
     GIC_SYSREGRANGE(ARMV8_AARCH64_SYSREG_ICC_PMR_EL1,   ARMV8_AARCH64_SYSREG_ICC_PMR_EL1,     "ICC_PMR_EL1"),
     GIC_SYSREGRANGE(ARMV8_AARCH64_SYSREG_ICC_IAR0_EL1,  ARMV8_AARCH64_SYSREG_ICC_AP0R3_EL1,   "ICC_IAR0_EL1 - ICC_AP0R3_EL1"),
@@ -100,7 +100,7 @@ static CPUMSYSREGRANGE const g_aSysRegRanges_GICv3[] =
 
 
 /**
- * Common worker for GICR3KvmSpiSet() and GICR3KvmPpiSet().
+ * Common worker for gicR3KvmSpiSet() and gicR3KvmPpiSet().
  *
  * @returns VBox status code.
  * @param   pDevIns     The PDM KVM GIC device instance.
@@ -137,7 +137,7 @@ static int gicR3KvmSetIrq(PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32IrqType
  * @param   uIntId      The SPI ID to update.
  * @param   fAsserted   Flag whether the interrupt is asserted (true) or not (false).
  */
-VMMR3_INT_DECL(int) GICR3NemSpiSet(PVMCC pVM, uint32_t uIntId, bool fAsserted)
+static DECLCALLBACK(int) gicR3KvmSetSpi(PVMCC pVM, uint32_t uIntId, bool fAsserted)
 {
     PGIC pGic = VM_TO_GIC(pVM);
     PPDMDEVINS pDevIns = pGic->CTX_SUFF(pDevIns);
@@ -156,11 +156,11 @@ VMMR3_INT_DECL(int) GICR3NemSpiSet(PVMCC pVM, uint32_t uIntId, bool fAsserted)
  * @param   uIntId      The PPI ID to update.
  * @param   fAsserted   Flag whether the interrupt is asserted (true) or not (false).
  */
-VMMR3_INT_DECL(int) GICR3NemPpiSet(PVMCPUCC pVCpu, uint32_t uIntId, bool fAsserted)
+static DECLCALLBACK(int) gicR3KvmSetPpi(PVMCPUCC pVCpu, uint32_t uIntId, bool fAsserted)
 {
     PPDMDEVINS pDevIns = VMCPU_TO_DEVINS(pVCpu);
 
-    return gicR3KvmSetIrq(pDevIns, pVCpu->idCpu, KVM_ARM_IRQ_TYPE_SPI,
+    return gicR3KvmSetIrq(pDevIns, pVCpu->idCpu, KVM_ARM_IRQ_TYPE_PPI,
                           uIntId + GIC_INTID_RANGE_PPI_START, fAsserted);
 }
 
@@ -275,14 +275,16 @@ DECLCALLBACK(int) gicR3KvmConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE
      * Init the data.
      */
     pGic->pDevInsR3 = pDevIns;
-    pGic->fNemGic   = true;
     pThis->pDevIns  = pDevIns;
     pThis->fdKvmVm  = pVM->nem.s.fdVm;
 
     /*
      * Validate GIC settings.
      */
-    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "DistributorMmioBase|RedistributorMmioBase", "");
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "DistributorMmioBase|RedistributorMmioBase|ItsMmioBase"
+                                           "|ArchRev"
+                                           "|Lpi"
+                                           "|Mbi", "");
 
     /*
      * Disable automatic PDM locking for this device.
@@ -293,7 +295,10 @@ DECLCALLBACK(int) gicR3KvmConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE
     /*
      * Register the GIC with PDM.
      */
-    rc = PDMDevHlpApicRegister(pDevIns);
+    rc = PDMDevHlpIcRegister(pDevIns);
+    AssertLogRelRCReturn(rc, rc);
+
+    rc = PDMGicRegisterBackend(pVM, PDMGICBACKENDTYPE_KVM, &g_GicKvmBackend);
     AssertLogRelRCReturn(rc, rc);
 
     /*
@@ -350,7 +355,7 @@ DECLCALLBACK(int) gicR3KvmConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE
                                  "VGIC init");
     AssertRCReturn(rc, rc);
 
-    gicR3Reset(pDevIns);
+    gicR3KvmReset(pDevIns);
     return VINF_SUCCESS;
 }
 
@@ -402,6 +407,18 @@ const PDMDEVREG g_DeviceGICNem =
 # error "Not in IN_RING3!"
 #endif
     /* .u32VersionEnd = */          PDM_DEVREG_VERSION
+};
+
+/**
+ * The KVM GIC backend.
+ */
+const PDMGICBACKEND g_GicKvmBackend =
+{
+    /* .pfnReadSysReg = */  NULL,
+    /* .pfnWriteSysReg = */ NULL,
+    /* .pfnSetSpi = */      gicR3KvmSetSpi,
+    /* .pfnSetPpi = */      gicR3KvmSetPpi,
+    /* .pfnSendMsi = */     NULL,
 };
 
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */

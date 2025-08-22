@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -72,7 +72,7 @@ static char *toJson(RTCRestObjectBase const *pObj)
 static int deserializeFromJson(RTCRestObjectBase *pObj, const char *pszJson, PRTERRINFOSTATIC pErrInfo, const char *pszName)
 {
     RTJSONVAL hValue;
-    RTTESTI_CHECK_RC_OK_RET(RTJsonParseFromString(&hValue, pszJson, pErrInfo ? RTErrInfoInitStatic(pErrInfo) : NULL), rcCheck);
+    RTTESTI_CHECK_RC_OK_RET(RTJsonParseFromString(&hValue, 0 /*fFlags*/, pszJson, pErrInfo ? RTErrInfoInitStatic(pErrInfo) : NULL), rcCheck);
     RTCRestJsonPrimaryCursor Cursor(hValue, pszName, pErrInfo ? RTErrInfoInitStatic(pErrInfo) : NULL);
     return pObj->deserializeFromJson(Cursor.m_Cursor);
 }
@@ -777,7 +777,7 @@ static void testDouble(void)
         bool fGroksMinString = true;
 #if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
         RTJSONVAL hTmpValue = NIL_RTJSONVAL;
-        int rcTmp = RTJsonParseFromString(&hTmpValue, TST_DBL_MIN_STRING1, NULL);
+        int rcTmp = RTJsonParseFromString(&hTmpValue, 0 /*fFlags*/, TST_DBL_MIN_STRING1, NULL);
         RTJsonValueRelease(hTmpValue);
         if (rcTmp == VERR_INVALID_PARAMETER || rcTmp == VERR_OUT_OF_RANGE)
             fGroksMinString = false;
@@ -1830,8 +1830,6 @@ static void verifyMap(RTCRestStringMap<MyRestInt16> const &rMap, int iLine, unsi
                                   iLine, pszKey, pObj->m_iValue, iValue);
                 fFound |= RT_BIT_64(i);
                 fFoundIt = true;
-                va_end(va);
-                return;
             }
         }
         va_end(va);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -441,6 +441,9 @@ RTPATHMATCHVAR_SIMPLE_ENVVAR(WinCommonProgramFiles,         "CommonProgramFiles"
 # if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 RTPATHMATCHVAR_SIMPLE_ENVVAR(WinOtherProgramFiles,          "ProgramFiles(x86)",        RTPATH_MAX);
 RTPATHMATCHVAR_SIMPLE_ENVVAR(WinOtherCommonProgramFiles,    "CommonProgramFiles(x86)",  RTPATH_MAX);
+# elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+RTPATHMATCHVAR_SIMPLE_ENVVAR(WinOtherProgramFiles,       "ProgramFiles(Arm)",        RTPATH_MAX);
+RTPATHMATCHVAR_SIMPLE_ENVVAR(WinOtherCommonProgramFiles, "CommonProgramFiles(Arm)",  RTPATH_MAX);
 # else
 #  error "Port ME!"
 # endif
@@ -449,6 +452,9 @@ static const char * const a_apszWinProgramFilesVars[] =
     "ProgramFiles",
 # ifdef RT_ARCH_AMD64
     "ProgramFiles(x86)",
+# elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+    "ProgramFiles(x86)",
+    "ProgramFiles(Arm)",
 # endif
 };
 RTPATHMATCHVAR_MULTIPLE_ENVVARS(WinAllProgramFiles, a_apszWinProgramFilesVars, RTPATH_MAX);
@@ -457,6 +463,9 @@ static const char * const a_apszWinCommonProgramFilesVars[] =
     "CommonProgramFiles",
 # ifdef RT_ARCH_AMD64
     "CommonProgramFiles(x86)",
+# elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+    "CommonProgramFiles(x86)",
+    "CommonProgramFiles(Arm)",
 # endif
 };
 RTPATHMATCHVAR_MULTIPLE_ENVVARS(WinAllCommonProgramFiles, a_apszWinCommonProgramFilesVars, RTPATH_MAX);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -150,7 +150,7 @@ SUPSYSROOTDIRBUF            g_System32NtPath;
 /** The full \\SystemRoot\\WinSxS path. */
 SUPSYSROOTDIRBUF            g_WinSxSNtPath;
 #if defined(IN_RING3) && !defined(VBOX_PERMIT_EVEN_MORE)
-/** The full 'Program Files' path. */
+/** The full 'Program Files' ('Program Files (arm)' on arm64) path. */
 SUPSYSROOTDIRBUF            g_ProgramFilesNtPath;
 # ifdef RT_ARCH_AMD64
 /** The full 'Program Files (x86)' path. */
@@ -811,12 +811,12 @@ static int supHardNtViCheckIfNotSignedOk(RTLDRMOD hLdrMod, PCRTUTF16 pwszName, u
     uint32_t cwcOther = g_System32NtPath.UniStr.Length / sizeof(WCHAR);
     if (supHardViUtf16PathStartsWithEx(pwszName, cwcName, g_System32NtPath.UniStr.Buffer, cwcOther, true /*fCheckSlash*/))
     {
-        pwsz = pwszName + cwcOther + 1;
-
         /* Must be owned by trusted installer. (This test is superfuous, thus no relaxation here.) */
         if (   !(fFlags & SUPHNTVI_F_TRUSTED_INSTALLER_OR_SIMILAR_OWNER)
             && !supHardNtViCheckIsOwnedByTrustedInstallerOrSimilar(hFile, pwszName))
             return rc;
+
+        pwsz = pwszName + cwcOther + 1;
 
         /* Core DLLs. */
         if (supHardViUtf16PathIsEqual(pwsz, "ntdll.dll"))
@@ -1136,11 +1136,17 @@ static PRTTIMESPEC supHardNtTimeNow(PRTTIMESPEC pNow)
      * Just read system time.
      */
     KUSER_SHARED_DATA volatile *pUserSharedData = (KUSER_SHARED_DATA volatile *)MM_SHARED_USER_DATA_VA;
-# ifdef RT_ARCH_AMD64
-    uint64_t uRet = *(uint64_t volatile *)&pUserSharedData->SystemTime; /* This is what KeQuerySystemTime does (missaligned). */
+# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_ARM64)
+    /* This is what KeQuerySystemTime (macro) does. SystemTime is misaligned,
+       not not badly enough to cause trouble on arm. */
+#  ifdef RT_ARCH_ARM64
+    uint64_t const uRet = __iso_volatile_load64((int64_t volatile *)&pUserSharedData->SystemTime);
+#  else
+    uint64_t const uRet = *(uint64_t volatile *)&pUserSharedData->SystemTime;
+#  endif
     return RTTimeSpecSetNtTime(pNow, uRet);
-# else
 
+# elif defined(RT_ARCH_X86)
     LARGE_INTEGER NtTime;
     do
     {
@@ -1148,7 +1154,11 @@ static PRTTIMESPEC supHardNtTimeNow(PRTTIMESPEC pNow)
         NtTime.LowPart  = pUserSharedData->SystemTime.LowPart;
     } while (pUserSharedData->SystemTime.High2Time != NtTime.HighPart);
     return RTTimeSpecSetNtTime(pNow, NtTime.QuadPart);
+
+# else
+#  error "port me"
 # endif
+
 #else  /* IN_RING0 */
     return RTTimeNow(pNow);
 #endif /* IN_RING0 */
@@ -1799,8 +1809,15 @@ static void supHardenedWinInitImageVerifierWinPaths(void)
         const char         *pszLogName;
     } s_aPaths[] =
     {
+# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
         { &g_ProgramFilesNtPath,    L"ProgramFilesDir",         "ProgDir" },
         { &g_CommonFilesNtPath,     L"CommonFilesDir",          "ComDir" },
+# elif defined(RT_ARCH_ARM64)
+        { &g_ProgramFilesNtPath,    L"ProgramFilesDir (arm)",   "ProgDir" },
+        { &g_CommonFilesNtPath,     L"CommonFilesDir (arm)",    "ComDir" },
+# else
+#  error "port me"
+# endif
 # ifdef RT_ARCH_AMD64
         { &g_ProgramFilesX86NtPath, L"ProgramFilesDir (x86)",   "ProgDir32" },
         { &g_CommonFilesX86NtPath,  L"CommonFilesDir (x86)",    "ComDir32" },
@@ -2265,7 +2282,7 @@ DECLHIDDEN(HMODULE) supR3HardenedWinLoadSystem32Dll(const char *pszName, bool fM
  */
 static void supR3HardenedWinRetrieveTrustedRootCAs(void)
 {
-    uint32_t cAdded = 0;
+    uint32_t cAdded = 0; RT_NOREF(cAdded); /* Shut up Parfait. */
 
     /*
      * Load crypt32.dll and resolve the APIs we need.
@@ -2785,7 +2802,7 @@ l_fresh_context:
                                 }
                                 ULONG ulErr = RtlGetLastWin32Error();
                                 fNoSignedCatalogFound = ulErr == ERROR_NOT_FOUND && fNoSignedCatalogFound != 0;
-                                if (iCat == 0)
+                                if (ulErr == ERROR_NOT_FOUND)
                                     SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: CryptCATAdminEnumCatalogFromHash failed ERROR_NOT_FOUND (%u)\n", ulErr));
                                 else if (iCat == 0)
                                     SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: CryptCATAdminEnumCatalogFromHash failed %u\n", ulErr));
@@ -2987,7 +3004,7 @@ DECLHIDDEN(int) supHardenedWinVerifyImageTrust(HANDLE hFile, PCRTUTF16 pwszName,
             else
                 fNoRecursion = ASMAtomicCmpXchgU32(&g_idActiveThread, idCurrentThread, UINT32_MAX);
 
-            if (fNoRecursion && !fOwnsLoaderLock)
+            if (fNoRecursion)
             {
                 /* We can call WinVerifyTrust. */
                 if (pfWinVerifyTrust)

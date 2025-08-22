@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -240,7 +240,7 @@ void UILanguageSettingsEditor::sltRetranslateUI()
     /* Translate tree-widget: */
     if (m_pTreeWidget)
     {
-        m_pTreeWidget->setWhatsThis(tr("Lists all available user interface languages. The effective language is written "
+        m_pTreeWidget->setWhatsThis(tr("Available user interface languages. The effective language is written "
                                        "in bold. Select Default to reset to the system default language."));
 
         /* Translate tree-widget header: */

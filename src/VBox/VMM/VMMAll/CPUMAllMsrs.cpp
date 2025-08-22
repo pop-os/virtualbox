@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -31,7 +31,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_CPUM
 #include <VBox/vmm/cpum.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/hm_vmx.h>
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
@@ -234,7 +234,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32PlatformId(PVMCPUCC pVCpu, uint3
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32ApicBase(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    return APICGetBaseMsr(pVCpu, puValue);
+    return PDMApicGetBaseMsr(pVCpu, puValue);
 }
 
 
@@ -242,7 +242,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32ApicBase(PVMCPUCC pVCpu, uint32_
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32ApicBase(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
     RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uValue); RT_NOREF_PV(uRawValue);
-    return APICSetBaseMsr(pVCpu, uValue);
+    return PDMApicSetBaseMsr(pVCpu, uValue);
 }
 
 
@@ -1350,7 +1350,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32X2ApicN(PVMCPUCC pVCpu, uint32_t
         Assert(rcStrict == VINF_VMX_INTERCEPT_NOT_ACTIVE);
     }
 #endif
-    return APICReadMsr(pVCpu, idMsr, puValue);
+    return PDMApicReadMsr(pVCpu, idMsr, puValue);
 }
 
 
@@ -1370,7 +1370,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32X2ApicN(PVMCPUCC pVCpu, uint32_t
         Assert(rcStrict == VINF_VMX_INTERCEPT_NOT_ACTIVE);
     }
 #endif
-    return APICWriteMsr(pVCpu, idMsr, uValue);
+    return PDMApicWriteMsr(pVCpu, idMsr, uValue);
 }
 
 

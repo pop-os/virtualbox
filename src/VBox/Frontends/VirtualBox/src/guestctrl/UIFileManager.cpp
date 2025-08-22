@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -105,6 +105,7 @@ UIFileManagerOptions::UIFileManagerOptions()
     , fAskDeleteConfirmation(false)
     , fShowHumanReadableSizes(true)
     , fShowHiddenObjects(true)
+    , fAllowInteractiveColumnWidths(false)
 {
 }
 
@@ -141,9 +142,8 @@ UIFileManager::UIFileManager(EmbedTo enmEmbedding, UIActionPool *pActionPool,
     loadOptions();
     prepareObjects();
     prepareConnections();
-    restorePanelVisibility();
     UIFileManagerOptions::create();
-    uiCommon().setHelpKeyword(this, "guestadd-gc-file-manager");
+    uiCommon().setHelpKeyword(this, "ct_guestadd-gc-file-manager" /* help keyword */);
 
     if (!comMachine.isNull())
         setMachines( QVector<QUuid>() << comMachine.GetId());
@@ -413,21 +413,6 @@ void UIFileManager::sltPanelActionToggled(bool fChecked)
         m_pPanel->setCurrentIndex(pSenderAction->data().toInt());
         m_pPanel->blockSignals(false);
     }
-
-    // UIDialogPanel* pPanel = 0;
-    // /* Look for the sender() within the m_panelActionMap's values: */
-    // for (QMap<UIDialogPanel*, QAction*>::const_iterator iterator = m_panelActionMap.begin();
-    //     iterator != m_panelActionMap.end(); ++iterator)
-    // {
-    //     if (iterator.value() == pSenderAction)
-    //         pPanel = iterator.key();
-    // }
-    // if (!pPanel)
-    //     return;
-    // if (fChecked)
-    //     showPanel(pPanel);
-    // else
-    //     hidePanel(pPanel);
 }
 
 void UIFileManager::sltReceieveNewFileOperation(const CProgress &comProgress, const QString &strTableName)
@@ -448,16 +433,6 @@ void UIFileManager::sltFileOperationComplete(QUuid progressId)
         if (pTable)
             pTable->refresh();
     }
-}
-
-void UIFileManager::sltHandleHidePanel(UIDialogPanel *pPanel)
-{
-    hidePanel(pPanel);
-}
-
-void UIFileManager::sltHandleShowPanel(UIDialogPanel *pPanel)
-{
-    showPanel(pPanel);
 }
 
 void UIFileManager::sltCommitDataSignalReceived()
@@ -646,33 +621,9 @@ void UIFileManager::saveOptions()
         gEDataManager->setFileManagerOptions(pOptions->fListDirectoriesOnTop,
                                              pOptions->fAskDeleteConfirmation,
                                              pOptions->fShowHumanReadableSizes,
-                                             pOptions->fShowHiddenObjects);
+                                             pOptions->fShowHiddenObjects,
+                                             pOptions->fAllowInteractiveColumnWidths);
     }
-}
-
-void UIFileManager::restorePanelVisibility()
-{
-    /** Make sure the actions are set to not-checked. this prevents an unlikely
-     *  bug when the extrakey for the visible panels are manually modified: */
-    // foreach(QAction* pAction, m_panelActionMap.values())
-    // {
-    //     pAction->blockSignals(true);
-    //     pAction->setChecked(false);
-    //     pAction->blockSignals(false);
-    // }
-    /* Load the visible panel list and show them: */
-    // QStringList strNameList = gEDataManager->fileManagerVisiblePanels();
-    // foreach(const QString strName, strNameList)
-    // {
-    //     foreach(UIDialogPanel* pPanel, m_panelActionMap.keys())
-    //     {
-    //         if (strName == pPanel->panelName())
-    //         {
-    //             showPanel(pPanel);
-    //             break;
-    //         }
-    //     }
-    // }
 }
 
 void UIFileManager::loadOptions()
@@ -685,77 +636,14 @@ void UIFileManager::loadOptions()
         pOptions->fAskDeleteConfirmation = gEDataManager->fileManagerShowDeleteConfirmation();
         pOptions->fShowHumanReadableSizes = gEDataManager->fileManagerShowHumanReadableSizes();
         pOptions->fShowHiddenObjects = gEDataManager->fileManagerShowHiddenObjects();
+        pOptions->fAllowInteractiveColumnWidths = gEDataManager->fileManagerAllowInteractiveColumnWidths();
     }
-}
-
-void UIFileManager::hidePanel(UIDialogPanel* panel)
-{
-    Q_UNUSED(panel);
-    // if (!m_pActionPool)
-    //     return;
-    // if (panel && panel->isVisible())
-    //     panel->setVisible(false);
-    // QMap<UIDialogPanel*, QAction*>::iterator iterator = m_panelActionMap.find(panel);
-    // if (iterator != m_panelActionMap.end())
-    // {
-    //     if (iterator.value() && iterator.value()->isChecked())
-    //         iterator.value()->setChecked(false);
-    // }
-    // m_visiblePanelsList.removeAll(panel);
-    // manageEscapeShortCut();
-    // savePanelVisibility();
-}
-
-void UIFileManager::showPanel(UIDialogPanel* panel)
-{
-    Q_UNUSED(panel);
-    // if (panel && panel->isHidden())
-    //     panel->setVisible(true);
-    // QMap<UIDialogPanel*, QAction*>::iterator iterator = m_panelActionMap.find(panel);
-    // if (iterator != m_panelActionMap.end())
-    // {
-    //     if (!iterator.value()->isChecked())
-    //         iterator.value()->setChecked(true);
-    // }
-    // if (!m_visiblePanelsList.contains(panel))
-    //     m_visiblePanelsList.push_back(panel);
-    // manageEscapeShortCut();
-    // savePanelVisibility();
-}
-
-void UIFileManager::manageEscapeShortCut()
-{
-    /* if there is no visible panels give the escape shortcut to parent dialog: */
-    // if (m_visiblePanelsList.isEmpty())
-    // {
-    //     emit sigSetCloseButtonShortCut(QKeySequence(Qt::Key_Escape));
-    //     return;
-    // }
-    // /* Take the escape shortcut from the dialog: */
-    // emit sigSetCloseButtonShortCut(QKeySequence());
-    // /* Just loop thru the visible panel list and set the esc key to the
-    //    panel which made visible latest */
-    // for (int i = 0; i < m_visiblePanelsList.size() - 1; ++i)
-    //     m_visiblePanelsList[i]->setCloseButtonShortCut(QKeySequence());
-
-    // m_visiblePanelsList.back()->setCloseButtonShortCut(QKeySequence(Qt::Key_Escape));
 }
 
 void UIFileManager::appendLog(const QString &strLog, const QString &strMachineName, FileManagerLogType eLogType)
 {
     if (m_pPanel)
         m_pPanel->appendLog(strLog, strMachineName, eLogType);
-}
-
-void UIFileManager::savePanelVisibility()
-{
-    if (m_fCommitDataSignalReceived)
-        return;
-    // /* Save a list of currently visible panels: */
-    // QStringList strNameList;
-    // foreach(UIDialogPanel* pPanel, m_visiblePanelsList)
-    //     strNameList.append(pPanel->panelName());
-    // gEDataManager->setFileManagerVisiblePanels(strNameList);
 }
 
 void UIFileManager::setSelectedVMListItems(const QList<UIVirtualMachineItem*> &items)

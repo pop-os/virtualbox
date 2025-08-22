@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2018-2024 Oracle and/or its affiliates.
+# Copyright (C) 2018-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -36,7 +36,7 @@ DLLS.amd64 += VBoxICD-x86
 VBoxICD_TEMPLATE = VBoxMesa3DGuestR3DllMinVista
 # -wd4005: '__useHeader' : redefinition
 VBoxICD_CFLAGS  := -wd4005
-if "$(VBOX_NEWER_VCC_TOOL_STEM)" >= "VCC141"
+if "$(VBOX_VCC_TOOL_STEM)" >= "VCC141"
  # -wd4255: 'PFND3DKMT_CHECKEXCLUSIVEOWNERSHIP': no function prototype given: converting '()' to '(void)'
  VBoxICD_CFLAGS += -wd4255
 endif
@@ -61,7 +61,7 @@ VBoxICD_LIBS     = \
 $$(VBoxICD_0_OUTDIR)/forwarders.asm: \
 		$(PATH_SUB_CURRENT)/icd_forwarders.py $(VBOX_GL_ICD_DEF_FILE) | $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$(VBOX_GL_ICD_DEF_FILE))
-	$(QUIET)$(VBOX_BLD_PYTHON) $< $(VBOX_GL_ICD_DEF_FILE) $@
+	$(QUIET)$(VBOX_BLD_PYTHON) $< $(VBOX_GL_ICD_DEF_FILE) $@ "$(KBUILD_TARGET_ARCH)"
 $$(VBoxICD_0_OUTDIR)/pfns.c: \
 		$(PATH_SUB_CURRENT)/icd_pfns.py $(VBOX_GL_ICD_DEF_FILE) | $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$(VBOX_GL_ICD_DEF_FILE))

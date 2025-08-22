@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -180,7 +180,7 @@ void UIScaleFactorEditor::setMinimumLayoutIndent(int iIndent)
 void UIScaleFactorEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Scale &Factor:"));
+        m_pLabel->setText(tr("Scale &Factor"));
 
     if (m_pMonitorComboBox)
     {
@@ -190,23 +190,24 @@ void UIScaleFactorEditor::sltRetranslateUI()
             for (int i = 1; i < m_pMonitorComboBox->count(); ++i)
                 m_pMonitorComboBox->setItemText(i, tr("Monitor %1").arg(i));
         }
-        m_pMonitorComboBox->setToolTip(tr("Selects the index of monitor guest screen scale factor being defined for."));
+        m_pMonitorComboBox->setToolTip(tr("Index of virtual monitor guest screen scale factor being defined for"));
     }
 
+    const QString strToolTip = tr("Guest screen scale factor the virtual machine has");
     if (m_pScaleSlider)
-        m_pScaleSlider->setToolTip(tr("Holds the guest screen scale factor."));
+        m_pScaleSlider->setToolTip(strToolTip);
     if (m_pScaleSpinBox)
-        m_pScaleSpinBox->setToolTip(tr("Holds the guest screen scale factor."));
+        m_pScaleSpinBox->setToolTip(strToolTip);
 
     if (m_pMinScaleLabel)
     {
         m_pMinScaleLabel->setText(QString("%1%").arg(m_pScaleSlider->minimum()));
-        m_pMinScaleLabel->setToolTip(tr("Minimum possible scale factor."));
+        m_pMinScaleLabel->setToolTip(tr("Minimum guest screen scale factor"));
     }
     if (m_pMaxScaleLabel)
     {
         m_pMaxScaleLabel->setText(QString("%1%").arg(m_pScaleSlider->maximum()));
-        m_pMaxScaleLabel->setToolTip(tr("Maximum possible scale factor."));
+        m_pMaxScaleLabel->setToolTip(tr("Maximum guest screen scale factor"));
     }
 }
 

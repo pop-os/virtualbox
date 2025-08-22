@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -351,7 +351,9 @@
  * By default, only enabled in DEBUG builds as it's a sensitive feature.
  */
 #if defined(DEBUG) && !defined(SUPDRV_WITH_MSR_PROBER) && !defined(SUPDRV_WITHOUT_MSR_PROBER)
-# define SUPDRV_WITH_MSR_PROBER
+# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+#  define SUPDRV_WITH_MSR_PROBER
+# endif
 #endif
 
 /** @def SUPDRV_WITHOUT_MSR_PROBER

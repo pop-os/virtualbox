@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -39,6 +39,9 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_SUP_DRV
+#ifdef VBOX_WITH_PARFAIT
+# include <iprt/types.h> /* HACK ALERT! Contains workaround for int_fast16_t & uint_fast16_t clash. */
+#endif
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>

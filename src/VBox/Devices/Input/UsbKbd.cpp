@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -907,7 +907,7 @@ static int usbHidCompleteOk(PUSBHID pThis, PVUSBURB pUrb, const void *pSrc, size
     if (pSrc)   /* Can be NULL if not copying anything. */
     {
         Assert(cbSrc);
-        uint8_t *pDst = pUrb->abData;
+        uint8_t *pDst = pUrb->pbData;
 
         /* Returned data is written after the setup message in control URBs. */
         if (pUrb->enmType == VUSBXFERTYPE_MSG)
@@ -921,7 +921,7 @@ static int usbHidCompleteOk(PUSBHID pThis, PVUSBURB pUrb, const void *pSrc, size
             cbCopy = RT_MIN(pUrb->cbData - cbSetup, cbSrc);
             memcpy(pDst + cbSetup, pSrc, cbCopy);
             pUrb->cbData = (uint32_t)(cbCopy + cbSetup);
-            Log(("Copied %zu bytes to pUrb->abData[%zu], source had %zu bytes\n", cbCopy, cbSetup, cbSrc));
+            Log(("Copied %zu bytes to pUrb->pbData[%zu], source had %zu bytes\n", cbCopy, cbSetup, cbSrc));
         }
 
         /* Need to check length differences. If cbSrc is less than what
@@ -1107,14 +1107,14 @@ static void usbHidBuildReportExt(PUSBHIDX_REPORT pReport, uint8_t *pabDepressedK
  */
 static void usbHidSetReport(PUSBHID pThis, PVUSBURB pUrb)
 {
-    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->abData[0];
+    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->pbData[0];
     Assert(pSetup->bRequest == HID_REQ_SET_REPORT);
 
     /* The LED report is the 3rd report, ID 0 (-> wValue 0x200). */
     if (pSetup->wIndex == 0 && pSetup->wLength == 1 && pSetup->wValue == 0x200)
     {
         PDMKEYBLEDS enmLeds = PDMKEYBLEDS_NONE;
-        uint8_t     u8LEDs = pUrb->abData[sizeof(*pSetup)];
+        uint8_t     u8LEDs = pUrb->pbData[sizeof(*pSetup)];
         LogFlowFunc(("Setting keybooard LEDs to u8LEDs=%02X\n", u8LEDs));
 
         /* Translate LED state to PDM format and send upstream. */
@@ -1384,7 +1384,7 @@ static int usbHidHandleIntrDevToHost(PUSBHID pThis, PUSBHIDEP pEp, PUSBHIDIF pIf
  */
 static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
 {
-    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->abData[0];
+    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->pbData[0];
     LogFlow(("usbHidHandleDefaultPipe: cbData=%d\n", pUrb->cbData));
 
     AssertReturn(pUrb->cbData >= sizeof(*pSetup), VERR_VUSB_FAILED_TO_QUEUE_URB);

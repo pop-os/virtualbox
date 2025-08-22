@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -76,7 +76,8 @@ static void *GetStdDescSync(PUSBPROXYDEV pProxyDev, uint8_t iDescType, uint8_t i
          */
         int rc = VINF_SUCCESS;
         VUSBURB Urb;
-        AssertCompile(RT_SIZEOFMEMB(VUSBURB, abData) >= _4K);
+        uint8_t abUrbData[8192];
+        AssertCompile(sizeof(abUrbData) >= _4K);
         RT_ZERO(Urb);
         Urb.u32Magic      = VUSBURB_MAGIC;
         Urb.enmState      = VUSBURBSTATE_IN_FLIGHT;
@@ -87,10 +88,11 @@ static void *GetStdDescSync(PUSBPROXYDEV pProxyDev, uint8_t iDescType, uint8_t i
         Urb.enmDir        = VUSBDIRECTION_IN;
         Urb.fShortNotOk   = false;
         Urb.enmStatus     = VUSBSTATUS_INVALID;
-        cbHint = RT_MIN(cbHint, sizeof(Urb.abData) - sizeof(VUSBSETUP));
+        cbHint = RT_MIN(cbHint, sizeof(abUrbData) - sizeof(VUSBSETUP));
         Urb.cbData = cbHint + sizeof(VUSBSETUP);
+        Urb.pbData = abUrbData;
 
-        PVUSBSETUP pSetup = (PVUSBSETUP)Urb.abData;
+        PVUSBSETUP pSetup = (PVUSBSETUP)abUrbData;
         pSetup->bmRequestType = VUSB_DIR_TO_HOST | VUSB_REQ_STANDARD | VUSB_TO_DEVICE;
         pSetup->bRequest = VUSB_REQ_GET_DESCRIPTOR;
         pSetup->wValue = (iDescType << 8) | iIdx;
@@ -163,9 +165,9 @@ static void *GetStdDescSync(PUSBPROXYDEV pProxyDev, uint8_t iDescType, uint8_t i
             cbHint = cbDesc;
             Log(("GetStdDescSync: Part descriptor, Urb.cbData=%u, cbDesc=%u cbHint=%u\n", Urb.cbData, cbDesc, cbHint));
 
-            if (cbHint > sizeof(Urb.abData))
+            if (cbHint > sizeof(abUrbData))
             {
-                Log(("GetStdDescSync: cbHint=%u, Urb.abData=%u, retrying immediately\n", cbHint, sizeof(Urb.abData)));
+                Log(("GetStdDescSync: cbHint=%u, Urb.abData=%u, retrying immediately\n", cbHint, sizeof(abUrbData)));
                 /* Not an error, go again without incrementing retry count or delaying. */
                 continue;
             }

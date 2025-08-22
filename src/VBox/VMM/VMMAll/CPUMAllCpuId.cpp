@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -45,11 +45,90 @@
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/x86-helpers.h>
+#if defined(RT_ARCH_ARM64)
+# include <iprt/system.h>
+#endif
+#if defined(RT_ARCH_ARM64) || defined(VBOX_VMM_TARGET_ARMV8)
+# include <iprt/armv8.h>
+# include <iprt/sort.h>
+# if defined(RT_OS_LINUX)
+#  include <iprt/linux/sysfs.h>
+#  include <sys/auxv.h>
+# elif defined(RT_OS_WINDOWS)
+#  include <iprt/win/windows.h>
+# endif
+#endif
+
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+#if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32) || defined(VBOX_VMM_TARGET_ARMV8)
+typedef struct PARTNUMINFO
+{
+    uint32_t        uPartNum;
+    CPUMMICROARCH   enmMicroarch;
+    const char     *pszName;
+    const char     *pszFullName;
+    CPUMCORETYPE    enmCoreType;
+} PARTNUMINFO;
+#endif
 
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+#if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32) || defined(VBOX_VMM_TARGET_ARMV8)
+/** ARM CPU info by part number. */
+static PARTNUMINFO const g_aPartNumDbArm[] =
+{
+    { 0xfff,    kCpumMicroarch_Unknown,             "TODO",                 "TODO" },
+};
+
+/** Broadcom CPU info by part number. */
+static PARTNUMINFO const g_aPartNumDbBroadcom[] =
+{
+    { 0xfff,    kCpumMicroarch_Unknown,             "TODO",                 "TODO" },
+};
+
+/** Qualcomm CPU info by part number. */
+static PARTNUMINFO const g_aPartNumDbQualcomm[] =
+{
+    { 0x0d4b,   kCpumMicroarch_Qualcomm_Kyro,       "Qualcomm Snapdragon 8cx Gen 3",    "Qualcomm Snapdragon 8cx Gen 3 (Kryo Prime)",   kCpumCoreType_Efficiency  }, /* Guessing which part */    /*MIDR_EL1=0x410FD4B0*/
+    { 0x0d4c,   kCpumMicroarch_Qualcomm_Kyro,       "Qualcomm Snapdragon 8cx Gen 3",    "Qualcomm Snapdragon 8cx Gen 3 (Kryo Gold)",    kCpumCoreType_Performance }, /* is for which core... */   /*MIDR_EL1=0x410FD4C0*/
+    { 0x1001,   kCpumMicroarch_Qualcomm_Oryon,      "Qualcomm Snapdragon X",            "Qualcomm Snapdragon X (Oryon var 1)",          kCpumCoreType_Unknown     }, /*MIDR_EL1=0x511f0011 (perf?)*/
+    { 0x2001,   kCpumMicroarch_Qualcomm_Oryon,      "Qualcomm Snapdragon X",            "Qualcomm Snapdragon X (Oryon var 2)",          kCpumCoreType_Unknown     }, /*MIDR_EL1=0x512f0011 (eff?)*/
+};
+
+/** Apple CPU info by part number. */
+static PARTNUMINFO const g_aPartNumDbApple[] =
+{
+    { 0x022,    kCpumMicroarch_Apple_M1,            "Apple M1",             "Apple M1 (Icestorm)",          kCpumCoreType_Efficiency  },
+    { 0x023,    kCpumMicroarch_Apple_M1,            "Apple M1",             "Apple M1 (Firestorm)",         kCpumCoreType_Performance },
+    { 0x024,    kCpumMicroarch_Apple_M1,            "Apple M1 Pro",         "Apple M1 Pro (Icestorm)",      kCpumCoreType_Efficiency  },
+    { 0x025,    kCpumMicroarch_Apple_M1,            "Apple M1 Pro",         "Apple M1 Pro (Firestorm)",     kCpumCoreType_Performance },
+    { 0x028,    kCpumMicroarch_Apple_M1,            "Apple M1 Max",         "Apple M1 Max (Icestorm)",      kCpumCoreType_Efficiency  },
+    { 0x029,    kCpumMicroarch_Apple_M1,            "Apple M1 Max",         "Apple M1 Max (Firestorm)",     kCpumCoreType_Performance },
+    /** @todo some sources lists 0x30/31 as plain m2...   */
+    { 0x032,    kCpumMicroarch_Apple_M2,            "Apple M2",             "Apple M2 (Blizzard)",          kCpumCoreType_Efficiency  },
+    { 0x033,    kCpumMicroarch_Apple_M2,            "Apple M2",             "Apple M2 (Avalanche)",         kCpumCoreType_Performance },
+    { 0x034,    kCpumMicroarch_Apple_M2,            "Apple M2 Pro",         "Apple M2 Pro (Blizzard)",      kCpumCoreType_Efficiency  },
+    { 0x035,    kCpumMicroarch_Apple_M2,            "Apple M2 Pro",         "Apple M2 Pro (Avalanche)",     kCpumCoreType_Performance },
+    { 0x038,    kCpumMicroarch_Apple_M2,            "Apple M2 Max",         "Apple M2 Max (Blizzard)",      kCpumCoreType_Efficiency  },
+    { 0x039,    kCpumMicroarch_Apple_M2,            "Apple M2 Max",         "Apple M2 Max (Avalanche)",     kCpumCoreType_Performance },
+    { 0x048,    kCpumMicroarch_Apple_M3,            "Apple M3 Max",         "Apple M3 Max (Sawtooth)",      kCpumCoreType_Efficiency  }, /** @todo code names */
+    { 0x049,    kCpumMicroarch_Apple_M3,            "Apple M3 Max",         "Apple M3 Max (Everest)",       kCpumCoreType_Performance }, /** @todo code names */
+};
+
+/** Ampere CPU info by part number. */
+static PARTNUMINFO const g_aPartNumDbAmpere[] =
+{
+    { 0xfff,    kCpumMicroarch_Unknown,             "TODO",                 "TODO" },
+};
+
+#endif /*if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32) || defined(VBOX_VMM_TARGET_ARMV8) */
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) || defined(VBOX_VMM_TARGET_X86)
+
 /**
  * The intel pentium family.
  */
@@ -504,6 +583,147 @@ VMMDECL(CPUMMICROARCH) CPUMCpuIdDetermineX86MicroarchEx(CPUMCPUVENDOR enmVendor,
     return kCpumMicroarch_Unknown;
 }
 
+#endif /* if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) || defined(VBOX_VMM_TARGET_X86) */
+
+#if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32) || defined(VBOX_VMM_TARGET_ARMV8)
+/**
+ * Gets the microarch, vendor, coretype and names from a MIDR value or CPU name.
+ *
+ * @returns VBox status code.
+ * @retval  VINF_SUCCESS on direct @a idMain match.
+ * @retval  VINF_CPUM_MATCHED_BY_NAME on match via @a pszCpuName.
+ * @retval  VERR_UNSUPPORTED_CPU if not found.
+ * @param   idMain          The ARM Main ID register value.
+ * @param   pszCpuName      The CPU name to match with if @a idMain doesn't
+ *                          produce an immediate result.
+ * @param   penmMicroarch   Where to return the microarchitecture. Optional.
+ * @param   penmVendor      Where to return the CPU vendor. Optional.
+ * @param   penmCoreType    Where to return the core type. Optional.
+ * @param   ppszName        Where to return the CPU name. Optional.
+ * @param   ppszFullName    Where to return the CPU/Core full name. Optional.
+ *
+ */
+VMMR3DECL(int) CPUMCpuIdDetermineArmV8MicroarchEx(uint64_t idMain, const char *pszCpuName,
+                                                  CPUMMICROARCH *penmMicroarch,
+                                                  CPUMCPUVENDOR *penmVendor,
+                                                  CPUMCORETYPE  *penmCoreType,
+                                                  const char   **ppszName,
+                                                  const char   **ppszFullName)
+{
+    /*
+     * Set the return values to failure values.
+     */
+    if (penmMicroarch)
+        *penmMicroarch = kCpumMicroarch_Invalid;
+    if (penmVendor)
+        *penmVendor    = CPUMCPUVENDOR_INVALID;
+    if (penmCoreType)
+        *penmCoreType  = kCpumCoreType_Invalid;
+    if (ppszName)
+        *ppszName      = NULL;
+    if (ppszFullName)
+        *ppszFullName  = NULL;
+
+    /*
+     * Unpack the main ID register value.
+     */
+    uint8_t const       bImplementer = (uint8_t )((idMain >> 24) & 0xff);
+    uint8_t  const      bVariant     = (uint8_t )((idMain >> 20) & 0xf);
+    uint16_t const      uPartNum     = (uint16_t)((idMain >>  4) & 0xfff);
+    //uint8_t const       bRevision    = (uint8_t )( idMain        & 0x7);
+    uint16_t const      uPartNumEx   = uPartNum | ((uint16_t)bVariant << 12);
+
+    /*
+     * Process the implementer field, determining the vendor and part number
+     * table with its lookup key.
+     */
+    CPUMCPUVENDOR       enmVendor;
+    PARTNUMINFO const  *paPartNums;
+    size_t              cPartNums;
+    uint32_t            uPartNumSearch = uPartNum;
+    switch (bImplementer)
+    {
+        case 0x41:
+            enmVendor  = CPUMCPUVENDOR_ARM;
+            paPartNums = g_aPartNumDbArm;
+            cPartNums  = RT_ELEMENTS(g_aPartNumDbArm);
+            break;
+
+        case 0x42:
+            enmVendor  = CPUMCPUVENDOR_BROADCOM;
+            paPartNums = g_aPartNumDbBroadcom;
+            cPartNums  = RT_ELEMENTS(g_aPartNumDbBroadcom);
+            break;
+
+        case 0x51:
+            enmVendor  = CPUMCPUVENDOR_QUALCOMM;
+            paPartNums = g_aPartNumDbQualcomm;
+            cPartNums  = RT_ELEMENTS(g_aPartNumDbQualcomm);
+            uPartNumSearch = uPartNumEx; /* include the variant in the search */
+            break;
+
+        case 0x61:
+            enmVendor  = CPUMCPUVENDOR_APPLE;
+            paPartNums = g_aPartNumDbApple;
+            cPartNums  = RT_ELEMENTS(g_aPartNumDbApple);
+            break;
+
+        case 0xc0:
+            enmVendor  = CPUMCPUVENDOR_AMPERE;
+            paPartNums = g_aPartNumDbAmpere;
+            cPartNums  = RT_ELEMENTS(g_aPartNumDbAmpere);
+            break;
+
+        default:
+            LogRel(("CPUM: Unknown bImplementer=%#x\n", bImplementer));
+            return VERR_UNSUPPORTED_CPU;
+    }
+    if (penmVendor)
+        *penmVendor = enmVendor;
+
+    /*
+     * Look up the part number in the vendor table:
+     */
+    for (size_t i = 0; i < cPartNums; i++)
+        if (paPartNums[i].uPartNum == uPartNumSearch)
+        {
+            if (penmMicroarch)
+                *penmMicroarch = paPartNums[i].enmMicroarch;
+            if (penmCoreType)
+                *penmCoreType  = paPartNums[i].enmCoreType;
+            if (ppszName)
+                *ppszName      = paPartNums[i].pszName;
+            if (ppszFullName)
+                *ppszFullName  = paPartNums[i].pszFullName;
+            return VINF_SUCCESS;
+        }
+
+    /*
+     * Search by CPU name (mainly a fallback for apple systems):
+     */
+    if (pszCpuName && *pszCpuName)
+        for (size_t i = 0; i < cPartNums; i++)
+            if (   strcmp(paPartNums[i].pszName, pszCpuName) == 0
+                || strcmp(paPartNums[i].pszFullName, pszCpuName) == 0)
+            {
+                if (penmMicroarch)
+                    *penmMicroarch = paPartNums[i].enmMicroarch;
+                if (penmCoreType)
+                    *penmCoreType  = paPartNums[i].enmCoreType;
+                if (ppszName)
+                    *ppszName      = paPartNums[i].pszName;
+                if (ppszFullName)
+                    *ppszFullName  = paPartNums[i].pszFullName;
+                return VINF_CPUM_MATCHED_BY_NAME;
+
+            }
+
+    LogRel(("CPUM: Unknown uPartNumSearch=%#x (vendor=%s)%s%s\n", uPartNumSearch, CPUMCpuVendorName(enmVendor),
+            pszCpuName && *pszCpuName ? " pszCpuName=" : "",  pszCpuName && *pszCpuName ? pszCpuName : ""));
+    return VERR_UNSUPPORTED_CPU;
+}
+#endif /* if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32) || defined(VBOX_VMM_TARGET_ARMV8) */
+
 
 /**
  * Translates a microarchitecture enum value to the corresponding string
@@ -652,6 +872,11 @@ VMMDECL(const char *) CPUMMicroarchName(CPUMMICROARCH enmMicroarch)
 
         CASE_RET_STR(kCpumMicroarch_Apple_M1);
         CASE_RET_STR(kCpumMicroarch_Apple_M2);
+        CASE_RET_STR(kCpumMicroarch_Apple_M3);
+        CASE_RET_STR(kCpumMicroarch_Apple_M4);
+
+        CASE_RET_STR(kCpumMicroarch_Qualcomm_Kyro);
+        CASE_RET_STR(kCpumMicroarch_Qualcomm_Oryon);
 
         CASE_RET_STR(kCpumMicroarch_Unknown);
 
@@ -676,6 +901,7 @@ VMMDECL(const char *) CPUMMicroarchName(CPUMMICROARCH enmMicroarch)
         case kCpumMicroarch_Cyrix_End:
         case kCpumMicroarch_NEC_End:
         case kCpumMicroarch_Apple_End:
+        case kCpumMicroarch_Qualcomm_End:
         case kCpumMicroarch_32BitHack:
             break;
         /* no default! */
@@ -684,6 +910,7 @@ VMMDECL(const char *) CPUMMicroarchName(CPUMMICROARCH enmMicroarch)
     return NULL;
 }
 
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) || defined(VBOX_VMM_TARGET_X86)
 
 /**
  * Gets a matching leaf in the CPUID leaf array.
@@ -749,10 +976,10 @@ PCPUMCPUIDLEAF cpumCpuIdEnsureSpace(PVM pVM, PCPUMCPUIDLEAF *ppaLeaves, uint32_t
      */
     else
     {
-#ifdef IN_VBOX_CPU_REPORT
+# if defined(IN_VBOX_CPU_REPORT) || !defined(VBOX_VMM_TARGET_X86)
         AssertReleaseFailed();
-#else
-# ifdef IN_RING3
+# else
+#  ifdef IN_RING3
         Assert(ppaLeaves == &pVM->cpum.s.GuestInfo.paCpuIdLeavesR3);
         Assert(*ppaLeaves == pVM->cpum.s.GuestInfo.aCpuIdLeaves);
         Assert(cLeaves == pVM->cpum.s.GuestInfo.cCpuIdLeaves);
@@ -760,18 +987,18 @@ PCPUMCPUIDLEAF cpumCpuIdEnsureSpace(PVM pVM, PCPUMCPUIDLEAF *ppaLeaves, uint32_t
         if (cLeaves + 1 <= RT_ELEMENTS(pVM->cpum.s.GuestInfo.aCpuIdLeaves))
         { }
         else
-# endif
+#  endif
         {
             *ppaLeaves = NULL;
             LogRel(("CPUM: cpumR3CpuIdEnsureSpace: Out of CPUID space!\n"));
         }
-#endif
+# endif
     }
     return *ppaLeaves;
 }
 
 
-#ifdef VBOX_STRICT
+# ifdef VBOX_STRICT
 /**
  * Checks that we've updated the CPUID leaves array correctly.
  *
@@ -795,7 +1022,9 @@ void cpumCpuIdAssertOrder(PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves)
                       ("%#x/%#x: %#x vs %#x\n", paLeaves[i].uLeaf, paLeaves[i].uSubLeaf, paLeaves[i].fFlags, paLeaves[i - 1].fFlags));
         }
 }
-#endif
+# endif
+
+#endif /* defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) || defined(VBOX_VMM_TARGET_X86) */
 
 #if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
 
@@ -981,7 +1210,7 @@ static bool cpumIsEcxRelevantForCpuIdLeaf(uint32_t uLeaf, uint32_t *pcSubLeaves,
  * @param   pcLeaves            Where to return the size of the array on
  *                              success.
  */
-VMMDECL(int) CPUMCpuIdCollectLeavesX86(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLeaves)
+VMMDECL(int) CPUMCpuIdCollectLeavesFromX86Host(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLeaves)
 {
     *ppaLeaves = NULL;
     *pcLeaves = 0;
@@ -1149,9 +1378,10 @@ VMMDECL(int) CPUMCpuIdCollectLeavesX86(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLe
 # endif
     return VINF_SUCCESS;
 }
+
 #endif /* RT_ARCH_X86 || RT_ARCH_AMD64 */
 
-
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) || defined(VBOX_VMM_TARGET_X86)
 /**
  * Detect the CPU vendor give n the
  *
@@ -1192,6 +1422,7 @@ VMMDECL(CPUMCPUVENDOR) CPUMCpuIdDetectX86VendorEx(uint32_t uEAX, uint32_t uEBX, 
 
     return CPUMCPUVENDOR_UNKNOWN;
 }
+#endif /* defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) || defined(VBOX_VMM_TARGET_X86) */
 
 
 /**
@@ -1213,7 +1444,13 @@ VMMDECL(const char *) CPUMCpuVendorName(CPUMCPUVENDOR enmVendor)
         case CPUMCPUVENDOR_CYRIX:       return "CYRIX";
         case CPUMCPUVENDOR_SHANGHAI:    return "SHANGHAI";
         case CPUMCPUVENDOR_HYGON:       return "HYGON";
-        case CPUMCPUVENDOR_APPLE:       return "APPLE";
+
+        case CPUMCPUVENDOR_ARM:         return "ARM";
+        case CPUMCPUVENDOR_BROADCOM:    return "Broadcom";
+        case CPUMCPUVENDOR_QUALCOMM:    return "Qualecomm";
+        case CPUMCPUVENDOR_APPLE:       return "Apple";
+        case CPUMCPUVENDOR_AMPERE:      return "Ampere";
+
         case CPUMCPUVENDOR_UNKNOWN:     return "UNKNOWN";
 
         case CPUMCPUVENDOR_INVALID:
@@ -1223,6 +1460,7 @@ VMMDECL(const char *) CPUMCpuVendorName(CPUMCPUVENDOR enmVendor)
     return "Invalid-cpu-vendor";
 }
 
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) || defined(VBOX_VMM_TARGET_X86)
 
 static PCCPUMCPUIDLEAF cpumCpuIdFindLeaf(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, uint32_t uLeaf)
 {
@@ -1259,7 +1497,12 @@ static PCCPUMCPUIDLEAF cpumCpuIdFindLeafEx(PCCPUMCPUIDLEAF paLeaves, uint32_t cL
 }
 
 
-static void cpumExplodeVmxFeatures(PCVMXMSRS pVmxMsrs, PCPUMFEATURES pFeatures)
+/**
+ * This explodes the VMX MSRs into the feature structure.
+ *
+ * The feature structure must be otherwise fully populated.
+ */
+DECLHIDDEN(void) cpumCpuIdExplodeFeaturesX86Vmx(PCVMXMSRS pVmxMsrs, CPUMFEATURESX86 *pFeatures)
 {
     Assert(pVmxMsrs);
     Assert(pFeatures);
@@ -1389,7 +1632,41 @@ static void cpumExplodeVmxFeatures(PCVMXMSRS pVmxMsrs, PCPUMFEATURES pFeatures)
 }
 
 
-void cpumCpuIdExplodeFeaturesX86SetSummaryBits(PCPUMFEATURES pFeatures)
+/**
+ * Call cpumCpuIdExplodeFeaturesX86Vmx with SUPHWVIRTMSRS instead of VMXMSRS.
+ */
+DECLHIDDEN(void) cpumCpuIdExplodeFeaturesX86VmxFromSupMsrs(PCSUPHWVIRTMSRS pMsrs, CPUMFEATURESX86 *pFeatures)
+{
+    /* This is a bit stupid as the structures are almost identical
+       (SUPHWVIRTMSRS has one extra member, u64FeatCtrl). */
+    VMXMSRS VmxMsrs;
+    VmxMsrs.u64Basic        = pMsrs->u.vmx.u64Basic;
+    VmxMsrs.PinCtls.u       = pMsrs->u.vmx.PinCtls.u;
+    VmxMsrs.ProcCtls.u      = pMsrs->u.vmx.ProcCtls.u;
+    VmxMsrs.ProcCtls2.u     = pMsrs->u.vmx.ProcCtls2.u;
+    VmxMsrs.ExitCtls.u      = pMsrs->u.vmx.ExitCtls.u;
+    VmxMsrs.EntryCtls.u     = pMsrs->u.vmx.EntryCtls.u;
+    VmxMsrs.TruePinCtls.u   = pMsrs->u.vmx.TruePinCtls.u;
+    VmxMsrs.TrueProcCtls.u  = pMsrs->u.vmx.TrueProcCtls.u;
+    VmxMsrs.TrueEntryCtls.u = pMsrs->u.vmx.TrueEntryCtls.u;
+    VmxMsrs.TrueExitCtls.u  = pMsrs->u.vmx.TrueExitCtls.u;
+    VmxMsrs.u64Misc         = pMsrs->u.vmx.u64Misc;
+    VmxMsrs.u64Cr0Fixed0    = pMsrs->u.vmx.u64Cr0Fixed0;
+    VmxMsrs.u64Cr0Fixed1    = pMsrs->u.vmx.u64Cr0Fixed1;
+    VmxMsrs.u64Cr4Fixed0    = pMsrs->u.vmx.u64Cr4Fixed0;
+    VmxMsrs.u64Cr4Fixed1    = pMsrs->u.vmx.u64Cr4Fixed1;
+    VmxMsrs.u64VmcsEnum     = pMsrs->u.vmx.u64VmcsEnum;
+    VmxMsrs.u64VmFunc       = pMsrs->u.vmx.u64VmFunc;
+    VmxMsrs.u64EptVpidCaps  = pMsrs->u.vmx.u64EptVpidCaps;
+    VmxMsrs.u64ProcCtls3    = pMsrs->u.vmx.u64ProcCtls3;
+    VmxMsrs.u64ExitCtls2    = pMsrs->u.vmx.u64ExitCtls2;
+    RT_ZERO(VmxMsrs.a_u64Reserved);
+
+    cpumCpuIdExplodeFeaturesX86Vmx(&VmxMsrs, pFeatures);
+}
+
+
+void cpumCpuIdExplodeFeaturesX86SetSummaryBits(CPUMFEATURESX86 *pFeatures)
 {
     /* Summary or all bits indicating the presence of the IA32_SPEC_CTRL MSR. */
     pFeatures->fSpecCtrlMsr = pFeatures->fIbrs
@@ -1404,9 +1681,8 @@ void cpumCpuIdExplodeFeaturesX86SetSummaryBits(PCPUMFEATURES pFeatures)
 }
 
 
-int cpumCpuIdExplodeFeaturesX86(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPUMMSRS pMsrs, PCPUMFEATURES pFeatures)
+VMMDECL(int) CPUMCpuIdExplodeFeaturesX86(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, CPUMFEATURESX86 *pFeatures)
 {
-    Assert(pMsrs);
     RT_ZERO(*pFeatures);
     if (cLeaves >= 2)
     {
@@ -1483,8 +1759,6 @@ int cpumCpuIdExplodeFeaturesX86(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCP
         pFeatures->fPclMul              = RT_BOOL(pStd1Leaf->uEcx & X86_CPUID_FEATURE_ECX_PCLMUL);
         pFeatures->fMovBe               = RT_BOOL(pStd1Leaf->uEcx & X86_CPUID_FEATURE_ECX_MOVBE);
         pFeatures->fF16c                = RT_BOOL(pStd1Leaf->uEcx & X86_CPUID_FEATURE_ECX_F16C);
-        if (pFeatures->fVmx)
-            cpumExplodeVmxFeatures(&pMsrs->hwvirt.vmx, pFeatures);
 
         /* Structured extended features. */
         PCCPUMCPUIDLEAF const pSxfLeaf0 = cpumCpuIdFindLeafEx(paLeaves, cLeaves, 7, 0);
@@ -1681,7 +1955,7 @@ int cpumCpuIdExplodeFeaturesX86(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCP
 /**
  * Helper for extracting feature bits from IA32_ARCH_CAPABILITIES.
  */
-void cpumCpuIdExplodeArchCapabilities(CPUMFEATURES *pFeatures, bool fHasArchCap, uint64_t fArchVal)
+void cpumCpuIdExplodeArchCapabilities(CPUMFEATURESX86 *pFeatures, bool fHasArchCap, uint64_t fArchVal)
 {
     Assert(fHasArchCap || fArchVal == 0);
     pFeatures->fArchCap                = fHasArchCap;
@@ -1716,7 +1990,7 @@ void cpumCpuIdExplodeArchCapabilities(CPUMFEATURES *pFeatures, bool fHasArchCap,
 }
 
 
-# ifndef VBOX_VMM_TARGET_ARMV8 /* trunk: defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC) */
+# if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
 /**
  * Sets the guest IA32_ARCH_CAPABILITIES value and associated feature bits.
  */
@@ -1757,7 +2031,7 @@ void cpumCpuIdSetGuestArchCapabilities(PVMCC pVM, bool fHasArchCap, uint64_t fAr
  */
 VMM_INT_DECL(void) CPUMCpuIdApplyX86HostArchCapabilities(PVMCC pVM, bool fHasArchCap, uint64_t fHostArchVal)
 {
-    cpumCpuIdExplodeArchCapabilities(const_cast<CPUMFEATURES *>(&pVM->cpum.s.HostFeatures), fHasArchCap, fHostArchVal);
+    cpumCpuIdExplodeArchCapabilities(const_cast<CPUMFEATURESX86 *>(&pVM->cpum.s.HostFeatures.s), fHasArchCap, fHostArchVal);
     LogRel(("CPUM: Host IA32_ARCH_CAPABILITIES  = %#RX64\n", fHostArchVal));
 
 # if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
@@ -1769,4 +2043,538 @@ VMM_INT_DECL(void) CPUMCpuIdApplyX86HostArchCapabilities(PVMCC pVM, bool fHasArc
 #  endif
 }
 # endif /* defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) */
+
+#endif /* defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64) || defined(VBOX_VMM_TARGET_X86) */
+
+#if (defined(RT_ARCH_ARM64) || defined(VBOX_VMM_TARGET_ARMV8)) && defined(IN_RING3)
+/** @callback_method_impl{FNRTSORTCMP} */
+DECLCALLBACK(int) cpumCpuIdSysRegValSortCmp(void const *pvElement1, void const *pvElement2, void *pvUser)
+{
+    RT_NOREF(pvUser);
+    PCSUPARMSYSREGVAL const pElm1 = (PCSUPARMSYSREGVAL)pvElement1;
+    PCSUPARMSYSREGVAL const pElm2 = (PCSUPARMSYSREGVAL)pvElement2;
+    return pElm1->idReg < pElm2->idReg ? -1 : pElm1->idReg > pElm2->idReg ? 1 : 0;
+}
+#endif
+
+#if defined(RT_ARCH_ARM64) && defined(IN_RING3) /** @todo port to ring-0 as needed. */
+
+/**
+ * Used by CPUMCpuIdCollectIdSysRegsFromArmV8Host to lookup @a idReg in the
+ * given array.
+ *
+ * @returns Index if found, UINT32_MAX if not.
+ */
+static uint32_t cpumCpuIdLookupArmSysReg(PCSUPARMSYSREGVAL paSysRegs, uint32_t cSysRegs, uint32_t const idReg)
+{
+    for (uint32_t iSysReg = 0; iSysReg < cSysRegs; iSysReg++)
+        if (paSysRegs[iSysReg].idReg == idReg)
+            return iSysReg;
+    return UINT32_MAX;
+}
+
+
+/**
+ * Collects the ID registers from an ARMv8 host.
+ *
+ * This isn't trivial an all hosts when running in userland and there is no
+ * support driver handy.
+ */
+VMMDECL(int) CPUMCpuIdCollectIdSysRegsFromArmV8Host(PSUPARMSYSREGVAL *ppaSysRegs, uint32_t *pcSysRegs)
+{
+    int rc;
+
+    /*
+     * Allocate enough space for anything we might collect directly here.
+     */
+    uint32_t         cSysRegs      = 0;
+    uint32_t         cSysRegsAlloc = 256;
+    PSUPARMSYSREGVAL paSysRegs     = (PSUPARMSYSREGVAL)RTMemAllocZ(sizeof(*paSysRegs) * cSysRegsAlloc);
+    AssertReturn(paSysRegs, VERR_NO_MEMORY);
+
+    bool             fIncZeroValues = true;
+# define ADD_REG_BY_ID(a_idReg, a_uValue, a_fFlags) do { \
+            if (((a_uValue) != 0 || fIncZeroValues) && cpumCpuIdLookupArmSysReg(paSysRegs, cSysRegs, (a_idReg)) == UINT32_MAX) \
+            { \
+                AssertBreak(cSysRegs < cSysRegsAlloc); \
+                paSysRegs[cSysRegs].fFlags = a_fFlags; \
+                paSysRegs[cSysRegs].idReg  = (a_idReg); \
+                paSysRegs[cSysRegs].uValue = (a_uValue); \
+                cSysRegs += 1; \
+            } \
+        } while (0)
+
+    /* From SUPDRrv.cpp: */
+    uint64_t uRegVal;
+# ifdef _MSC_VER
+#  define COMPILER_READ_SYS_REG(a_u64Dst, a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) \
+        (a_u64Dst) = (uint64_t)_ReadStatusReg(ARMV8_AARCH64_SYSREG_ID_CREATE(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) & 0x7fff)
+# else
+#  define COMPILER_READ_SYS_REG(a_u64Dst, a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) \
+        __asm__ __volatile__ ("mrs %0, s" #a_Op0 "_" #a_Op1 "_c" #a_CRn "_c" #a_CRm "_" #a_Op2  : "=r" (a_u64Dst))
+# endif
+# define READ_SYS_REG_UNDEF(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) do { \
+            uRegVal = 0; \
+            COMPILER_READ_SYS_REG(uRegVal, a_Op0, a_Op1, a_CRn, a_CRm, a_Op2); \
+            ADD_REG_BY_ID(ARMV8_AARCH64_SYSREG_ID_CREATE(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2), uRegVal, \
+                          SUP_ARM_SYS_REG_VAL_F_FROM_USERLAND); \
+        } while (0)
+
+# define READ_SYS_REG_NAMED(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2, a_SysRegName) do { \
+            AssertCompile(   ARMV8_AARCH64_SYSREG_ID_CREATE(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) \
+                          == RT_CONCAT(ARMV8_AARCH64_SYSREG_,a_SysRegName)); \
+            READ_SYS_REG_UNDEF(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2); \
+        } while (0)
+
+# define READ_SYS_REG__TODO(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2, a_SysRegName) READ_SYS_REG_UNDEF(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2)
+
+# ifdef IN_RING3
+    /*
+     * If we might have the support driver handy, it will provide
+     * all the info we need.
+     */
+    if (!SUPR3IsDriverless())
+    {
+        uint32_t cRegsAvailable = 0;
+        rc = SUPR3ArmQuerySysRegs(NIL_RTCPUID, SUP_ARM_SYS_REG_F_EXTENDED | SUP_ARM_SYS_REG_F_INC_ZERO_REG_VAL,
+                                  cSysRegsAlloc, &cSysRegs, &cRegsAvailable, paSysRegs);
+        if (RT_SUCCESS(rc) && cRegsAvailable > cSysRegsAlloc)
+        {
+            RTMemFree(paSysRegs);
+            cSysRegsAlloc = cRegsAvailable + 1;
+            paSysRegs     = (PSUPARMSYSREGVAL)RTMemAllocZ(sizeof(*paSysRegs) * cSysRegsAlloc);
+            AssertReturn(paSysRegs, VERR_NO_MEMORY);
+            rc = SUPR3ArmQuerySysRegs(NIL_RTCPUID, SUP_ARM_SYS_REG_F_EXTENDED | SUP_ARM_SYS_REG_F_INC_ZERO_REG_VAL,
+                                      cSysRegsAlloc, &cSysRegs, &cRegsAvailable, paSysRegs);
+        }
+        if (RT_SUCCESS(rc))
+        {
+            RTSortShell(paSysRegs, cSysRegs, sizeof(paSysRegs[0]), cpumCpuIdSysRegValSortCmp, NULL);
+
+            *pcSysRegs  = cSysRegs;
+            *ppaSysRegs = paSysRegs;
+            LogRel(("CPUM: Collected %u host ID registers using SUPR3ArmQuerySysRegs.\n", cSysRegs));
+            return rc;
+        }
+    }
+
+#  ifdef RT_OS_WINDOWS
+    /*
+     * Windows has a collection of useful register values in the registry.
+     */
+    HKEY    hKey = NULL;
+    LSTATUS lrc  = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0,
+                                KEY_QUERY_VALUE, &hKey);
+    if (lrc == ERROR_SUCCESS)
+    {
+        for (uint32_t i = 0; i < 4096; i++)
+        {
+            WCHAR wszName[256];
+            DWORD cwcName = RT_ELEMENTS(wszName);
+            DWORD dwType  = 0;
+            lrc = RegEnumValueW(hKey, i, wszName, &cwcName, NULL, &dwType, NULL, NULL);
+            if (lrc == ERROR_SUCCESS)
+            {
+                if (dwType == REG_QWORD && wszName[0] == 'C' && wszName[1] == 'P' && RT_C_IS_BLANK(wszName[2]))
+                {
+                    uint32_t offName = 3;
+                    uint32_t idReg   = 0;
+                    while (offName < cwcName && RT_C_IS_XDIGIT(wszName[offName]))
+                    {
+                        idReg *= 16;
+                        idReg |= RT_C_IS_DIGIT(wszName[offName]) ? wszName[offName] - '0' : (wszName[offName] & ~0x20) - 'A' + 10;
+                        offName++;
+                    }
+                    if ((offName == cwcName || !wszName[offName]) && idReg != 0)
+                    {
+                        idReg |= 0x8000; /* implicit top bit (see top of asm-arm.h) */
+
+                        uRegVal = 0;
+                        DWORD cbValue = sizeof(uRegVal);
+                        lrc = RegQueryValueExW(hKey, wszName, NULL, &dwType, (PBYTE)&uRegVal, &cbValue);
+                        if (lrc == ERROR_SUCCESS)
+                            ADD_REG_BY_ID(idReg, uRegVal, SUP_ARM_SYS_REG_VAL_F_FROM_REGISTRY);
+                        else
+                            AssertMsgFailed(("RegQueryValueexW(,%ls,,,) failed: %Rwc\n", wszName, lrc));
+                    }
+                    else
+                        AssertMsgFailed(("Unable to parse 'CP ' prefixed value name: '%ls'\n", wszName));
+                }
+            }
+            else if (lrc == ERROR_NO_MORE_ITEMS)
+                break;
+            else
+                AssertMsgFailed(("lrc=%Rwc\n", lrc));
+        }
+
+        RegCloseKey(hKey);
+    }
+
+#  elif defined(RT_OS_LINUX)
+    /*
+     * Read the 2-3 registers exposed via sysfs.
+     */
+    RTCPUID idCpu  = RTMpCpuId();
+    if (idCpu == NIL_RTCPUID)
+        idCpu = 0;
+    int64_t iValue = 0;
+    rc = RTLinuxSysFsReadIntFile(16, &iValue, "/sys/devices/system/cpu/cpu%u/regs/identification/midr", idCpu);
+    if (RT_SUCCESS(rc))
+    {
+        ADD_REG_BY_ID(ARMV8_AARCH64_SYSREG_MIDR_EL1, (uint64_t)iValue, SUP_ARM_SYS_REG_VAL_F_FROM_SYSFS);
+
+        iValue = 0;
+        rc = RTLinuxSysFsReadIntFile(16, &iValue, "/sys/devices/system/cpu/cpu%u/regs/identification/revidr", idCpu);
+        if (RT_SUCCESS(rc))
+            ADD_REG_BY_ID(ARMV8_AARCH64_SYSREG_REVIDR_EL1, (uint64_t)iValue, SUP_ARM_SYS_REG_VAL_F_FROM_SYSFS);
+
+        iValue = 0;
+        rc = RTLinuxSysFsReadIntFile(16, &iValue, "/sys/devices/system/cpu/cpu%u/regs/identification/smidr_el1", idCpu);
+        if (RT_SUCCESS(rc))
+            ADD_REG_BY_ID(ARMV8_AARCH64_SYSREG_SMIDR_EL1, (uint64_t)iValue, SUP_ARM_SYS_REG_VAL_F_FROM_SYSFS);
+    }
+
+    /*
+     * If the usermode MRS emulation is enabled, try get what is available
+     * to us.  The emulated register set is initially limited by is_emulated()
+     * to (Op0=3, Op1=0, CRn=0, CRm in {0,2,3,4,5,6,7}, Op2=any).  The CRm
+     * values 2 & 3 were added in linux 6.1.
+     *
+     * But this is further restricted two ways:
+     *    - For CRm=0 by emulate_id_reg() to Op2 in {0, 5, 7}, i.e. MIDR_EL1,
+     *      MPIDR_EL1, REVIDR_EL1.
+     *    - The registers listed in the arm64_ftr_regs table with associated
+     *       field sanitizing.
+     */
+    if (getauxval(AT_HWCAP) & HWCAP_CPUID)
+    {
+        /* Note! This is a stripped down version of the list in SUPDrv.cpp */
+        READ_SYS_REG_NAMED(3, 0, 0, 0, 0, MIDR_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 0, 5, MPIDR_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 0, 6, REVIDR_EL1);
+
+        READ_SYS_REG_NAMED(3, 0, 0, 4, 0, ID_AA64PFR0_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 4, 1, ID_AA64PFR1_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 4, 2, ID_AA64PFR2_EL1);
+        READ_SYS_REG_UNDEF(3, 0, 0, 4, 3);
+        READ_SYS_REG_NAMED(3, 0, 0, 4, 4, ID_AA64ZFR0_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 4, 5, ID_AA64SMFR0_EL1);
+        READ_SYS_REG_UNDEF(3, 0, 0, 4, 6);
+        READ_SYS_REG_NAMED(3, 0, 0, 4, 7, ID_AA64FPFR0_EL1);
+
+        READ_SYS_REG_NAMED(3, 0, 0, 5, 0, ID_AA64DFR0_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 5, 1, ID_AA64DFR1_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 5, 2, ID_AA64DFR2_EL1);
+        READ_SYS_REG_UNDEF(3, 0, 0, 5, 3);
+        READ_SYS_REG_NAMED(3, 0, 0, 5, 4, ID_AA64AFR0_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 5, 5, ID_AA64AFR1_EL1);
+        READ_SYS_REG_UNDEF(3, 0, 0, 5, 6);
+        READ_SYS_REG_UNDEF(3, 0, 0, 5, 7);
+
+        READ_SYS_REG_NAMED(3, 0, 0, 6, 0, ID_AA64ISAR0_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 6, 1, ID_AA64ISAR1_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 6, 2, ID_AA64ISAR2_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 6, 3, ID_AA64ISAR3_EL1);
+        READ_SYS_REG_UNDEF(3, 0, 0, 6, 4);
+        READ_SYS_REG_UNDEF(3, 0, 0, 6, 5);
+        READ_SYS_REG_UNDEF(3, 0, 0, 6, 6);
+        READ_SYS_REG_UNDEF(3, 0, 0, 6, 7);
+
+        READ_SYS_REG_NAMED(3, 0, 0, 7, 0, ID_AA64MMFR0_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 7, 1, ID_AA64MMFR1_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 7, 2, ID_AA64MMFR2_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 7, 3, ID_AA64MMFR3_EL1);
+        READ_SYS_REG_NAMED(3, 0, 0, 7, 4, ID_AA64MMFR4_EL1);
+        READ_SYS_REG_UNDEF(3, 0, 0, 7, 5);
+        READ_SYS_REG_UNDEF(3, 0, 0, 7, 6);
+        READ_SYS_REG_UNDEF(3, 0, 0, 7, 7);
+
+        /*
+         * AArch32 feature registers (what is accessible in 6.1+).
+         */
+        char szRelease[256] = {0};
+        RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szRelease, sizeof(szRelease));
+        if (RTStrVersionCompare(szRelease, "6.1") >= 0 && RTStrVersionCompare(szRelease, "99.99") < 0)
+        {
+            /* 3,0,0,1,x is not exposed */
+
+            READ_SYS_REG_NAMED(3, 0, 0, 2, 0, ID_ISAR0_EL1);
+            READ_SYS_REG_NAMED(3, 0, 0, 2, 1, ID_ISAR1_EL1);
+            READ_SYS_REG_NAMED(3, 0, 0, 2, 2, ID_ISAR2_EL1);
+            READ_SYS_REG_NAMED(3, 0, 0, 2, 3, ID_ISAR3_EL1);
+            READ_SYS_REG_NAMED(3, 0, 0, 2, 4, ID_ISAR4_EL1);
+            READ_SYS_REG_NAMED(3, 0, 0, 2, 5, ID_ISAR5_EL1);
+
+            READ_SYS_REG_NAMED(3, 0, 0, 2, 6, ID_MMFR4_EL1);
+
+            READ_SYS_REG_NAMED(3, 0, 0, 2, 7, ID_ISAR6_EL1);
+
+            READ_SYS_REG_NAMED(3, 0, 0, 3, 0, MVFR0_EL1);
+            READ_SYS_REG_NAMED(3, 0, 0, 3, 1, MVFR1_EL1);
+            READ_SYS_REG_NAMED(3, 0, 0, 3, 2, MVFR2_EL1);
+
+            READ_SYS_REG_UNDEF(3, 0, 0, 3, 3);
+
+            READ_SYS_REG_NAMED(3, 0, 0, 3, 4, ID_PFR2_EL1);
+
+            READ_SYS_REG_NAMED(3, 0, 0, 3, 5, ID_DFR1_EL1);
+
+            READ_SYS_REG_NAMED(3, 0, 0, 3, 6, ID_MMFR5_EL1);
+
+            READ_SYS_REG_UNDEF(3, 0, 0, 3, 7);
+        }
+
+        /* The rest is either not exposed or read below (CTR_EL0, DCZID_EL0, CNTFRQ_EL0) */
+    }
+#  endif /* RT_OS_LINUX */
+
+    /*
+     * CTR_EL0 can be trapped when executed in L0 (SCTLR_EL0.UCT) and macOS
+     * & Windows do so by default.  Linux does seem to expose it.
+     */
+#  if defined(RT_OS_LINUX)
+    READ_SYS_REG_NAMED(3, 3, 0, 0, 1, CTR_EL0);
+#  endif
+    READ_SYS_REG_NAMED(3, 3, 0, 0, 7, DCZID_EL0);
+    READ_SYS_REG_NAMED(3, 3,14, 0, 0, CNTFRQ_EL0); /* should probably make this take preference... */
+
+#  ifndef IN_VBOX_CPU_REPORT
+    /*
+     * If we've got the main ID register (MIDR) use it to try locate a DB
+     * entry from the CPU.  The lookup functions might not find an exact match,
+     * but shouldn't return anything that is too far off...
+     */
+    uint32_t         uScore   = 0;
+    PCCPUMDBENTRYARM pDbEntry = NULL;
+    int32_t idxMidr = (int32_t)cSysRegs - 1;
+    while (idxMidr >= 0 && paSysRegs[idxMidr].idReg != ARMV8_AARCH64_SYSREG_MIDR_EL1)
+        idxMidr--;
+    if (idxMidr >= 0 && (paSysRegs[idxMidr].uValue & UINT32_C(0x00f0fff0)) != 0)
+        pDbEntry = CPUMR3DbGetBestEntryByArm64MainId(paSysRegs[idxMidr].uValue, &uScore);
+    else
+    {
+        idxMidr = -1;
+        char szName[256];
+        rc = RTMpGetDescription(NIL_RTCPUID, szName, sizeof(szName));
+        if (RT_SUCCESS(rc))
+            pDbEntry = (PCCPUMDBENTRYARM)CPUMR3DbGetBestEntryByName(szName, CPUMDBENTRYTYPE_ARM, &uScore);
+        else
+            pDbEntry = NULL;
+    }
+    if (pDbEntry)
+    {
+        Assert(pDbEntry->Core.enmEntryType == CPUMDBENTRYTYPE_ARM);
+
+        /*
+         * Merge the two.  If there are multiple core variations, use the first one
+         * as it's usually the efficiency one.  (We can revisit this if we end up
+         * needing to support host systems with cores that have different feature
+         * sets.)
+         *
+         * Note! Don't know the quality of the Windows registry stuff, but for now
+         *       we're assuming it's mostly unfiltered and will use it instead of
+         *       the DB entry...
+         */
+        uint32_t cNonProfileRegs = cSysRegs;
+        for (uint32_t iRegSet = 0; iRegSet < 2; iRegSet++)
+        {
+            PCSUPARMSYSREGVAL const paSrcRegs = iRegSet ? pDbEntry->aVariants[0].paSysRegVals : pDbEntry->paSysRegCmnVals;
+            uint32_t const          cSrcRegs  = iRegSet ? pDbEntry->aVariants[0].cSysRegVals  : pDbEntry->cSysRegCmnVals;
+            for (uint32_t iSrcReg = 0; iSrcReg < cSrcRegs; iSrcReg++)
+            {
+                /* Check if we've got it already. */
+                uint32_t const idxDst = cpumCpuIdLookupArmSysReg(paSysRegs, cSysRegs, paSrcRegs[iSrcReg].idReg);
+                if (idxDst < cSysRegs)
+                {
+                    /* If the DB entry is a great match, use the value from the DB entry. */
+                    if (uScore >= 100)
+                    {
+                        paSysRegs[idxDst].uValue = paSrcRegs[iSrcReg].uValue;
+                        paSysRegs[idxDst].fFlags = SUP_ARM_SYS_REG_VAL_F_FROM_DB;
+                        cNonProfileRegs -= 1;
+                    }
+                }
+                else
+                {
+                    if (cSysRegs >= cSysRegsAlloc)
+                    {
+                        void * const pvNew = RTMemRealloc(paSysRegs, sizeof(paSysRegs[0]) * cSysRegsAlloc * 2);
+                        AssertContinue(pvNew);
+                        paSysRegs = (PSUPARMSYSREGVAL)pvNew;
+                        cSysRegsAlloc *= 2;
+                    }
+
+                    paSysRegs[cSysRegs].idReg  = paSrcRegs[iSrcReg].idReg;
+                    paSysRegs[cSysRegs].uValue = paSrcRegs[iSrcReg].uValue;
+                    paSysRegs[cSysRegs].fFlags = SUP_ARM_SYS_REG_VAL_F_FROM_DB;
+                    cSysRegs++;
+                }
+            }
+        }
+        LogRel(("CPUM: Matched host CPU profile '%s' (%u%% score).  Collected a combined %u ID registers, %u of which are not from the profile.\n",
+                pDbEntry->Core.pszName, uScore, cSysRegs, cNonProfileRegs));
+    }
+    else
+        LogRel(("CPUM: Collected %u host ID registers from various ring-3 sources; no matching profile.\n", cSysRegs));
+#  endif
+
+# else  /* !IN_RING3 */
+    /** @todo as needed    */
+# endif /* !IN_RING3 */
+
+    RTSortShell(paSysRegs, cSysRegs, sizeof(paSysRegs[0]), cpumCpuIdSysRegValSortCmp, NULL);
+
+    *pcSysRegs  = cSysRegs;
+    *ppaSysRegs = paSysRegs;
+    return VINF_SUCCESS;
+}
+
+#endif /* RT_ARCH_ARM64 && IN_RING3 */
+#if defined(RT_ARCH_ARM64) || defined(VBOX_VMM_TARGET_ARMV8)
+
+/**
+ * Helper that looks up a system register value in an array.
+ */
+DECLINLINE(uint64_t) cpumCpuIdLookupSysReg(PCSUPARMSYSREGVAL paSysRegs, uint32_t cSysRegs, uint32_t idReg)
+{
+    /* Don't assume it's sorted. */
+    for (uint32_t i = 0 ; i < cSysRegs; i++)
+        if (idReg == paSysRegs[i].idReg)
+            return paSysRegs[i].uValue;
+    return 0;
+}
+
+/**
+ * Helper that looks up a system register value in an array.
+ */
+DECLINLINE(PCSUPARMSYSREGVAL) cpumCpuIdLookupSysRegPtr(PCSUPARMSYSREGVAL paSysRegs, uint32_t cSysRegs, uint32_t idReg)
+{
+    /* Don't assume it's sorted. */
+    for (uint32_t i = 0 ; i < cSysRegs; i++)
+        if (idReg == paSysRegs[i].idReg)
+            return &paSysRegs[i];
+    return NULL;
+}
+
+
+/**
+ * Helper for CPUMCpuIdExplodeFeaturesArmV8() that does what can't be derived
+ * from the specs.
+ *
+ * We ASSUME this is called after setting all the specification derived feature
+ * bits, so we can more easily test for these.
+ *
+ * @returns VBox status code
+ * @param   paSysRegs   The system registers and their values.
+ * @param   cSysRegs    Number of system register values.
+ * @param   pFeatures   The structure to explode the features into.
+ */
+static int cpumCpuIdExplodeFeaturesArmV8Handcoded(PCSUPARMSYSREGVAL paSysRegs, uint32_t cSysRegs, CPUMFEATURESARMV8 *pFeatures)
+{
+    /* Get the MIDR_EL1 register, expand it and determine the vendor
+       and microarch (non-fatal). */
+    uint64_t const uMidr = cpumCpuIdLookupSysReg(paSysRegs, cSysRegs, ARMV8_AARCH64_SYSREG_MIDR_EL1);
+    pFeatures->uImplementeter   = (uint8_t )((uMidr >> 24) & 0xff);
+    pFeatures->uPartNum         = (uint16_t)((uMidr >>  4) & 0xfff);
+    pFeatures->uVariant         = (uint8_t )((uMidr >> 20) & 0xf);
+    pFeatures->uRevision        = (uint8_t ) (uMidr        & 0xf);
+
+    CPUMCPUVENDOR enmCpuVendor = CPUMCPUVENDOR_INVALID;
+    int rc = CPUMCpuIdDetermineArmV8MicroarchEx(uMidr, NULL, &pFeatures->enmMicroarch, &enmCpuVendor, NULL, NULL, NULL);
+    if (rc == VERR_UNSUPPORTED_CPU && enmCpuVendor != CPUMCPUVENDOR_INVALID)
+        rc = -rc;
+    if (RT_FAILURE(rc))
+        LogRel(("CPUM: CPUMCpuIdDetermineArmV8MicroarchEx(%#RX64) failed\n", uMidr));
+    pFeatures->enmCpuVendor = (uint8_t)enmCpuVendor;
+
+    /* Get ID_AA64MMFR0_EL1 and determine the max physical address width: */
+    uint64_t const fAa64Mmfr0 = cpumCpuIdLookupSysReg(paSysRegs, cSysRegs, ARMV8_AARCH64_SYSREG_ID_AA64MMFR0_EL1);
+    switch (fAa64Mmfr0 & ARMV8_ID_AA64MMFR0_EL1_PARANGE_MASK)
+    {
+        case ARMV8_ID_AA64MMFR0_EL1_PARANGE_32BITS:     pFeatures->cMaxPhysAddrWidth = 32; break;
+        case ARMV8_ID_AA64MMFR0_EL1_PARANGE_36BITS:     pFeatures->cMaxPhysAddrWidth = 36; break;
+        case ARMV8_ID_AA64MMFR0_EL1_PARANGE_40BITS:     pFeatures->cMaxPhysAddrWidth = 40; break;
+        case ARMV8_ID_AA64MMFR0_EL1_PARANGE_42BITS:     pFeatures->cMaxPhysAddrWidth = 42; break;
+        case ARMV8_ID_AA64MMFR0_EL1_PARANGE_44BITS:     pFeatures->cMaxPhysAddrWidth = 44; break;
+        case ARMV8_ID_AA64MMFR0_EL1_PARANGE_48BITS:     pFeatures->cMaxPhysAddrWidth = 48; break;
+        case ARMV8_ID_AA64MMFR0_EL1_PARANGE_52BITS:     pFeatures->cMaxPhysAddrWidth = 52; break;
+        case ARMV8_ID_AA64MMFR0_EL1_PARANGE_56BITS:     pFeatures->cMaxPhysAddrWidth = 56; break;
+        default:
+            pFeatures->cMaxPhysAddrWidth = 32;
+            LogRel(("CPUM: Do not know how to decode PARange=%#x!\n", (unsigned)(fAa64Mmfr0 & ARMV8_ID_AA64MMFR0_EL1_PARANGE_MASK)));
+            if (RT_SUCCESS(rc))
+                rc = VERR_CPUM_UNSUPPORTED_ID_REG_VALUE;
+            break;
+    }
+
+    /* Get ID_AA64MMFR2_EL1 and determine the max virtual address width: */
+    uint64_t const fAa64Mmfr2 = cpumCpuIdLookupSysReg(paSysRegs, cSysRegs, ARMV8_AARCH64_SYSREG_ID_AA64MMFR2_EL1);
+    switch ((fAa64Mmfr2 >> 16) & 0xf)
+    {
+        case 0: pFeatures->cMaxLinearAddrWidth = 48; break;
+        case 1: pFeatures->cMaxLinearAddrWidth = 52; break;
+        case 2: pFeatures->cMaxLinearAddrWidth = 56; break;
+        default:
+            pFeatures->cMaxPhysAddrWidth = 48;
+            LogRel(("CPUM: Do not know how to decode VARange=%#x!\n", (unsigned)((fAa64Mmfr2 >> 16) & 0xf)));
+            if (RT_SUCCESS(rc))
+                rc = VERR_CPUM_UNSUPPORTED_ID_REG_VALUE;
+            break;
+    }
+
+    /*
+     * Get ID_AA64DFR0_EL1 and set the break & watch point register counts.
+     *
+     * We may need ID_AA64DFR2_EL1 if FEAT_Debugv8p9 is support and 16 registers
+     * or more are implemented.
+     */
+    PCSUPARMSYSREGVAL const pAa64Dfr0 = cpumCpuIdLookupSysRegPtr(paSysRegs, cSysRegs, ARMV8_AARCH64_SYSREG_ID_AA64DFR0_EL1);
+    if (pAa64Dfr0)
+    {
+        uint64_t const fAa64Dfr2 = cpumCpuIdLookupSysReg(paSysRegs, cSysRegs, ARMV8_AARCH64_SYSREG_ID_AA64DFR2_EL1);
+
+        pFeatures->cBreakpoints = RT_BF_GET(pAa64Dfr0->uValue, ARMV8_ID_AA64DFR0_EL1_BRPS) + 1;
+        pFeatures->cWatchpoints = RT_BF_GET(pAa64Dfr0->uValue, ARMV8_ID_AA64DFR0_EL1_WRPS) + 1;
+
+        if (pFeatures->fDebugV8p9 && ((fAa64Dfr2 >> 8) & 0xffff) != 0)
+        {
+            unsigned const cExtBrksMinus1 = (unsigned)((fAa64Dfr2 >>  8) & 0xff);
+            if (pFeatures->cBreakpoints == 16 && cExtBrksMinus1 > 0 && cExtBrksMinus1 <= 0x3f)
+                pFeatures->cBreakpoints = cExtBrksMinus1 + 1;
+            else
+            {
+                Assert(cExtBrksMinus1 == 0);
+                Assert(pFeatures->cBreakpoints < 16);
+            }
+
+            unsigned const cExtWrpsMinus1 = (unsigned)((fAa64Dfr2 >>  8) & 0xff);
+            if (pFeatures->cWatchpoints == 16 && cExtWrpsMinus1 > 0 && cExtWrpsMinus1 <= 0x3f)
+                pFeatures->cWatchpoints = cExtWrpsMinus1 + 1;
+            else
+            {
+                Assert(cExtWrpsMinus1 == 0);
+                Assert(pFeatures->cWatchpoints < 16);
+            }
+        }
+    }
+    else
+    {
+        pFeatures->cBreakpoints = 0;
+        pFeatures->cWatchpoints = 0;
+    }
+
+    /*
+     * Set the EL2 and EL3 support indicators (EL0 & EL1 are mandatory).
+     */
+    pFeatures->fEl2 = pFeatures->fAa64El2 | pFeatures->fAa32El2;
+    pFeatures->fEl3 = pFeatures->fAa64El3 | pFeatures->fAa32El3;
+
+    return rc;
+}
+
+
+/* Include code generated by bsd-spec-analyze.py --out-features-hdr. */
+# include "CPUMAllCpuIdArmV8.cpp.h"
+
+#endif /* RT_ARCH_ARM64 || VBOX_VMM_TARGET_ARMV8*/
 

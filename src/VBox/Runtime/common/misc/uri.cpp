@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -101,7 +101,8 @@ static char *rtUriPercentEncodeN(const char *pszString, size_t cchMax)
 
     int rc = VINF_SUCCESS;
 
-    size_t cbLen = RT_MIN(strlen(pszString), cchMax);
+    size_t const cchStr = strlen(pszString);
+    size_t cbLen = RT_MIN(cchStr, cchMax);
     /* The new string can be max 3 times in size of the original string. */
     char *pszNew = RTStrAlloc(cbLen * 3 + 1);
     if (!pszNew)
@@ -462,7 +463,7 @@ static int rtUriParse(const char *pszUri, PRTURIPARSED pParsed)
 
     /*
      * RFC-3986, section 3.2:
-     *      The authority component is preceeded by a double slash ("//")...
+     *      The authority component is preceded by a double slash ("//")...
      */
     if (   pszUri[off] == '/'
         && pszUri[off + 1] == '/')

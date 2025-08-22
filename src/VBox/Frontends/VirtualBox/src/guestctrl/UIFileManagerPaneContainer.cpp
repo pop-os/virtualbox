@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -378,6 +378,7 @@ UIFileManagerPaneContainer::UIFileManagerPaneContainer(QWidget *pParent, UIFileM
     , m_pDeleteConfirmationCheckBox(0)
     , m_pHumanReabableSizesCheckBox(0)
     , m_pShowHiddenObjectsCheckBox(0)
+    , m_pInteractiveColumnWidths(0)
     , m_pFileManagerOptions(pFileManagerOptions)
     , m_pLogTextEdit(0)
     , m_pScrollArea(0)
@@ -406,12 +407,14 @@ void UIFileManagerPaneContainer::preparePreferencesTab()
     m_pDeleteConfirmationCheckBox = new QCheckBox;
     m_pHumanReabableSizesCheckBox = new QCheckBox;
     m_pShowHiddenObjectsCheckBox = new QCheckBox;
+    m_pInteractiveColumnWidths = new QCheckBox;
 
     AssertReturnVoid(pPreferencesTab);
     AssertReturnVoid(m_pListDirectoriesOnTopCheckBox);
     AssertReturnVoid(m_pDeleteConfirmationCheckBox);
     AssertReturnVoid(m_pHumanReabableSizesCheckBox);
     AssertReturnVoid(m_pShowHiddenObjectsCheckBox);
+    AssertReturnVoid(m_pInteractiveColumnWidths);
 
     if (m_pFileManagerOptions)
     {
@@ -423,16 +426,20 @@ void UIFileManagerPaneContainer::preparePreferencesTab()
             m_pHumanReabableSizesCheckBox->setChecked(m_pFileManagerOptions->fShowHumanReadableSizes);
         if (m_pShowHiddenObjectsCheckBox)
             m_pShowHiddenObjectsCheckBox->setChecked(m_pFileManagerOptions->fShowHiddenObjects);
+        if (m_pInteractiveColumnWidths)
+            m_pInteractiveColumnWidths->setChecked(m_pFileManagerOptions->fAllowInteractiveColumnWidths);
     }
 
     connect(m_pListDirectoriesOnTopCheckBox, &QCheckBox::toggled,
-            this, &UIFileManagerPaneContainer::sltListDirectoryCheckBoxToogled);
+            this, &UIFileManagerPaneContainer::sltListDirectoryCheckBoxToggled);
     connect(m_pDeleteConfirmationCheckBox, &QCheckBox::toggled,
-            this, &UIFileManagerPaneContainer::sltDeleteConfirmationCheckBoxToogled);
+            this, &UIFileManagerPaneContainer::sltDeleteConfirmationCheckBoxToggled);
     connect(m_pHumanReabableSizesCheckBox, &QCheckBox::toggled,
-            this, &UIFileManagerPaneContainer::sltHumanReabableSizesCheckBoxToogled);
+            this, &UIFileManagerPaneContainer::sltHumanReabableSizesCheckBoxToggled);
     connect(m_pShowHiddenObjectsCheckBox, &QCheckBox::toggled,
             this, &UIFileManagerPaneContainer::sltShowHiddenObjectsCheckBoxToggled);
+    connect(m_pInteractiveColumnWidths, &QCheckBox::toggled,
+            this, &UIFileManagerPaneContainer::sltInteractiveColumnWidthsCheckBoxToggled);
 
     QGridLayout *pPreferencesLayout = new QGridLayout(pPreferencesTab);
     AssertReturnVoid(pPreferencesLayout);
@@ -442,7 +449,8 @@ void UIFileManagerPaneContainer::preparePreferencesTab()
     pPreferencesLayout->addWidget(m_pDeleteConfirmationCheckBox,   1, 0, 1, 1);
     pPreferencesLayout->addWidget(m_pHumanReabableSizesCheckBox,   0, 1, 1, 1);
     pPreferencesLayout->addWidget(m_pShowHiddenObjectsCheckBox,    1, 1, 1, 1);
-    pPreferencesLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 2, 0, 1, 2);
+    pPreferencesLayout->addWidget(m_pInteractiveColumnWidths,      2, 0, 1, 1);
+    pPreferencesLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 3, 0, 1, 2);
 
     insertTab(Page_Preferences, pPreferencesTab);
 }
@@ -488,7 +496,7 @@ void UIFileManagerPaneContainer::prepareOperationsTab()
     insertTab(Page_Operations, m_pScrollArea);
 }
 
-void UIFileManagerPaneContainer::sltListDirectoryCheckBoxToogled(bool bChecked)
+void UIFileManagerPaneContainer::sltListDirectoryCheckBoxToggled(bool bChecked)
 {
     if (!m_pFileManagerOptions)
         return;
@@ -496,7 +504,7 @@ void UIFileManagerPaneContainer::sltListDirectoryCheckBoxToogled(bool bChecked)
     emit sigOptionsChanged();
 }
 
-void UIFileManagerPaneContainer::sltDeleteConfirmationCheckBoxToogled(bool bChecked)
+void UIFileManagerPaneContainer::sltDeleteConfirmationCheckBoxToggled(bool bChecked)
 {
     if (!m_pFileManagerOptions)
         return;
@@ -504,7 +512,7 @@ void UIFileManagerPaneContainer::sltDeleteConfirmationCheckBoxToogled(bool bChec
     emit sigOptionsChanged();
 }
 
-void UIFileManagerPaneContainer::sltHumanReabableSizesCheckBoxToogled(bool bChecked)
+void UIFileManagerPaneContainer::sltHumanReabableSizesCheckBoxToggled(bool bChecked)
 {
     if (!m_pFileManagerOptions)
         return;
@@ -517,6 +525,14 @@ void UIFileManagerPaneContainer::sltShowHiddenObjectsCheckBoxToggled(bool bCheck
     if (!m_pFileManagerOptions)
         return;
     m_pFileManagerOptions->fShowHiddenObjects = bChecked;
+    emit sigOptionsChanged();
+}
+
+void UIFileManagerPaneContainer::sltInteractiveColumnWidthsCheckBoxToggled(bool bChecked)
+{
+    if (!m_pFileManagerOptions)
+        return;
+    m_pFileManagerOptions->fAllowInteractiveColumnWidths = bChecked;
     emit sigOptionsChanged();
 }
 
@@ -546,6 +562,12 @@ void UIFileManagerPaneContainer::sltRetranslateUI()
     {
         m_pShowHiddenObjectsCheckBox->setText(QApplication::translate("UIFileManager", "Show hidden objects"));
         m_pShowHiddenObjectsCheckBox->setToolTip(QApplication::translate("UIFileManager", "Show hidden files/directories"));
+    }
+
+    if (m_pInteractiveColumnWidths)
+    {
+        m_pInteractiveColumnWidths->setText(QApplication::translate("UIFileManager", "Interactive Column Widths"));
+        m_pInteractiveColumnWidths->setToolTip(QApplication::translate("UIFileManager", "Allow setting column widths interactively"));
     }
 
     setTabText(Page_Preferences, QApplication::translate("UIFileManager", "Preferences"));

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -130,9 +130,9 @@ typedef DEVPLATFORM *PDEVPLATFORM;
 *********************************************************************************************************************************/
 # ifdef VBOX_WITH_EFI_IN_DD2
 /** Special file name value for indicating the 32-bit built-in EFI firmware. */
-static const char g_szEfiBuiltinAArch32[] = "VBoxEFIAArch32.fd";
+static const char g_szEfiBuiltinArm32[] = "VBoxEFI-arm32.fd";
 /** Special file name value for indicating the 64-bit built-in EFI firmware. */
-static const char g_szEfiBuiltinAArch64[] = "VBoxEFIAArch64.fd";
+static const char g_szEfiBuiltinArm64[] = "VBoxEFI-arm64.fd";
 # endif
 
 
@@ -155,17 +155,19 @@ static int platformR3ResourceResolveContent(PPDMDEVINS pDevIns, PDEVPLATFORM pTh
     if (pRes->fResourceId)
     {
 #ifdef VBOX_WITH_EFI_IN_DD2
-        if (RTStrCmp(pRes->pszResourceIdOrFilename, g_szEfiBuiltinAArch32) == 0)
+        if (   RTStrCmp(pRes->pszResourceIdOrFilename, g_szEfiBuiltinArm32) == 0
+            || RTStrCmp(pRes->pszResourceIdOrFilename, "VBoxEFIAArch32.fd") == 0 /* legacy */)
         {
             *ppvFree = NULL;
-            *ppv     = g_abEfiFirmwareAArch32;
-            *pcb     = g_cbEfiFirmwareAArch32;
+            *ppv     = g_abEfiFirmwareArm32;
+            *pcb     = g_cbEfiFirmwareArm32;
         }
-        else if (RTStrCmp(pRes->pszResourceIdOrFilename, g_szEfiBuiltinAArch64) == 0)
+        else if (   RTStrCmp(pRes->pszResourceIdOrFilename, g_szEfiBuiltinArm64) == 0
+                 || RTStrCmp(pRes->pszResourceIdOrFilename, "VBoxEFIAArch64.fd") == 0 /* legacy */)
         {
             *ppvFree = NULL;
-            *ppv     = g_abEfiFirmwareAArch64;
-            *pcb     = g_cbEfiFirmwareAArch64;
+            *ppv     = g_abEfiFirmwareArm64;
+            *pcb     = g_cbEfiFirmwareArm64;
         }
         else
 #endif
@@ -173,13 +175,15 @@ static int platformR3ResourceResolveContent(PPDMDEVINS pDevIns, PDEVPLATFORM pTh
             AssertPtrReturn(pThis->Lun0.pDrvVfs, VERR_INVALID_STATE);
 
             uint64_t cbResource = 0;
-            int rc = pThis->Lun0.pDrvVfs->pfnQuerySize(pThis->Lun0.pDrvVfs, pThis->pszResourceNamespace, pRes->pszResourceIdOrFilename, &cbResource);
+            int rc = pThis->Lun0.pDrvVfs->pfnQuerySize(pThis->Lun0.pDrvVfs, pThis->pszResourceNamespace,
+                                                       pRes->pszResourceIdOrFilename, &cbResource);
             if (RT_SUCCESS(rc))
             {
                 void *pv = PDMDevHlpMMHeapAlloc(pDevIns, cbResource);
                 if (pv)
                 {
-                    rc = pThis->Lun0.pDrvVfs->pfnReadAll(pThis->Lun0.pDrvVfs, pThis->pszResourceNamespace, pRes->pszResourceIdOrFilename, pv, cbResource);
+                    rc = pThis->Lun0.pDrvVfs->pfnReadAll(pThis->Lun0.pDrvVfs, pThis->pszResourceNamespace,
+                                                         pRes->pszResourceIdOrFilename, pv, cbResource);
                     if (RT_FAILURE(rc))
                     {
                         PDMDevHlpMMHeapFree(pDevIns, pv);
@@ -262,7 +266,7 @@ static void platformR3DestructResourceList(PPDMDEVINS pDevIns, PRTLISTANCHOR pLs
         if (pIt->pu8ResourceFree)
         {
             if (!pIt->fResourceId)
-                RTFileReadAllFree(pIt->pu8ResourceFree, (size_t)pIt->cbResource);
+                RTFileReadAllFree(pIt->pu8ResourceFree, pIt->cbResource);
             else
                 PDMDevHlpMMHeapFree(pDevIns, pIt->pu8ResourceFree);
         }
@@ -306,7 +310,8 @@ static DECLCALLBACK(void) platformR3MemSetup(PPDMDEVINS pDevIns, PDMDEVMEMSETUPC
     PDEVPLATFORMRESOURCE pIt;
     RTListForEach(&pThis->LstResourcesMem, pIt, DEVPLATFORMRESOURCE, NdLst)
     {
-        int rc = platformR3ResourceResolveContent(pDevIns, pThis, pIt, (void **)&pIt->pu8ResourceFree, (const void **)&pIt->pu8Resource, &pIt->cbResource);
+        int rc = platformR3ResourceResolveContent(pDevIns, pThis, pIt, (void **)&pIt->pu8ResourceFree,
+                                                  (const void **)&pIt->pu8Resource, &pIt->cbResource);
         if (RT_SUCCESS(rc))
         {
             rc = PDMDevHlpPhysWrite(pDevIns, platformR3ResourceGetLoadAddress(pDevIns, pIt), pIt->pu8Resource, pIt->cbResource);
@@ -315,7 +320,7 @@ static DECLCALLBACK(void) platformR3MemSetup(PPDMDEVINS pDevIns, PDMDEVMEMSETUPC
             if (pIt->pu8ResourceFree)
             {
                 if (!pIt->fResourceId)
-                    RTFileReadAllFree(pIt->pu8ResourceFree, (size_t)pIt->cbResource);
+                    RTFileReadAllFree(pIt->pu8ResourceFree, pIt->cbResource);
                 else
                     PDMDevHlpMMHeapFree(pDevIns, pIt->pu8ResourceFree);
             }
@@ -378,10 +383,15 @@ static int platformR3LoadRoms(PPDMDEVINS pDevIns, PDEVPLATFORM pThis)
     PDEVPLATFORMRESOURCE pIt;
     RTListForEach(&pThis->LstResourcesRom, pIt, DEVPLATFORMRESOURCE, NdLst)
     {
-        rc = platformR3ResourceResolveContent(pDevIns, pThis, pIt, (void **)&pIt->pu8ResourceFree, (void const **)&pIt->pu8Resource, &pIt->cbResource);
+        rc = platformR3ResourceResolveContent(pDevIns, pThis, pIt, (void **)&pIt->pu8ResourceFree,
+                                              (void const **)&pIt->pu8Resource, &pIt->cbResource);
         if (RT_SUCCESS(rc))
-            rc = PDMDevHlpROMRegister(pDevIns, platformR3ResourceGetLoadAddress(pDevIns, pIt), pIt->cbResource, pIt->pu8Resource, pIt->cbResource,
+        {
+            AssertLogRel((uint32_t)pIt->cbResource == pIt->cbResource);
+            rc = PDMDevHlpROMRegister(pDevIns, platformR3ResourceGetLoadAddress(pDevIns, pIt),
+                                      (uint32_t)pIt->cbResource, pIt->pu8Resource, (uint32_t)pIt->cbResource,
                                       PGMPHYS_ROM_FLAGS_SHADOWED | PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, pIt->szName);
+        }
         AssertRCReturn(rc, rc);
     }
 

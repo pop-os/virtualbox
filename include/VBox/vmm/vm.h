@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -50,11 +50,19 @@
 # include <VBox/vmm/stam.h>
 # include <VBox/vmm/vmapi.h>
 # include <VBox/vmm/vmm.h>
+# include <VBox/param.h>
 # include <VBox/sup.h>
 #else
 # pragma D depends_on library vbox-types.d
 # pragma D depends_on library CPUMInternal.d
 # define VMM_INCLUDED_SRC_include_CPUMInternal_h
+# define VBOX_VMM_TARGET_AGNOSTIC
+#endif
+
+#if !defined(VBOX_VMM_TARGET_AGNOSTIC) \
+ && !defined(VBOX_VMM_TARGET_X86) \
+ && !defined(VBOX_VMM_TARGET_ARMV8)
+# error "VMM target not defined"
 #endif
 
 
@@ -129,7 +137,7 @@ typedef struct VMCPU
     /** The CPU state. */
     VMCPUSTATE volatile     enmState;
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
     uint32_t                u32Alignment0;
     /** The number of nano seconds when the vTimer of the associated vCPU is supposed to activate
      *  required to get out of a halt (due to wfi/wfe).
@@ -193,7 +201,15 @@ typedef struct VMCPU
 #else
     VMCPUID                 idCpu;
 #endif
+    /** The VM target platform architecture.
+     * Same as VM::enmTarget, GVM::enmTarget and GVMCPU::enmTarget. */
+#ifdef IN_RING0
+    VMTARGET                enmTargetUnsafe;
+#else
+    VMTARGET                enmTarget;
+#endif
 
+#if HC_ARCH_BITS != 64
     /** Align the structures below bit on a 64-byte boundary and make sure it starts
      * at the same offset in both 64-bit and 32-bit builds.
      *
@@ -202,7 +218,8 @@ typedef struct VMCPU
      *          data could be lumped together at the end with a < 64 byte padding
      *          following it (to grow into and align the struct size).
      */
-    uint8_t                 abAlignment1[64 - 6 * (HC_ARCH_BITS == 32 ? 4 : 8) - 8 - 4];
+    uint8_t                 abAlignment1[64 - 6 * (HC_ARCH_BITS == 32 ? 4 : 8) - 8 - 4 - 4];
+#endif
     /** @} */
 
     /** HM part. */
@@ -287,25 +304,31 @@ typedef struct VMCPU
         uint8_t             padding[512];       /* multiple of 64 */
     } gim;
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
-    /** GIC part. */
-    union VMCPUUNIONGIC
+    /* Interrupt controller, target specific. */
+    RT_GCC_EXTENSION
+    union
     {
+#if defined(VBOX_VMM_TARGET_ARMV8) || defined(VBOX_VMM_TARGET_AGNOSTIC)
+        /** GIC part. */
+        union
+        {
 # ifdef VMM_INCLUDED_SRC_include_GICInternal_h
-        struct GICCPU       s;
+            struct GICCPU       s;
 # endif
-        uint8_t             padding[3840];      /* multiple of 64 */
-    } gic;
-#else
-    /** APIC part. */
-    union VMCPUUNIONAPIC
-    {
-# ifdef VMM_INCLUDED_SRC_include_APICInternal_h
-        struct APICCPU      s;
-# endif
-        uint8_t             padding[3840];      /* multiple of 64 */
-    } apic;
+            uint8_t             padding[3840];      /* multiple of 64 */
+        } gic;
 #endif
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
+        /** APIC part. */
+        union
+        {
+# ifdef VMM_INCLUDED_SRC_include_APICInternal_h
+            struct APICCPU      s;
+# endif
+            uint8_t             padding[3840];      /* multiple of 64 */
+        } apic;
+#endif
+    };
 
     /*
      * Some less frequently used global members that doesn't need to take up
@@ -482,14 +505,15 @@ AssertCompileSizeAlignment(VMCPU, 16384);
 #define VM_FF_DEBUG_SUSPEND_BIT             31
 
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#if defined(VBOX_VMM_TARGET_ARMV8) || defined(VBOX_VMM_TARGET_AGNOSTIC)
 /** This action forces the VM to inject an IRQ into the guest. */
 # define VMCPU_FF_INTERRUPT_IRQ             RT_BIT_64(VMCPU_FF_INTERRUPT_IRQ_BIT)
 # define VMCPU_FF_INTERRUPT_IRQ_BIT         0
 /** This action forces the VM to inject an FIQ into the guest. */
 # define VMCPU_FF_INTERRUPT_FIQ             RT_BIT_64(VMCPU_FF_INTERRUPT_FIQ_BIT)
 # define VMCPU_FF_INTERRUPT_FIQ_BIT         1
-#else
+#endif
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
 /** This action forces the VM to check any pending interrupts on the APIC. */
 # define VMCPU_FF_INTERRUPT_APIC            RT_BIT_64(VMCPU_FF_INTERRUPT_APIC_BIT)
 # define VMCPU_FF_INTERRUPT_APIC_BIT        0
@@ -540,10 +564,11 @@ AssertCompileSizeAlignment(VMCPU, 16384);
  *  (when using nested paging). */
 #define VMCPU_FF_HM_UPDATE_CR3              RT_BIT_64(VMCPU_FF_HM_UPDATE_CR3_BIT)
 #define VMCPU_FF_HM_UPDATE_CR3_BIT          12
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#if defined(VBOX_VMM_TARGET_ARMV8) || defined(VBOX_VMM_TARGET_AGNOSTIC)
 # define VMCPU_FF_VTIMER_ACTIVATED          RT_BIT_64(VMCPU_FF_VTIMER_ACTIVATED_BIT)
 # define VMCPU_FF_VTIMER_ACTIVATED_BIT      13
-#else
+#endif
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
 /* Bit 13 used to be VMCPU_FF_HM_UPDATE_PAE_PDPES. */
 #endif
 /** This action forces the VM to resync the page tables before going
@@ -617,33 +642,38 @@ AssertCompileSizeAlignment(VMCPU, 16384);
 /** Externally forced VM actions. Used to quit the idle/wait loop. */
 #define VM_FF_EXTERNAL_HALTED_MASK              (  VM_FF_CHECK_VM_STATE | VM_FF_DBGF    | VM_FF_REQUEST \
                                                  | VM_FF_PDM_QUEUES     | VM_FF_PDM_DMA | VM_FF_EMT_RENDEZVOUS )
+
+#ifndef VBOX_VMM_TARGET_AGNOSTIC
 /** Externally forced VMCPU actions. Used to quit the idle/wait loop. */
-#if defined(VBOX_VMM_TARGET_ARMV8)
-# define VMCPU_FF_EXTERNAL_HALTED_MASK          (  VMCPU_FF_INTERRUPT_IRQ | VMCPU_FF_INTERRUPT_FIQ \
+# if defined(VBOX_VMM_TARGET_ARMV8)
+#  define VMCPU_FF_EXTERNAL_HALTED_MASK         (  VMCPU_FF_INTERRUPT_IRQ | VMCPU_FF_INTERRUPT_FIQ \
                                                  | VMCPU_FF_REQUEST       | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI \
                                                  | VMCPU_FF_UNHALT        | VMCPU_FF_TIMER          | VMCPU_FF_DBGF \
                                                  | VMCPU_FF_VTIMER_ACTIVATED)
-#else
-# define VMCPU_FF_EXTERNAL_HALTED_MASK          (  VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC \
+# else
+#  define VMCPU_FF_EXTERNAL_HALTED_MASK         (  VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC \
                                                  | VMCPU_FF_REQUEST     | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI \
                                                  | VMCPU_FF_UNHALT      | VMCPU_FF_TIMER          | VMCPU_FF_DBGF \
                                                  | VMCPU_FF_INTERRUPT_NESTED_GUEST)
+# endif
 #endif
 
 /** High priority VM pre-execution actions. */
 #define VM_FF_HIGH_PRIORITY_PRE_MASK            (  VM_FF_CHECK_VM_STATE | VM_FF_DBGF                 | VM_FF_TM_VIRTUAL_SYNC \
                                                  | VM_FF_DEBUG_SUSPEND  | VM_FF_PGM_NEED_HANDY_PAGES | VM_FF_PGM_NO_MEMORY \
                                                  | VM_FF_EMT_RENDEZVOUS )
+#ifndef VBOX_VMM_TARGET_AGNOSTIC
 /** High priority VMCPU pre-execution actions. */
-#if defined(VBOX_VMM_TARGET_ARMV8)
-# define VMCPU_FF_HIGH_PRIORITY_PRE_MASK        (  VMCPU_FF_TIMER        | VMCPU_FF_INTERRUPT_IRQ     | VMCPU_FF_INTERRUPT_FIQ \
+# if defined(VBOX_VMM_TARGET_ARMV8)
+#  define VMCPU_FF_HIGH_PRIORITY_PRE_MASK       (  VMCPU_FF_TIMER        | VMCPU_FF_INTERRUPT_IRQ     | VMCPU_FF_INTERRUPT_FIQ \
                                                  | VMCPU_FF_DBGF )
-#else
-# define VMCPU_FF_HIGH_PRIORITY_PRE_MASK        (  VMCPU_FF_TIMER        | VMCPU_FF_INTERRUPT_APIC     | VMCPU_FF_INTERRUPT_PIC \
+# else
+#  define VMCPU_FF_HIGH_PRIORITY_PRE_MASK       (  VMCPU_FF_TIMER        | VMCPU_FF_INTERRUPT_APIC     | VMCPU_FF_INTERRUPT_PIC \
                                                  | VMCPU_FF_UPDATE_APIC  | VMCPU_FF_DBGF \
                                                  | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL \
                                                  | VMCPU_FF_INTERRUPT_NESTED_GUEST | VMCPU_FF_VMX_MTF  | VMCPU_FF_VMX_APIC_WRITE \
                                                  | VMCPU_FF_VMX_PREEMPT_TIMER | VMCPU_FF_VMX_NMI_WINDOW | VMCPU_FF_VMX_INT_WINDOW )
+# endif
 #endif
 
 /** High priority VM pre raw-mode execution mask. */
@@ -684,7 +714,7 @@ AssertCompileSizeAlignment(VMCPU, 16384);
 # define VMCPU_FF_HIGH_PRIORITY_POST_REPSTR_MASK (VMCPU_FF_TO_R3 | VMCPU_FF_IEM | VMCPU_FF_IOM | VMCPU_FF_DBGF | VMCPU_FF_VMX_MTF)
 #endif
 
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
 /** VMCPU flags that cause the REP[|NE|E] STRINS loops to yield, interrupts
  *  enabled. */
 # define VMCPU_FF_YIELD_REPSTR_MASK              (  VMCPU_FF_HIGH_PRIORITY_POST_REPSTR_MASK \
@@ -1135,37 +1165,122 @@ AssertCompile((VMCPU_FF_HIGH_PRIORITY_POST_REPSTR_MASK & (VMCPU_FF_HIGH_PRIORITY
                         (rc))
 
 /** @def VM_IS_VALID_EXT
- * Asserts a the VM handle is valid for external access, i.e. not being destroy
- * or terminated. */
-#define VM_IS_VALID_EXT(pVM) \
-        (    RT_VALID_ALIGNED_PTR(pVM, PAGE_SIZE) \
-         &&  (   (unsigned)(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING \
-              || (   (unsigned)(pVM)->enmVMState == (unsigned)VMSTATE_DESTROYING \
-                  && VM_IS_EMT(pVM))) )
+ * Check that a VM handle is valid for external access, i.e. not being destroy
+ * or terminated and matching the target platform architecture (ring-3). */
+#ifdef VMTARGET_DEFAULT
+# define VM_IS_VALID_EXT(pVM) \
+        (   RT_VALID_ALIGNED_PTR(pVM, HOST_PAGE_SIZE_DYNAMIC) \
+         && (   (unsigned)(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING \
+             || (   (unsigned)(pVM)->enmVMState == (unsigned)VMSTATE_DESTROYING \
+                 && VM_IS_EMT(pVM))) \
+         && (pVM)->enmTarget == VMTARGET_DEFAULT)
+#else
+# define VM_IS_VALID_EXT(pVM) \
+        (   RT_VALID_ALIGNED_PTR(pVM, HOST_PAGE_SIZE_DYNAMIC) \
+         && (   (unsigned)(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING \
+             || (   (unsigned)(pVM)->enmVMState == (unsigned)VMSTATE_DESTROYING \
+                 && VM_IS_EMT(pVM))) )
+#endif
 
 /** @def VM_ASSERT_VALID_EXT_RETURN
- * Asserts a the VM handle is valid for external access, i.e. not being
- * destroy or terminated.
+ * Asserts that a VM handle is valid for external access, i.e. not being destroy
+ * or terminated.
  */
 #define VM_ASSERT_VALID_EXT_RETURN(pVM, rc) \
         AssertMsgReturn(VM_IS_VALID_EXT(pVM), \
-                        ("pVM=%p state %s\n", (pVM), RT_VALID_ALIGNED_PTR(pVM, PAGE_SIZE) \
-                         ? VMGetStateName(pVM->enmVMState) : ""), \
+                        ("pVM=%p state %s enmTarget=%#x\n", (pVM), RT_VALID_ALIGNED_PTR(pVM, HOST_PAGE_SIZE_DYNAMIC) \
+                         ? VMGetStateName(pVM->enmVMState) : "", (pVM)->enmTarget), \
                         (rc))
+
+/** @def VMCPU_IS_VALID_EXT
+ * Checks that a VMCPU handle is valid for external access, i.e. not being
+ * destroy or terminated and matching the target platform architecture (r3). */
+#ifdef VMTARGET_DEFAULT
+# define VMCPU_IS_VALID_EXT(a_pVCpu) \
+        (   RT_VALID_ALIGNED_PTR(a_pVCpu, 64) \
+         && RT_VALID_ALIGNED_PTR((a_pVCpu)->CTX_SUFF(pVM), HOST_PAGE_SIZE_DYNAMIC) \
+         && (unsigned)(a_pVCpu)->CTX_SUFF(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING \
+         && (pVM)->enmTarget == VMTARGET_DEFAULT)
+#else
+# define VMCPU_IS_VALID_EXT(a_pVCpu) \
+        (   RT_VALID_ALIGNED_PTR(a_pVCpu, 64) \
+         && RT_VALID_ALIGNED_PTR((a_pVCpu)->CTX_SUFF(pVM), HOST_PAGE_SIZE_DYNAMIC) \
+         && (unsigned)(a_pVCpu)->CTX_SUFF(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING)
+#endif
 
 /** @def VMCPU_ASSERT_VALID_EXT_RETURN
- * Asserts a the VMCPU handle is valid for external access, i.e. not being
- * destroy or terminated.
+ * Asserts that a VMCPU handle is valid for external access, i.e. not being
+ * destroy or terminated and matching the target platform architecutre (r3).
  */
 #define VMCPU_ASSERT_VALID_EXT_RETURN(pVCpu, rc) \
-        AssertMsgReturn(    RT_VALID_ALIGNED_PTR(pVCpu, 64) \
-                        &&  RT_VALID_ALIGNED_PTR((pVCpu)->CTX_SUFF(pVM), PAGE_SIZE) \
-                        &&  (unsigned)(pVCpu)->CTX_SUFF(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING, \
-                        ("pVCpu=%p pVM=%p state %s\n", (pVCpu), RT_VALID_ALIGNED_PTR(pVCpu, 64) ? (pVCpu)->CTX_SUFF(pVM) : NULL, \
-                         RT_VALID_ALIGNED_PTR(pVCpu, 64) && RT_VALID_ALIGNED_PTR((pVCpu)->CTX_SUFF(pVM), PAGE_SIZE) \
-                         ? VMGetStateName((pVCpu)->pVMR3->enmVMState) : ""), \
+        AssertMsgReturn(VMCPU_IS_VALID_EXT(pVCpu), \
+                        ("pVCpu=%p pVM=%p state %s enmTarget=%#x\n", (pVCpu), \
+                        RT_VALID_ALIGNED_PTR(pVCpu, 64) ? (pVCpu)->CTX_SUFF(pVM) : NULL, \
+                         RT_VALID_ALIGNED_PTR(pVCpu, 64) && RT_VALID_ALIGNED_PTR((pVCpu)->CTX_SUFF(pVM), HOST_PAGE_SIZE_DYNAMIC) \
+                         ? VMGetStateName((pVCpu)->pVMR3->enmVMState) : "", (pVCpu)->enmTarget), \
                         (rc))
 
+#if defined(USING_VMM_COMMON_DEFS) || defined(DOXYGEN_RUNNING)
+/* Some VMM_COMMON_DEFS defines that actively changes the VM/VMCPU structures
+   that we bake into the VM_STRUCT_VERSION value. */
+# ifdef VBOX_WITH_MINIMAL_R0
+#  define VM_STRUCT_VERSION_F_31    RT_BIT_32(31)
+# else
+#  define VM_STRUCT_VERSION_F_31    UINT32_C(0)
+# endif
+# ifdef VBOX_WITH_ONLY_PGM_NEM_MODE
+#  define VM_STRUCT_VERSION_F_30    RT_BIT_32(30)
+# else
+#  define VM_STRUCT_VERSION_F_30    UINT32_C(0)
+# endif
+# ifdef VBOX_WITH_PGM_NEM_MODE
+#  define VM_STRUCT_VERSION_F_29    RT_BIT_32(29)
+# else
+#  define VM_STRUCT_VERSION_F_29    UINT32_C(0)
+# endif
+# ifdef VBOX_WITH_HWVIRT
+#  define VM_STRUCT_VERSION_F_28    RT_BIT_32(28)
+# else
+#  define VM_STRUCT_VERSION_F_28    UINT32_C(0)
+# endif
+
+/** @def VM_STRUCT_VERSION
+ * The current VM structure version number.  */
+# define VM_STRUCT_VERSION          (  UINT32_C(2) \
+                                     | VM_STRUCT_VERSION_F_31 \
+                                     | VM_STRUCT_VERSION_F_30 \
+                                     | VM_STRUCT_VERSION_F_29 \
+                                     | VM_STRUCT_VERSION_F_28 )
+
+# if (defined(RT_ARCH_AMD64) && defined(VBOX_WITH_VIRT_ARMV8) && defined(IN_RING0)) || defined(DOXYGEN_RUNNING)
+/** @def VM_STRUCT_VERSION_NON_NATIVE_TARGETS
+ * The current VM structure version for the other architecture (hack).
+ *
+ * Currently the VBoxVMMArm.dll/so/dylib on x86 differs from VM_STRUCT_VERSION
+ * in that it will have VBOX_WITH_ONLY_PGM_NEM_MODE & VBOX_WITH_MINIMAL_R0
+ * defined but not VBOX_WITH_HWVIRT.  This is to get the stuff off the ground
+ * quickly by emulating how it's built on win.arm64 hosts. */
+#  define VM_STRUCT_VERSION_NON_NATIVE_TARGETS \
+        (  (  VM_STRUCT_VERSION \
+            | RT_BIT_32(31) /*VBOX_WITH_MINIMAL_R0*/ \
+            | RT_BIT_32(30) /*VBOX_WITH_ONLY_PGM_NEM_MODE*/ ) \
+         & ~RT_BIT_32(28) /*VBOX_WITH_HWVIRT*/ )
+# endif
+
+/** @def VM_IS_NON_NATIVE_WITH_LIMITED_R0
+ * Whether the is a non-default targeted VM and should have the limited ring-0
+ * presence hack applied.
+ *
+ * This is typically used in ring-0 code to skip VM init and termination code.
+ *
+ * @param g_GVM  The ring-0 VM structure. */
+# ifdef VM_STRUCT_VERSION_NON_NATIVE_TARGETS
+#  define VM_IS_NON_NATIVE_WITH_LIMITED_R0(g_GVM)   (pGVM->enmTarget != VMTARGET_NATIVE)
+# else
+#  define VM_IS_NON_NATIVE_WITH_LIMITED_R0(g_GVM)   (false)
+# endif
+
+#endif
 #endif /* !VBOX_FOR_DTRACE_LIB */
 
 
@@ -1289,6 +1404,12 @@ typedef struct VM
 #else
     uint32_t                    cCpus;
 #endif
+    /** The VM target platform architecture. */
+#ifdef IN_RING0
+    VMTARGET                    enmTargetUnsafe;
+#else
+    VMTARGET                    enmTarget;
+#endif
     /** CPU excution cap (1-100) */
     uint32_t                    uCpuExecutionCap;
 
@@ -1296,7 +1417,7 @@ typedef struct VM
     uint32_t                    cbSelf;
     /** Size of the VMCPU structure. */
     uint32_t                    cbVCpu;
-    /** Structure version number (TBD). */
+    /** Structure version number (VM_STRUCT_VERSION). */
     uint32_t                    uStructVersion;
 
     /** @name Various items that are frequently accessed.
@@ -1313,7 +1434,7 @@ typedef struct VM
     /** @} */
 
     /** Alignment padding. */
-    uint8_t                     uPadding1[6];
+    uint8_t                     uPadding1[2];
 
     /** @name Debugging
      * @{ */
@@ -1339,8 +1460,6 @@ typedef struct VM
         /** Read only info exposed about the host and guest CPUs. */
         struct
         {
-            /** Padding for hidden fields. */
-            uint8_t                 abHidden0[64 + 48];
             /** Guest CPU feature information. */
             CPUMFEATURES            GuestFeatures;
         } const ro;
@@ -1411,7 +1530,7 @@ typedef struct VM
 #ifdef VMM_INCLUDED_SRC_include_PDMInternal_h
         struct PDM s;
 #endif
-        uint8_t     padding[22528];     /* multiple of 64 */
+        uint8_t     padding[22784];     /* multiple of 64 */
     } pdm;
 
     /** IOM part. */
@@ -1479,8 +1598,8 @@ typedef struct VM
             /** The number of enabled hardware I/O breakpoints. */
             uint8_t                     cEnabledHwIoBreakpoints;
             uint8_t                     au8Alignment1[2]; /**< Alignment padding. */
-            /** The number of enabled INT3 breakpoints. */
-            uint32_t volatile           cEnabledInt3Breakpoints;
+            /** The number of enabled software breakpoints. */
+            uint32_t volatile           cEnabledSwBreakpoints;
         } const     ro;
 #endif
         uint8_t     padding[2432];      /* multiple of 64 */
@@ -1503,23 +1622,29 @@ typedef struct VM
         uint8_t     padding[448];       /* multiple of 64 */
     } gim;
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+    /** Interrupt controller, target specific. */
+    RT_GCC_EXTENSION
     union
     {
+#if defined(VBOX_VMM_TARGET_ARMV8) || defined(VBOX_VMM_TARGET_AGNOSTIC)
+        union
+        {
 # ifdef VMM_INCLUDED_SRC_include_GICInternal_h
-        struct GIC  s;
+            struct GIC  s;
 # endif
-        uint8_t     padding[128];       /* multiple of 8 */
-    } gic;
-#else
-    union
-    {
-# ifdef VMM_INCLUDED_SRC_include_APICInternal_h
-        struct APIC s;
-# endif
-        uint8_t     padding[128];       /* multiple of 8 */
-    } apic;
+            uint8_t     padding[128];   /* multiple of 8 */
+        } gic;
 #endif
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
+        union
+        {
+# ifdef VMM_INCLUDED_SRC_include_APICInternal_h
+            struct APIC s;
+# endif
+            uint8_t     padding[128];   /* multiple of 8 */
+        } apic;
+#endif
+    };
 
     /* ---- begin small stuff ---- */
 
@@ -1573,7 +1698,7 @@ typedef struct VM
     } gcm;
 
     /** Padding for aligning the structure size on a page boundrary. */
-    uint8_t         abAlignment2[0x3A00 - sizeof(PVMCPUR3) * VMM_MAX_CPU_COUNT];
+    uint8_t         abAlignment2[0x3900 - sizeof(PVMCPUR3) * VMM_MAX_CPU_COUNT];
 
     /* ---- end small stuff ---- */
 

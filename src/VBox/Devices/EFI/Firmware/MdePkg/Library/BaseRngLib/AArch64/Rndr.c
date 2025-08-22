@@ -19,12 +19,22 @@
 #include "ArmRng.h"
 #include "BaseRngLibInternals.h"
 
+/*
+ * This is non XIP (eXecute In Place) safe.
+ * This is used very early on in the TPM code when tings are still directly running from the ROM region which is RX only,
+ * causing a write access fault, so avoid caching the flag and query it always.
+ */
+#ifndef VBOX
 STATIC BOOLEAN  mRndrSupported;
+#else
+inline BOOLEAN VBoxIsRndrSupported()
+{
+  UINT64  Isar0;
 
-//
-// Bit mask used to determine if RNDR instruction is supported.
-//
-#define RNDR_MASK  ((UINT64)MAX_UINT16 << 60U)
+  Isar0          = ArmReadIdAA64Isar0Reg ();
+  return !!((Isar0 >> ARM_ID_AA64ISAR0_EL1_RNDR_SHIFT) & ARM_ID_AA64ISAR0_EL1_RNDR_MASK);
+}
+#endif
 
 /**
   The constructor function checks whether or not RNDR instruction is supported
@@ -43,15 +53,16 @@ BaseRngLibConstructor (
   VOID
   )
 {
+#ifndef VBOX
   UINT64  Isar0;
 
   //
   // Determine RNDR support by examining bits 63:60 of the ISAR0 register returned by
   // MSR. A non-zero value indicates that the processor supports the RNDR instruction.
   //
-  Isar0 = ArmReadIdIsar0 ();
-
-  mRndrSupported = ((Isar0 & RNDR_MASK) != 0);
+  Isar0          = ArmReadIdAA64Isar0Reg ();
+  mRndrSupported = !!((Isar0 >> ARM_ID_AA64ISAR0_EL1_RNDR_SHIFT) & ARM_ID_AA64ISAR0_EL1_RNDR_MASK);
+#endif
 
   return EFI_SUCCESS;
 }
@@ -137,7 +148,11 @@ ArchIsRngSupported (
   VOID
   )
 {
+#ifndef VBOX
   return mRndrSupported;
+#else
+  return VBoxIsRndrSupported();
+#endif
 }
 
 /**
@@ -162,9 +177,15 @@ GetRngGuid (
     return EFI_INVALID_PARAMETER;
   }
 
+#ifndef VBOX
   if (!mRndrSupported) {
     return EFI_UNSUPPORTED;
   }
+#else
+  if (!VBoxIsRndrSupported()) {
+    return EFI_UNSUPPORTED;
+  }
+#endif
 
   //
   // If the platform advertises the algorithm behind RNDR instruction,

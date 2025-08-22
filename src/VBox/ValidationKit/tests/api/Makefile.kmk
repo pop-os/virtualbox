@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -46,6 +46,7 @@ ValidationKitTestsApi_EXEC_SOURCES := \
 	$(PATH_SUB_CURRENT)/tdAppliance1.py \
 	$(PATH_SUB_CURRENT)/tdCloneMedium1.py \
 	$(PATH_SUB_CURRENT)/tdCreateVMWithDefaults1.py \
+	$(PATH_SUB_CURRENT)/tdImportExport1.py \
 	$(PATH_SUB_CURRENT)/tdMoveMedium1.py \
 	$(PATH_SUB_CURRENT)/tdMoveVm1.py \
 	$(PATH_SUB_CURRENT)/tdPython1.py \

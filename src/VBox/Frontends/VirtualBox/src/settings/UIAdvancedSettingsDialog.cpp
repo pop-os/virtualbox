@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -782,7 +782,7 @@ UIAdvancedSettingsDialog::UIAdvancedSettingsDialog(QWidget *pParent,
     , m_fPolished(false)
     , m_fFirstSerializationDone(false)
     , m_fSerializationIsInProgress(false)
-    , m_fSerializationClean(false)
+    , m_fSerializationClean(true)
     , m_fClosed(false)
     , m_iPageId(MachineSettingsPageType_Invalid)
     , m_pStatusBar(0)
@@ -811,16 +811,9 @@ void UIAdvancedSettingsDialog::accept()
     /* Save data: */
     save();
 
-    /* Close if there is no ongoing serialization: */
-    if (!isSerializationInProgress())
-        sltClose();
-}
-
-void UIAdvancedSettingsDialog::reject()
-{
-    /* Close if there is no ongoing serialization: */
-    if (!isSerializationInProgress())
-        sltClose();
+    /* Close if last serialization haven't failed: */
+    if (m_fSerializationClean)
+        tellListenerToCloseUs();
 }
 
 void UIAdvancedSettingsDialog::sltCategoryChanged(int cId)
@@ -1066,8 +1059,7 @@ void UIAdvancedSettingsDialog::closeEvent(QCloseEvent *pEvent)
     /* Ignore event initially: */
     pEvent->ignore();
 
-    /* Use pure QWidget close functionality,
-     * QWindow stuff is kind of overkill here.. */
+    /* Check whether it's safe and then close us: */
     sltClose();
 }
 
@@ -1309,20 +1301,15 @@ bool UIAdvancedSettingsDialog::isSettingsChanged()
 
 void UIAdvancedSettingsDialog::sltClose()
 {
-    /* Check whether serialization was clean (save)
-     * or there are no unsaved settings to be lost (cancel): */
-    if (   m_fSerializationClean
-        || !isSettingsChanged()
+    /* Do not close if serialization happens atm: */
+    if (isSerializationInProgress())
+        return;
+
+    /* Make sure there are no unsaved settings to be lost
+     * or user agreed to forget them after all: */
+    if (   !isSettingsChanged()
         || msgCenter().confirmSettingsDiscarding(this))
-    {
-        /* Tell the listener to close us (once): */
-        if (!m_fClosed)
-        {
-            m_fClosed = true;
-            emit sigClose();
-            return;
-        }
-    }
+        tellListenerToCloseUs();
 }
 
 void UIAdvancedSettingsDialog::sltHandleValidityChange(UISettingsPageValidator *pValidator)
@@ -1625,6 +1612,16 @@ void UIAdvancedSettingsDialog::cleanup()
 
     /* Delete selector early! */
     delete m_pSelector;
+}
+
+void UIAdvancedSettingsDialog::tellListenerToCloseUs()
+{
+    /* Tell the listener to close us (once): */
+    if (!m_fClosed)
+    {
+        m_fClosed = true;
+        emit sigClose();
+    }
 }
 
 /* static */

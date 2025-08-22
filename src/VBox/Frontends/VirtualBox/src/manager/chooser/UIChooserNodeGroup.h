@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -143,8 +143,6 @@ private:
 
     /** Holds group children. */
     QList<UIChooserNode*>  m_nodesGroup;
-    /** Holds global children. */
-    QList<UIChooserNode*>  m_nodesGlobal;
     /** Holds machine children. */
     QList<UIChooserNode*>  m_nodesMachine;
 };

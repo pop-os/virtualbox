@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -222,12 +222,17 @@ if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/libQt6CoreVBox.so.6 ]; then
     $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/platforms/*.so \
     $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/platformthemes/*.so \
     $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/sqldrivers/*.so \
-    $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/styles/*.so || true
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/styles/*.so \
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/wayland-shell-integration/*.so \
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/wayland-decoration-client/*.so || true
   echo "[Paths]" > $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
   echo "Plugins = /usr/lib/virtualbox/plugins" >> $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
 fi
 rm -f $RPM_BUILD_ROOT/usr/lib/virtualbox/chrpath
 ln -s ../VBoxVMM.so $RPM_BUILD_ROOT/usr/lib/virtualbox/components/VBoxVMM.so
+if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVMMArm.so ]; then
+  ln -s ../VBoxVMMArm.so $RPM_BUILD_ROOT/usr/lib/virtualbox/components/VBoxVMMArm.so
+fi
 for i in VirtualBoxVM VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done
 if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo ]; then

@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2009-2024 Oracle and/or its affiliates.
+# Copyright (C) 2009-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -1346,6 +1346,9 @@ cleanup_install()
 postinstall()
 {
     infoprint "Detected Solaris $HOST_OS_MAJORVERSION Version $HOST_OS_MINORVERSION"
+
+    # Ensure XPCOM components are re-registered properly on first use.
+    touch "$VBOX_INSTALL_PATH/.autoreg"
 
     infoprint "Loading VirtualBox kernel modules..."
     install_drivers

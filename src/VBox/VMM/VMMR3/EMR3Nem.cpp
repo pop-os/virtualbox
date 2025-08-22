@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -49,7 +49,6 @@
 #include "EMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/gim.h>
-#include <VBox/vmm/cpumdis.h>
 #include <VBox/dis.h>
 #include <VBox/err.h>
 #include <VBox/vmm/dbgf.h>
@@ -96,10 +95,12 @@ VBOXSTRICTRC emR3NemSingleInstruction(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
     if (!NEMR3CanExecuteGuest(pVM, pVCpu))
         return VINF_EM_RESCHEDULE;
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
-    uint64_t const uOldPc = pVCpu->cpum.GstCtx.Pc.u64;
-#else
+#ifdef VBOX_VMM_TARGET_ARMV8
+    uint64_t const uOldPc  = pVCpu->cpum.GstCtx.Pc.u64;
+#elif defined(VBOX_VMM_TARGET_X86)
     uint64_t const uOldRip = pVCpu->cpum.GstCtx.rip;
+#else
+# error "port me"
 #endif
     for (;;)
     {
@@ -146,7 +147,7 @@ VBOXSTRICTRC emR3NemSingleInstruction(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
         /*
          * Done?
          */
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
         CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_PC);
         if (   (rcStrict != VINF_SUCCESS && rcStrict != VINF_EM_DBG_STEPPED)
             || !(fFlags & EM_ONE_INS_FLAGS_RIP_CHANGE)
@@ -159,7 +160,8 @@ VBOXSTRICTRC emR3NemSingleInstruction(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
             CPUM_IMPORT_EXTRN_RET(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK);
             return rcStrict;
         }
-#else
+
+#elif defined(VBOX_VMM_TARGET_X86)
         CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RIP);
         if (   (rcStrict != VINF_SUCCESS && rcStrict != VINF_EM_DBG_STEPPED)
             || !(fFlags & EM_ONE_INS_FLAGS_RIP_CHANGE)
@@ -172,6 +174,9 @@ VBOXSTRICTRC emR3NemSingleInstruction(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
             CPUM_IMPORT_EXTRN_RET(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK);
             return rcStrict;
         }
+
+#else
+# error "port me"
 #endif
     }
 }
@@ -200,22 +205,23 @@ static int emR3NemExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcRC)
     /*
      * Log it.
      */
-#ifdef VBOX_VMM_TARGET_ARMV8
+# ifdef VBOX_VMM_TARGET_ARMV8
     Log(("EMINS: %RGv SP_EL0=%RGv SP_EL1=%RGv\n", (RTGCPTR)pVCpu->cpum.GstCtx.Pc.u64,
-                                                  (RTGCPTR)pVCpu->cpum.GstCtx.aSpReg[0].u64,
-                                                  (RTGCPTR)pVCpu->cpum.GstCtx.aSpReg[1].u64));
+         (RTGCPTR)pVCpu->cpum.GstCtx.aSpReg[0].u64, (RTGCPTR)pVCpu->cpum.GstCtx.aSpReg[1].u64));
     if (pszPrefix)
     {
         DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", pszPrefix);
         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, pszPrefix);
     }
-# else
+# elif defined(VBOX_VMM_TARGET_X86)
     Log(("EMINS: %04x:%RGv RSP=%RGv\n", pVCpu->cpum.GstCtx.cs.Sel, (RTGCPTR)pVCpu->cpum.GstCtx.rip, (RTGCPTR)pVCpu->cpum.GstCtx.rsp));
     if (pszPrefix)
     {
         DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", pszPrefix);
         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, pszPrefix);
     }
+# else
+#  error "port me"
 # endif
 #endif
 
@@ -328,6 +334,7 @@ static int emR3NemForcedActions(PVM pVM, PVMCPU pVCpu)
         VMCPU_FF_CLEAR_MASK(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL);
     }
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     /*
      * Allocate handy pages (just in case the above actions have consumed some pages).
      */
@@ -337,6 +344,7 @@ static int emR3NemForcedActions(PVM pVM, PVMCPU pVCpu)
         if (RT_FAILURE(rc))
             return rc;
     }
+#endif
 
     /*
      * Check whether we're out of memory now.
@@ -372,8 +380,10 @@ VBOXSTRICTRC emR3NemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
 
 #ifdef VBOX_VMM_TARGET_ARMV8
     LogFlow(("emR3NemExecute%d: (pc=%RGv)\n", pVCpu->idCpu, (RTGCPTR)pVCpu->cpum.GstCtx.Pc.u64));
-#else
+#elif defined(VBOX_VMM_TARGET_X86)
     LogFlow(("emR3NemExecute%d: (cs:eip=%04x:%RGv)\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, (RTGCPTR)pVCpu->cpum.GstCtx.rip));
+#else
+# error "port me"
 #endif
     *pfFFDone = false;
 
@@ -408,10 +418,11 @@ VBOXSTRICTRC emR3NemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
                 break;
         }
 
-#if defined(LOG_ENABLED) && !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef LOG_ENABLED
         /*
          * Log important stuff before entering GC.
          */
+# ifdef VBOX_VMM_TARGET_X86
         if (TRPMHasTrap(pVCpu))
             Log(("CPU%d: Pending hardware interrupt=0x%x cs:rip=%04X:%RGv\n", pVCpu->idCpu, TRPMGetTrapNo(pVCpu), pVCpu->cpum.GstCtx.cs.Sel, (RTGCPTR)pVCpu->cpum.GstCtx.rip));
 
@@ -438,10 +449,22 @@ VBOXSTRICTRC emR3NemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
                     Log(("NEMR%d-CPU%d: %04x:%08x ESP=%08X IF=%d IOPL=%d CR0=%x CR4=%x EFER=%x\n", cpl, pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel,          pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.esp, pVCpu->cpum.GstCtx.eflags.Bits.u1IF, pVCpu->cpum.GstCtx.eflags.Bits.u2IOPL, (uint32_t)pVCpu->cpum.GstCtx.cr0, (uint32_t)pVCpu->cpum.GstCtx.cr4, (uint32_t)pVCpu->cpum.GstCtx.msrEFER));
             }
         }
+# elif defined(VBOX_VMM_TARGET_ARMV8)
+        if (!(pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_PC))
+        {
+            /** @todo better logging */
+            if (pVM->cCpus == 1)
+                Log(("NEM: %RX64\n", pVCpu->cpum.GstCtx.Pc.u64));
+            else
+                Log(("NEM-CPU%d: %RX64\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64));
+        }
+# else
+#  error "port me"
+# endif
         else if (pVM->cCpus == 1)
             Log(("NEMRx: -> NEMR3RunGC\n"));
         else
-            Log(("NEMRx-CPU%u: -> NEMR3RunGC\n",  pVCpu->idCpu));
+            Log(("NEMRx-CPU%u: -> NEMR3RunGC\n", pVCpu->idCpu));
 #endif /* LOG_ENABLED */
 
         /*

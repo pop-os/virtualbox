@@ -1,0 +1,52 @@
+; $Id: libsvn_fs-1.def $
+;; @file
+; libsvn_fs-1 - Definition file for lazy import generation for svn2git.
+;
+
+;
+; Copyright (C) 2025 Oracle and/or its affiliates.
+;
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
+;
+; SPDX-License-Identifier: GPL-3.0-only
+;
+
+LIBRARY libsvn_fs-1
+EXPORTS
+    svn_fs_dir_entries
+    svn_fs_file_contents
+    svn_fs_history_location
+    svn_fs_history_prev
+    svn_fs_is_dir
+    svn_fs_node_history
+    svn_fs_node_prop
+    svn_fs_node_proplist
+    svn_fs_paths_changed2
+    svn_fs_revision_prop
+    svn_fs_revision_proplist
+    svn_fs_revision_root
+    svn_fs_youngest_rev
+
+    svn_pool_create_ex
+
+    svn_stream_disown
+    svn_stream_read_full
+
+    svn_subst_build_keywords3
+    svn_subst_eol_style_from_value
+    svn_subst_stream_translated
+

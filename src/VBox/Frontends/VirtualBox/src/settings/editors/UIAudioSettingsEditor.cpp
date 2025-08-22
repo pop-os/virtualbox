@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -137,8 +137,8 @@ void UIAudioSettingsEditor::sltRetranslateUI()
     if (m_pCheckboxFeature)
     {
         m_pCheckboxFeature->setText(tr("Enable &Audio"));
-        m_pCheckboxFeature->setToolTip(tr("When checked, a virtual PCI audio card will be plugged into the virtual machine "
-                                          "and will communicate with the host audio system using the specified driver."));
+        m_pCheckboxFeature->setToolTip(tr("A virtual PCI audio card will be plugged into the virtual machine "
+                                          "and will communicate with the host audio system using the specified driver"));
     }
 
     updateMinimumLayoutHint();

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -826,12 +826,12 @@ typedef const ACPIMADTGICR *PCACPIMADTGICR;
 #pragma pack(1)
 typedef struct ACPIMADTGICITS
 {
-    uint8_t             bType;                          /**< 0x000: The GICR structure type, ACPI_MADT_INTR_CTRL_TYPE_GICR. */
+    uint8_t             bType;                          /**< 0x000: The GITS structure type, ACPI_MADT_INTR_CTRL_TYPE_GIC_ITS. */
     uint8_t             cbThis;                         /**< 0x001: Length of this structure, 16. */
     uint16_t            u16Rsvd0;                       /**< 0x002: Reserved, MBZ. */
     uint32_t            u32GicItsId;                    /**< 0x004: This GIC ITS ID. */
     uint64_t            u64PhysAddrBase;                /**< 0x008: The 64-bit physical address for the Interrupt Translation Service. */
-    uint32_t            u32Rsvd1;                       /**< 0x010: Rserved, MBZ. */
+    uint32_t            u32Rsvd1;                       /**< 0x010: Reserved, MBZ. */
 } ACPIMADTGICITS;
 #pragma pack()
 AssertCompileSize(ACPIMADTGICITS, 20);
@@ -839,6 +839,185 @@ AssertCompileSize(ACPIMADTGICITS, 20);
 typedef ACPIMADTGICITS *PACPIMADTGICITS;
 /** Pointer to a const GIC Interrupt Translation Service (ITS) Structure. */
 typedef const ACPIMADTGICITS *PCACPIMADTGICITS;
+
+
+/** @name ACPI_IORT_NODE_TYPE - ACPIIORTNODEHDR::bType
+ * @{ */
+/** Interrupt Translation Service (ITS) Group. */
+#define ACPI_IORT_NODE_TYPE_ITS_GROUP                   0
+/** Named Component. */
+#define ACPI_IORT_NODE_TYPE_NAMED_COMPONENT             1
+/** PCI Root Complex. */
+#define ACPI_IORT_NODE_TYPE_ROOT_COMPLEX                2
+/** System Memory Management Unit (SMMU) version 1 or version 2. */
+#define ACPI_IORT_NODE_TYPE_SMMUV1_V2                   3
+/** System Memory Management Unit (SMMU) version 3. */
+#define ACPI_IORT_NODE_TYPE_SMMUV3                s     4
+/** Performance Monitoring Counter Group. */
+#define ACPI_IORT_NODE_TYPE_PMCG                        5
+/** Reserved Memory Range. */
+#define ACPI_IORT_NODE_TYPE_RSVD_MEMORY_RANGE           6
+/** @} */
+
+
+/** @name IORT ID mapping flags (ACPIIIORTIDMAPPING::fFlags).
+ * @{ */
+/** Multiple ID mappings. */
+#define ACPI_IORT_ID_MAPPING_MULTIPLE                   0
+/** Single ID mapping. */
+#define ACPI_IORT_ID_MAPPING_SINGLE                     1
+/** @} */
+
+
+/** @name IORT Memory access property - Cache Coherence Attribute (CCA).
+ * @{ */
+/** Device is fully coherent. */
+#define ACPI_IORT_MEMATTR_ATTR_CCA_COHERENT             1
+/** Device is not coherent. */
+#define ACPI_IORT_MEMATTR_ATTR_CCA_INCOHERENT           0
+/** @} */
+
+
+/** @name IORT Memory access property - Allocation Hint (AH).
+ * @{ */
+/** Transient (TR). */
+#define ACPI_BF_IORT_MEMATTR_AH_TR_SHIFT                0
+#define ACPI_BF_IORT_MEMATTR_AH_TR_MASK                 UINT8_C(0x1)
+/** Write Allocate (WR). */
+#define ACPI_BF_IORT_MEMATTR_AH_WR_SHIFT                1
+#define ACPI_BF_IORT_MEMATTR_AH_WR_MASK                 UINT8_C(0x2)
+/** Read Allocate (RA). */
+#define ACPI_BF_IORT_MEMATTR_AH_RA_SHIFT                2
+#define ACPI_BF_IORT_MEMATTR_AH_RA_MASK                 UINT8_C(0x4)
+/** Allocation Hints Override (AHO). */
+#define ACPI_BF_IORT_MEMATTR_AH_AHO_SHIFT               3
+#define ACPI_BF_IORT_MEMATTR_AH_AHO_MASK                UINT8_C(0x8)
+/** Reserved (bits 7:4). */
+#define ACPI_BF_IORT_MEMATTR_AH_RSVD_7_4_SHIFT          4
+#define ACPI_BF_IORT_MEMATTR_AH_RSVD_7_4_MASK           UINT8_C(0xf0)
+RT_BF_ASSERT_COMPILE_CHECKS(ACPI_BF_IORT_MEMATTR_AH_, UINT8_C(0), UINT8_MAX,
+                            (TR, WR, RA, AHO, RSVD_7_4));
+/** @} */
+
+
+/** @name IORT Memory access property - Flags.
+ * @{ */
+/** CPM: Coherent Path To Memory. */
+#define ACPI_BF_IORT_MEMATTR_F_CPM_SHIFT                0
+#define ACPI_BF_IORT_MEMATTR_F_CPM_MASK                 UINT8_C(0x1)
+/** DACS: Device Attributes are Cacheable and Shareable. */
+#define ACPI_BF_IORT_MEMATTR_F_DACS_SHIFT               1
+#define ACPI_BF_IORT_MEMATTR_F_DACS_MASK                UINT8_C(0x2)
+/** Reserved (bits 6:2). */
+#define ACPI_BF_IORT_MEMATTR_F_RSVD_7_2_SHIFT           2
+#define ACPI_BF_IORT_MEMATTR_F_RSVD_7_2_MASK            UINT8_C(0xfc)
+RT_BF_ASSERT_COMPILE_CHECKS(ACPI_BF_IORT_MEMATTR_F_, UINT8_C(0), UINT8_MAX,
+                            (CPM, DACS, RSVD_7_2));
+/** @} */
+
+
+/**
+ * I/O Remapping Table (IORT).
+ */
+#pragma pack(1)
+typedef struct ACPIIORT
+{
+    ACPITBLHDR          Hdr;                            /**< 0x000: The table header. */
+    uint32_t            cIortNodes;                     /**< 0x024: The number of nodes in the IORT node array. */
+    uint32_t            offFirstNode;                   /**< 0x028: The offset from the start of the table to the first IORT node. */
+    uint32_t            u32Rsvd0;                       /**< 0x02c: Reserved, MBZ. */
+    /** Array of IORT nodes follow. */
+} ACPIIORT;
+#pragma pack()
+AssertCompileSize(ACPIIORT, 48);
+/** Pointer to an I/O Remapping Table (IORT) structure. */
+typedef ACPIIORT *PACPIIORT;
+/** Pointer to a const I/O Remapping Table (IORT) structure. */
+typedef const ACPIIORT *PCACPIIORT;
+
+
+/**
+ * IORT Node Header.
+ * This is a common header to all IORT node types.
+ */
+#pragma pack(1)
+typedef struct ACPIIORTNODEHDR
+{
+    uint8_t             bType;                          /**< 0x000: The IORT node type, ACPI_IORT_NODE_TYPE_XXX. */
+    uint16_t            cbThis;                         /**< 0x001: Lenth of the node in bytes. */
+    uint8_t             bRevision;                      /**< 0x003: Revision of the IORT node. */
+    uint16_t            u16Reserved;                    /**< 0x004: Reserved, MBZ. */
+    uint16_t            u16Identifier;                  /**< 0x006: Unique ID for this node in parent table. */
+    uint32_t            cIdMappings;                    /**< 0x008: Number of ID mappings in the ID array. */
+    uint32_t            offIdArray;                     /**< 0x00c: Offset from start of the IORT node to its ID mappings array. */
+} ACPIIORTNODEHDR;
+#pragma pack()
+AssertCompileSize(ACPIIORTNODEHDR, 16);
+/** Pointer to an IORT node header structure. */
+typedef ACPIIORTNODEHDR *PACPIIORTNODEHDR;
+/** Pointer to a const IORT node header structure. */
+typedef const ACPIIORTNODEHDR *PCACPIIORTNODEHDR;
+
+
+/**
+ * IORT Node: ITS Group.
+ */
+#pragma pack(1)
+typedef struct ACPIIORTNODEITSGROUP
+{
+    ACPIIORTNODEHDR     Hdr;                            /**< 0x000: IORT node header. */
+    uint32_t            cIts;                           /**< 0x010: The number of ITSes in the system. */
+    uint32_t            aItsIds[1];                     /**< 0x014: Array of ITS identifiers (currently we support only 1). */
+    /* Array of ID mappings follows (ACPIIIORTIDMAPPING). */
+} ACPIIORTNODEITSGROUP;
+#pragma pack()
+AssertCompileSize(ACPIIORTNODEITSGROUP, 24);
+/** Pointer to an IORT ITS group node structure. */
+typedef ACPIIORTNODEITSGROUP *PACPIIORTNODEITSGROUP;
+/** Pointer to a const IORT ITS group node structure. */
+typedef const ACPIIORTNODEITSGROUP *PCACPIIORTNODEITSGROUP;
+
+
+/**
+ * IORT Node: PCI Root Complex.
+ */
+#pragma pack(1)
+typedef struct ACPIIORTNODEPCIRC
+{
+    ACPIIORTNODEHDR     Hdr;                            /**< 0x000: IORT node header. */
+    uint64_t            fMemAttr;                       /**< 0x010: Memory access properties. */
+    uint32_t            fAtsAttr;                       /**< 0x018: ATS attribute. */
+    uint32_t            u32PciSeg;                      /**< 0x01c: PCI segment number. */
+    uint8_t             bMemAddrSizeLimit;              /**< 0x020: Memory address size limit. */
+    uint8_t             au8Rsvd[3];                     /**< 0x021: Reserved, MBZ. */
+    /* Array of ID mappings follows (ACPIIIORTIDMAPPING). */
+} ACPIIORTNODEPCIRC;
+#pragma pack()
+AssertCompileSize(ACPIIORTNODEPCIRC, 36);
+/** Pointer to an IORT PCI root complex node structure. */
+typedef ACPIIORTNODEPCIRC *PACPIIORTNODEPCIRC;
+/** Pointer to a const IORT PCI root complex structure. */
+typedef const ACPIIORTNODEPCIRC *PCACPIIORTNODEPCIRC;
+
+
+/**
+ * IORT ID Mapping.
+ */
+#pragma pack(1)
+typedef struct ACPIIIORTIDMAPPING
+{
+    uint32_t            u32InputBase;                   /**< 0x000: The lowest value in the input range. */
+    uint32_t            cIds;                           /**< 0x004: Number of IDs in the range minus one. */
+    uint32_t            u32OutputBase;                  /**< 0x008: The lowest value in the output range. */
+    uint32_t            offOutputRef;                   /**< 0x00c: Offset of the output IORT node from the start of the IORT. */
+    uint32_t            fFlags;                         /**< 0x010: ID mapping flags, ACPI_IORT_ID_MAPPING_XXX. */
+} ACPIIIORTIDMAPPING;
+#pragma pack()
+AssertCompileSize(ACPIIIORTIDMAPPING, 20);
+/** Pointer to an IORT ID mapping structure. */
+typedef ACPIIIORTIDMAPPING *PACPIIIORTIDMAPPING;
+/** Pointer to a const IORT ID mapping structure. */
+typedef const ACPIIIORTIDMAPPING *PCACPIIIORTIDMAPPING;
 
 
 /**
@@ -877,6 +1056,52 @@ AssertCompileSize(ACPIMCFGALLOC, 16);
 typedef ACPIMCFGALLOC *PACPIMCFGALLOC;
 /** Pointer to a const ACPI MCFG Table. */
 typedef const ACPIMCFGALLOC *PCACPIMCFGALLOC;
+
+
+/**
+ * TPM: The ACPI table for a TPM 2.0 device
+  * (from: https://trustedcomputinggroup.org/wp-content/uploads/TCG_ACPIGeneralSpec_v1p3_r8_pub.pdf).
+ */
+#pragma pack(1)
+typedef struct ACPITPM20
+{
+    /** The common ACPI table header. */
+    ACPITBLHDR          Hdr;
+    /** The platform class. */
+    uint16_t            u16PlatCls;
+    /** Reserved. */
+    uint16_t            u16Rsvd0;
+    /** Address of the CRB control area or FIFO base address. */
+    uint64_t            u64BaseAddrCrbOrFifo;
+    /** The start method selector. */
+    uint32_t            u32StartMethod;
+    /** Following are start method specific parameters and optional LAML and LASA fields we don't implement right now. */
+    /** @todo */
+} ACPITPM20;
+AssertCompileSize(ACPITPM20, 52);
+#pragma pack()
+
+/** Revision of the TPM2.0 ACPI table. */
+#define ACPI_TPM20_REVISION                 4
+
+
+/** @name Possible values for the ACPITPM20::u16PlatCls member.
+ * @{ */
+/** Client platform. */
+#define ACPITBL_TPM20_PLAT_CLS_CLIENT       UINT16_C(0)
+/** Server platform. */
+#define ACPITBL_TPM20_PLAT_CLS_SERVER       UINT16_C(1)
+/** @} */
+
+
+/** @name Possible values for the ACPITPM20::u32StartMethod member.
+ * @{ */
+/** MMIO interface (TIS1.2+Cancel). */
+#define ACPITBL_TPM20_START_METHOD_TIS12    UINT16_C(6)
+/** CRB interface. */
+#define ACPITBL_TPM20_START_METHOD_CRB      UINT16_C(7)
+/** @} */
+
 
 /** @} */
 

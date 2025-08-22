@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -50,11 +50,7 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
-#ifdef NDIS60
-# define VBOX_NETADP_HWID L"sun_VBoxNetAdp6"
-#else
-# define VBOX_NETADP_HWID L"sun_VBoxNetAdp"
-#endif
+#define VBOX_NETADP_HWID L"sun_VBoxNetAdp"
 
 
 static DECLCALLBACK(void) winNetCfgLogger(const char *pszString)

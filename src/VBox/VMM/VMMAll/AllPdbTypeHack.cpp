@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -29,6 +29,15 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#ifdef VBOX_VMM_TARGET_AGNOSTIC
+# ifdef RT_ARCH_AMD64
+#  define VBOX_VMM_TARGET_X86
+# elif defined(RT_ARCH_ARM64)
+#  define VBOX_VMM_TARGET_ARMV8
+# else
+#  error "port me"
+# endif
+#endif
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/mm.h>
@@ -39,28 +48,32 @@
 #include <VBox/vmm/stam.h>
 #include "../include/PDMInternal.h"
 #include <VBox/vmm/pdm.h>
-#include "../include/CFGMInternal.h"
-#include "../include/CPUMInternal.h"
-#include "../include/MMInternal.h"
-#include "../include/PGMInternal.h"
-#include "../include/SELMInternal.h"
-#include "../include/TRPMInternal.h"
-#include "../include/TMInternal.h"
-#include "../include/IOMInternal.h"
-#ifdef IN_RING3
-# include "../include/SSMInternal.h"
+#if !defined(VBOX_WITH_MINIMAL_R0) || !defined(IN_RING0)
+# include "../include/CPUMInternal.h"
+# include "../include/CFGMInternal.h"
+# include "../include/MMInternal.h"
+# include "../include/PGMInternal.h"
+# include "../include/SELMInternal.h"
+# include "../include/TRPMInternal.h"
+# include "../include/TMInternal.h"
+# include "../include/IOMInternal.h"
 #endif
-#include "../include/HMInternal.h"
+#ifdef IN_RING3
+#  include "../include/SSMInternal.h"
+#endif
 #include "../include/VMMInternal.h"
-#include "../include/DBGFInternal.h"
-#include "../include/GIMInternal.h"
-#include "../include/APICInternal.h"
-#include "../include/STAMInternal.h"
+#if !defined(VBOX_WITH_MINIMAL_R0) || !defined(IN_RING0)
+# include "../include/HMInternal.h"
+# include "../include/DBGFInternal.h"
+# include "../include/GIMInternal.h"
+# include "../include/APICInternal.h"
+# include "../include/STAMInternal.h"
+# include "../include/IEMInternal.h"
+# include "../include/NEMInternal.h"
+# include "../VMMR0/GMMR0Internal.h"
+# include "../include/EMInternal.h"
+#endif
 #include "../include/VMInternal.h"
-#include "../include/EMInternal.h"
-#include "../include/IEMInternal.h"
-#include "../include/NEMInternal.h"
-#include "../VMMR0/GMMR0Internal.h"
 #include "../VMMR0/GVMMR0Internal.h"
 #include <VBox/vmm/vmcc.h>
 #ifdef IN_RING3

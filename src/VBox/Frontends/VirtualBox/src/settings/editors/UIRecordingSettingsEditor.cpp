@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -294,57 +294,57 @@ QVector<bool> UIRecordingSettingsEditor::screens() const
 void UIRecordingSettingsEditor::sltRetranslateUI()
 {
     m_pCheckboxFeature->setText(tr("&Enable Recording"));
-    m_pCheckboxFeature->setToolTip(tr("When checked, VirtualBox will record the virtual machine session as a video file."));
+    m_pCheckboxFeature->setToolTip(tr("VirtualBox will record the virtual machine session as a video file"));
 
-    m_pLabelMode->setText(tr("Recording &Mode:"));
+    m_pLabelMode->setText(tr("Recording &Mode"));
     for (int iIndex = 0; iIndex < m_pComboMode->count(); ++iIndex)
     {
         const UISettingsDefs::RecordingMode enmType =
             m_pComboMode->itemData(iIndex).value<UISettingsDefs::RecordingMode>();
         m_pComboMode->setItemText(iIndex, gpConverter->toString(enmType));
     }
-    m_pComboMode->setToolTip(tr("Holds the recording mode."));
+    m_pComboMode->setToolTip(tr("Recording mode"));
 
-    m_pLabelFilePath->setText(tr("File &Path:"));
-    m_pEditorFilePath->setToolTip(tr("Holds the filename VirtualBox uses to save the recorded content."));
+    m_pLabelFilePath->setText(tr("File &Path"));
+    m_pEditorFilePath->setToolTip(tr("The filename VirtualBox uses to save the recorded content"));
 
-    m_pLabelFrameSize->setText(tr("Frame Si&ze:"));
+    m_pLabelFrameSize->setText(tr("Frame Si&ze"));
     m_pComboFrameSize->setItemText(0, tr("User Defined"));
-    m_pComboFrameSize->setToolTip(tr("Holds the resolution (frame size) of the recorded video."));
-    m_pSpinboxFrameWidth->setToolTip(tr("Holds the horizontal resolution (frame width) of the recorded video."));
-    m_pSpinboxFrameHeight->setToolTip(tr("Holds the vertical resolution (frame height) of the recorded video."));
+    m_pComboFrameSize->setToolTip(tr("Resolution (frame size) of the recorded video"));
+    m_pSpinboxFrameWidth->setToolTip(tr("Horizontal resolution (frame width) of the recorded video"));
+    m_pSpinboxFrameHeight->setToolTip(tr("Vertical resolution (frame height) of the recorded video"));
 
-    m_pLabelFrameRate->setText(tr("Frame R&ate:"));
-    m_pSliderFrameRate->setToolTip(tr("Holds the maximum number of frames per second. Additional frames "
+    m_pLabelFrameRate->setText(tr("Frame R&ate"));
+    m_pSliderFrameRate->setToolTip(tr("Maximum number of frames per second. Additional frames "
                                       "will be skipped. Reducing this value will increase the number of skipped "
                                       "frames and reduce the file size."));
     m_pSpinboxFrameRate->setSuffix(QString(" %1").arg(tr("fps")));
-    m_pSpinboxFrameRate->setToolTip(tr("Holds the maximum number of frames per second. Additional frames "
+    m_pSpinboxFrameRate->setToolTip(tr("Maximum number of frames per second. Additional frames "
                                        "will be skipped. Reducing this value will increase the number of skipped "
                                        "frames and reduce the file size."));
     m_pLabelFrameRateMin->setText(tr("%1 fps").arg(m_pSliderFrameRate->minimum()));
-    m_pLabelFrameRateMin->setToolTip(tr("Minimum possible frame rate."));
+    m_pLabelFrameRateMin->setToolTip(tr("Minimum recording frame rate"));
     m_pLabelFrameRateMax->setText(tr("%1 fps").arg(m_pSliderFrameRate->maximum()));
-    m_pLabelFrameRateMax->setToolTip(tr("Maximum possible frame rate."));
+    m_pLabelFrameRateMax->setToolTip(tr("Maximum recording frame rate"));
 
-    m_pLabelVideoQuality->setText(tr("&Video Quality:"));
-    m_pSliderVideoQuality->setToolTip(tr("Holds the quality. Increasing this value will make the video "
+    m_pLabelVideoQuality->setText(tr("&Video Quality"));
+    m_pSliderVideoQuality->setToolTip(tr("Video quality. Increasing this value will make the video "
                                          "look better at the cost of an increased file size."));
     m_pSpinboxVideoQuality->setSuffix(QString(" %1").arg(tr("kbps")));
-    m_pSpinboxVideoQuality->setToolTip(tr("Holds the bitrate in kilobits per second. Increasing this value "
+    m_pSpinboxVideoQuality->setToolTip(tr("Bitrate in kilobits per second. Increasing this value "
                                           "will make the video look better at the cost of an increased file size."));
     m_pLabelVideoQualityMin->setText(tr("low", "quality"));
     m_pLabelVideoQualityMed->setText(tr("medium", "quality"));
     m_pLabelVideoQualityMax->setText(tr("high", "quality"));
 
-    m_pLabelAudioQuality->setText(tr("&Audio Quality:"));
-    m_pSliderAudioQuality->setToolTip(tr("Holds the quality. Increasing this value will make the audio "
+    m_pLabelAudioQuality->setText(tr("&Audio Quality"));
+    m_pSliderAudioQuality->setToolTip(tr("Audio quality. Increasing this value will make the audio "
                                          "sound better at the cost of an increased file size."));
     m_pLabelAudioQualityMin->setText(tr("low", "quality"));
     m_pLabelAudioQualityMed->setText(tr("medium", "quality"));
     m_pLabelAudioQualityMax->setText(tr("high", "quality"));
 
-    m_pLabelScreens->setText(tr("Scree&ns:"));
+    m_pLabelScreens->setText(tr("Scree&ns"));
 
     updateRecordingFileSizeHint();
 }

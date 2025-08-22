@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -189,6 +189,7 @@ struct Medium::Data
           fClosing(false),
           uOpenFlagsDef(VD_OPEN_FLAGS_IGNORE_FLUSH),
           numCreateDiffTasks(0),
+          hTcpNetInst(NULL),
           vdDiskIfaces(NULL),
           vdImageIfaces(NULL),
           fMoveThisMedium(false)
@@ -1681,6 +1682,15 @@ void Medium::uninit()
 
         if (pMedium != this)
             pMedium->Release();
+
+        /*
+         * Special case. Invalidate the tracked object.
+         * Works ONLY in conjunction with setTracked() in init() or FinalConstruct()!
+         * The Medium object may stay in memory after the call uninit(). See i_close(), in instance.
+         * The object state is "Not ready" in this case. From user perspective the object doesn't exist anymore.
+         * In this case we still track the object but mark the object as "invalid".
+         */
+        invalidateTracked();
 
         autoUninitSpan.setSucceeded();
     }
@@ -3450,6 +3460,9 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
         /* Check VMs which have this medium attached to*/
         std::vector<com::Guid> aMachineIds;
         hrc = getMachineIds(aMachineIds);
+        if (FAILED(hrc))
+            throw setError(hrc, tr("Failed to get machine list '%s' is attached to"), i_getLocationFull().c_str());
+
         std::vector<com::Guid>::const_iterator currMachineID = aMachineIds.begin();
         std::vector<com::Guid>::const_iterator lastMachineID = aMachineIds.end();
 
@@ -4616,12 +4629,13 @@ HRESULT Medium::i_addBackReference(const Guid &aMachineId,
 {
     AssertReturn(aMachineId.isValid(), E_FAIL);
 
-    LogFlowThisFunc(("ENTER, aMachineId: {%RTuuid}, aSnapshotId: {%RTuuid}\n", aMachineId.raw(), aSnapshotId.raw()));
-
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    LogFlowThisFunc(("ENTER: medium: '%s' aMachineId: {%RTuuid}, aSnapshotId: {%RTuuid}\n",
+        i_getLocationFull().c_str(), aMachineId.raw(), aSnapshotId.raw()));
 
     switch (m->state)
     {
@@ -4743,18 +4757,37 @@ HRESULT Medium::i_removeBackReference(const Guid &aMachineId,
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    LogFlowThisFunc(("ENTER: medium: '%s' aMachineId: {%RTuuid}, aSnapshotId: {%RTuuid}\n",
+        i_getLocationFull().c_str(), aMachineId.raw(), aSnapshotId.raw()));
+
     BackRefList::iterator it =
         std::find_if(m->backRefs.begin(), m->backRefs.end(),
                      BackRef::EqualsTo(aMachineId));
     AssertReturn(it != m->backRefs.end(), E_FAIL);
 
+    bool fDvd = false;
+    {
+        AutoReadLock arlock(this COMMA_LOCKVAL_SRC_POS);
+        /*
+         *  Check the medium is DVD and readonly. It's for the case if DVD
+         *  will be able to be writable sometime in the future.
+         */
+        fDvd = m->type == MediumType_Readonly && m->devType == DeviceType_DVD;
+    }
+
     if (aSnapshotId.isZero())
     {
+        /* Attached removable media which are part of a snapshot can be added to a
+         * back reference more than once (as described above in i_addBackReference())
+         * so we need to balance out the reference counting for DVDs here. */
+        if (fDvd && it->iRefCnt > 1)
+            it->iRefCnt--;
         it->iRefCnt--;
         if (it->iRefCnt > 0)
             return S_OK;
 
-        /* remove the current state attachment */
+        /* Mark the medium as no longer in use by the current machine although it
+         * may still be included in one or more snapshots (it->llSnapshotIds). */
         it->fInCurState = false;
     }
     else
@@ -4772,10 +4805,32 @@ HRESULT Medium::i_removeBackReference(const Guid &aMachineId,
             return S_OK;
 
         it->llSnapshotIds.erase(jt);
+
+        /* The BackRef() constructor in i_addBackReference() creates back references
+         * for attached hard disk mediums associated with a snapshot with the reference
+         * count set to '1' and fInCurState=false before adding the snapshot to
+         * it->llSnapshotIds.  When removing that snapshot reference here we need to
+         * decrement the reference count since there won't be a separate
+         * i_removeBackReference() call with aSnapshotId.isZero() since this hard disk
+         * medium is only associated with this snapshot.  Removable media like DVDs
+         * associated with a snapshot on the other hand can be attached twice, once for
+         * the snapshot and once for the machine (aSnapshotId.isZero()=true) and their
+         * reference counting is balanced out in the machine case above. */
+        if (!fDvd && it->fInCurState == false && it->iRefCnt == 1 && it->llSnapshotIds.size() == 0)
+            it->iRefCnt--;
     }
 
-    /* if the backref becomes empty, remove it */
-    if (it->fInCurState == false && it->llSnapshotIds.size() == 0)
+    /* The common case is that the backref will become "empty" with the reference
+     * count dropping to zero (iRefCnt=0), fInCurState=false, and no more snapshot
+     * references (llSnapshotIds.size()=0) and thus the back reference is removed
+     * at that point.  However there is an exception and that is when a restored
+     * snapshot is running and in that case there will be no i_removeBackReference()
+     * call for any attached removable device referencing just the machine
+     * (aSnapshotId.isZero()) so in such cases iRefCnt will be '1' and won't ever
+     * drop to zero so remove such back references here as well. */
+    if (   it->fInCurState == false
+        && it->llSnapshotIds.size() == 0
+        && (it->iRefCnt == 0 || (fDvd && it->iRefCnt == 1)))
         m->backRefs.erase(it);
 
     return S_OK;
@@ -4867,14 +4922,14 @@ void Medium::i_dumpBackRefs()
          ++it2)
     {
         const BackRef &ref = *it2;
-        LogFlowThisFunc(("  Backref from machine {%RTuuid} (fInCurState: %d, iRefCnt: %d)\n", ref.machineId.raw(), ref.fInCurState, ref.iRefCnt));
+        LogFlowThisFunc(("  Backref from machine={%RTuuid} (fInCurState=%d, iRefCnt=%d)\n", ref.machineId.raw(), ref.fInCurState, ref.iRefCnt));
 
         for (std::list<SnapshotRef>::const_iterator jt2 = it2->llSnapshotIds.begin();
              jt2 != it2->llSnapshotIds.end();
              ++jt2)
         {
             const Guid &id = jt2->snapshotId;
-            LogFlowThisFunc(("  Backref from snapshot {%RTuuid} (iRefCnt = %d)\n", id.raw(), jt2->iRefCnt));
+            LogFlowThisFunc(("  Backref from snapshot={%RTuuid} (iRefCnt=%d)\n", id.raw(), jt2->iRefCnt));
         }
     }
 }
@@ -10002,10 +10057,6 @@ HRESULT Medium::i_taskMoveHandler(Medium::MoveTask &task)
     /* pTarget is equal "this" in our case */
     const ComObjPtr<Medium> &pTarget = task.mMedium;
 
-    uint64_t size = 0; NOREF(size);
-    uint64_t logicalSize = 0; NOREF(logicalSize);
-    MediumVariant_T variant = MediumVariant_Standard; NOREF(variant);
-
     /*
      * it's exactly moving, not cloning
      */
@@ -10102,12 +10153,6 @@ HRESULT Medium::i_taskMoveHandler(Medium::MoveTask &task)
                     throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
                                        tr("Could not move medium '%s'%s"),
                                        targetLocation.c_str(), i_vdError(vrc).c_str());
-                size = VDGetFileSize(hdd, VD_LAST_IMAGE);
-                logicalSize = VDGetSize(hdd, VD_LAST_IMAGE);
-                unsigned uImageFlags;
-                vrc = VDGetImageFlags(hdd, 0, &uImageFlags);
-                if (RT_SUCCESS(vrc))
-                    variant = (MediumVariant_T)uImageFlags;
 
                 /*
                  * set current location, because VDCopy\VDCopyEx doesn't do it.
@@ -10753,7 +10798,11 @@ HRESULT Medium::i_taskImportHandler(Medium::ImportTask &task)
                              NULL /* pVDIfsOperation */,
                              m->vdImageIfaces,
                              task.mVDOperationIfaces);
-                if (RT_FAILURE(vrc))
+                if (vrc == VERR_DISK_FULL)
+                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
+                                       tr("Ran out of disk space while importing medium '%s'%s"),
+                                       targetLocation.c_str(), i_vdError(vrc).c_str());
+                else if (RT_FAILURE(vrc))
                     throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
                                        tr("Could not create the imported medium '%s'%s"),
                                        targetLocation.c_str(), i_vdError(vrc).c_str());

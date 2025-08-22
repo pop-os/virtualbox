@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -31,6 +31,9 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM_PHYS
 #define VBOX_WITHOUT_PAGING_BIT_FIELDS /* 64-bit bitfields are just asking for trouble. See @bugref{9841} and others. */
+#ifdef IN_RING0
+# define VBOX_VMM_TARGET_X86
+#endif
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/trpm.h>
 #include <VBox/vmm/vmm.h>
@@ -48,6 +51,9 @@
 #include <VBox/log.h>
 #ifdef IN_RING3
 # include <iprt/thread.h>
+# ifdef VBOX_WITH_ONLY_PGM_NEM_MODE
+#  include <iprt/zero.h>
+# endif
 #elif defined(IN_RING0)
 # include <iprt/mem.h>
 # include <iprt/memobj.h>
@@ -158,7 +164,7 @@ uint32_t pgmHandlerPhysicalCalcTableSizes(uint32_t *pcEntries, uint32_t *pcbTree
     /*
      * Align the total and try use up extra space from that.
      */
-    uint32_t cbTotalAligned = RT_ALIGN_32(cbTotal, RT_MAX(HOST_PAGE_SIZE, _16K));
+    uint32_t cbTotalAligned = RT_ALIGN_32(cbTotal, RT_MAX(HOST_PAGE_SIZE_DYNAMIC, _16K));
     uint32_t cAvail         = cbTotalAligned - cbTotal;
     cAvail /= sizeof(PGMPHYSHANDLER);
     if (cAvail >= 1)
@@ -992,13 +998,13 @@ DECLHIDDEN(int) pgmPhysRamRangeAllocCommon(PVMCC pVM, uint32_t cPages, uint32_t 
     /*
      * Allocate the RAM range structure and map it into ring-3.
      */
-    size_t const cbRamRange = RT_ALIGN_Z(RT_UOFFSETOF_DYN(PGMRAMRANGE, aPages[cPages]), HOST_PAGE_SIZE);
+    size_t const cbRamRange = RT_ALIGN_Z(RT_UOFFSETOF_DYN(PGMRAMRANGE, aPages[cPages]), HOST_PAGE_SIZE_DYNAMIC);
 #ifdef IN_RING0
     RTR0MEMOBJ   hMemObj    = NIL_RTR0MEMOBJ;
     int rc = RTR0MemObjAllocPage(&hMemObj, cbRamRange, false /*fExecutable*/);
 #else
     PPGMRAMRANGE pRamRange;
-    int rc = SUPR3PageAlloc(cbRamRange >> HOST_PAGE_SHIFT, 0 /*fFlags*/, (void **)&pRamRange);
+    int rc = SUPR3PageAlloc(cbRamRange >> HOST_PAGE_SHIFT_DYNAMIC, 0 /*fFlags*/, (void **)&pRamRange);
 #endif
     if (RT_SUCCESS(rc))
     {
@@ -1083,7 +1089,7 @@ DECLHIDDEN(int) pgmPhysRamRangeAllocCommon(PVMCC pVM, uint32_t cPages, uint32_t 
 #ifdef IN_RING0
         RTR0MemObjFree(hMemObj, true /*fFreeMappings*/);
 #else
-        SUPR3PageFree(pRamRange, cbRamRange >> HOST_PAGE_SHIFT);
+        SUPR3PageFree(pRamRange, cbRamRange >> HOST_PAGE_SHIFT_DYNAMIC);
 #endif
     }
     *pidNewRange = UINT32_MAX;
@@ -1193,8 +1199,8 @@ static int pgmPhysRamRangeFree(PVMCC pVM, PPGMRAMRANGE pRamRange)
             pVM->pgmr0.s.ahRamRangeMemObjs[idRamRange] = NIL_RTR0MEMOBJ;
     }
 #else
-    size_t const cbRamRange = RT_ALIGN_Z(RT_UOFFSETOF_DYN(PGMRAMRANGE, aPages[cPages]), HOST_PAGE_SIZE);
-    int rc = SUPR3PageFree(pRamRange, cbRamRange >> HOST_PAGE_SHIFT);
+    size_t const cbRamRange = RT_ALIGN_Z(RT_UOFFSETOF_DYN(PGMRAMRANGE, aPages[cPages]), HOST_PAGE_SIZE_DYNAMIC);
+    int rc = SUPR3PageFree(pRamRange, cbRamRange >> HOST_PAGE_SHIFT_DYNAMIC);
 #endif
 
     /*
@@ -1281,8 +1287,8 @@ DECLHIDDEN(int) pgmPhysMmio2RegisterWorker(PVMCC pVM, uint32_t const cGuestPages
      * backing the whole range.
      */
     RTGCPHYS const          cbMmio2Backing   = (RTGCPHYS)cGuestPages << GUEST_PAGE_SHIFT;
-    uint32_t const          cHostPages       = (cbMmio2Backing + HOST_PAGE_SIZE - 1U) >> HOST_PAGE_SHIFT;
-    size_t const            cbMmio2Aligned   = cHostPages << HOST_PAGE_SHIFT;
+    uint32_t const          cHostPages       = (cbMmio2Backing + HOST_PAGE_SIZE_DYNAMIC - 1U) >> HOST_PAGE_SHIFT_DYNAMIC;
+    size_t const            cbMmio2Aligned   = cHostPages << HOST_PAGE_SHIFT_DYNAMIC;
     R3PTRTYPE(uint8_t *)    pbMmio2BackingR3 = NIL_RTR3PTR;
 #ifdef IN_RING0
     RTR0MEMOBJ              hMemObj          = NIL_RTR0MEMOBJ;
@@ -1491,7 +1497,7 @@ VMMR0_INT_DECL(int) PGMR0PhysMmio2RegisterReq(PGVM pGVM, PPGMPHYSMMIO2REGISTERRE
     VM_ASSERT_EMT0_RETURN(pGVM, VERR_VM_THREAD_NOT_EMT);
 
     AssertReturn(pReq->cbGuestPage == GUEST_PAGE_SIZE, VERR_INCOMPATIBLE_CONFIG);
-    AssertReturn(GUEST_PAGE_SIZE == HOST_PAGE_SIZE, VERR_INCOMPATIBLE_CONFIG);
+    AssertReturn(GUEST_PAGE_SIZE == HOST_PAGE_SIZE_DYNAMIC, VERR_INCOMPATIBLE_CONFIG);
 
     AssertReturn(pReq->cGuestPages > 0, VERR_OUT_OF_RANGE);
     AssertReturn(pReq->cGuestPages <= PGM_MAX_PAGES_PER_MMIO2_REGION, VERR_OUT_OF_RANGE);
@@ -1588,7 +1594,7 @@ DECLHIDDEN(int) pgmPhysMmio2DeregisterWorker(PVMCC pVM, uint8_t idMmio2, uint8_t
      */
 #ifdef IN_RING3
     uint8_t * const pbMmio2Backing = pVM->pgm.s.aMmio2Ranges[idxFirst].pbR3;
-    RTGCPHYS const  cbMmio2Backing = RT_ALIGN_T((RTGCPHYS)cGuestPages << GUEST_PAGE_SHIFT, HOST_PAGE_SIZE, RTGCPHYS);
+    RTGCPHYS const  cbMmio2Backing = RT_ALIGN_T((RTGCPHYS)cGuestPages << GUEST_PAGE_SHIFT, HOST_PAGE_SIZE_DYNAMIC, RTGCPHYS);
 #endif
 
     int      rc     = VINF_SUCCESS;
@@ -1627,7 +1633,7 @@ DECLHIDDEN(int) pgmPhysMmio2DeregisterWorker(PVMCC pVM, uint8_t idMmio2, uint8_t
      * Final removal frees up the backing memory.
      */
 #ifdef IN_RING3
-    int const rcBacking = SUPR3PageFree(pbMmio2Backing, cbMmio2Backing >> HOST_PAGE_SHIFT);
+    int const rcBacking = SUPR3PageFree(pbMmio2Backing, cbMmio2Backing >> HOST_PAGE_SHIFT_DYNAMIC);
     AssertLogRelMsgStmt(RT_SUCCESS(rcBacking), ("rc=%Rrc %p LB %#zx\n", rcBacking, pbMmio2Backing, cbMmio2Backing),
                         rc = RT_SUCCESS(rc) ? rcBacking : rc);
 #else
@@ -1759,13 +1765,13 @@ DECLHIDDEN(int) pgmPhysRomRangeAllocCommon(PVMCC pVM, uint32_t cPages, uint8_t i
     /*
      * Allocate the ROM range structure and map it into ring-3.
      */
-    size_t const cbRomRange = RT_ALIGN_Z(RT_UOFFSETOF_DYN(PGMROMRANGE, aPages[cPages]), HOST_PAGE_SIZE);
+    size_t const cbRomRange = RT_ALIGN_Z(RT_UOFFSETOF_DYN(PGMROMRANGE, aPages[cPages]), HOST_PAGE_SIZE_DYNAMIC);
 #ifdef IN_RING0
     RTR0MEMOBJ   hMemObj    = NIL_RTR0MEMOBJ;
     int rc = RTR0MemObjAllocPage(&hMemObj, cbRomRange, false /*fExecutable*/);
 #else
     PPGMROMRANGE pRomRange;
-    int rc = SUPR3PageAlloc(cbRomRange >> HOST_PAGE_SHIFT, 0 /*fFlags*/, (void **)&pRomRange);
+    int rc = SUPR3PageAlloc(cbRomRange >> HOST_PAGE_SHIFT_DYNAMIC, 0 /*fFlags*/, (void **)&pRomRange);
 #endif
     if (RT_SUCCESS(rc))
     {
@@ -1850,7 +1856,7 @@ DECLHIDDEN(int) pgmPhysRomRangeAllocCommon(PVMCC pVM, uint32_t cPages, uint8_t i
 #ifdef IN_RING0
         RTR0MemObjFree(hMemObj, true /*fFreeMappings*/);
 #else
-        SUPR3PageFree(pRomRange, cbRomRange >> HOST_PAGE_SHIFT);
+        SUPR3PageFree(pRomRange, cbRomRange >> HOST_PAGE_SHIFT_DYNAMIC);
 #endif
     }
     return rc;
@@ -1908,6 +1914,7 @@ VMMR0_INT_DECL(int) PGMR0PhysRomAllocateRangeReq(PGVM pGVM, PPGMPHYSROMALLOCATER
 
 
 
+#if defined(VBOX_VMM_TARGET_X86)
 /**
  * Checks if Address Gate 20 is enabled or not.
  *
@@ -1921,6 +1928,7 @@ VMMDECL(bool) PGMPhysIsA20Enabled(PVMCPU pVCpu)
     LogFlow(("PGMPhysIsA20Enabled %d\n", pVCpu && pVCpu->pgm.s.fA20Enabled));
     return pVCpu && pVCpu->pgm.s.fA20Enabled;
 }
+#endif
 
 
 /**
@@ -2064,6 +2072,7 @@ void pgmPhysInvalidatePageMapTLBEntry(PVMCC pVM, RTGCPHYS GCPhys)
     VMCC_FOR_EACH_VMCPU_END(pVM);
 }
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
 
 /**
  * Makes sure that there is at least one handy page ready for use.
@@ -2086,28 +2095,28 @@ static int pgmPhysEnsureHandyPage(PVMCC pVM)
     /*
      * Do we need to do anything special?
      */
-#ifdef IN_RING3
+# ifdef IN_RING3
     if (pVM->pgm.s.cHandyPages <= RT_MAX(PGM_HANDY_PAGES_SET_FF, PGM_HANDY_PAGES_R3_ALLOC))
-#else
+# else
     if (pVM->pgm.s.cHandyPages <= RT_MAX(PGM_HANDY_PAGES_SET_FF, PGM_HANDY_PAGES_RZ_TO_R3))
-#endif
+# endif
     {
         /*
          * Allocate pages only if we're out of them, or in ring-3, almost out.
          */
-#ifdef IN_RING3
+# ifdef IN_RING3
         if (pVM->pgm.s.cHandyPages <= PGM_HANDY_PAGES_R3_ALLOC)
-#else
+# else
         if (pVM->pgm.s.cHandyPages <= PGM_HANDY_PAGES_RZ_ALLOC)
-#endif
+# endif
         {
             Log(("PGM: cHandyPages=%u out of %u -> allocate more; VM_FF_PGM_NO_MEMORY=%RTbool\n",
                  pVM->pgm.s.cHandyPages, RT_ELEMENTS(pVM->pgm.s.aHandyPages), VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY) ));
-#ifdef IN_RING3
+# ifdef IN_RING3
             int rc = PGMR3PhysAllocateHandyPages(pVM);
-#else
+# else
             int rc = pgmR0PhysAllocateHandyPages(pVM, VMMGetCpuId(pVM), false /*fRing3*/);
-#endif
+# endif
             if (RT_UNLIKELY(rc != VINF_SUCCESS))
             {
                 if (RT_FAILURE(rc))
@@ -2120,9 +2129,9 @@ static int pgmPhysEnsureHandyPage(PVMCC pVM)
                 }
                 Assert(VM_FF_IS_SET(pVM, VM_FF_PGM_NEED_HANDY_PAGES));
                 Assert(VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY));
-#ifndef IN_RING3
+# ifndef IN_RING3
                 VMCPU_FF_SET(VMMGetCpu(pVM), VMCPU_FF_TO_R3); /* paranoia */
-#endif
+# endif
             }
             AssertMsgReturn(    pVM->pgm.s.cHandyPages > 0
                             &&  pVM->pgm.s.cHandyPages <= RT_ELEMENTS(pVM->pgm.s.aHandyPages),
@@ -2133,13 +2142,13 @@ static int pgmPhysEnsureHandyPage(PVMCC pVM)
         {
             if (pVM->pgm.s.cHandyPages <= PGM_HANDY_PAGES_SET_FF)
                 VM_FF_SET(pVM, VM_FF_PGM_NEED_HANDY_PAGES);
-#ifndef IN_RING3
+# ifndef IN_RING3
             if (pVM->pgm.s.cHandyPages <= PGM_HANDY_PAGES_RZ_TO_R3)
             {
                 Log(("PGM: VM_FF_TO_R3 - cHandyPages=%u out of %u\n", pVM->pgm.s.cHandyPages, RT_ELEMENTS(pVM->pgm.s.aHandyPages)));
                 VMCPU_FF_SET(VMMGetCpu(pVM), VMCPU_FF_TO_R3);
             }
-#endif
+# endif
         }
     }
 
@@ -2330,7 +2339,7 @@ int pgmPhysAllocPage(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys)
     return rc;
 }
 
-#ifdef PGM_WITH_LARGE_PAGES
+# ifdef PGM_WITH_LARGE_PAGES
 
 /**
  * Replace a 2 MB range of zero pages with new pages that we can write to.
@@ -2407,13 +2416,13 @@ int pgmPhysAllocLargePage(PVMCC pVM, RTGCPHYS GCPhys)
             /*
              * Do the allocation.
              */
-# ifdef IN_RING3
+#  ifdef IN_RING3
             rc = VMMR3CallR0(pVM, VMMR0_DO_PGM_ALLOCATE_LARGE_PAGE, GCPhysBase, NULL);
-# elif defined(IN_RING0)
+#  elif defined(IN_RING0)
             rc = pgmR0PhysAllocateLargePage(pVM, VMMGetCpuId(pVM), GCPhysBase);
-# else
-#  error "Port me"
-# endif
+#  else
+#   error "Port me"
+#  endif
             if (RT_SUCCESS(rc))
             {
                 Assert(PGM_PAGE_GET_STATE(pFirstPage) == PGM_PAGE_STATE_ALLOCATED);
@@ -2495,7 +2504,9 @@ int pgmPhysRecheckLargePage(PVMCC pVM, RTGCPHYS GCPhys, PPGMPAGE pLargePage)
     return VERR_PGM_INVALID_LARGE_PAGE_RANGE;
 }
 
-#endif /* PGM_WITH_LARGE_PAGES */
+# endif /* PGM_WITH_LARGE_PAGES */
+#endif /* !VBOX_WITH_ONLY_PGM_NEM_MODE */
+
 
 
 /**
@@ -2584,7 +2595,12 @@ int pgmPhysPageMakeWritable(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys)
                 return VERR_PGM_PHYS_PAGE_RESERVED;
             RT_FALL_THRU();
         case PGM_PAGE_STATE_SHARED:
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
             return pgmPhysAllocPage(pVM, pPage, GCPhys);
+#else
+            AssertFailed(); /** @todo not sure if we make use of ZERO pages or not in NEM-mode, but I can't see how pgmPhysAllocPage would work. */
+            return VERR_PGM_NOT_SUPPORTED_FOR_NEM_MODE;
+#endif
 
         /* Not allowed to write to ballooned pages. */
         case PGM_PAGE_STATE_BALLOONED:
@@ -2592,7 +2608,7 @@ int pgmPhysPageMakeWritable(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys)
     }
 }
 
-
+#if 0 /* unused */
 /**
  * Internal usage: Map the page specified by its GMM ID.
  *
@@ -2664,7 +2680,7 @@ int pgmPhysPageMapByPageID(PVMCC pVM, uint32_t idPage, RTHCPHYS HCPhys, void **p
     return VINF_SUCCESS;
 #endif
 }
-
+#endif /* unused */
 
 /**
  * Maps a page into the current virtual address space so it can be accessed.
@@ -2728,7 +2744,9 @@ static int pgmPhysPageMapCommon(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPG
     }
 
 #ifdef VBOX_WITH_PGM_NEM_MODE
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     if (pVM->pgm.s.fNemMode)
+# endif
     {
 # ifdef IN_RING3
         /*
@@ -2747,6 +2765,7 @@ static int pgmPhysPageMapCommon(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPG
 # endif
     }
 #endif /* VBOX_WITH_PGM_NEM_MODE */
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
 
     const uint32_t idChunk = PGM_PAGE_GET_CHUNKID(pPage);
     if (idChunk == NIL_GMM_CHUNKID)
@@ -2825,6 +2844,7 @@ static int pgmPhysPageMapCommon(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPG
     *ppMap = pMap;
     return VINF_SUCCESS;
 # endif /* !IN_RING0 */
+#endif /* !VBOX_WITH_ONLY_PGM_NEM_MODE */
 }
 
 
@@ -2977,29 +2997,37 @@ int pgmPhysPageLoadIntoTlbWithPage(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys)
         int rc = pgmPhysPageMapCommon(pVM, pPage, GCPhys, &pMap, &pv);
         if (RT_FAILURE(rc))
             return rc;
-# ifndef IN_RING0
+#ifndef IN_RING0
         pTlbe->pMap = pMap;
-# endif
+#endif
         pTlbe->pv = pv;
         Assert(!((uintptr_t)pTlbe->pv & GUEST_PAGE_OFFSET_MASK));
     }
     else
     {
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
         AssertMsg(PGM_PAGE_GET_HCPHYS(pPage) == pVM->pgm.s.HCPhysZeroPg, ("%RGp/%R[pgmpage]\n", GCPhys, pPage));
-# ifndef IN_RING0
+#ifndef IN_RING0
         pTlbe->pMap = NULL;
-# endif
+#endif
         pTlbe->pv = pVM->pgm.s.abZeroPg;
+#else
+        /*
+         * Should not ever be used, as we don't implement zero pages for NEM mode currently and
+         * MMIO accesses are not handled through the TLB.
+         */
+        pTlbe->pv = (void *)&g_abRTZero64K[0]; /* Maximum granule size on ARM. */
+#endif
     }
-# ifdef PGM_WITH_PHYS_TLB
+#ifdef PGM_WITH_PHYS_TLB
     if (    PGM_PAGE_GET_TYPE(pPage) < PGMPAGETYPE_ROM_SHADOW
         ||  PGM_PAGE_GET_TYPE(pPage) > PGMPAGETYPE_ROM)
         pTlbe->GCPhys = GCPhys & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
     else
         pTlbe->GCPhys = NIL_RTGCPHYS; /* ROM: Problematic because of the two pages. :-/ */
-# else
+#else
     pTlbe->GCPhys = NIL_RTGCPHYS;
-# endif
+#endif
     pTlbe->pPage = pPage;
     return VINF_SUCCESS;
 }
@@ -3071,7 +3099,7 @@ int pgmPhysGCPhys2CCPtrInternalDepr(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, 
             return rc;
         AssertMsg(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3 /* not returned */, ("%Rrc\n", rc));
     }
-    Assert(PGM_PAGE_GET_HCPHYS(pPage) != 0);
+    Assert(PGM_PAGE_GET_HCPHYS(pPage) != 0 || PGM_IS_IN_NEM_MODE(pVM));
 
     /*
      * Get the mapping address.
@@ -3206,7 +3234,7 @@ int pgmPhysGCPhys2CCPtrInternal(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void
             return rc;
         AssertMsg(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3 /* not returned */, ("%Rrc\n", rc));
     }
-    Assert(PGM_PAGE_GET_HCPHYS(pPage) != 0);
+    Assert(PGM_PAGE_GET_HCPHYS(pPage) != 0 || PGM_IS_IN_NEM_MODE(pVM));
 
     /*
      * Do the job.
@@ -3243,7 +3271,7 @@ int pgmPhysGCPhys2CCPtrInternalReadOnly(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPh
 {
     AssertReturn(pPage, VERR_PGM_PHYS_NULL_PAGE_PARAM);
     PGM_LOCK_ASSERT_OWNER(pVM);
-    Assert(PGM_PAGE_GET_HCPHYS(pPage) != 0);
+    Assert(PGM_PAGE_GET_HCPHYS(pPage) != 0 || PGM_IS_IN_NEM_MODE(pVM));
 
     /*
      * Do the job.
@@ -3729,7 +3757,7 @@ int pgmPhysGCPhys2CCPtrLockless(PVMCPUCC pVCpu, RTGCPHYS GCPhys, void **ppv)
                 return rc;
             AssertMsg(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3 /* not returned */, ("%Rrc\n", rc));
         }
-        Assert(PGM_PAGE_GET_HCPHYS(pPage) != 0);
+        Assert(PGM_PAGE_GET_HCPHYS(pPage) != 0 || PGM_IS_IN_NEM_MODE(pVM));
 
         /*
          * Get the mapping address.
@@ -3742,11 +3770,13 @@ int pgmPhysGCPhys2CCPtrLockless(PVMCPUCC pVCpu, RTGCPHYS GCPhys, void **ppv)
 #endif
         {
 #ifdef IN_RING3
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
             PPGMPAGEMAPTLBE pTlbe;
             rc = pgmPhysPageQueryLocklessTlbeWithPage(pVCpu, (PPGMPAGE)pPage, GCPhys, &pTlbe);
             AssertLogRelRCReturn(rc, rc);
             pb = (uint8_t *)pTlbe->pv;
             RT_NOREF(pVM);
+# endif
 #else /** @todo a safe lockless page TLB in ring-0 needs the to ensure it gets the right invalidations. later. */
             PGM_LOCK(pVM);
             PPGMPAGEMAPTLBE pTlbe;
@@ -4850,14 +4880,22 @@ VMMDECL(int) PGMPhysSimpleDirtyWriteGCPtr(PVMCPUCC pVCpu, RTGCPTR GCPtrDst, cons
     {
         memcpy(pvDst, pvSrc, cb);
         PGMPhysReleasePageMappingLock(pVM, &Lock);
+#ifdef VBOX_VMM_TARGET_X86
         rc = PGMGstModifyPage(pVCpu, GCPtrDst, 1, X86_PTE_A | X86_PTE_D, ~(uint64_t)(X86_PTE_A | X86_PTE_D)); AssertRC(rc);
+#elif !defined(VBOX_VMM_TARGET_ARMV8)
+# error "misconfig"
+#endif
         return VINF_SUCCESS;
     }
 
     /* copy to the end of the page. */
     memcpy(pvDst, pvSrc, cbPage);
     PGMPhysReleasePageMappingLock(pVM, &Lock);
+#ifdef VBOX_VMM_TARGET_X86
     rc = PGMGstModifyPage(pVCpu, GCPtrDst, 1, X86_PTE_A | X86_PTE_D, ~(uint64_t)(X86_PTE_A | X86_PTE_D)); AssertRC(rc);
+#elif !defined(VBOX_VMM_TARGET_ARMV8)
+# error "misconfig"
+#endif
     GCPtrDst = (RTGCPTR)((RTGCUINTPTR)GCPtrDst + cbPage);
     pvSrc = (const uint8_t *)pvSrc + cbPage;
     cb -= cbPage;
@@ -4877,14 +4915,22 @@ VMMDECL(int) PGMPhysSimpleDirtyWriteGCPtr(PVMCPUCC pVCpu, RTGCPTR GCPtrDst, cons
         {
             memcpy(pvDst, pvSrc, cb);
             PGMPhysReleasePageMappingLock(pVM, &Lock);
+#ifdef VBOX_VMM_TARGET_X86
             rc = PGMGstModifyPage(pVCpu, GCPtrDst, 1, X86_PTE_A | X86_PTE_D, ~(uint64_t)(X86_PTE_A | X86_PTE_D)); AssertRC(rc);
+#elif !defined(VBOX_VMM_TARGET_ARMV8)
+# error "misconfig"
+#endif
             return VINF_SUCCESS;
         }
 
         /* copy the entire page and advance */
         memcpy(pvDst, pvSrc, GUEST_PAGE_SIZE);
         PGMPhysReleasePageMappingLock(pVM, &Lock);
+#ifdef VBOX_VMM_TARGET_X86
         rc = PGMGstModifyPage(pVCpu, GCPtrDst, 1, X86_PTE_A | X86_PTE_D, ~(uint64_t)(X86_PTE_A | X86_PTE_D)); AssertRC(rc);
+#elif !defined(VBOX_VMM_TARGET_ARMV8)
+# error "misconfig"
+#endif
         GCPtrDst = (RTGCPTR)((RTGCUINTPTR)GCPtrDst + GUEST_PAGE_SIZE);
         pvSrc    = (const uint8_t *)pvSrc          + GUEST_PAGE_SIZE;
         cb      -=                                   GUEST_PAGE_SIZE;
@@ -4935,13 +4981,16 @@ VMMDECL(VBOXSTRICTRC) PGMPhysReadGCPtr(PVMCPUCC pVCpu, void *pvDst, RTGCPTR GCPt
         AssertMsgRCReturn(rc, ("GetPage failed with %Rrc for %RGv\n", rc, GCPtrSrc), rc);
         RTGCPHYS const GCPhys = Walk.GCPhys | ((RTGCUINTPTR)GCPtrSrc & GUEST_PAGE_OFFSET_MASK);
 
+#ifdef VBOX_VMM_TARGET_X86
         /* mark the guest page as accessed. */
         if (!(Walk.fEffective & X86_PTE_A))
         {
             rc = PGMGstModifyPage(pVCpu, GCPtrSrc, 1, X86_PTE_A, ~(uint64_t)(X86_PTE_A));
             AssertRC(rc);
         }
-
+#elif !defined(VBOX_VMM_TARGET_ARMV8)
+# error "misconfig"
+#endif
         return PGMPhysRead(pVM, GCPhys, pvDst, cb, enmOrigin);
     }
 
@@ -4956,12 +5005,16 @@ VMMDECL(VBOXSTRICTRC) PGMPhysReadGCPtr(PVMCPUCC pVCpu, void *pvDst, RTGCPTR GCPt
         AssertMsgRCReturn(rc, ("GetPage failed with %Rrc for %RGv\n", rc, GCPtrSrc), rc);
         RTGCPHYS const GCPhys = Walk.GCPhys | ((RTGCUINTPTR)GCPtrSrc & GUEST_PAGE_OFFSET_MASK);
 
+#ifdef VBOX_VMM_TARGET_X86
         /* mark the guest page as accessed. */
         if (!(Walk.fEffective & X86_PTE_A))
         {
             rc = PGMGstModifyPage(pVCpu, GCPtrSrc, 1, X86_PTE_A, ~(uint64_t)(X86_PTE_A));
             AssertRC(rc);
         }
+#elif !defined(VBOX_VMM_TARGET_ARMV8)
+# error "misconfig"
+#endif
 
         /* copy */
         size_t cbRead = GUEST_PAGE_SIZE - ((RTGCUINTPTR)GCPtrSrc & GUEST_PAGE_OFFSET_MASK);
@@ -5030,12 +5083,16 @@ VMMDECL(VBOXSTRICTRC) PGMPhysWriteGCPtr(PVMCPUCC pVCpu, RTGCPTR GCPtrDst, const 
         if (!(Walk.fEffective & X86_PTE_RW))
             Log(("PGMPhysWriteGCPtr: Writing to RO page %RGv %#x\n", GCPtrDst, cb));
 
+#ifdef VBOX_VMM_TARGET_X86
         /* Mark the guest page as accessed and dirty if necessary. */
         if ((Walk.fEffective & (X86_PTE_A | X86_PTE_D)) != (X86_PTE_A | X86_PTE_D))
         {
             rc = PGMGstModifyPage(pVCpu, GCPtrDst, 1, X86_PTE_A | X86_PTE_D, ~(uint64_t)(X86_PTE_A | X86_PTE_D));
             AssertRC(rc);
         }
+#elif !defined(VBOX_VMM_TARGET_ARMV8)
+# error "misconfig"
+#endif
 
         return PGMPhysWrite(pVM, GCPhys, pvSrc, cb, enmOrigin);
     }
@@ -5055,12 +5112,16 @@ VMMDECL(VBOXSTRICTRC) PGMPhysWriteGCPtr(PVMCPUCC pVCpu, RTGCPTR GCPtrDst, const 
         if (!(Walk.fEffective & X86_PTE_RW))
             Log(("PGMPhysWriteGCPtr: Writing to RO page %RGv %#x\n", GCPtrDst, cb));
 
+#ifdef VBOX_VMM_TARGET_X86
         /* Mark the guest page as accessed and dirty if necessary. */
         if ((Walk.fEffective & (X86_PTE_A | X86_PTE_D)) != (X86_PTE_A | X86_PTE_D))
         {
             rc = PGMGstModifyPage(pVCpu, GCPtrDst, 1, X86_PTE_A | X86_PTE_D, ~(uint64_t)(X86_PTE_A | X86_PTE_D));
             AssertRC(rc);
         }
+#elif !defined(VBOX_VMM_TARGET_ARMV8)
+# error "misconfig"
+#endif
 
         /* copy */
         size_t cbWrite = GUEST_PAGE_SIZE - ((RTGCUINTPTR)GCPtrDst & GUEST_PAGE_OFFSET_MASK);
@@ -5122,6 +5183,7 @@ DECL_FORCE_INLINE(int)
 pgmPhyIemGCphys2PtrNoLockReturnReadOnly(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uTlbPhysRev, RTGCPHYS GCPhys, PCPGMPAGE pPageCopy,
                                         PPGMRAMRANGE pRam, PPGMPAGE pPage, R3R0PTRTYPE(uint8_t *) *ppb, uint64_t *pfTlb)
 {
+    RT_NOREF(GCPhys);
     if (!PGM_PAGE_IS_CODE_PAGE(pPageCopy))
         *pfTlb |= uTlbPhysRev | PGMIEMGCPHYS2PTR_F_NO_WRITE;
     else
@@ -5134,11 +5196,13 @@ pgmPhyIemGCphys2PtrNoLockReturnReadOnly(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uTlb
 #endif
     {
 #ifdef IN_RING3
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
         PPGMPAGEMAPTLBE pTlbe;
         int rc = pgmPhysPageQueryLocklessTlbeWithPage(pVCpu, pPage, GCPhys, &pTlbe);
         AssertLogRelRCReturn(rc, rc);
         *ppb = (uint8_t *)pTlbe->pv;
         RT_NOREF(pVM);
+# endif
 #else /** @todo a safe lockless page TLB in ring-0 needs the to ensure it gets the right invalidations. later. */
         PGM_LOCK(pVM);
         PPGMPAGEMAPTLBE pTlbe;
@@ -5150,7 +5214,7 @@ pgmPhyIemGCphys2PtrNoLockReturnReadOnly(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uTlb
 #endif
     }
     Log6(("PGMPhysIemGCPhys2PtrNoLock: GCPhys=%RGp *ppb=%p *pfTlb=%#RX64 PageCopy=%R[pgmpage] RO\n", GCPhys, *ppb, *pfTlb, pPageCopy));
-    RT_NOREF(pRam);
+    RT_NOREF(pRam, pVM, pVCpu);
     return VINF_SUCCESS;
 }
 
@@ -5161,7 +5225,7 @@ pgmPhyIemGCphys2PtrNoLockReturnReadWrite(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uTl
                                          PPGMRAMRANGE pRam, PPGMPAGE pPage, R3R0PTRTYPE(uint8_t *) *ppb, uint64_t *pfTlb)
 {
     Assert(!PGM_PAGE_IS_CODE_PAGE(pPageCopy));
-    RT_NOREF(pPageCopy);
+    RT_NOREF(pPageCopy, GCPhys);
     *pfTlb |= uTlbPhysRev;
 
 #ifdef IN_RING3
@@ -5171,11 +5235,13 @@ pgmPhyIemGCphys2PtrNoLockReturnReadWrite(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uTl
 #endif
     {
 #ifdef IN_RING3
+# ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
         PPGMPAGEMAPTLBE pTlbe;
         int rc = pgmPhysPageQueryLocklessTlbeWithPage(pVCpu, pPage, GCPhys, &pTlbe);
         AssertLogRelRCReturn(rc, rc);
         *ppb = (uint8_t *)pTlbe->pv;
         RT_NOREF(pVM);
+# endif
 #else /** @todo a safe lockless page TLB in ring-0 needs the to ensure it gets the right invalidations. later. */
         PGM_LOCK(pVM);
         PPGMPAGEMAPTLBE pTlbe;
@@ -5187,7 +5253,7 @@ pgmPhyIemGCphys2PtrNoLockReturnReadWrite(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uTl
 #endif
     }
     Log6(("PGMPhysIemGCPhys2PtrNoLock: GCPhys=%RGp *ppb=%p *pfTlb=%#RX64 PageCopy=%R[pgmpage] RW\n", GCPhys, *ppb, *pfTlb, pPageCopy));
-    RT_NOREF(pRam);
+    RT_NOREF(pRam, pVM, pVCpu);
     return VINF_SUCCESS;
 }
 
@@ -5351,6 +5417,7 @@ VMM_INT_DECL(int) PGMPhysIemGCPhys2Ptr(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhy
                                        void **ppv, PPGMPAGEMAPLOCK pLock)
 {
     PGM_A20_APPLY_TO_VAR(pVCpu, GCPhys);
+    RT_NOREF(pVCpu);
 
     PGM_LOCK_VOID(pVM);
 

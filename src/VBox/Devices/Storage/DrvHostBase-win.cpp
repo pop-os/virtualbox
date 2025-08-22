@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -314,8 +314,8 @@ DECLHIDDEN(int) drvHostBaseGetMediaSizeOs(PDRVHOSTBASE pThis, uint64_t *pcb)
     else
     {
         /* use NT api, retry a few times if the media is being verified. */
-        IO_STATUS_BLOCK             IoStatusBlock = {0};
-        FILE_FS_SIZE_INFORMATION    FsSize = {{0}};
+        IO_STATUS_BLOCK             IoStatusBlock = { {0}, 0 };
+        FILE_FS_SIZE_INFORMATION    FsSize = { {{0,0}}, {{0,0}}, 0, 0 };
         NTSTATUS rcNt = NtQueryVolumeInformationFile((HANDLE)RTFileToNative(pThis->Os.hFileDevice),  &IoStatusBlock,
                                                      &FsSize, sizeof(FsSize), FileFsSizeInformation);
         int cRetries = 5;

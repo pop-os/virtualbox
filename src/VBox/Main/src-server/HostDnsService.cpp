@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -41,27 +41,24 @@
 
 #include <algorithm>
 #include <set>
-#include <iprt/sanitized/string>
 #include "HostDnsService.h"
 
 
 
-static void dumpHostDnsStrVector(const std::string &prefix, const std::vector<std::string> &v)
+static void dumpHostDnsStrVector(const char *prefix, const std::vector<com::Utf8Str> &v)
 {
     int i = 1;
-    for (std::vector<std::string>::const_iterator it = v.begin();
-         it != v.end();
-         ++it, ++i)
-        LogRel(("  %s %d: %s\n", prefix.c_str(), i, it->c_str()));
+    for (std::vector<com::Utf8Str>::const_iterator it = v.begin(); it != v.end(); ++it, ++i)
+        LogRel(("  %s %d: %s\n", prefix, i, it->c_str()));
     if (v.empty())
-        LogRel(("  no %s entries\n", prefix.c_str()));
+        LogRel(("  no %s entries\n", prefix));
 }
 
 static void dumpHostDnsInformation(const HostDnsInformation &info)
 {
     dumpHostDnsStrVector("server", info.servers);
 
-    if (!info.domain.empty())
+    if (info.domain.isNotEmpty())
         LogRel(("  domain: %s\n", info.domain.c_str()));
     else
         LogRel(("  no domain set\n"));
@@ -76,8 +73,8 @@ bool HostDnsInformation::equals(const HostDnsInformation &info, uint32_t fLaxCom
         fSameServers = (servers == info.servers);
     else
     {
-        std::set<std::string> l(servers.begin(), servers.end());
-        std::set<std::string> r(info.servers.begin(), info.servers.end());
+        std::set<com::Utf8Str> l(servers.begin(), servers.end());
+        std::set<com::Utf8Str> r(info.servers.begin(), info.servers.end());
 
         fSameServers = (l == r);
     }
@@ -92,19 +89,6 @@ bool HostDnsInformation::equals(const HostDnsInformation &info, uint32_t fLaxCom
         fSameDomain = fSameSearchList = true;
 
     return fSameServers && fSameDomain && fSameSearchList;
-}
-
-DECLINLINE(void) detachVectorOfString(const std::vector<std::string>& v, std::vector<com::Utf8Str> &aArray)
-{
-    aArray.resize(v.size());
-    size_t i = 0;
-    for (std::vector<std::string>::const_iterator it = v.begin(); it != v.end(); ++it, ++i)
-        aArray[i] = Utf8Str(it->c_str()); /** @todo r=bird: *it isn't necessarily UTF-8 clean!!
-                                           * On darwin we do silly shit like using CFStringGetSystemEncoding()
-                                           * that may be UTF-8 but doesn't need to be.
-                                           *
-                                           * Why on earth are we using std::string here anyway?
-                                           */
 }
 
 struct HostDnsServiceBase::Data
@@ -246,63 +230,63 @@ void HostDnsServiceBase::setInfo(const HostDnsInformation &info)
         m->pProxy->notify(info);
 }
 
-void HostDnsMonitorProxy::pollGlobalExtraData(void)
+/**
+ * Updates HostDnsMonitorProxy::Data::fLaxComparison every 30 seconds, returning
+ * the new value.
+ *
+ * @note This will leave the lock while calling IVirtualBox::GetExtraData.
+ */
+uint32_t HostDnsMonitorProxy::pollGlobalExtraData(AutoWriteLock &aLock)
 {
+    uint32_t    fLaxComparison = m->fLaxComparison;
     VirtualBox *pVirtualBox = m->pVirtualBox;
-    if (RT_UNLIKELY(pVirtualBox == NULL))
-        return;
-
-    uint64_t uNow = RTTimeNanoTS();
-    if (uNow - m->uLastExtraDataPoll >= RT_NS_30SEC || m->uLastExtraDataPoll == 0)
+    if (pVirtualBox)
     {
-        m->uLastExtraDataPoll = uNow;
-
-        /*
-         * Should we ignore the order of DNS servers?
-         */
-        const com::Bstr bstrHostDNSOrderIgnoreKey("VBoxInternal2/HostDNSOrderIgnore");
-        com::Bstr bstrHostDNSOrderIgnore;
-        pVirtualBox->GetExtraData(bstrHostDNSOrderIgnoreKey.raw(),
-                                 bstrHostDNSOrderIgnore.asOutParam());
-        uint32_t fDNSOrderIgnore = 0;
-        if (bstrHostDNSOrderIgnore.isNotEmpty())
+        uint64_t uNow = RTTimeNanoTS();
+        if (uNow - m->uLastExtraDataPoll >= RT_NS_30SEC || m->uLastExtraDataPoll == 0)
         {
-            if (bstrHostDNSOrderIgnore != "0")
+            m->uLastExtraDataPoll = uNow;
+
+            /* We cannot do GetExtraData holding this lock, so temporarily release it. */
+            aLock.release();
+
+            /*
+             * Should we ignore the order of DNS servers?
+             */
+            const com::Bstr bstrHostDNSOrderIgnoreKey("VBoxInternal2/HostDNSOrderIgnore");
+            com::Bstr bstrHostDNSOrderIgnore;
+            pVirtualBox->GetExtraData(bstrHostDNSOrderIgnoreKey.raw(), bstrHostDNSOrderIgnore.asOutParam());
+            uint32_t fDNSOrderIgnore = 0;
+            if (bstrHostDNSOrderIgnore.isNotEmpty() && bstrHostDNSOrderIgnore != "0")
                 fDNSOrderIgnore = HostDnsInformation::IGNORE_SERVER_ORDER;
-        }
 
-        if (fDNSOrderIgnore != (m->fLaxComparison & HostDnsInformation::IGNORE_SERVER_ORDER))
-        {
+            if (fDNSOrderIgnore != (fLaxComparison & HostDnsInformation::IGNORE_SERVER_ORDER))
+            {
+                fLaxComparison ^= HostDnsInformation::IGNORE_SERVER_ORDER;
+                LogRel(("HostDnsMonitor: %ls=%ls\n", bstrHostDNSOrderIgnoreKey.raw(), bstrHostDNSOrderIgnore.raw()));
+            }
 
-            m->fLaxComparison ^= HostDnsInformation::IGNORE_SERVER_ORDER;
-            LogRel(("HostDnsMonitor: %ls=%ls\n",
-                    bstrHostDNSOrderIgnoreKey.raw(),
-                    bstrHostDNSOrderIgnore.raw()));
-        }
-
-        /*
-         * Should we ignore changes to the domain name or the search list?
-         */
-        const com::Bstr bstrHostDNSSuffixesIgnoreKey("VBoxInternal2/HostDNSSuffixesIgnore");
-        com::Bstr bstrHostDNSSuffixesIgnore;
-        pVirtualBox->GetExtraData(bstrHostDNSSuffixesIgnoreKey.raw(),
-                                 bstrHostDNSSuffixesIgnore.asOutParam());
-        uint32_t fDNSSuffixesIgnore = 0;
-        if (bstrHostDNSSuffixesIgnore.isNotEmpty())
-        {
-            if (bstrHostDNSSuffixesIgnore != "0")
+            /*
+             * Should we ignore changes to the domain name or the search list?
+             */
+            const com::Bstr bstrHostDNSSuffixesIgnoreKey("VBoxInternal2/HostDNSSuffixesIgnore");
+            com::Bstr bstrHostDNSSuffixesIgnore;
+            pVirtualBox->GetExtraData(bstrHostDNSSuffixesIgnoreKey.raw(), bstrHostDNSSuffixesIgnore.asOutParam());
+            uint32_t fDNSSuffixesIgnore = 0;
+            if (bstrHostDNSSuffixesIgnore.isNotEmpty() && bstrHostDNSSuffixesIgnore != "0")
                 fDNSSuffixesIgnore = HostDnsInformation::IGNORE_SUFFIXES;
-        }
 
-        if (fDNSSuffixesIgnore != (m->fLaxComparison & HostDnsInformation::IGNORE_SUFFIXES))
-        {
+            if (fDNSSuffixesIgnore != (fLaxComparison & HostDnsInformation::IGNORE_SUFFIXES))
+            {
+                fLaxComparison ^= HostDnsInformation::IGNORE_SUFFIXES;
+                LogRel(("HostDnsMonitor: %ls=%ls\n", bstrHostDNSSuffixesIgnoreKey.raw(), bstrHostDNSSuffixesIgnore.raw()));
+            }
 
-            m->fLaxComparison ^= HostDnsInformation::IGNORE_SUFFIXES;
-            LogRel(("HostDnsMonitor: %ls=%ls\n",
-                    bstrHostDNSSuffixesIgnoreKey.raw(),
-                    bstrHostDNSSuffixesIgnore.raw()));
+            aLock.acquire();
+            m->fLaxComparison = fLaxComparison;
         }
     }
+    return fLaxComparison;
 }
 
 void HostDnsServiceBase::onMonitorThreadInitDone(void)
@@ -323,6 +307,7 @@ DECLCALLBACK(int) HostDnsServiceBase::threadMonitorProc(RTTHREAD, void *pvUser)
 /* HostDnsMonitorProxy */
 HostDnsMonitorProxy::HostDnsMonitorProxy()
     : m(NULL)
+    , m_ObjectLock(LOCKCLASS_OTHEROBJECT, "HostDnsMonitorProxy")
 {
 }
 
@@ -331,7 +316,7 @@ HostDnsMonitorProxy::~HostDnsMonitorProxy()
     uninit();
 }
 
-HRESULT HostDnsMonitorProxy::init(VirtualBox* aParent)
+HRESULT HostDnsMonitorProxy::init(VirtualBox *aParent)
 {
     AssertMsgReturn(m == NULL, ("DNS monitor proxy already initialized\n"), E_FAIL);
 
@@ -362,6 +347,11 @@ void HostDnsMonitorProxy::uninit(void)
     }
 }
 
+util::LockHandle *HostDnsMonitorProxy::lockHandle() const
+{
+    return &m_ObjectLock;
+}
+
 void HostDnsMonitorProxy::notify(const HostDnsInformation &info)
 {
     const bool fNotify = updateInfo(info);
@@ -371,25 +361,23 @@ void HostDnsMonitorProxy::notify(const HostDnsInformation &info)
 
 HRESULT HostDnsMonitorProxy::GetNameServers(std::vector<com::Utf8Str> &aNameServers)
 {
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(m != NULL, E_FAIL);
-    RTCLock grab(m_LockMtx);
 
     LogRel(("HostDnsMonitorProxy::GetNameServers:\n"));
     dumpHostDnsStrVector("name server", m->info.servers);
 
-    detachVectorOfString(m->info.servers, aNameServers);
+    aNameServers = m->info.servers;
 
     return S_OK;
 }
 
 HRESULT HostDnsMonitorProxy::GetDomainName(com::Utf8Str *pDomainName)
 {
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(m != NULL, E_FAIL);
-    RTCLock grab(m_LockMtx);
 
-    LogRel(("HostDnsMonitorProxy::GetDomainName: %s\n",
-            m->info.domain.empty() ? "no domain set" : m->info.domain.c_str()));
-
+    LogRel(("HostDnsMonitorProxy::GetDomainName: %s\n", m->info.domain.isEmpty() ? "no domain set" : m->info.domain.c_str()));
     *pDomainName = m->info.domain.c_str();
 
     return S_OK;
@@ -397,21 +385,21 @@ HRESULT HostDnsMonitorProxy::GetDomainName(com::Utf8Str *pDomainName)
 
 HRESULT HostDnsMonitorProxy::GetSearchStrings(std::vector<com::Utf8Str> &aSearchStrings)
 {
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(m != NULL, E_FAIL);
-    RTCLock grab(m_LockMtx);
 
     LogRel(("HostDnsMonitorProxy::GetSearchStrings:\n"));
     dumpHostDnsStrVector("search string", m->info.searchList);
 
-    detachVectorOfString(m->info.searchList, aSearchStrings);
+    aSearchStrings = m->info.searchList;
 
     return S_OK;
 }
 
 bool HostDnsMonitorProxy::updateInfo(const HostDnsInformation &info)
 {
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     LogRel(("HostDnsMonitor: updating information\n"));
-    RTCLock grab(m_LockMtx);
 
     if (info.equals(m->info))
     {
@@ -419,14 +407,14 @@ bool HostDnsMonitorProxy::updateInfo(const HostDnsInformation &info)
         return false;
     }
 
-    pollGlobalExtraData();
+    uint32_t const fLaxComparison = pollGlobalExtraData(alock);
 
     LogRel(("HostDnsMonitor: old information\n"));
     dumpHostDnsInformation(m->info);
     LogRel(("HostDnsMonitor: new information\n"));
     dumpHostDnsInformation(info);
 
-    bool fIgnore = m->fLaxComparison != 0 && info.equals(m->info, m->fLaxComparison);
+    bool fIgnore = fLaxComparison != 0 && info.equals(m->info, fLaxComparison);
     m->info = info;
 
     if (fIgnore)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1400,7 +1400,7 @@ static void darwinHidInputCbKeyUp(VBoxKbdState_t *pKbd, uint32_t iKeyCode, VBoxH
     CFIndex         iQueue = 0;
     VBoxKbdEvent_t *pEvent = NULL;
 
-    // Key-up event assumes that key-down event occured previously. If so, an event
+    // Key-up event assumes that key-down event occurred previously. If so, an event
     // data should be in event queue. Attempt to find it.
     for (CFIndex i = 0; i < CFArrayGetCount(pHidState->pFifoEventQueue); i++)
     {

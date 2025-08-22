@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -254,8 +254,8 @@ static DECLCALLBACK(VBOXSTRICTRC) pl061MmioRead(PPDMDEVINS pDevIns, void *pvUser
      *     bits in GPIODATA to be read, and bits that are 0 in the address mask cause the corresponding bits in GPIODATA
      *     to be read as 0, regardless of their value.
      */
-    if (    off >= PL061_REG_GPIODATA_INDEX
-        &&  off < PL061_REG_GPIODATA_INDEX_END + sizeof(uint32_t))
+    AssertCompile(PL061_REG_GPIODATA_INDEX == 0); /* Skip 'off >= PL061_REG_GPIODATA_INDEX' check and avoid C4267 */
+    if (off < PL061_REG_GPIODATA_INDEX_END + sizeof(uint32_t))
     {
         *(uint32_t *)pv = pThis->u8RegData & (uint8_t)(off >> 2);
         LogFlowFunc(("%RGp cb=%u u32=%RX32\n", off, cb, *(uint32_t *)pv));
@@ -342,8 +342,8 @@ static DECLCALLBACK(VBOXSTRICTRC) pl061MmioWrite(PPDMDEVINS pDevIns, void *pvUse
      *     In order to write to GPIODATA, the corresponding bits in the mask, resulting from the address bus, PADDR[9:2],
      *     must be HIGH. Otherwise the bit values remain unchanged by the write.
      */
-    if (    off >= PL061_REG_GPIODATA_INDEX
-        &&  off < PL061_REG_GPIODATA_INDEX_END + sizeof(uint32_t))
+    AssertCompile(PL061_REG_GPIODATA_INDEX == 0); /* Skip 'off >= PL061_REG_GPIODATA_INDEX' check and avoid C4267 */
+    if (off < PL061_REG_GPIODATA_INDEX_END + sizeof(uint32_t))
     {
         uint8_t uMask = (uint8_t)(off >> 2);
         uint8_t uNewValue = (*(const uint32_t *)pv & uMask) | (pThis->u8RegData & ~uMask);
@@ -458,9 +458,9 @@ static DECLCALLBACK(bool) pl061R3GpioPort_GpioLineIsInput(PPDMIGPIOPORT pInterfa
     PPDMDEVINS  pDevIns = pThisCC->pDevIns;
     PDEVPL061   pThis   = PDMDEVINS_2_DATA(pDevIns, PDEVPL061);
 
-    AssertReturn(idGpio < PL061_GPIO_NUM, VERR_INVALID_PARAMETER);
+    AssertReturn(idGpio < PL061_GPIO_NUM, false);
 
-    return !RT_BOOL(pThis->u8RegDir & RT_BIT(idGpio)); /* Bit cleared means input. */
+    return !(pThis->u8RegDir & RT_BIT(idGpio)); /* Bit cleared means input. */
 }
 
 
@@ -602,11 +602,9 @@ static DECLCALLBACK(int) pl061R3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
     if (RT_SUCCESS(rc))
     {
         pThisCC->pDrvGpio = PDMIBASE_QUERY_INTERFACE(pThisCC->pDrvBase, PDMIGPIOCONNECTOR);
-        if (!pThisCC->pDrvGpio)
-        {
-            AssertLogRelMsgFailed(("PL061#%d: instance %d has no GPIO interface!\n", pDevIns->iInstance));
-            return VERR_PDM_MISSING_INTERFACE;
-        }
+        AssertLogRelMsgReturn(pThisCC->pDrvGpio,
+                              ("PL061#%d: instance %d has no GPIO interface!\n", pDevIns->iInstance, pDevIns->iInstance),
+                              VERR_PDM_MISSING_INTERFACE);
     }
     else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
     {

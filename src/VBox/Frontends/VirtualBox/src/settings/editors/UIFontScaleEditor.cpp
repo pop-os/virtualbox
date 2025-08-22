@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -87,22 +87,22 @@ void UIFontScaleEditor::setMinimumLayoutIndent(int iIndent)
 void UIFontScaleEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("F&ont Scaling:"));
+        m_pLabel->setText(tr("F&ont Scaling"));
 
     if (m_pScaleSlider)
-        m_pScaleSlider->setToolTip(tr("Holds the scaling factor for the font size."));
+        m_pScaleSlider->setToolTip(tr("Scale factor for the font size"));
     if (m_pScaleSpinBox)
-        m_pScaleSpinBox->setToolTip(tr("Holds the scaling factor for the font size."));
+        m_pScaleSpinBox->setToolTip(tr("Scale factor for the font size"));
 
     if (m_pMinScaleLabel)
     {
         m_pMinScaleLabel->setText(QString("%1%").arg(m_pScaleSpinBox->minimum()));
-        m_pMinScaleLabel->setToolTip(tr("Minimum possible scale factor."));
+        m_pMinScaleLabel->setToolTip(tr("Minimum font scale factor"));
     }
     if (m_pMaxScaleLabel)
     {
         m_pMaxScaleLabel->setText(QString("%1%").arg(m_pScaleSpinBox->maximum()));
-        m_pMaxScaleLabel->setToolTip(tr("Maximum possible scale factor."));
+        m_pMaxScaleLabel->setToolTip(tr("Maximum font scale factor"));
     }
 }
 

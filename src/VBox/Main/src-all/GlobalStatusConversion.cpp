@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -128,10 +128,8 @@ Global::vboxStatusCodeToCOM(int aVBoxStatus)
                 return S_OK;
 
             /* try categorize it */
-            if (   aVBoxStatus < 0
-                && (   aVBoxStatus > -1000
-                    || (aVBoxStatus < -22000 && aVBoxStatus > -32766) )
-               )
+            if (   aVBoxStatus > -1000
+                || (aVBoxStatus < -22000 && aVBoxStatus > -32766))
                 return VBOX_E_IPRT_ERROR;
             if (    aVBoxStatus <  VERR_PDM_NO_SUCH_LUN / 100 * 10
                 &&  aVBoxStatus >  VERR_PDM_NO_SUCH_LUN / 100 * 10 - 100)

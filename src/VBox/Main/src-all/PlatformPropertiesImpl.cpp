@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -85,10 +85,7 @@ HRESULT PlatformProperties::init(VirtualBox *aParent, bool fIsHost /* = false */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst(mParent) = aParent;
-
-    m = new settings::PlatformProperties;
-
+    unconst(mParent)  = aParent;
     unconst(mfIsHost) = fIsHost;
 
     if (mfIsHost)
@@ -99,9 +96,9 @@ HRESULT PlatformProperties::init(VirtualBox *aParent, bool fIsHost /* = false */
          * NB: See also PlatformProperties constructor in settings.h
          */
 #if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS)
-        m->fExclusiveHwVirt = false; /** @todo BUGBUG Applies for MacOS on ARM as well? */
+        mData.fExclusiveHwVirt = false; /** @todo BUGBUG Applies for MacOS on ARM as well? */
 #else
-        m->fExclusiveHwVirt = true;
+        mData.fExclusiveHwVirt = true;
 #endif
     }
 
@@ -155,12 +152,6 @@ void PlatformProperties::uninit()
     AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
-
-    if (m)
-    {
-        delete m;
-        m = NULL;
-    }
 }
 
 HRESULT PlatformProperties::getSerialPortCount(ULONG *count)
@@ -173,8 +164,22 @@ HRESULT PlatformProperties::getSerialPortCount(ULONG *count)
 
 HRESULT PlatformProperties::getParallelPortCount(ULONG *count)
 {
-    /* no need to lock, this is const */
-    *count = SchemaDefs::ParallelPortCount;
+    switch (mPlatformArchitecture)
+    {
+        case PlatformArchitecture_x86:
+        {
+            /* no need to lock, this is const */
+            *count = SchemaDefs::ParallelPortCount;
+            break;
+        }
+
+        case PlatformArchitecture_ARM:
+        default:
+        {
+            *count = 0; /* Not supported. */
+            break;
+        }
+    }
 
     return S_OK;
 }
@@ -197,7 +202,7 @@ HRESULT PlatformProperties::getExclusiveHwVirt(BOOL *aExclusiveHwVirt)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aExclusiveHwVirt = m->fExclusiveHwVirt;
+    *aExclusiveHwVirt = mData.fExclusiveHwVirt;
 
     /* Makes no sense for guest platform properties, but we return FALSE anyway. */
     return S_OK;
@@ -212,7 +217,7 @@ HRESULT PlatformProperties::setExclusiveHwVirt(BOOL aExclusiveHwVirt)
         return S_OK;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    m->fExclusiveHwVirt = !!aExclusiveHwVirt;
+    mData.fExclusiveHwVirt = !!aExclusiveHwVirt;
     alock.release();
 
     // VirtualBox::i_saveSettings() needs vbox write lock
@@ -705,6 +710,7 @@ HRESULT PlatformProperties::getSupportedGfxControllerTypes(std::vector<GraphicsC
                 GraphicsControllerType_Null,
                 GraphicsControllerType_QemuRamFB
 #ifdef VBOX_WITH_VMSVGA
+              , GraphicsControllerType_VBoxSVGA
               , GraphicsControllerType_VMSVGA
 #endif
             };
@@ -766,6 +772,7 @@ HRESULT PlatformProperties::getSupportedNetworkAdapterTypes(std::vector<NetworkA
 #ifdef VBOX_WITH_VIRTIO
               , NetworkAdapterType_Virtio
 #endif
+              , NetworkAdapterType_UsbNet
             };
             aSupportedNetworkAdapterTypes.assign(aNetworkAdapterTypes + 1 /* Don't include _Null */,
                                                  aNetworkAdapterTypes + RT_ELEMENTS(aNetworkAdapterTypes));
@@ -785,6 +792,7 @@ HRESULT PlatformProperties::getSupportedNetworkAdapterTypes(std::vector<NetworkA
 #ifdef VBOX_WITH_VIRTIO
               , NetworkAdapterType_Virtio
 #endif
+              , NetworkAdapterType_UsbNet
             };
             aSupportedNetworkAdapterTypes.assign(aNetworkAdapterTypes + 1 /* Don't include _Null */,
                                                  aNetworkAdapterTypes + RT_ELEMENTS(aNetworkAdapterTypes));
@@ -1276,7 +1284,8 @@ HRESULT PlatformProperties::getSupportedTpmTypes(std::vector<TpmType_T> &aSuppor
         {
             static const TpmType_T aTpmTypes[] =
             {
-                TpmType_None
+                TpmType_None,
+                TpmType_v2_0
             };
             aSupportedTpmTypes.assign(aTpmTypes,
                                       aTpmTypes + RT_ELEMENTS(aTpmTypes));

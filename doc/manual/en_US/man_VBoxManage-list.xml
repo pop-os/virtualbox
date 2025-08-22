@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage list
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-list" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
+    <pubdate>$Date: 2025-08-11 19:18:47 +0200 (Mon, 11 Aug 2025) $</pubdate>
     <title>VBoxManage list</title>
   </refentryinfo>
 
@@ -215,7 +215,7 @@
       </para>
       <para>
         This command performs the same function as the Virtual Media
-        Manager. See <xref linkend="virtual-media-manager"/>.
+        Manager. See <xref linkend="ct_virtual-media-manager"/>.
       </para>
     </refsect2>
     <refsect2 id="vboxmanage-list-extpacks">
@@ -227,7 +227,7 @@
       <para>
         The <command>VBoxManage list extpacks</command> command shows
         all &product-name; extension packs that are currently installed.
-        See <xref linkend="intro-installing"/> and
+        See <xref linkend="install-ext-pack"/> and
         <xref linkend="vboxmanage-extpack"/>.
       </para>
     </refsect2>
@@ -246,7 +246,7 @@
       </para>
       <para>
         This command performs the same function as the Virtual Media
-        Manager. See <xref linkend="virtual-media-manager"/>.
+        Manager. See <xref linkend="ct_virtual-media-manager"/>.
       </para>
     </refsect2>
     <refsect2 id="vboxmanage-list-groups">
@@ -289,7 +289,7 @@
       </para>
       <para>
         This command performs the same function as the Virtual Media
-        Manager. See <xref linkend="virtual-media-manager"/>.
+        Manager. See <xref linkend="ct_virtual-media-manager"/>.
       </para>
     </refsect2>
     <refsect2 id="vboxmanage-list-hostcpuids">

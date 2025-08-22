@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2019-2024 Oracle and/or its affiliates.
+; Copyright (C) 2019-2025 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -59,9 +59,11 @@ RT_BEGINPROC RTStrMemFind32
  %endif
 %else
  %ifdef ASM_CALL32_WATCOM
+        push    edi                     ; (watcall preserves all register)
+        push    ecx
         mov     ecx, ebx
-        xchg    eax, edx
-        xchg    edi, edx                ; load and save edi.
+        mov     edi, eax
+        mov     eax, edx
  %else
         mov     ecx, [esp + 0ch]
         mov     edx, edi                ; save edi
@@ -82,7 +84,12 @@ RT_BEGINPROC RTStrMemFind32
         mov     rdi, r9
 %endif
 %ifdef RT_ARCH_X86
+ %ifdef ASM_CALL32_WATCOM
+        pop     ecx
+        pop     edi
+ %else
         mov     edi, edx
+ %endif
 %endif
         ret
 
@@ -91,7 +98,12 @@ RT_BEGINPROC RTStrMemFind32
         mov     rdi, r9
 %endif
 %ifdef RT_ARCH_X86
+ %ifdef ASM_CALL32_WATCOM
+        pop     ecx
+        pop     edi
+ %else
         mov     edi, edx
+ %endif
 %endif
         xor     eax, eax
         ret

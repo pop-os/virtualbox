@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -57,7 +57,7 @@
 #include <VBox/vmm/nem.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmapic.h>
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/dbgftrace.h>
 #include "NEMInternal.h"
@@ -164,10 +164,15 @@ static decltype(WHvGetVirtualProcessorRegisters) *  g_pfnWHvGetVirtualProcessorR
 static decltype(WHvSetVirtualProcessorRegisters) *  g_pfnWHvSetVirtualProcessorRegisters;
 static decltype(WHvResumePartitionTime)            *g_pfnWHvResumePartitionTime;
 static decltype(WHvSuspendPartitionTime)           *g_pfnWHvSuspendPartitionTime;
-static decltype(WHvGetVirtualProcessorXsaveState)  *g_pfnWHvGetVirtualProcessorXsaveState = NULL;
-static decltype(WHvSetVirtualProcessorXsaveState)  *g_pfnWHvSetVirtualProcessorXsaveState = NULL;
-static decltype(WHvGetVirtualProcessorState)       *g_pfnWHvGetVirtualProcessorState = NULL;
-static decltype(WHvSetVirtualProcessorState)       *g_pfnWHvSetVirtualProcessorState = NULL;
+decltype(WHvGetVirtualProcessorXsaveState) *        g_pfnWHvGetVirtualProcessorXsaveState = NULL;
+decltype(WHvSetVirtualProcessorXsaveState) *        g_pfnWHvSetVirtualProcessorXsaveState = NULL;
+decltype(WHvGetVirtualProcessorState) *             g_pfnWHvGetVirtualProcessorState = NULL;
+decltype(WHvSetVirtualProcessorState) *             g_pfnWHvSetVirtualProcessorState = NULL;
+decltype(WHvGetVirtualProcessorInterruptControllerState)  *g_pfnWHvGetVirtualProcessorInterruptControllerState = NULL;
+decltype(WHvSetVirtualProcessorInterruptControllerState)  *g_pfnWHvSetVirtualProcessorInterruptControllerState = NULL;
+decltype(WHvGetVirtualProcessorInterruptControllerState2) *g_pfnWHvGetVirtualProcessorInterruptControllerState2 = NULL;
+decltype(WHvSetVirtualProcessorInterruptControllerState2) *g_pfnWHvSetVirtualProcessorInterruptControllerState2 = NULL;
+decltype(WHvRequestInterrupt) *                     g_pfnWHvRequestInterrupt;
 /** @} */
 
 /** @name APIs imported from Vid.dll
@@ -220,10 +225,15 @@ static const struct
     NEM_WIN_IMPORT(0, false, WHvSetVirtualProcessorRegisters),
     NEM_WIN_IMPORT(0, true,  WHvResumePartitionTime),  /* since 19H1 */
     NEM_WIN_IMPORT(0, true,  WHvSuspendPartitionTime), /* since 19H1 */
+    NEM_WIN_IMPORT(0, true,  WHvRequestInterrupt),
     NEM_WIN_IMPORT(0, true,  WHvGetVirtualProcessorXsaveState),
     NEM_WIN_IMPORT(0, true,  WHvSetVirtualProcessorXsaveState),
     NEM_WIN_IMPORT(0, true,  WHvGetVirtualProcessorState),
     NEM_WIN_IMPORT(0, true,  WHvSetVirtualProcessorState),
+    NEM_WIN_IMPORT(0, true,  WHvGetVirtualProcessorInterruptControllerState),
+    NEM_WIN_IMPORT(0, true,  WHvSetVirtualProcessorInterruptControllerState),
+    NEM_WIN_IMPORT(0, true,  WHvGetVirtualProcessorInterruptControllerState2),
+    NEM_WIN_IMPORT(0, true,  WHvSetVirtualProcessorInterruptControllerState2),
 
     NEM_WIN_IMPORT(1, true,  VidGetHvPartitionId),
     NEM_WIN_IMPORT(1, true,  VidGetPartitionProperty),
@@ -298,10 +308,13 @@ static const HV_X64_INTERCEPT_MESSAGE_HEADER *g_pX64MsgHdr;
 # define WHvSetVirtualProcessorRegisters            g_pfnWHvSetVirtualProcessorRegisters
 # define WHvResumePartitionTime                     g_pfnWHvResumePartitionTime
 # define WHvSuspendPartitionTime                    g_pfnWHvSuspendPartitionTime
+# define WHvRequestInterrupt                        g_pfnWHvRequestInterrupt
 # define WHvGetVirtualProcessorXsaveState           g_pfnWHvGetVirtualProcessorXsaveState
 # define WHvSetVirtualProcessorXsaveState           g_pfnWHvSetVirtualProcessorXsaveState
 # define WHvGetVirtualProcessorState                g_pfnWHvGetVirtualProcessorState
 # define WHvSetVirtualProcessorState                g_pfnWHvSetVirtualProcessorState
+# define WHvGetVirtualProcessorInterruptControllerState     g_pfnWHvGetVirtualProcessorInterruptControllerState
+# define WHvGetVirtualProcessorInterruptControllerState2    g_pfnWHvGetVirtualProcessorInterruptControllerState2
 
 # define VidMessageSlotHandleAndGetNext             g_pfnVidMessageSlotHandleAndGetNext
 # define VidStartVirtualProcessor                   g_pfnVidStartVirtualProcessor
@@ -309,8 +322,10 @@ static const HV_X64_INTERCEPT_MESSAGE_HEADER *g_pX64MsgHdr;
 
 #endif
 
+#if 0 /* unused */
 /** WHV_MEMORY_ACCESS_TYPE names */
 static const char * const g_apszWHvMemAccesstypes[4] = { "read", "write", "exec", "!undefined!" };
+#endif
 
 
 /*********************************************************************************************************************************
@@ -600,7 +615,7 @@ static int nemR3WinInitProbeAndLoad(bool fForced, PRTERRINFO pErrInfo)
             {
                 *g_aImports[i].ppfn = NULL;
 
-                LogRel(("NEM:  %s: Failed to import %s!%s: %Rrc",
+                LogRel(("NEM:  %s: Failed to import %s!%s: %Rrc\n",
                         g_aImports[i].fOptional ? "info" : fForced ? "fatal" : "error",
                         s_apszDllNames[g_aImports[i].idxDll], g_aImports[i].pszName, rc2));
                 if (!g_aImports[i].fOptional)
@@ -755,6 +770,7 @@ static int nemR3WinInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
     if (Caps.Features.AsUINT64 & ~fKnownFeatures)
         NEM_LOG_REL_CAP_SUB_EX("Unknown features", "%#RX64", Caps.ExtendedVmExits.AsUINT64 & ~fKnownFeatures);
     pVM->nem.s.fSpeculationControl = RT_BOOL(Caps.Features.SpeculationControl);
+    pVM->nem.s.fLocalApicEmulation = RT_BOOL(Caps.Features.LocalApicEmulation);
     /** @todo RECHECK: WHV_CAPABILITY_FEATURES typedef. */
 
     pVM->nem.s.fXsaveSupported = RT_BOOL(Caps.Features.Xsave);
@@ -814,7 +830,6 @@ static int nemR3WinInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
         if (Caps.ProcessorXsaveFeatures.AsUINT64 & ~fKnownXsave)
             NEM_LOG_REL_CAP_SUB_EX("Unknown xsave features", "%#RX64", Caps.ProcessorXsaveFeatures.AsUINT64 & ~fKnownXsave);
 
-        pVM->nem.s.fXsaveComp = RT_BOOL(Caps.ProcessorXsaveFeatures.XsaveCompSupport);
 #undef  NEM_LOG_REL_XSAVE_FEATURE
     }
 
@@ -995,7 +1010,7 @@ static int nemR3WinInitCheckCapabilities(PVM pVM, PRTERRINFO pErrInfo)
     return VINF_SUCCESS;
 }
 
-#ifdef LOG_ENABLED
+#if 0 /* def LOG_ENABLED */ /** r=aeichner: Causes assertions with newer hosts and isn't of much use anymore anyway. */
 
 /**
  * Used to fill in g_IoCtlGetHvPartitionId.
@@ -1193,7 +1208,7 @@ static int nemR3WinInitDiscoverIoControlProperties(PVM pVM, PRTERRINFO pErrInfo)
      * them directly from ring-0 and better log them.
      *
      */
-#ifdef LOG_ENABLED
+#if 0 /* def LOG_ENABLED */ /** r=aeichner: Causes assertions with newer hosts and isn't of much use anymore anyway. */
     decltype(NtDeviceIoControlFile) * const pfnOrg = *g_ppfnVidNtDeviceIoControlFile;
 
     /* VidGetHvPartitionId - must work due to our memory management. */
@@ -1331,7 +1346,7 @@ static int nemR3WinInitCreatePartition(PVM pVM, PRTERRINFO pErrInfo)
         return RTErrInfoSetF(pErrInfo, VERR_NEM_VM_CREATE_FAILED, "WHvCreatePartition failed with %Rhrc (Last=%#x/%u)",
                              hrc, RTNtLastStatusValue(), RTNtLastErrorValue());
 
-    int rc;
+    int rc = VINF_SUCCESS;
 
     /*
      * Set partition properties, most importantly the CPU count.
@@ -1357,13 +1372,58 @@ static int nemR3WinInitCreatePartition(PVM pVM, PRTERRINFO pErrInfo)
         hrc = WHvSetPartitionProperty(hPartition, WHvPartitionPropertyCodeExtendedVmExits, &Property, sizeof(Property));
         if (SUCCEEDED(hrc))
         {
+            RT_ZERO(Property);
             /*
-             * We'll continue setup in nemR3NativeInitAfterCPUM.
+             * If the APIC is enabled and LocalApicEmulation is supported we'll use Hyper-V's APIC emulation
+             * for best performance.
              */
-            pVM->nem.s.fCreatedEmts     = false;
-            pVM->nem.s.hPartition       = hPartition;
-            LogRel(("NEM: Created partition %p.\n", hPartition));
-            return VINF_SUCCESS;
+            PCFGMNODE pCfgmApic = CFGMR3GetChild(CFGMR3GetRoot(pVM), "/Devices/apic");
+            if (   pCfgmApic
+                && pVM->nem.s.fLocalApicEmulation
+                && 0) /** @todo Finish */
+            {
+                /* If setting this fails log an error but continue. */
+                Property.LocalApicEmulationMode = WHvX64LocalApicEmulationModeXApic;
+                hrc = WHvSetPartitionProperty(hPartition, WHvPartitionPropertyCodeLocalApicEmulationMode  , &Property, sizeof(Property));
+                if (FAILED(hrc))
+                {
+                    LogRel(("NEM: Failed setting WHvPartitionPropertyCodeLocalApicEmulationMode to WHvX64LocalApicEmulationModeXApic: %Rhrc (Last=%#x/%u)",
+                            hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+                    pVM->nem.s.fLocalApicEmulation = false;
+                }
+                else
+                {
+                    /* Rewrite the configuration tree to point to our APIC emulation. */
+                    PCFGMNODE pCfgmDev = CFGMR3GetChild(CFGMR3GetRoot(pVM), "/Devices");
+                    Assert(pCfgmDev);
+
+                    PCFGMNODE pCfgmApicHv = NULL;
+                    rc = CFGMR3InsertNode(pCfgmDev, "apic-nem", &pCfgmApicHv);
+                    if (RT_SUCCESS(rc))
+                    {
+                        rc = CFGMR3CopyTree(pCfgmApicHv, pCfgmApic, CFGM_COPY_FLAGS_IGNORE_EXISTING_KEYS | CFGM_COPY_FLAGS_IGNORE_EXISTING_VALUES);
+                        if (RT_SUCCESS(rc))
+                            CFGMR3RemoveNode(pCfgmApic);
+                    }
+
+                    if (RT_FAILURE(rc))
+                        rc = RTErrInfoSetF(pErrInfo, rc, "Failed replace APIC device config with Hyper-V one");
+                }
+            }
+            else
+                pVM->nem.s.fLocalApicEmulation = false;
+
+
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * We'll continue setup in nemR3NativeInitAfterCPUM.
+                 */
+                pVM->nem.s.fCreatedEmts     = false;
+                pVM->nem.s.hPartition       = hPartition;
+                LogRel(("NEM: Created partition %p.\n", hPartition));
+                return VINF_SUCCESS;
+            }
         }
 
         rc = RTErrInfoSetF(pErrInfo, VERR_NEM_VM_CREATE_FAILED,
@@ -1397,6 +1457,8 @@ static int nemR3WinDisableX2Apic(PVM pVM)
      * This defaults to APIC, so no need to change unless it's X2APIC.
      */
     PCFGMNODE pCfg = CFGMR3GetChild(CFGMR3GetRoot(pVM), "/Devices/apic/0/Config");
+    if (!pCfg)
+        pCfg = CFGMR3GetChild(CFGMR3GetRoot(pVM), "/Devices/apic-nem/0/Config");
     if (pCfg)
     {
         uint8_t bMode = 0;
@@ -1443,20 +1505,7 @@ static int nemR3WinDisableX2Apic(PVM pVM)
 }
 
 
-/**
- * Try initialize the native API.
- *
- * This may only do part of the job, more can be done in
- * nemR3NativeInitAfterCPUM() and nemR3NativeInitCompleted().
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   fFallback       Whether we're in fallback mode or use-NEM mode. In
- *                          the latter we'll fail if we cannot initialize.
- * @param   fForced         Whether the HMForced flag is set and we should
- *                          fail if we cannot initialize.
- */
-int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
+DECLHIDDEN(int) nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
 {
     g_uBuildNo = RTSystemGetNtBuildNo();
 
@@ -1567,6 +1616,7 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                         STAMR3RegisterF(pVM, &pNemCpu->StatQueryCpuTick,        STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of TSC queries",                  "/NEM/CPU%u/QueryCpuTick", idCpu);
                     }
 
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
                     if (!SUPR3IsDriverless())
                     {
                         PUVM pUVM = pVM->pUVM;
@@ -1577,6 +1627,7 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                                               STAMUNIT_PAGES, STAM_REFRESH_GRP_NEM, "Pages in use by hypervisor",
                                               "/NEM/R0Stats/cPagesInUse");
                     }
+#endif /* VBOX_WITH_R0_MODULES && !VBOX_WITH_MINIMAL_R0 */
 
                 }
             }
@@ -1597,13 +1648,7 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
 }
 
 
-/**
- * This is called after CPUMR3Init is done.
- *
- * @returns VBox status code.
- * @param   pVM                 The VM handle..
- */
-int nemR3NativeInitAfterCPUM(PVM pVM)
+DECLHIDDEN(int) nemR3NativeInitAfterCPUM(PVM pVM)
 {
     /*
      * Validate sanity.
@@ -1768,6 +1813,19 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
                               ("Returned XSAVE area exceeds what VirtualBox supported (%u > %zu)\n",
                               pVM->nem.s.cbXSaveArea, sizeof(pVCpu->cpum.GstCtx.XState)),
                               VERR_NEM_VM_CREATE_FAILED);
+
+        /*
+         * Query the default xsave area layout and check whether Hyper-V wants the compacted form. This can't be deduced from the
+         * features exposed because at least on Intel CPUs older than Skylake XSaveComp is false but Hyper-V still expects the compacted form.
+         * So we just query the default xsave area and the deduce the flag from there.
+         */
+        X86XSAVEAREA XState;
+        hrc = WHvGetVirtualProcessorXsaveState(pVM->nem.s.hPartition, pVCpu->idCpu, &XState, pVM->nem.s.cbXSaveArea, NULL);
+        AssertLogRelMsgReturn(hrc == ERROR_SUCCESS, ("WHvGetVirtualProcessorState(%p, %u,%x,,) -> %Rhrc (Last=%#x/%u)\n",
+                              pVM->nem.s.hPartition, pVCpu->idCpu, WHvVirtualProcessorStateTypeXsaveState,
+                              hrc, RTNtLastStatusValue(), RTNtLastErrorValue()), VERR_NEM_VM_CREATE_FAILED);
+       pVM->nem.s.fXsaveComp = RT_BOOL(XState.Hdr.bmXComp & XSAVE_C_X);
+       LogRel(("NEM: Default XSAVE area returned by Hyper-V\n%.*Rhxd\n", pVM->nem.s.cbXSaveArea, &XState));
     }
 
     LogRel(("NEM: Successfully set up partition (device handle %p, partition ID %#llx)\n", hPartitionDevice, idHvPartition));
@@ -1788,17 +1846,17 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
 }
 
 
-int nemR3NativeInitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+DECLHIDDEN(int) nemR3NativeInitCompletedRing3(PVM pVM)
 {
     //BOOL fRet = SetThreadPriority(GetCurrentThread(), 0);
     //AssertLogRel(fRet);
 
-    NOREF(pVM); NOREF(enmWhat);
+    RT_NOREF_PV(pVM);
     return VINF_SUCCESS;
 }
 
 
-int nemR3NativeTerm(PVM pVM)
+DECLHIDDEN(int) nemR3NativeTerm(PVM pVM)
 {
     /*
      * Delete the partition.
@@ -1826,12 +1884,7 @@ int nemR3NativeTerm(PVM pVM)
 }
 
 
-/**
- * VM reset notification.
- *
- * @param   pVM         The cross context VM structure.
- */
-void nemR3NativeReset(PVM pVM)
+DECLHIDDEN(void) nemR3NativeReset(PVM pVM)
 {
 #if 0
     /* Unfix the A20 gate. */
@@ -1842,14 +1895,7 @@ void nemR3NativeReset(PVM pVM)
 }
 
 
-/**
- * Reset CPU due to INIT IPI or hot (un)plugging.
- *
- * @param   pVCpu       The cross context virtual CPU structure of the CPU being
- *                      reset.
- * @param   fInitIpi    Whether this is the INIT IPI or hot (un)plugging case.
- */
-void nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
+DECLHIDDEN(void) nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
 {
 #ifdef NEM_WIN_WITH_A20
     /* Lock the A20 gate if INIT IPI, make sure it's enabled.  */
@@ -1867,8 +1913,9 @@ void nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
 }
 
 
-VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
+VMMR3_INT_DECL(VBOXSTRICTRC) NEMR3RunGC(PVM pVM, PVMCPU pVCpu)
 {
+    Assert(VM_IS_NEM_ENABLED(pVM));
     return nemHCWinRunGC(pVM, pVCpu);
 }
 
@@ -1891,14 +1938,14 @@ VMMR3_INT_DECL(bool) NEMR3CanExecuteGuest(PVM pVM, PVMCPU pVCpu)
 }
 
 
-bool nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
+DECLHIDDEN(bool) nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 {
     NOREF(pVM); NOREF(pVCpu); NOREF(fEnable);
     return false;
 }
 
 
-void nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
+DECLHIDDEN(void) nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
 {
     Log8(("nemR3NativeNotifyFF: canceling %u\n", pVCpu->idCpu));
     HRESULT hrc = WHvCancelRunVirtualProcessor(pVM->nem.s.hPartition, pVCpu->idCpu, 0);

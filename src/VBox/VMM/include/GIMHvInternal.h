@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -700,7 +700,7 @@ typedef enum GIMHVHYPERCALLPARAM
 #define GIM_HV_STATUS_INVALID_PROXIMITY_DOMAIN_INFO                  0x1A
 /** Attempt to retrieve data failed. */
 #define GIM_HV_STATUS_NO_DATA                                        0x1B
-/** Debug connection has not recieved any new data since the last time. */
+/** Debug connection has not received any new data since the last time. */
 #define GIM_HV_STATUS_INACTIVE                                       0x1C
 /** A resource is unavailable for allocation. */
 #define GIM_HV_STATUS_NO_RESOURCES                                   0x1D

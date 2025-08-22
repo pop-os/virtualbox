@@ -1,0 +1,113 @@
+/* $Id: tstPGMAllGst-armv8.json $ */
+/** @file
+ * PGM page table walking testcase - ARMv8 variant.
+ */
+
+/*
+ * Copyright (C) 2025 Oracle and/or its affiliates.
+ *
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
+[
+    {
+        Name:      "No MMU",
+        SCTLR_EL1: 0,
+        TCR_EL1:   0,
+        TTBR0_EL1: 0,
+        TTBR1_EL1: 0,
+
+        AddressSpace: { },
+
+        Tests:
+        [
+            {
+                GCPtr: 0x0,
+                Flags: { READ: 1, USER: 1 },
+                Result: { rcQueryPageFast: 'VINF_SUCCESS', rcGetPage: 'VINF_SUCCESS', GCPhys: 0x0, Info: { Succeeded: 1 }, Failed: 0, Effective: { PR: 1, PW: 1, PX: 1, PGCS: 1, UR: 1, UW: 1, UX: 1, UGCS: 1} }
+            },
+            {
+                GCPtr: 0xffff,
+                Flags: { READ: 1, USER: 1 },
+                Result: { rcQueryPageFast: 'VINF_SUCCESS', rcGetPage: 'VINF_SUCCESS', GCPhys: 0xffff, Info: { Succeeded: 1 }, Failed: 0, Effective: { PR: 1, PW: 1, PX: 1, PGCS: 1, UR: 1, UW: 1, UX: 1, UGCS: 1} }
+            },
+        ]
+    },
+    {
+        Name:      "4K Granules",
+        SCTLR_EL1: 0x1,
+        TCR_EL1:   { IPS: '64G', TG0: '4K', TG1: '4K' },
+        TTBR0_EL1: 0x0,
+        TTBR1_EL1: 0x1000,
+
+        AddressSpace:
+        {
+            0x0:    {                 PhysAddr:             0x1000,             T: 1, V: 1},
+
+            0x1000: { UXN: 0, PXN: 0, PhysAddr: 0x0000c00000000000, AP: 'UPR',  T: 0, V: 1},
+            0x1008: { UXN: 0, PXN: 0, PhysAddr: 0x0000fffffffff000, AP: 0,      T: 0, V: 0},
+            0x1010: {                 PhysAddr:             0x2000,             T: 1, V: 1},
+
+            0x2000: { UXN: 0, PXN: 0, PhysAddr: 0x0000d00000000000, AP: 'UPR',  T: 0, V: 1},
+            0x2008: {                 PhysAddr:             0x3000,             T: 1, V: 1},
+
+            0x3000: { UXN: 0, PXN: 0, PhysAddr: 0x0000d0d0d0d0d000, AP: 'UPR',  T: 1, V: 1},
+            0x3008: { UXN: 1, PXN: 1, PhysAddr: 0x0000d0d0d0d0d000, AP: 'UPR',  T: 1, V: 1},
+        },
+
+        Tests:
+        [
+            {
+                GCPtr: 0x0,
+                Flags: { READ: 1, USER: 1 },
+                Result: { rcQueryPageFast: 'VINF_SUCCESS', rcGetPage: 'VINF_SUCCESS', GCPhys: 0x0000c00000000000,
+                          Info: { Succeeded: 1, GiganticPage: 1}, Failed: 0, Effective: { PR: 1, PX: 1, UR: 1, UX: 1} },
+            },
+            {
+                GCPtr: 0x0,
+                Flags: { EXECUTE: 1, USER: 1 },
+                Result: { rcQueryPageFast: 'VINF_SUCCESS', rcGetPage: 'VINF_SUCCESS', GCPhys: 0x0000c00000000000,
+                          Info: { Succeeded: 1, GiganticPage: 1}, Failed: 0, Effective: { PR: 1, PX: 1, UR: 1, UX: 1} },
+            },
+            {
+                GCPtr: 0x40000000,
+                Flags: { EXECUTE: 1, USER: 1 },
+                Result: { rcQueryPageFast: 'VERR_PAGE_TABLE_NOT_PRESENT', rcGetPage: 'VERR_PAGE_TABLE_NOT_PRESENT', GCPhys: 0,
+                          Info: 0, Failed: { Level: 1, NotPresent: true } , Effective: 0 },
+            },
+            {
+                GCPtr: 0x80000000,
+                Flags: { EXECUTE: 1, USER: 1 },
+                Result: { rcQueryPageFast: 'VINF_SUCCESS', rcGetPage: 'VINF_SUCCESS', GCPhys: 0x0000d00000000000,
+                          Info: { Succeeded: 1, BigPage: 1}, Failed: 0, Effective: { PR: 1, PX: 1, UR: 1, UX: 1} },
+            },
+            {
+                GCPtr: 0x80200000,
+                Flags: { EXECUTE: 1, USER: 1 },
+                Result: { rcQueryPageFast: 'VINF_SUCCESS', rcGetPage: 'VINF_SUCCESS', GCPhys: 0x0000d0d0d0d0d000,
+                          Info: { Succeeded: 1 }, Failed: 0, Effective: { PR: 1, PX: 1, UR: 1, UX: 1} },
+            },
+            {
+                GCPtr: 0x80201000,
+                Flags: { EXECUTE: 1, USER: 1 },
+                Result: { rcQueryPageFast: 'VERR_ACCESS_DENIED', rcGetPage: 'VINF_SUCCESS', GCPhys: 0x0000d0d0d0d0d000,
+                          Info: 0, Failed: { Level: 3, NotExecutable: 1, NotAccessibleByMode: 1}, Effective: { PR: 1, UR: 1 } },
+            },
+        ]
+    }
+]

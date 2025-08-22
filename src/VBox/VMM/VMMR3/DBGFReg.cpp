@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -38,9 +38,11 @@
 #include <VBox/param.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
+#include <iprt/armv8.h>
 #include <iprt/ctype.h>
 #include <iprt/string.h>
 #include <iprt/uint128.h>
+#include <iprt/x86.h>
 
 
 /*********************************************************************************************************************************
@@ -209,6 +211,23 @@ typedef struct DBGFR3REGPRINTFARGS
 /** Pointer to a DBGFR3RegPrintfV argument packet. */
 typedef DBGFR3REGPRINTFARGS *PDBGFR3REGPRINTFARGS;
 
+/** Used by dbgfR3RegFormatSpecialFlags for EFLAGS and PSTATE.  */
+typedef struct DBGFSPECIALFLAG
+{
+    char        cchSet;
+    char        achSet[7];
+    char        cchClear;
+    char        achClear[7];
+    uint64_t    fFlag;
+} DBGFSPECIALFLAG;
+/** Creates a regular DBGFSPECIALFLAG entry. */
+#define DBGFSPECIALFLAG_ENTRY(a_szSet, a_szClear, a_fFlag) \
+    { sizeof(a_szSet) - 1, a_szSet, sizeof(a_szClear) - 1, a_szClear, a_fFlag }
+/** Creates a DBGFSPECIALFLAG entry with a 7 char long achSet flag. */
+#define DBGFSPECIALFLAG_ENTRY_SET7(a_szSet, a_szClear, a_fFlag) \
+    { sizeof(a_szSet) - 1, { a_szSet[0], a_szSet[1], a_szSet[2], a_szSet[3], a_szSet[4], a_szSet[5], a_szSet[6], }, \
+      sizeof(a_szClear) - 1, a_szClear, a_fFlag }
+
 
 
 /**
@@ -297,23 +316,26 @@ static int dbgfR3RegRegisterCommon(PUVM pUVM, PCDBGFREGDESC paRegisters, DBGFREG
     AssertMsgReturn(iInstance <= 9999, ("%d\n", iInstance), VERR_INVALID_NAME);
 
     /* The descriptors. */
-    uint32_t cLookupRecs = 0;
-    uint32_t iDesc;
+#ifdef VBOX_VMM_TARGET_X86
+    DBGFREG const  enmCpuFirst = DBGFREG_X86_FIRST;
+    DBGFREG const  enmCpuLast  = DBGFREG_X86_LAST;
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+    DBGFREG const  enmCpuFirst = DBGFREG_ARMV8_FIRST;
+    DBGFREG const  enmCpuLast  = DBGFREG_ARMV8_LAST;
+#else
+# error "port me"
+#endif
+    unsigned const cCpuDescs   = (unsigned)enmCpuLast - (unsigned)enmCpuFirst + 1;
+    uint32_t       cLookupRecs = 0;
+    uint32_t       iDesc;
     for (iDesc = 0; paRegisters[iDesc].pszName != NULL; iDesc++)
     {
         AssertMsgReturn(dbgfR3RegIsNameValid(paRegisters[iDesc].pszName, 0), ("%s (#%u)\n", paRegisters[iDesc].pszName, iDesc), VERR_INVALID_NAME);
 
-        if (enmType == DBGFREGSETTYPE_CPU)
-#if defined(VBOX_VMM_TARGET_ARMV8)
-            /** @todo This needs a general solution to avoid architecture dependent stuff here. */
-            AssertMsgReturn(iDesc < (unsigned)DBGFREG_END,
-                            ("%d iDesc=%d\n", paRegisters[iDesc].enmReg, iDesc),
+        if (enmType == DBGFREGSETTYPE_CPU) /* The CPU descriptors must be in enum order. */
+            AssertMsgReturn(iDesc < cCpuDescs && (unsigned)paRegisters[iDesc].enmReg == iDesc + (unsigned)enmCpuFirst,
+                            ("%d iDesc=%u+%d=%u\n", paRegisters[iDesc].enmReg, iDesc, enmCpuFirst, iDesc + (unsigned)enmCpuFirst),
                             VERR_INVALID_PARAMETER);
-#else
-            AssertMsgReturn(iDesc < (unsigned)DBGFREG_END && (unsigned)paRegisters[iDesc].enmReg == iDesc,
-                            ("%d iDesc=%d\n", paRegisters[iDesc].enmReg, iDesc),
-                            VERR_INVALID_PARAMETER);
-#endif
         else
             AssertReturn(paRegisters[iDesc].enmReg == DBGFREG_END, VERR_INVALID_PARAMETER);
         AssertReturn(   paRegisters[iDesc].enmType > DBGFREGVALTYPE_INVALID
@@ -441,7 +463,8 @@ static int dbgfR3RegRegisterCommon(PUVM pUVM, PCDBGFREGDESC paRegisters, DBGFREG
             }
 
             /* Advance to the next alias. */
-            pCurAlias = pNextAlias++;
+            if (pNextAlias)
+                pCurAlias = pNextAlias++;
             if (!pCurAlias)
                 break;
             pszRegName = pCurAlias->pszName;
@@ -904,9 +927,17 @@ static DECLCALLBACK(int) dbgfR3RegCpuQueryWorkerOnCpu(PUVM pUVM, VMCPUID idCpu, 
         /*
          * Look up the register and get the register value.
          */
-        if (RT_LIKELY(pSet->cDescs > (size_t)enmReg))
+#ifdef VBOX_VMM_TARGET_X86
+        DBGFREG const  enmCpuFirst = DBGFREG_X86_FIRST;
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+        DBGFREG const  enmCpuFirst = DBGFREG_ARMV8_FIRST;
+#else
+# error "port me"
+#endif
+        uint32_t const idxDesc = (uint32_t)enmReg - (uint32_t)enmCpuFirst;
+        if (RT_LIKELY(idxDesc < pSet->cDescs))
         {
-            PCDBGFREGDESC pDesc = &pSet->paDescs[enmReg];
+            PCDBGFREGDESC const pDesc = &pSet->paDescs[idxDesc];
 
             pValue->au64[0] = pValue->au64[1] = 0;
             rc = pDesc->pfnGet(pSet->uUserArg.pv, pDesc, pValue);
@@ -2732,6 +2763,265 @@ VMMR3DECL(ssize_t) DBGFR3RegFormatValue(char *pszBuf, size_t cbBuf, PCDBGFREGVAL
 
 
 /**
+ * Formats the flags in @a fFlags using the descriptors in @a paFlags.
+ *
+ * @returns New @a offDst value.
+ * @param   pszDst      The output buffer.
+ * @param   offDst      The current destination buffer offset.
+ * @param   fFlags      The flags to format.
+ * @param   paFlags     The flag definitions.
+ * @param   cFlags      Number of flag definitions.
+ */
+static size_t dbgfR3RegFormatSpecialFlags(char pszDst[160], size_t offDst, uint64_t fFlags,
+                                          DBGFSPECIALFLAG const *paFlags, unsigned cFlags)
+{
+    for (unsigned i = 0; i < cFlags; i++)
+    {
+        const char *pchAdd = paFlags[i].fFlag & fFlags ? &paFlags[i].cchSet : &paFlags[i].cchClear;
+        const char  cchAdd = pchAdd[0];
+        if (cchAdd > 0)
+        {
+            pszDst[offDst] = ' ';
+            switch (cchAdd & 7)
+            {
+                case 1:
+                    pszDst[offDst + 1 + 0] = pchAdd[1 + 0];
+                    offDst += 1 + 1;
+                    break;
+                case 2:
+                    pszDst[offDst + 1 + 0] = pchAdd[1 + 0];
+                    pszDst[offDst + 1 + 1] = pchAdd[1 + 1];
+                    offDst += 1 + 2;
+                    break;
+                case 3:
+                    pszDst[offDst + 1 + 0] = pchAdd[1 + 0];
+                    pszDst[offDst + 1 + 1] = pchAdd[1 + 1];
+                    pszDst[offDst + 1 + 2] = pchAdd[1 + 2];
+                    offDst += 1 + 3;
+                    break;
+                case 4:
+                    pszDst[offDst + 1 + 0] = pchAdd[1 + 0];
+                    pszDst[offDst + 1 + 1] = pchAdd[1 + 1];
+                    pszDst[offDst + 1 + 2] = pchAdd[1 + 2];
+                    pszDst[offDst + 1 + 3] = pchAdd[1 + 3];
+                    offDst += 1 + 4;
+                    break;
+                case 5:
+                    pszDst[offDst + 1 + 0] = pchAdd[1 + 0];
+                    pszDst[offDst + 1 + 1] = pchAdd[1 + 1];
+                    pszDst[offDst + 1 + 2] = pchAdd[1 + 2];
+                    pszDst[offDst + 1 + 3] = pchAdd[1 + 3];
+                    pszDst[offDst + 1 + 4] = pchAdd[1 + 4];
+                    offDst += 1 + 5;
+                    break;
+                case 6:
+                    pszDst[offDst + 1 + 0] = pchAdd[1 + 0];
+                    pszDst[offDst + 1 + 1] = pchAdd[1 + 1];
+                    pszDst[offDst + 1 + 2] = pchAdd[1 + 2];
+                    pszDst[offDst + 1 + 3] = pchAdd[1 + 3];
+                    pszDst[offDst + 1 + 4] = pchAdd[1 + 4];
+                    pszDst[offDst + 1 + 5] = pchAdd[1 + 5];
+                    offDst += 1 + 6;
+                    break;
+                case 7:
+                    pszDst[offDst + 1 + 0] = pchAdd[1 + 0];
+                    pszDst[offDst + 1 + 1] = pchAdd[1 + 1];
+                    pszDst[offDst + 1 + 2] = pchAdd[1 + 2];
+                    pszDst[offDst + 1 + 3] = pchAdd[1 + 3];
+                    pszDst[offDst + 1 + 4] = pchAdd[1 + 4];
+                    pszDst[offDst + 1 + 5] = pchAdd[1 + 5];
+                    pszDst[offDst + 1 + 6] = pchAdd[1 + 6];
+                    offDst += 1 + 7;
+                    break;
+            }
+        }
+    }
+
+    return offDst;
+}
+
+
+/**
+ * X86: Format EFLAGS.
+ *
+ * @returns Length of output.
+ * @param   pszDst      Buffer to format the eflags into.
+ * @param   fEFlags     The EFLAGS value to format.
+ */
+VMMR3_INT_DECL(size_t) DBGFR3RegFormatX86EFlags(char pszDst[160], uint32_t fEFlags)
+{
+    size_t offDst = 0;
+
+    /* the iopl */
+    pszDst[offDst++] = 'i';
+    pszDst[offDst++] = 'o';
+    pszDst[offDst++] = 'p';
+    pszDst[offDst++] = 'l';
+    pszDst[offDst++] = '=';
+    pszDst[offDst++] = '0' + X86_EFL_GET_IOPL(fEFlags);
+
+    /* add flags */
+    static const DBGFSPECIALFLAG s_aFlags[]
+    {
+        DBGFSPECIALFLAG_ENTRY("vip", "",   X86_EFL_VIP),
+        DBGFSPECIALFLAG_ENTRY("vif", "",   X86_EFL_VIF),
+        DBGFSPECIALFLAG_ENTRY("ac",  "",   X86_EFL_AC),
+        DBGFSPECIALFLAG_ENTRY("vm",  "",   X86_EFL_VM),
+        DBGFSPECIALFLAG_ENTRY("rf",  "",   X86_EFL_RF),
+        DBGFSPECIALFLAG_ENTRY("nt",  "",   X86_EFL_NT),
+        DBGFSPECIALFLAG_ENTRY("ov",  "nv", X86_EFL_OF),
+        DBGFSPECIALFLAG_ENTRY("dn",  "up", X86_EFL_DF),
+        DBGFSPECIALFLAG_ENTRY("ei",  "di", X86_EFL_IF),
+        DBGFSPECIALFLAG_ENTRY("tf",  "",   X86_EFL_TF),
+        DBGFSPECIALFLAG_ENTRY("ng",  "pl", X86_EFL_SF),
+        DBGFSPECIALFLAG_ENTRY("zr",  "nz", X86_EFL_ZF),
+        DBGFSPECIALFLAG_ENTRY("ac",  "na", X86_EFL_AF),
+        DBGFSPECIALFLAG_ENTRY("po",  "pe", X86_EFL_PF),
+        DBGFSPECIALFLAG_ENTRY("cy",  "nc", X86_EFL_CF),
+# ifdef VBOX_VMM_TARGET_X86
+        DBGFSPECIALFLAG_ENTRY_SET7("inh-ss",  "", CPUMCTX_INHIBIT_SHADOW_SS),
+        DBGFSPECIALFLAG_ENTRY_SET7("inh-sti", "", CPUMCTX_INHIBIT_SHADOW_STI),
+        DBGFSPECIALFLAG_ENTRY_SET7("inh-nmi", "", CPUMCTX_INHIBIT_NMI),
+# endif
+    };
+    offDst = dbgfR3RegFormatSpecialFlags(pszDst, offDst, fEFlags, s_aFlags, RT_ELEMENTS(s_aFlags));
+
+    Assert(offDst < 160);
+    pszDst[offDst] = '\0';
+    return offDst;
+}
+
+
+/**
+ * ARMv8: Format PSTATE.
+ *
+ * @returns Length of output.
+ * @param   pszDst      Buffer to format the eflags into.
+ * @param   fPState     The PSTATE value to format.
+ */
+VMMR3_INT_DECL(size_t) DBGFR3RegFormatArmV8PState(char pszDst[160], uint64_t fPState)
+{
+
+    /*
+     * Start with the conditional flags.
+     */
+    pszDst[0] = fPState & ARMV8_SPSR_EL2_AARCH64_N ? 'N' : '-';
+    pszDst[1] = fPState & ARMV8_SPSR_EL2_AARCH64_Z ? 'Z' : '-';
+    pszDst[2] = fPState & ARMV8_SPSR_EL2_AARCH64_C ? 'C' : '-';
+    pszDst[3] = fPState & ARMV8_SPSR_EL2_AARCH64_V ? 'V' : '-';
+    size_t offDst = 4;
+    if (fPState & ARMV8_SPSR_EL2_AARCH64_M4)
+        pszDst[offDst++] = fPState & RT_BIT_64(27) ? 'Q' : '-';
+    pszDst[offDst++] = ' ';
+
+    /*
+     * Continue with the ELx / mode (AArch32 is non-trivial), followed flags.
+     *
+     * Some of the flag definitions are mode specific, at least according to
+     * SPST_EL2, which seems to be what our fPState should be following...
+     */
+    if (!(fPState & ARMV8_SPSR_EL2_AARCH64_M4))
+    {
+        /* Mode: */
+        pszDst[offDst++] = 'E';
+        pszDst[offDst++] = 'L';
+        pszDst[offDst++] = '0' + ARMV8_SPSR_EL2_AARCH64_GET_EL(fPState);
+
+        /* The rest of the flags: */
+        static const DBGFSPECIALFLAG s_aA64Flags[] =
+        {
+            DBGFSPECIALFLAG_ENTRY("SP",     "nSP", ARMV8_SPSR_EL2_AARCH64_SP),
+            DBGFSPECIALFLAG_ENTRY("nF",     "F",   ARMV8_SPSR_EL2_AARCH64_F),
+            DBGFSPECIALFLAG_ENTRY("nI",     "I",   ARMV8_SPSR_EL2_AARCH64_I),
+            DBGFSPECIALFLAG_ENTRY("nA",     "A",   ARMV8_SPSR_EL2_AARCH64_A),
+            DBGFSPECIALFLAG_ENTRY("nD",     "D",   ARMV8_SPSR_EL2_AARCH64_D),
+            DBGFSPECIALFLAG_ENTRY("SSBS",   "",    ARMV8_SPSR_EL2_AARCH64_SSBS),
+            DBGFSPECIALFLAG_ENTRY("ALLINT", "",    ARMV8_SPSR_EL2_AARCH64_ALLINT),
+            DBGFSPECIALFLAG_ENTRY("IL",     "",    ARMV8_SPSR_EL2_AARCH64_IL),
+            DBGFSPECIALFLAG_ENTRY("SS",     "",    ARMV8_SPSR_EL2_AARCH64_SS),
+            DBGFSPECIALFLAG_ENTRY("PAN",    "",    ARMV8_SPSR_EL2_AARCH64_PAN),
+            DBGFSPECIALFLAG_ENTRY("UAO",    "",    ARMV8_SPSR_EL2_AARCH64_UAO),
+            DBGFSPECIALFLAG_ENTRY("DIT",    "",    ARMV8_SPSR_EL2_AARCH64_DIT),
+            DBGFSPECIALFLAG_ENTRY("TCO",    "",    ARMV8_SPSR_EL2_AARCH64_TCO),
+            DBGFSPECIALFLAG_ENTRY("PM",     "",    ARMV8_SPSR_EL2_AARCH64_PM),
+            DBGFSPECIALFLAG_ENTRY("PPEND",  "",    ARMV8_SPSR_EL2_AARCH64_PPEND),
+            DBGFSPECIALFLAG_ENTRY("EXLOCK", "",    ARMV8_SPSR_EL2_AARCH64_EXLOCK),
+            DBGFSPECIALFLAG_ENTRY("PACM",   "",    ARMV8_SPSR_EL2_AARCH64_PACM),
+            DBGFSPECIALFLAG_ENTRY("UINJ",   "",    ARMV8_SPSR_EL2_AARCH64_UINJ),
+            DBGFSPECIALFLAG_ENTRY("!T32!",  "",    ARMV8_SPSR_EL2_AARCH64_T),
+        };
+        offDst = dbgfR3RegFormatSpecialFlags(pszDst, offDst, fPState, s_aA64Flags, RT_ELEMENTS(s_aA64Flags));
+    }
+    else
+    {
+        /* Mode: */
+        static const RTSTRTUPLE s_aA32States[16] =
+        {
+            { RT_STR_TUPLE("EL0")            },
+            { RT_STR_TUPLE("EL1/FIQ")        },
+            { RT_STR_TUPLE("EL1/IRQ")        },
+            { RT_STR_TUPLE("EL1/Supervisor") },
+            { RT_STR_TUPLE("!Inv4!")         },
+            { RT_STR_TUPLE("!Inv5!")         },
+            { RT_STR_TUPLE("!Inv6!")         },
+            { RT_STR_TUPLE("EL1/Abort")      },
+            { RT_STR_TUPLE("!Inv8!")         },
+            { RT_STR_TUPLE("!Inv9!")         },
+            { RT_STR_TUPLE("EL2/Hypervisor") },
+            { RT_STR_TUPLE("!Inv11!")        },
+            { RT_STR_TUPLE("!Inv12!")        },
+            { RT_STR_TUPLE("!Inv13!")        },
+            { RT_STR_TUPLE("!Inv14!")        },
+            { RT_STR_TUPLE("EL1/System")     },
+        };
+        ssize_t const cchToCopy = s_aA32States[fPState & ARMV8_SPSR_EL2_AARCH64_M].cch;
+        memcpy(&pszDst[offDst], s_aA32States[fPState & ARMV8_SPSR_EL2_AARCH64_M].psz, cchToCopy);
+        offDst += cchToCopy;
+
+        /* The rest of the flags: */
+        static const DBGFSPECIALFLAG s_aA32Flags[] =
+        {
+            DBGFSPECIALFLAG_ENTRY("T32",    "A32", ARMV8_SPSR_EL2_AARCH64_T),
+            DBGFSPECIALFLAG_ENTRY("nF",     "F",   ARMV8_SPSR_EL2_AARCH64_F),
+            DBGFSPECIALFLAG_ENTRY("nI",     "I",   ARMV8_SPSR_EL2_AARCH64_I),
+            DBGFSPECIALFLAG_ENTRY("nA",     "A",   ARMV8_SPSR_EL2_AARCH64_A),
+            DBGFSPECIALFLAG_ENTRY("Big",    "",    RT_BIT_64(9)),
+            DBGFSPECIALFLAG_ENTRY("SSBS",   "",    RT_BIT_64(23)),
+            DBGFSPECIALFLAG_ENTRY("IL",     "",    ARMV8_SPSR_EL2_AARCH64_IL),
+            DBGFSPECIALFLAG_ENTRY("SS",     "",    ARMV8_SPSR_EL2_AARCH64_SS),
+            DBGFSPECIALFLAG_ENTRY("PAN",    "",    ARMV8_SPSR_EL2_AARCH64_PAN),
+            DBGFSPECIALFLAG_ENTRY("DIT",    "",    ARMV8_SPSR_EL2_AARCH64_DIT),
+            DBGFSPECIALFLAG_ENTRY("PPEND",  "",    ARMV8_SPSR_EL2_AARCH64_PPEND),
+            DBGFSPECIALFLAG_ENTRY("UINJ",   "",    ARMV8_SPSR_EL2_AARCH64_UINJ),
+        };
+        offDst = dbgfR3RegFormatSpecialFlags(pszDst, offDst, fPState, s_aA32Flags, RT_ELEMENTS(s_aA32Flags));
+
+        /* Multibit fields: */
+        static const char s_szHexDigits[] = "0123456789abcdef";
+        uint32_t const    uIfThen = (((fPState >> 10) & 0x3f) << 2) | ((fPState >> 25) & 3);
+        pszDst[offDst++] = ' ';
+        pszDst[offDst++] = 'I';
+        pszDst[offDst++] = 'T';
+        pszDst[offDst++] = '=';
+        pszDst[offDst++] = s_szHexDigits[uIfThen >> 4];
+        pszDst[offDst++] = '/';
+        pszDst[offDst++] = s_szHexDigits[uIfThen & 0xf];
+
+        uint32_t const uGreaterEqual = (fPState >> 16) & 0xf;
+        pszDst[offDst++] = ' ';
+        pszDst[offDst++] = 'G';
+        pszDst[offDst++] = 'E';
+        pszDst[offDst++] = '=';
+        pszDst[offDst++] = s_szHexDigits[uGreaterEqual];
+    }
+
+    Assert(offDst < 160);
+    pszDst[offDst] = '\0';
+    return offDst;
+}
+
+
+/**
  * Format a register using special hacks as well as sub-field specifications
  * (the latter isn't implemented yet).
  */
@@ -2757,7 +3047,8 @@ dbgfR3RegPrintfCbFormatField(PDBGFR3REGPRINTFARGS pThis, PFNRTSTROUTPUT pfnOutpu
         return pfnOutput(pvArgOutput, szTmp, cchDefine);
     }
 
-    char *psz = szTmp;
+
+    size_t cchRet;
 
     /*
      * Special case: Format eflags.
@@ -2768,50 +3059,18 @@ dbgfR3RegPrintfCbFormatField(PDBGFR3REGPRINTFARGS pThis, PFNRTSTROUTPUT pfnOutpu
     {
         rc = dbgfR3RegValCast(&Value, enmType, DBGFREGVALTYPE_U32);
         AssertRC(rc);
-        uint32_t const efl = Value.u32;
-
-        /* the iopl */
-        psz += RTStrPrintf(psz, sizeof(szTmp) / 2, "iopl=%u ", X86_EFL_GET_IOPL(efl));
-
-        /* add flags */
-        static const struct
-        {
-            const char *pszSet;
-            const char *pszClear;
-            uint32_t fFlag;
-        } aFlags[] =
-        {
-            { "vip",NULL, X86_EFL_VIP },
-            { "vif",NULL, X86_EFL_VIF },
-            { "ac", NULL, X86_EFL_AC },
-            { "vm", NULL, X86_EFL_VM },
-            { "rf", NULL, X86_EFL_RF },
-            { "nt", NULL, X86_EFL_NT },
-            { "ov", "nv", X86_EFL_OF },
-            { "dn", "up", X86_EFL_DF },
-            { "ei", "di", X86_EFL_IF },
-            { "tf", NULL, X86_EFL_TF },
-            { "ng", "pl", X86_EFL_SF },
-            { "zr", "nz", X86_EFL_ZF },
-            { "ac", "na", X86_EFL_AF },
-            { "po", "pe", X86_EFL_PF },
-            { "cy", "nc", X86_EFL_CF },
-        };
-        for (unsigned i = 0; i < RT_ELEMENTS(aFlags); i++)
-        {
-            const char *pszAdd = aFlags[i].fFlag & efl ? aFlags[i].pszSet : aFlags[i].pszClear;
-            if (pszAdd)
-            {
-                *psz++ = *pszAdd++;
-                *psz++ = *pszAdd++;
-                if (*pszAdd)
-                    *psz++ = *pszAdd++;
-                *psz++ = ' ';
-            }
-        }
-
-        /* drop trailing space */
-        psz--;
+        cchRet = DBGFR3RegFormatX86EFlags(szTmp, Value.u32);
+    }
+    /*
+     * Special case: Format PSTATE.
+     */
+    else if (   pLookupRec->pSet->enmType == DBGFREGSETTYPE_CPU
+             && pLookupRec->pDesc->enmReg == DBGFREG_ARMV8_PSTATE
+             && pLookupRec->pSubField     == NULL)
+    {
+        rc = dbgfR3RegValCast(&Value, enmType, DBGFREGVALTYPE_U64);
+        AssertRC(rc);
+        cchRet = DBGFR3RegFormatArmV8PState(szTmp, Value.u64);
     }
     else
     {
@@ -2823,7 +3082,7 @@ dbgfR3RegPrintfCbFormatField(PDBGFR3REGPRINTFARGS pThis, PFNRTSTROUTPUT pfnOutpu
     }
 
     /* Output the string. */
-    return pfnOutput(pvArgOutput, szTmp, psz - &szTmp[0]);
+    return pfnOutput(pvArgOutput, szTmp, cchRet);
 }
 
 

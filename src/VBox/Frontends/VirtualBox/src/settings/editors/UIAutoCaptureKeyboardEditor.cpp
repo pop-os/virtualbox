@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -63,12 +63,12 @@ bool UIAutoCaptureKeyboardEditor::value() const
 void UIAutoCaptureKeyboardEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Extended Features:"));
+        m_pLabel->setText(tr("Features"));
     if (m_pCheckBox)
     {
         m_pCheckBox->setText(tr("&Auto Capture Keyboard"));
-        m_pCheckBox->setToolTip(tr("When checked, the keyboard is automatically captured every time the VM window is "
-                                   "activated. When the keyboard is captured, all keystrokes (including system ones like "
+        m_pCheckBox->setToolTip(tr("Keyboard is automatically captured every time the VM window is activated. "
+                                   "When the keyboard is captured, all keystrokes (including system ones like "
                                    "Alt-Tab) are directed to the VM."));
     }
 }

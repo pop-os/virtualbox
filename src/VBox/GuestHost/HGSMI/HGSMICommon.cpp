@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -129,7 +129,7 @@ int HGSMIAreaInitialize(HGSMIAREA *pArea, void *pvBase, HGSMISIZE cbArea, HGSMIO
 
     if (  !pArea                                   /* Check that the area: */
         || cbArea < HGSMIBufferMinimumSize()       /* large enough; */
-        || pu8Base + cbArea < pu8Base              /* no address space wrap; */
+        || (pu8Base + cbArea) < pu8Base            /* no address space wrap; */
         || offBase > UINT32_C(0xFFFFFFFF) - cbArea /* area within the 32 bit space: offBase + cbMem <= 0xFFFFFFFF. */
        )
     {

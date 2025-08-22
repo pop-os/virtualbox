@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -78,12 +78,12 @@ void UIDisplayScreenFeaturesEditor::setMinimumLayoutIndent(int iIndent)
 void UIDisplayScreenFeaturesEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Extended Features:"));
+        m_pLabel->setText(tr("Features"));
     if (m_pCheckBoxEnable3DAcceleration)
     {
-        m_pCheckBoxEnable3DAcceleration->setText(tr("Enable &3D Acceleration"));
-        m_pCheckBoxEnable3DAcceleration->setToolTip(tr("When checked, the virtual machine will be given access "
-                                                       "to the 3D graphics capabilities available on the host."));
+        m_pCheckBoxEnable3DAcceleration->setText(tr("&3D Acceleration"));
+        m_pCheckBoxEnable3DAcceleration->setToolTip(tr("The VM will be given access to the 3D graphics "
+                                                       "capabilities available on the host"));
     }
 }
 

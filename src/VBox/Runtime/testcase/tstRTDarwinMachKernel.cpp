@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -56,13 +56,22 @@ static void dotest(void)
     RTTESTI_CHECK_RC_RETV(RTR0DbgKrnlInfoOpen(&hKrnlInfo, 0), VINF_SUCCESS);
     static const char * const s_apszSyms[] =
     {
+        "bzero",
+        "cpu_number",
+        "IOLockAlloc",
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
         "ast_pending",
         "cpu_interrupt",
         "dtrace_register",
         "dtrace_suspend",
         "kext_alloc",
         "kext_free",
-        "vm_map_protect"
+        "vm_map_protect",
+#endif
+#if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+        "cpu_xcall",
+        "cpu_broadcast_xcall",
+#endif
     };
     for (unsigned i = 0; i < RT_ELEMENTS(s_apszSyms); i++)
     {

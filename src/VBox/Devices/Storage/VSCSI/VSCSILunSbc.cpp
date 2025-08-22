@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -445,7 +445,8 @@ static DECLCALLBACK(int) vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQ
                     memset(aReply, 0, sizeof(aReply));
 
                     vscsiReqSetXferDir(pVScsiReq, VSCSIXFERDIR_T2I);
-                    vscsiReqSetXferSize(pVScsiReq, RT_MIN(sizeof(aReply), scsiBE2H_U24(&pVScsiReq->pbCDB[6])));
+                    uint32_t const cbGstReply = scsiBE2H_U24(&pVScsiReq->pbCDB[6]);
+                    vscsiReqSetXferSize(pVScsiReq, RT_MIN(sizeof(aReply), cbGstReply));
 
                     RTSgBufCopyFromBuf(&pVScsiReq->SgBuf, aReply, sizeof(aReply));
                     rcReq =  vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
@@ -486,7 +487,8 @@ static DECLCALLBACK(int) vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQ
                         aReply[3] = 0;
 
                         vscsiReqSetXferDir(pVScsiReq, VSCSIXFERDIR_T2I);
-                        vscsiReqSetXferSize(pVScsiReq, RT_MIN(sizeof(aReply), scsiBE2H_U16(&pVScsiReq->pbCDB[7])));
+                        uint16_t const cbGstReply = scsiBE2H_U16(&pVScsiReq->pbCDB[7]);
+                        vscsiReqSetXferSize(pVScsiReq, RT_MIN(sizeof(aReply), cbGstReply));
 
                         RTSgBufCopyFromBuf(&pVScsiReq->SgBuf, aReply, sizeof(aReply));
                         rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);

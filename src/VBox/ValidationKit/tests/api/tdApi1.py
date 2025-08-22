@@ -8,7 +8,7 @@ VirtualBox Validation Kit - API Test wrapper #1 combining all API sub-tests
 
 __copyright__ = \
 """
-Copyright (C) 2010-2024 Oracle and/or its affiliates.
+Copyright (C) 2010-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 164827 $"
+__version__ = "$Revision: 170187 $"
 
 
 # Standard Python imports.
@@ -95,7 +95,8 @@ if __name__ == '__main__':
     from tdTreeDepth1    import SubTstDrvTreeDepth1;  # pylint: disable=relative-import
     from tdMoveVm1       import SubTstDrvMoveVm1;     # pylint: disable=relative-import
     from tdCloneMedium1  import SubTstDrvCloneMedium1;# pylint: disable=relative-import
-    from tdSnapshots1    import SubTstDrvNestedSnapshots1;# pylint: disable=relative-import
+    from tdSnapshots1    import SubTstDrvNestedLiveSnapshots1;# pylint: disable=relative-import
+    from tdImportExport1 import SubTstDrvImportExportEFIVM1;  # pylint: disable=relative-import
     sys.exit(tdApi1([SubTstDrvPython1, SubTstDrvAppliance1, SubTstDrvMoveMedium1,
                      SubTstDrvTreeDepth1, SubTstDrvMoveVm1, SubTstDrvCloneMedium1,
-                     SubTstDrvNestedSnapshots1]).main(sys.argv))
+                     SubTstDrvNestedLiveSnapshots1, SubTstDrvImportExportEFIVM1]).main(sys.argv))

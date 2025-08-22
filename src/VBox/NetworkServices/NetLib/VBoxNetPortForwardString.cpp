@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -275,7 +275,7 @@ int netPfStrToPf(const char *pcszStrPortForward, bool fIPv6, PPORTFORWARDRULE pP
 
     size_t cchRaw = strlen(pcszStrPortForward);
 
-    /* Minimal rule ":tcp:[]:0:[]:0" has got lenght 14 */
+    /* Minimal rule ":tcp:[]:0:[]:0" has got length 14 */
     AssertReturn(cchRaw > 14, VERR_INVALID_PARAMETER);
 
     char *pszRaw = RTStrDup(pcszStrPortForward);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -129,10 +129,10 @@
 #include <VBox/vmm/em.h>
 #include <VBox/sup.h>
 #include <VBox/vmm/dbgf.h>
-#if defined(VBOX_VMM_TARGET_ARMV8)
-# include <VBox/vmm/gic.h>
-#else
-# include <VBox/vmm/apic.h>
+#ifdef VBOX_VMM_TARGET_ARMV8
+# include <VBox/vmm/pdmgic.h>
+#elif defined(VBOX_VMM_TARGET_X86)
+# include <VBox/vmm/pdmapic.h>
 #endif
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/tm.h>
@@ -145,7 +145,7 @@
 #include <VBox/vmm/hm.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
 # include <iprt/armv8.h>
 #endif
 #include <iprt/asm.h>
@@ -288,16 +288,17 @@ VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
     if (RT_FAILURE(rc))
         return rc;
 
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
     /*
      * Register the Ring-0 VM handle with the session for fast ioctl calls.
      */
-    bool const fDriverless = SUPR3IsDriverless();
-    if (!fDriverless)
+    if (!SUPR3IsDriverless())
     {
         rc = SUPR3SetVMForFastIOCtl(VMCC_GET_VMR0_FOR_CALL(pVM));
         if (RT_FAILURE(rc))
             return rc;
     }
+#endif
 
 #ifdef VBOX_WITH_NMI
     /*
@@ -311,7 +312,7 @@ VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
         /*
          * Start the log flusher thread.
          */
-        if (!fDriverless)
+        if (!SUPR3IsDriverless())
             rc = RTThreadCreate(&pVM->vmm.s.hLogFlusherThread, vmmR3LogFlusher, pVM, 0 /*cbStack*/,
                                 RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "R0LogWrk");
         if (RT_SUCCESS(rc))
@@ -349,6 +350,7 @@ static void vmmR3InitRegisterStats(PVM pVM)
     /*
      * Statistics.
      */
+#if defined(VBOX_WITH_R0_MODULES) && !defined(VBOX_WITH_MINIMAL_R0)
     STAM_REG(pVM, &pVM->vmm.s.StatRunGC,                    STAMTYPE_COUNTER, "/VMM/RunGC",                     STAMUNIT_OCCURENCES, "Number of context switches.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetNormal,              STAMTYPE_COUNTER, "/VMM/RZRet/Normal",              STAMUNIT_OCCURENCES, "Number of VINF_SUCCESS returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetInterrupt,           STAMTYPE_COUNTER, "/VMM/RZRet/Interrupt",           STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_INTERRUPT returns.");
@@ -401,6 +403,7 @@ static void vmmR3InitRegisterStats(PVM pVM)
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPGMFlushPending,     STAMTYPE_COUNTER, "/VMM/RZRet/PGMFlushPending",     STAMUNIT_OCCURENCES, "Number of VINF_PGM_POOL_FLUSH_PENDING returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPendingRequest,      STAMTYPE_COUNTER, "/VMM/RZRet/PendingRequest",      STAMUNIT_OCCURENCES, "Number of VINF_EM_PENDING_REQUEST returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPatchTPR,            STAMTYPE_COUNTER, "/VMM/RZRet/PatchTPR",            STAMUNIT_OCCURENCES, "Number of VINF_EM_HM_PATCH_TPR_INSTR returns.");
+#endif
 
     STAMR3Register(pVM, &pVM->vmm.s.StatLogFlusherFlushes,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, "/VMM/LogFlush/00-Flushes",  STAMUNIT_OCCURENCES, "Total number of buffer flushes");
     STAMR3Register(pVM, &pVM->vmm.s.StatLogFlusherNoWakeUp, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, "/VMM/LogFlush/00-NoWakups", STAMUNIT_OCCURENCES, "Times the flusher thread didn't need waking up.");
@@ -576,7 +579,7 @@ VMMR3_INT_DECL(int) VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
 
         case VMINITCOMPLETED_HM:
         {
-#if !defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_X86
             /*
              * Disable the periodic preemption timers if we can use the
              * VMX-preemption timer instead.
@@ -1209,7 +1212,10 @@ static DECLCALLBACK(void) vmmR3YieldEMT(PVM pVM, TMTIMERHANDLE hTimer, void *pvU
 }
 #endif
 
-
+#ifdef VBOX_WITH_HWVIRT
+# ifndef VBOX_VMM_TARGET_X86
+#  error "config error"
+# endif
 /**
  * Executes guest code (Intel VT-x and AMD-V).
  *
@@ -1218,12 +1224,6 @@ static DECLCALLBACK(void) vmmR3YieldEMT(PVM pVM, TMTIMERHANDLE hTimer, void *pvU
  */
 VMMR3_INT_DECL(int) VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu)
 {
-#if defined(VBOX_VMM_TARGET_ARMV8)
-    /* We should actually never get here as the only execution engine is NEM. */
-    RT_NOREF(pVM, pVCpu);
-    AssertReleaseFailed();
-    return VERR_NOT_SUPPORTED;
-#else
     Log2(("VMMR3HmRunGC: (cs:rip=%04x:%RX64)\n", CPUMGetGuestCS(pVCpu), CPUMGetGuestRIP(pVCpu)));
 
     int rc;
@@ -1255,46 +1255,11 @@ VMMR3_INT_DECL(int) VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu)
         return rc;
     }
     return vmmR3HandleRing0Assert(pVM, pVCpu);
-#endif
 }
+#endif /* VBOX_WITH_HWVIRT */
 
 
-/**
- * Perform one of the fast I/O control VMMR0 operation.
- *
- * @returns VBox strict status code.
- * @param   pVM             The cross context VM structure.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   enmOperation    The operation to perform.
- */
-VMMR3_INT_DECL(VBOXSTRICTRC) VMMR3CallR0EmtFast(PVM pVM, PVMCPU pVCpu, VMMR0OPERATION enmOperation)
-{
-    VBOXSTRICTRC rcStrict;
-    do
-    {
-#ifdef NO_SUPCALLR0VMM
-        rcStrict = VERR_GENERAL_FAILURE;
-#else
-        rcStrict = SUPR3CallVMMR0Fast(VMCC_GET_VMR0_FOR_CALL(pVM), enmOperation, pVCpu->idCpu);
-        if (RT_LIKELY(rcStrict == VINF_SUCCESS))
-            rcStrict = pVCpu->vmm.s.iLastGZRc;
-#endif
-    } while (rcStrict == VINF_EM_RAW_INTERRUPT_HYPER);
-
-    /*
-     * Flush the logs
-     */
-#ifdef LOG_ENABLED
-    VMM_FLUSH_R0_LOG(pVM, pVCpu, &pVCpu->vmm.s.u.s.Logger, NULL);
-#endif
-    VMM_FLUSH_R0_LOG(pVM, pVCpu, &pVCpu->vmm.s.u.s.RelLogger, RTLogRelGetDefaultInstance());
-    if (rcStrict != VERR_VMM_RING0_ASSERTION)
-        return rcStrict;
-    return vmmR3HandleRing0Assert(pVM, pVCpu);
-}
-
-
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
 
 /**
  * VCPU worker for VMMR3CpuOn.
@@ -1314,8 +1279,8 @@ static DECLCALLBACK(int) vmmR3CpuOn(PVM pVM, VMCPUID idCpu, RTGCPHYS GCPhysExecA
 
     PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
-    pCtx->aGRegs[ARMV8_AARCH64_REG_X0].x = u64CtxId;
-    pCtx->Pc.u64                         = GCPhysExecAddr;
+    pCtx->aGRegs[ARMV8_A64_REG_X0].x = u64CtxId;
+    pCtx->Pc.u64                     = GCPhysExecAddr;
 
     Log(("vmmR3CpuOn for VCPU %d with GCPhysExecAddr=%RGp u64CtxId=%#RX64\n", idCpu, GCPhysExecAddr, u64CtxId));
 
@@ -1347,7 +1312,7 @@ VMMR3_INT_DECL(void)    VMMR3CpuOn(PVM pVM, VMCPUID idCpu, RTGCPHYS GCPhysExecAd
     AssertRC(rc);
 }
 
-#else /* !VBOX_VMM_TARGET_ARMV8 */
+#elif defined(VBOX_VMM_TARGET_X86)
 
 /**
  * VCPU worker for VMMR3SendStartupIpi.
@@ -1433,9 +1398,7 @@ static DECLCALLBACK(int) vmmR3SendInitIpi(PVM pVM, VMCPUID idCpu)
 
     PGMR3ResetCpu(pVM, pVCpu);
     PDMR3ResetCpu(pVCpu);   /* Only clears pending interrupts force flags */
-# if !defined(VBOX_VMM_TARGET_ARMV8)
-    APICR3InitIpi(pVCpu);
-# endif
+    PDMR3ApicInitIpi(pVCpu);
     TRPMR3ResetCpu(pVCpu);
     CPUMR3ResetCpu(pVM, pVCpu);
     EMR3ResetCpu(pVCpu);
@@ -1478,7 +1441,7 @@ VMMR3_INT_DECL(void) VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu)
     AssertRC(rc);
 }
 
-#endif /* !VBOX_VMM_TARGET_ARMV8 */
+#endif /* VBOX_VMM_TARGET_X86 */
 
 /**
  * Registers the guest memory range that can be used for patching.
@@ -2611,12 +2574,14 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
         /* show the flag mnemonics */
         c = 0;
         f = fLocalForcedActions;
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
         PRINT_FLAG(VMCPU_FF_,INTERRUPT_IRQ);
         PRINT_FLAG(VMCPU_FF_,INTERRUPT_FIQ);
-#else
+#elif defined(VBOX_VMM_TARGET_X86)
         PRINT_FLAG(VMCPU_FF_,INTERRUPT_APIC);
         PRINT_FLAG(VMCPU_FF_,INTERRUPT_PIC);
+#else
+# error "port me"
 #endif
         PRINT_FLAG(VMCPU_FF_,TIMER);
         PRINT_FLAG(VMCPU_FF_,INTERRUPT_NMI);
@@ -2628,6 +2593,9 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
         PRINT_FLAG(VMCPU_FF_,DBGF);
         PRINT_FLAG(VMCPU_FF_,REQUEST);
         PRINT_FLAG(VMCPU_FF_,HM_UPDATE_CR3);
+#ifdef VBOX_VMM_TARGET_ARMV8
+        PRINT_FLAG(VMCPU_FF_,VTIMER_ACTIVATED);
+#endif
         PRINT_FLAG(VMCPU_FF_,PGM_SYNC_CR3);
         PRINT_FLAG(VMCPU_FF_,PGM_SYNC_CR3_NON_GLOBAL);
         PRINT_FLAG(VMCPU_FF_,TLB_FLUSH);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -29,6 +29,7 @@
 #include <iprt/semaphore.h>
 #include <iprt/asm.h>
 #include <iprt/cpp/exception.h>
+#include <iprt/cpp/utils.h>
 
 #include <typeinfo>
 
@@ -46,6 +47,9 @@
 #include "VirtualBoxTranslator.h"
 #include "Global.h"
 #include "LoggingNew.h"
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+# include "ObjectsTracker.h"
+#endif
 
 #include "VBox/com/ErrorInfo.h"
 #include "VBox/com/MultiResult.h"
@@ -78,6 +82,10 @@ VirtualBoxBase::VirtualBoxBase() :
             delete lock;
     }
     Assert(g_pClassFactoryStatsLock);
+
+    RTUUID uuid;
+    RTUuidCreate(&uuid);
+    unconst(mObjectId) = uuid;
 }
 
 VirtualBoxBase::~VirtualBoxBase()
@@ -169,6 +177,49 @@ void APIDumpComponentFactoryStats()
     }
     else
         Assert(g_pClassFactoryStatsLock);
+}
+
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+TrackedObjectsCollector gTrackedObjectsCollector;
+#endif
+
+HRESULT VirtualBoxBase::getObjectId(com::Guid &aId)
+{
+    aId = mObjectId;
+    return S_OK;
+}
+
+HRESULT VirtualBoxBase::setTracked(uint64_t aLifeTime, uint64_t afterLifeTime)
+{
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+    Utf8Str strObjId = mObjectId.toString();
+    Utf8Str strClassIID = Guid(getClassIID()).toString();
+    HRESULT hrc = gTrackedObjectsCollector.setObj(strObjId,
+                                                  strClassIID,
+                                                  aLifeTime,
+                                                  afterLifeTime,
+                                                  /*ptrVirtualBoxBase,*/
+                                                  this);
+    Log2(("VirtualBoxBase::setTracked: inserted the Id %s for component %s with IID %s.\n",
+         strObjId.c_str(), getComponentName(), strClassIID.c_str()));
+
+    return hrc;
+#else
+    RT_NOREF(aLifeTime, afterLifeTime);
+    return S_OK;
+#endif
+}
+
+HRESULT VirtualBoxBase::invalidateTracked()
+{
+#ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+    Utf8Str strObjId = mObjectId.toString();
+    HRESULT hrc = gTrackedObjectsCollector.invalidateObj(strObjId);
+
+    return hrc;
+#else
+    return S_OK;
+#endif
 }
 
 /**

@@ -19,7 +19,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -49,23 +49,11 @@
 #endif
 #define IEM_WITH_CODE_TLB_AND_OPCODE_BUF  /* A bit hackish, but its all in IEMInline.h. */
 #define VMCPU_INCL_CPUM_GST_CTX
+#ifdef IN_RING0
+# define VBOX_VMM_TARGET_X86
+#endif
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/cpum.h>
-#include <VBox/vmm/apic.h>
-#include <VBox/vmm/pdm.h>
-#include <VBox/vmm/pgm.h>
-#include <VBox/vmm/iom.h>
-#include <VBox/vmm/em.h>
-#include <VBox/vmm/hm.h>
-#include <VBox/vmm/nem.h>
-#include <VBox/vmm/gim.h>
-#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
-# include <VBox/vmm/em.h>
-# include <VBox/vmm/hm_svm.h>
-#endif
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-# include <VBox/vmm/hmvmxinline.h>
-#endif
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/dbgftrace.h>
@@ -85,11 +73,17 @@
 #include <iprt/sort.h>
 #include <iprt/x86.h>
 
-#ifndef TST_IEM_CHECK_MC
-# include "IEMInline.h"
-# include "IEMOpHlp.h"
-# include "IEMMc.h"
+#include "IEMInline.h"
+#include "IEMInlineExec.h"
+#ifdef VBOX_VMM_TARGET_X86
+# include "target-x86/IEMInline-x86.h"
+# include "target-x86/IEMInlineDecode-x86.h"
+# include "target-x86/IEMInlineExec-x86.h"
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+# include "target-armv8/IEMInlineExec-armv8.h"
 #endif
+#include "IEMOpHlp.h"
+#include "IEMMc.h"
 
 #include "IEMThreadedFunctions.h"
 #ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER
@@ -108,11 +102,6 @@
 #ifndef IEM_WITH_DATA_TLB
 # error The data TLB must be enabled for the recompiler.
 #endif
-
-#ifndef IEM_WITH_SETJMP
-# error The setjmp approach must be enabled for the recompiler.
-#endif
-
 
 
 /*********************************************************************************************************************************
@@ -1504,20 +1493,20 @@ DECLHIDDEN(const char *) iemTbFlagsToString(uint32_t fFlags, char *pszBuf, size_
 
     static struct { const char *pszName; uint32_t cchName; uint32_t fFlag; } const s_aFlags[] =
     {
-        { RT_STR_TUPLE("BYPASS_HANDLERS"),      IEM_F_BYPASS_HANDLERS    },
-        { RT_STR_TUPLE("PENDING_BRK_INSTR"),    IEM_F_PENDING_BRK_INSTR  },
-        { RT_STR_TUPLE("PENDING_BRK_DATA"),     IEM_F_PENDING_BRK_DATA   },
-        { RT_STR_TUPLE("PENDING_BRK_X86_IO"),   IEM_F_PENDING_BRK_X86_IO },
-        { RT_STR_TUPLE("X86_DISREGARD_LOCK"),   IEM_F_X86_DISREGARD_LOCK },
-        { RT_STR_TUPLE("X86_CTX_VMX"),          IEM_F_X86_CTX_VMX        },
-        { RT_STR_TUPLE("X86_CTX_SVM"),          IEM_F_X86_CTX_SVM        },
-        { RT_STR_TUPLE("X86_CTX_IN_GUEST"),     IEM_F_X86_CTX_IN_GUEST   },
-        { RT_STR_TUPLE("X86_CTX_SMM"),          IEM_F_X86_CTX_SMM        },
-        { RT_STR_TUPLE("INHIBIT_SHADOW"),       IEMTB_F_INHIBIT_SHADOW   },
-        { RT_STR_TUPLE("INHIBIT_NMI"),          IEMTB_F_INHIBIT_NMI      },
-        { RT_STR_TUPLE("CS_LIM_CHECKS"),        IEMTB_F_CS_LIM_CHECKS    },
-        { RT_STR_TUPLE("TYPE_THREADED"),        IEMTB_F_TYPE_THREADED    },
-        { RT_STR_TUPLE("TYPE_NATIVE"),          IEMTB_F_TYPE_NATIVE      },
+        { RT_STR_TUPLE("BYPASS_HANDLERS"),      IEM_F_BYPASS_HANDLERS       },
+        { RT_STR_TUPLE("PENDING_BRK_INSTR"),    IEM_F_PENDING_BRK_INSTR     },
+        { RT_STR_TUPLE("PENDING_BRK_DATA"),     IEM_F_PENDING_BRK_DATA      },
+        { RT_STR_TUPLE("PENDING_BRK_X86_IO"),   IEM_F_PENDING_BRK_X86_IO    },
+        { RT_STR_TUPLE("X86_DISREGARD_LOCK"),   IEM_F_X86_DISREGARD_LOCK    },
+        { RT_STR_TUPLE("X86_CTX_VMX"),          IEM_F_X86_CTX_VMX           },
+        { RT_STR_TUPLE("X86_CTX_SVM"),          IEM_F_X86_CTX_SVM           },
+        { RT_STR_TUPLE("X86_CTX_IN_GUEST"),     IEM_F_X86_CTX_IN_GUEST      },
+        { RT_STR_TUPLE("X86_CTX_SMM"),          IEM_F_X86_CTX_SMM           },
+        { RT_STR_TUPLE("INHIBIT_SHADOW"),       IEMTB_F_X86_INHIBIT_SHADOW  },
+        { RT_STR_TUPLE("INHIBIT_NMI"),          IEMTB_F_X86_INHIBIT_NMI     },
+        { RT_STR_TUPLE("CS_LIM_CHECKS"),        IEMTB_F_X86_CS_LIM_CHECKS   },
+        { RT_STR_TUPLE("TYPE_THREADED"),        IEMTB_F_TYPE_THREADED       },
+        { RT_STR_TUPLE("TYPE_NATIVE"),          IEMTB_F_TYPE_NATIVE         },
     };
     if (fFlags)
         for (unsigned i = 0; i < RT_ELEMENTS(s_aFlags); i++)
@@ -1602,9 +1591,9 @@ DECLHIDDEN(void) iemThreadedDisassembleTb(PCIEMTB pTb, PCDBGFINFOHLP pHlp) RT_NO
     DISSTATE                    Dis;
     PCIEMTHRDEDCALLENTRY const  paCalls          = pTb->Thrd.paCalls;
     uint32_t const              cCalls           = pTb->Thrd.cCalls;
-    DISCPUMODE                  enmGstCpuMode    = (pTb->fFlags & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_16BIT ? DISCPUMODE_16BIT
-                                                 : (pTb->fFlags & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_32BIT ? DISCPUMODE_32BIT
-                                                 :                                                            DISCPUMODE_64BIT;
+    DISCPUMODE                  enmGstCpuMode    = (pTb->fFlags & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_16BIT ? DISCPUMODE_16BIT
+                                                 : (pTb->fFlags & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_32BIT ? DISCPUMODE_32BIT
+                                                 :                                                                DISCPUMODE_64BIT;
     uint32_t                    fExec            = pTb->fFlags & UINT32_C(0x00ffffff);
     uint8_t                     idxRange         = UINT8_MAX;
     uint8_t const               cRanges          = RT_MIN(pTb->cRanges, RT_ELEMENTS(pTb->aRanges));
@@ -1966,7 +1955,7 @@ static VBOXSTRICTRC iemThreadedCompileLongJumped(PVMCC pVM, PVMCPUCC pVCpu, VBOX
  *                      calls from inside the compile loop where we can skip a
  *                      couple of things.
  * @param   fExtraFlags The extra translation block flags when @a fReInit is
- *                      true, otherwise ignored.  Only IEMTB_F_INHIBIT_SHADOW is
+ *                      true, otherwise ignored.  Only IEMTB_F_X86_INHIBIT_SHADOW is
  *                      checked.
  */
 DECL_FORCE_INLINE(void) iemThreadedCompileInitDecoder(PVMCPUCC pVCpu, bool const fReInit, uint32_t const fExtraFlags)
@@ -2011,7 +2000,7 @@ DECL_FORCE_INLINE(void) iemThreadedCompileInitDecoder(PVMCPUCC pVCpu, bool const
         pVCpu->iem.s.fTbCheckOpcodes        = true; /* (check opcodes for before executing the first instruction) */
         pVCpu->iem.s.fTbBranched            = IEMBRANCHED_F_NO;
         pVCpu->iem.s.fTbCrossedPage         = false;
-        pVCpu->iem.s.cInstrTillIrqCheck     = !(fExtraFlags & IEMTB_F_INHIBIT_SHADOW) ? 32 : 0;
+        pVCpu->iem.s.cInstrTillIrqCheck     = !(fExtraFlags & IEMTB_F_X86_INHIBIT_SHADOW) ? 32 : 0;
         pVCpu->iem.s.idxLastCheckIrqCallNo  = UINT16_MAX;
         pVCpu->iem.s.fTbCurInstrIsSti       = false;
         /* Force RF clearing and TF checking on first instruction in the block
@@ -2253,7 +2242,7 @@ DECLHIDDEN(int) iemThreadedCompileBackAtFirstInstruction(PVMCPU pVCpu, PIEMTB pT
 {
     /* Check if the mode matches. */
     if (   (pVCpu->iem.s.fExec & IEMTB_F_IEM_F_MASK & IEMTB_F_KEY_MASK)
-        == (pTb->fFlags        & IEMTB_F_KEY_MASK   & ~IEMTB_F_CS_LIM_CHECKS))
+        == (pTb->fFlags        & IEMTB_F_KEY_MASK   & ~IEMTB_F_X86_CS_LIM_CHECKS))
     {
         STAM_REL_COUNTER_INC(&pVCpu->iem.s.StatTbLoopFullTbDetected2);
         iemThreadedCompileFullTbJump(pVCpu, pTb);
@@ -2294,7 +2283,7 @@ bool iemThreadedCompileBeginEmitCallsComplications(PVMCPUCC pVCpu, PIEMTB pTb)
     bool           fConsiderCsLimChecking;
     uint32_t const fMode = pVCpu->iem.s.fExec & IEM_F_MODE_MASK;
     if (   fMode == IEM_F_MODE_X86_64BIT
-        || (pTb->fFlags & IEMTB_F_CS_LIM_CHECKS)
+        || (pTb->fFlags & IEMTB_F_X86_CS_LIM_CHECKS)
         || fMode == IEM_F_MODE_X86_32BIT_PROT_FLAT
         || fMode == IEM_F_MODE_X86_32BIT_FLAT)
         fConsiderCsLimChecking = false; /* already enabled or not needed */
@@ -2330,7 +2319,7 @@ bool iemThreadedCompileBeginEmitCallsComplications(PVMCPUCC pVCpu, PIEMTB pTb)
     pCall->auParams[1] = idxRange;
     pCall->auParams[2] = offOpcode - pTb->aRanges[idxRange].offOpcodes;
 
-/** @todo check if we require IEMTB_F_CS_LIM_CHECKS for any new page we've
+/** @todo check if we require IEMTB_F_X86_CS_LIM_CHECKS for any new page we've
  *        gotten onto.  If we do, stop */
 
     /*
@@ -2441,7 +2430,7 @@ bool iemThreadedCompileBeginEmitCallsComplications(PVMCPUCC pVCpu, PIEMTB pTb)
                             if (   idxLoopRange == 0
                                 && offPhysPc == pTb->aRanges[0].offPhysPage
                                 &&    (pVCpu->iem.s.fExec & IEMTB_F_IEM_F_MASK & IEMTB_F_KEY_MASK)
-                                   == (pTb->fFlags        & IEMTB_F_KEY_MASK   & ~IEMTB_F_CS_LIM_CHECKS)
+                                   == (pTb->fFlags        & IEMTB_F_KEY_MASK   & ~IEMTB_F_X86_CS_LIM_CHECKS)
                                 &&    (pVCpu->iem.s.fTbBranched & (  IEMBRANCHED_F_INDIRECT | IEMBRANCHED_F_FAR
                                                                    | IEMBRANCHED_F_STACK | IEMBRANCHED_F_RELATIVE))
                                    == IEMBRANCHED_F_RELATIVE)
@@ -2477,13 +2466,13 @@ bool iemThreadedCompileBeginEmitCallsComplications(PVMCPUCC pVCpu, PIEMTB pTb)
                      page branching */
             if (   (pVCpu->iem.s.fTbBranched & (IEMBRANCHED_F_INDIRECT | IEMBRANCHED_F_FAR)) /* Far is basically indirect. */
                 || pVCpu->iem.s.fTbCrossedPage)
-                pCall->enmFunction = pTb->fFlags & IEMTB_F_CS_LIM_CHECKS
+                pCall->enmFunction = pTb->fFlags & IEMTB_F_X86_CS_LIM_CHECKS
                                    ? kIemThreadedFunc_BltIn_CheckCsLimAndOpcodesLoadingTlb
                                    : !fConsiderCsLimChecking
                                    ? kIemThreadedFunc_BltIn_CheckOpcodesLoadingTlb
                                    : kIemThreadedFunc_BltIn_CheckOpcodesLoadingTlbConsiderCsLim;
             else if (pVCpu->iem.s.fTbBranched & (IEMBRANCHED_F_CONDITIONAL | /* paranoia: */ IEMBRANCHED_F_DIRECT))
-                pCall->enmFunction = pTb->fFlags & IEMTB_F_CS_LIM_CHECKS
+                pCall->enmFunction = pTb->fFlags & IEMTB_F_X86_CS_LIM_CHECKS
                                    ? kIemThreadedFunc_BltIn_CheckCsLimAndPcAndOpcodes
                                    : !fConsiderCsLimChecking
                                    ? kIemThreadedFunc_BltIn_CheckPcAndOpcodes
@@ -2491,7 +2480,7 @@ bool iemThreadedCompileBeginEmitCallsComplications(PVMCPUCC pVCpu, PIEMTB pTb)
             else
             {
                 Assert(pVCpu->iem.s.fTbBranched & IEMBRANCHED_F_RELATIVE);
-                pCall->enmFunction = pTb->fFlags & IEMTB_F_CS_LIM_CHECKS
+                pCall->enmFunction = pTb->fFlags & IEMTB_F_X86_CS_LIM_CHECKS
                                    ? kIemThreadedFunc_BltIn_CheckCsLimAndOpcodes
                                    : !fConsiderCsLimChecking
                                    ? kIemThreadedFunc_BltIn_CheckOpcodes
@@ -2596,7 +2585,7 @@ bool iemThreadedCompileBeginEmitCallsComplications(PVMCPUCC pVCpu, PIEMTB pTb)
                   pTb->aRanges[idxRange].offPhysPage, pTb->aRanges[idxRange].offOpcodes));
 
             /* Determin which function we need to load & check. */
-            pCall->enmFunction = pTb->fFlags & IEMTB_F_CS_LIM_CHECKS
+            pCall->enmFunction = pTb->fFlags & IEMTB_F_X86_CS_LIM_CHECKS
                                ? kIemThreadedFunc_BltIn_CheckCsLimAndOpcodesOnNewPageLoadingTlb
                                : !fConsiderCsLimChecking
                                ? kIemThreadedFunc_BltIn_CheckOpcodesOnNewPageLoadingTlb
@@ -2623,13 +2612,13 @@ bool iemThreadedCompileBeginEmitCallsComplications(PVMCPUCC pVCpu, PIEMTB pTb)
 
             /* Determin which function we need to load & check. */
             if (pVCpu->iem.s.fTbCheckOpcodes)
-                pCall->enmFunction = pTb->fFlags & IEMTB_F_CS_LIM_CHECKS
+                pCall->enmFunction = pTb->fFlags & IEMTB_F_X86_CS_LIM_CHECKS
                                    ? kIemThreadedFunc_BltIn_CheckCsLimAndOpcodesAcrossPageLoadingTlb
                                    : !fConsiderCsLimChecking
                                    ? kIemThreadedFunc_BltIn_CheckOpcodesAcrossPageLoadingTlb
                                    : kIemThreadedFunc_BltIn_CheckOpcodesAcrossPageLoadingTlbConsiderCsLim;
             else
-                pCall->enmFunction = pTb->fFlags & IEMTB_F_CS_LIM_CHECKS
+                pCall->enmFunction = pTb->fFlags & IEMTB_F_X86_CS_LIM_CHECKS
                                    ? kIemThreadedFunc_BltIn_CheckCsLimAndOpcodesOnNextPageLoadingTlb
                                    : !fConsiderCsLimChecking
                                    ? kIemThreadedFunc_BltIn_CheckOpcodesOnNextPageLoadingTlb
@@ -2642,9 +2631,9 @@ bool iemThreadedCompileBeginEmitCallsComplications(PVMCPUCC pVCpu, PIEMTB pTb)
      */
     else
     {
-        Assert(pVCpu->iem.s.fTbCheckOpcodes || (pTb->fFlags & IEMTB_F_CS_LIM_CHECKS));
+        Assert(pVCpu->iem.s.fTbCheckOpcodes || (pTb->fFlags & IEMTB_F_X86_CS_LIM_CHECKS));
         if (pVCpu->iem.s.fTbCheckOpcodes)
-            pCall->enmFunction = pTb->fFlags & IEMTB_F_CS_LIM_CHECKS
+            pCall->enmFunction = pTb->fFlags & IEMTB_F_X86_CS_LIM_CHECKS
                                ? kIemThreadedFunc_BltIn_CheckCsLimAndOpcodes
                                : kIemThreadedFunc_BltIn_CheckOpcodes;
         else
@@ -2848,8 +2837,8 @@ static bool iemThreadedCompileCheckIrqAfter(PVMCPUCC pVCpu, PIEMTB pTb)
  *                      thread.
  * @param   GCPhysPc    The physical address corresponding to the current
  *                      RIP+CS.BASE.
- * @param   fExtraFlags Extra translation block flags: IEMTB_F_INHIBIT_SHADOW,
- *                      IEMTB_F_INHIBIT_NMI, IEMTB_F_CS_LIM_CHECKS.
+ * @param   fExtraFlags Extra translation block flags: IEMTB_F_X86_INHIBIT_SHADOW,
+ *                      IEMTB_F_X86_INHIBIT_NMI, IEMTB_F_X86_CS_LIM_CHECKS.
  */
 static IEM_DECL_MSC_GUARD_IGNORE VBOXSTRICTRC
 iemThreadedCompile(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhysPc, uint32_t fExtraFlags) IEM_NOEXCEPT_MAY_LONGJMP
@@ -3558,7 +3547,7 @@ DECLHIDDEN(int) iemPollTimers(PVMCC pVM, PVMCPUCC pVCpu) RT_NOEXCEPT
 /** Helper for iemTbExec. */
 DECL_FORCE_INLINE(PIEMTB *) iemTbGetTbLookupEntryWithRip(PCIEMTB pTb, uint8_t uTbLookup, uint64_t uRip)
 {
-    uint8_t const idx = IEM_TB_LOOKUP_TAB_GET_IDX_WITH_RIP(uTbLookup, uRip);
+    uint8_t const idx = IEM_TB_LOOKUP_TAB_GET_IDX_WITH_PC(uTbLookup, uRip);
     Assert(idx < pTb->cTbLookupEntries);
     return IEMTB_GET_TB_LOOKUP_TAB_ENTRY(pTb, idx);
 }
@@ -3789,8 +3778,8 @@ DECL_FORCE_INLINE_THROW(RTGCPHYS) iemGetPcWithPhysAndCode(PVMCPUCC pVCpu)
 /**
  * Determines the extra IEMTB_F_XXX flags.
  *
- * @returns A mix of IEMTB_F_INHIBIT_SHADOW, IEMTB_F_INHIBIT_NMI and
- *          IEMTB_F_CS_LIM_CHECKS (or zero).
+ * @returns A mix of IEMTB_F_X86_INHIBIT_SHADOW, IEMTB_F_X86_INHIBIT_NMI and
+ *          IEMTB_F_X86_CS_LIM_CHECKS (or zero).
  * @param   pVCpu   The cross context virtual CPU structure of the calling
  *                  thread.
  */
@@ -3806,13 +3795,13 @@ DECL_FORCE_INLINE(uint32_t) iemGetTbFlagsForCurrentPc(PVMCPUCC pVCpu)
     else
     {
         if (CPUMIsInInterruptShadow(&pVCpu->cpum.GstCtx))
-            fRet |= IEMTB_F_INHIBIT_SHADOW;
+            fRet |= IEMTB_F_X86_INHIBIT_SHADOW;
         if (CPUMAreInterruptsInhibitedByNmiEx(&pVCpu->cpum.GstCtx))
-            fRet |= IEMTB_F_INHIBIT_NMI;
+            fRet |= IEMTB_F_X86_INHIBIT_NMI;
     }
 
     /*
-     * Return IEMTB_F_CS_LIM_CHECKS if the current PC is invalid or if it is
+     * Return IEMTB_F_X86_CS_LIM_CHECKS if the current PC is invalid or if it is
      * likely to go invalid before the end of the translation block.
      */
     if (IEM_F_MODE_X86_IS_FLAT(pVCpu->iem.s.fExec))
@@ -3821,7 +3810,7 @@ DECL_FORCE_INLINE(uint32_t) iemGetTbFlagsForCurrentPc(PVMCPUCC pVCpu)
     int64_t const offFromLim = (int64_t)pVCpu->cpum.GstCtx.cs.u32Limit - (int64_t)pVCpu->cpum.GstCtx.eip;
     if (offFromLim >= X86_PAGE_SIZE + 16 - (int32_t)(pVCpu->cpum.GstCtx.cs.u64Base & GUEST_PAGE_OFFSET_MASK))
         return fRet;
-    return fRet | IEMTB_F_CS_LIM_CHECKS;
+    return fRet | IEMTB_F_X86_CS_LIM_CHECKS;
 }
 
 

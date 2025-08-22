@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage modifyvm
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-modifyvm" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2025-07-10 13:35:55 +0200 (Thu, 10 Jul 2025) $</pubdate>
+    <pubdate>$Date: 2025-08-11 19:18:47 +0200 (Mon, 11 Aug 2025) $</pubdate>
     <title>VBoxManage modifyvm</title>
   </refentryinfo>
 
@@ -177,10 +177,6 @@
           <arg choice="plain">off</arg>
         </group></arg>
       <arg>--accelerate-3d=<group choice="plain">
-          <arg choice="plain">on</arg>
-          <arg choice="plain">off</arg>
-        </group></arg>
-      <arg>--accelerate-2d-video=<group choice="plain">
           <arg choice="plain">on</arg>
           <arg choice="plain">off</arg>
         </group></arg>
@@ -657,7 +653,7 @@ it unless this changes. -->
     <para>
       Большинство этих свойств соответствуют настройкам ВМ отображаемых
       в диалоге <emphasis role="bold">Настройки</emphasis> Менеджера
-      VirtualBox для каждой ВМ. Смотрите <xref linkend="BasicConcepts" />.
+      VirtualBox для каждой ВМ. Смотрите <xref linkend="ct_working-with-vms" />.
       Однако, некоторые настройки могут отображаться или управляться
       только командой <command>VBoxManage</command>.
     </para>
@@ -731,7 +727,7 @@ it unless this changes. -->
           <term><option>--memory=<replaceable>размер</replaceable></option></term>
           <listitem><para>
               Задает количество оперативной памяти хоста, выделенной ВМ.
-              Размер в МБ. Смотрите <xref linkend="create-vm-wizard" />.
+              Размер в МБ. Смотрите <xref linkend="tk_create-vm" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -748,7 +744,7 @@ it unless this changes. -->
           <term><option>--vram=<replaceable>размер</replaceable></option></term>
           <listitem><para>
               Задает количество оперативной памяти, выделенной
-              графической карте. Смотрите <xref linkend="settings-display" />.
+              графической карте. Смотрите <xref linkend="ct_settings-display" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -928,7 +924,6 @@ it unless this changes. -->
               Включает или отключает использования расширение
               виртуализации оборудования в процессоре хост-системы.
               Такими расширениями являются Intel VT-x или AMD-V.
-              Смотрите <xref linkend="hwvirt" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -1013,7 +1008,6 @@ it unless this changes. -->
               Включает или отключает функцию вложенных страниц в
               процессоре хост-системы. Эта опция доступна только
               если аппаратная виртуализация включена. Смотрите
-              <xref linkend="hwvirt" /> и
               <xref linkend="sec-rec-cve-2018-3646" />.
             </para></listitem>
         </varlistentry>
@@ -1032,8 +1026,7 @@ it unless this changes. -->
           <term><option>--x86-vtx-vpid=on | off</option></term>
           <listitem><para>
               Включает или отключает использование функцию TLB c метками
-              (VPID) в процессоре вашей хост-системы. Смотрите
-              <xref linkend="hwvirt" />. Эта опция доступна только
+              (VPID) в процессоре вашей хост-системы. Эта опция доступна только
               если аппаратная виртуализация включена на Intel VT-x.
             </para></listitem>
         </varlistentry>
@@ -1074,13 +1067,6 @@ it unless this changes. -->
               графических адаптеров, поддерживающих это. Эта опция
               работает только при установленных Дополнений Гостевой ОС.
               Смотрите <xref linkend="guestadd-video" />.
-            </para></listitem>
-        </varlistentry>
-        <varlistentry>
-          <term><option>--accelerate-2d-video=on | off</option></term>
-          <listitem><para>
-              Включает или отключает 2D видео ускорение для графических
-              адаптеров, поддерживающих это.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -1669,7 +1655,7 @@ it unless this changes. -->
           <term><option>--nat-bind-ip<replaceable>N</replaceable>=<replaceable>IP-адрес</replaceable></option></term>
           <listitem><para>
               Задает альтернативный IP адрес, на который привязывается
-              движок NAT.
+              движок NAT. Смотрите <xref linkend="changenat" />.
               По умолчанию, движок NAT &product-name; перенаправляет пакеты TCP/IP
               через интерфейс по умолчанию, назначенный TCP/IP стеком хоста.
             </para></listitem>
@@ -1708,6 +1694,7 @@ it unless this changes. -->
           <term><option>--nat-settings<replaceable>N</replaceable>=[<replaceable>mtu</replaceable>],[<replaceable>отправка-сокет</replaceable>],[<replaceable>прием-сокет</replaceable>],[<replaceable>отправка-tcp</replaceable>],[<replaceable>прием-tcp</replaceable>]</option></term>
           <listitem><para>
               Задает значения для настройки производительности NAT.
+              Смотрите <xref linkend="changenat" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -1769,7 +1756,7 @@ it unless this changes. -->
               последовательный порт. Допустимые значения
               <literal>off</literal>, отключающее порт или базу I/O и
               IRQ. Для информации по значениям базы I/O и IRQ традиционных
-              COM портов смотрите <xref linkend="serialports" />.
+              COM портов смотрите <xref linkend="ct_serialports" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>
@@ -1777,7 +1764,7 @@ it unless this changes. -->
           <listitem><para>
               Указывает, как &product-name; соединяет указанный
               виртуальный последовательный порт к хост-системе, где
-              работает ВМ. Смотрите <xref linkend="serialports" />.
+              работает ВМ. Смотрите <xref linkend="ct_serialports" />.
             </para><para>
               Убедитесь, что сначала настроили виртуальный последовательный
               порт через опцию <option>--uart<replaceable>N</replaceable></option>.
@@ -1957,7 +1944,7 @@ it unless this changes. -->
               <literal>hosttoguest</literal>,
               <literal>guesttohost</literal> и
               <literal>bidirectional</literal>. Смотрите
-              <xref linkend="generalsettings" />.
+              <xref linkend="ct_generalsettings" />.
             </para><para>
               Функционал буфера обмена доступен только если
               Дополнения Гостевой ОС установлены в ВМ.
@@ -1982,7 +1969,7 @@ it unless this changes. -->
           <term><option>--monitor-count=<replaceable>количество</replaceable></option></term>
           <listitem><para>
               Позволяет настроить несколько мониторов. Смотрите
-              <xref linkend="settings-display" />.
+              <xref linkend="ct_settings-display" />.
             </para></listitem>
         </varlistentry>
         <varlistentry>

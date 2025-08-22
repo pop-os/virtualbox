@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -53,22 +53,22 @@
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
 /** Set of forced set open flags for files opened read-only. */
-static unsigned g_fOpenReadSet = 0;
+static uint64_t g_fOpenReadSet = 0;
 
 /** Set of forced cleared open flags for files opened read-only. */
-static unsigned g_fOpenReadMask = 0;
+static uint64_t g_fOpenReadMask = 0;
 
 /** Set of forced set open flags for files opened write-only. */
-static unsigned g_fOpenWriteSet = 0;
+static uint64_t g_fOpenWriteSet = 0;
 
 /** Set of forced cleared open flags for files opened write-only. */
-static unsigned g_fOpenWriteMask = 0;
+static uint64_t g_fOpenWriteMask = 0;
 
 /** Set of forced set open flags for files opened read-write. */
-static unsigned g_fOpenReadWriteSet = 0;
+static uint64_t g_fOpenReadWriteSet = 0;
 
 /** Set of forced cleared open flags for files opened read-write. */
-static unsigned g_fOpenReadWriteMask = 0;
+static uint64_t g_fOpenReadWriteMask = 0;
 
 
 /**
@@ -80,7 +80,7 @@ static unsigned g_fOpenReadWriteMask = 0;
  * @param   fSet            Open flags to be forced set.
  * @param   fMask           Open flags to be masked out.
  */
-RTR3DECL(int)  RTFileSetForceFlags(unsigned fOpenForAccess, unsigned fSet, unsigned fMask)
+RTR3DECL(int)  RTFileSetForceFlags(uint64_t fOpenForAccess, uint64_t fSet, uint64_t fMask)
 {
     /*
      * For now allow only RTFILE_O_WRITE_THROUGH. The other flags either
@@ -174,6 +174,7 @@ int rtFileRecalcAndValidateFlags(uint64_t *pfOpen)
             break;
         case RTFILE_O_OPEN:
             AssertMsgReturn(!(RTFILE_O_NOT_CONTENT_INDEXED & fOpen), ("%#llx\n", fOpen), VERR_INVALID_PARAMETER);
+            RT_FALL_THROUGH();
         case RTFILE_O_OPEN_CREATE:
         case RTFILE_O_CREATE:
         case RTFILE_O_CREATE_REPLACE:

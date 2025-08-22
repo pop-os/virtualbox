@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -437,8 +437,7 @@ QList<unsigned> UIHostCombo::modifiersToScanCodes(const QString &strKeyCombo)
     QList<unsigned> scanCodeList;
     for (int i = 0; i < encodedKeyList.size(); ++i)
         if (unsigned idxScanCode = UINativeHotKey::modifierToSet1ScanCode(encodedKeyList[i].toInt()))
-            if (idxScanCode != 0)
-                scanCodeList << idxScanCode;
+            scanCodeList << idxScanCode;
     return scanCodeList;
 }
 
@@ -569,7 +568,7 @@ UIHostComboEditorPrivate::UIHostComboEditorPrivate()
     m_pAltGrMonitor = new WinAltGrMonitor;
 #elif defined(VBOX_WS_NIX)
     /* Initialize the X keyboard subsystem: */
-    if (uiCommon().X11ServerAvailable())
+    if (NativeWindowSubsystem::displayServerType() == VBGHDISPLAYSERVERTYPE_X11)
         initMappedX11Keyboard(NativeWindowSubsystem::X11GetDisplay(), gEDataManager->remappedScanCodes());
 #endif /* VBOX_WS_NIX */
 }
@@ -739,7 +738,7 @@ bool UIHostComboEditorPrivate::nativeEvent(const QByteArray &eventType, void *pM
     }
 
 # elif defined(VBOX_WS_NIX)
-    if (uiCommon().X11ServerAvailable())
+    if (NativeWindowSubsystem::displayServerType() == VBGHDISPLAYSERVERTYPE_X11)
     {
         /* Make sure it's generic XCB event: */
         if (eventType != "xcb_generic_event_t")

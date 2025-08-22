@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE topic PUBLIC "-//OASIS//DTD DITA Topic//EN" "topic.dtd">
+<topic id="ts-legacy-os">
+    <title>Running Legacy Guest OSs</title>
+    <body>
+        <p>Older Operating Systems that no longer qualify for Oracle support may work in <ph conkeyref="vbox-conkeyref-phrases/product-name"/>, but may need some additional setup and will have limitations. Here are some suggestions and workarounds for common problems.</p>
+    </body>
+</topic>

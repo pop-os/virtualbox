@@ -287,7 +287,8 @@
         $(DEBUG_DIR)(+)$(MODULE_NAME).dll
 
     <Command.MSFT, Command.INTEL>
-        "$(DLINK)" /OUT:${dst} $(DLINK_FLAGS) $(DLINK2_FLAGS) $(DLINK_SPATH) @$(STATIC_LIBRARY_FILES_LIST)
+        "$(DLINK)" /OUT:${dst}.wtemp $(DLINK_FLAGS) $(DLINK2_FLAGS) $(DLINK_SPATH) @$(STATIC_LIBRARY_FILES_LIST)
+        $(RM) ${dst}.wtemp
         "$(DLINK)" /OUT:${dst} $(DLINK_FLAGS) $(DLINK_SPATH) @$(STATIC_LIBRARY_FILES_LIST)
 
     <Command.CLANGPDB>
@@ -301,7 +302,7 @@
         "$(DLINK)" $(DLINK_FLAGS) -o ${dst} $(DLINK_SPATH) -filelist $(STATIC_LIBRARY_FILES_LIST)  $(DLINK2_FLAGS)
 
 
-[Static-Library-File.SEC.AARCH64, Static-Library-File.PEI_CORE.AARCH64, Static-Library-File.PEIM.AARCH64,Static-Library-File.SEC.ARM, Static-Library-File.PEI_CORE.ARM, Static-Library-File.PEIM.ARM]
+[Static-Library-File.SEC, Static-Library-File.PEI_CORE, Static-Library-File.PEIM]
     <InputFile>
         *.lib
 
@@ -311,12 +312,17 @@
     <OutputFile>
         $(DEBUG_DIR)(+)$(MODULE_NAME).dll
 
+    <Command.MSFT>
+        "$(DLINK)" /OUT:${dst}.wtemp $(DLINK_FLAGS) $(DLINK2_FLAGS) $(DLINK_XIPFLAGS) $(DLINK_SPATH) @$(STATIC_LIBRARY_FILES_LIST)
+        $(RM) ${dst}.wtemp
+        "$(DLINK)" /OUT:${dst} $(DLINK_FLAGS) $(DLINK_XIPFLAGS) $(DLINK_SPATH) @$(STATIC_LIBRARY_FILES_LIST)
+
     <Command.GCC>
         "$(DLINK)" -o ${dst} $(DLINK_FLAGS) $(DLINK_XIPFLAGS) -Wl,--start-group,@$(STATIC_LIBRARY_FILES_LIST),--end-group $(CC_FLAGS) $(CC_XIPFLAGS) $(DLINK2_FLAGS)
         "$(OBJCOPY)" $(OBJCOPY_FLAGS) ${dst}
 
 
-[Static-Library-File.USER_DEFINED, Static-Library-File.HOST_APPLICATION]
+[Static-Library-File.USER_DEFINED]
     <InputFile>
         *.lib
 
@@ -335,6 +341,30 @@
     <Command.XCODE>
         "$(DLINK)" -o ${dst} $(DLINK_FLAGS)  $(DLINK_SPATH) -filelist $(STATIC_LIBRARY_FILES_LIST)  $(DLINK2_FLAGS)
 
+[Static-Library-File.HOST_APPLICATION]
+    <InputFile>
+        *.lib
+
+    <ExtraDependency>
+        $(MAKE_FILE)
+
+    <OutputFile>
+        $(DEBUG_DIR)(+)$(MODULE_NAME)
+
+    <Command.MSFT, Command.INTEL>
+        "$(CC)" /Fo$(OUTPUT_DIR)/Empty_C_File_Host_Application_Build.obj $(CC_FLAGS) $(INC) $(EDK_TOOLS_PATH)/Conf/Empty_C_File_Host_Application_Build.c
+        "$(DLINK)" $(DLINK_FLAGS) $(DLINK_SPATH) $(OUTPUT_DIR)/Empty_C_File_Host_Application_Build.obj @$(STATIC_LIBRARY_FILES_LIST)
+
+    <Command.CLANGPDB>
+        "$(CC)" -o $(OUTPUT_DIR)/Empty_C_File_Host_Application_Build.obj $(CC_FLAGS) $(INC) $(EDK_TOOLS_PATH)/Conf/Empty_C_File_Host_Application_Build.c
+        "$(DLINK)" $(DLINK_FLAGS) $(DLINK_SPATH) $(OUTPUT_DIR)/Empty_C_File_Host_Application_Build.obj @$(STATIC_LIBRARY_FILES_LIST)
+
+    <Command.GCC>
+        "$(DLINK)" $(DLINK_FLAGS) -Wl,--start-group,@$(STATIC_LIBRARY_FILES_LIST),--end-group $(DLINK2_FLAGS)
+
+    <Command.XCODE>
+        "$(DLINK)" -o ${dst} $(DLINK_FLAGS)  $(DLINK_SPATH) -filelist $(STATIC_LIBRARY_FILES_LIST)  $(DLINK2_FLAGS)
+
 
 [Dynamic-Library-File]
     <InputFile>
@@ -344,6 +374,17 @@
         $(OUTPUT_DIR)(+)$(MODULE_NAME).efi
         $(OUTPUT_DIR)(+)$(MODULE_NAME).map
 
+# vbox: Fixing no-rule-to-make ..\DEBUG\mod.efi
+# Note! Listing .efi more than once causes trouble in ModuleAutoGen.py::_ApplyBuildRule for 
+#       VBoxVgaDxe, so that required hacking as well to make this fix work.
+    <OutputFile.GCC>
+        $(DEBUG_DIR)(+)$(MODULE_NAME).efi
+        $(DEBUG_DIR)(+)$(MODULE_NAME).debug
+        $(DEBUG_DIR)(+)$(MODULE_NAME).efi-tmp
+        $(DEBUG_DIR)(+)$(MODULE_NAME).map
+        $(BIN_DIR)(+)$(MODULE_NAME_GUID).efi
+        $(BIN_DIR)(+)$(MODULE_NAME_GUID).debug
+
     <Command.MSFT, Command.INTEL, Command.CLANGPDB>
         "$(GENFW)" -e $(MODULE_TYPE) -o ${dst} ${src} $(GENFW_FLAGS)
         $(CP) ${dst} $(DEBUG_DIR)
@@ -351,19 +392,29 @@
         -$(CP) $(DEBUG_DIR)(+)*.map $(OUTPUT_DIR)
         -$(CP) $(DEBUG_DIR)(+)*.pdb $(OUTPUT_DIR)
     <Command.GCC>
+# vbox 2024-11-18 bird: This crap modifies the source file, causing EnglishDxe to spin forever
+#        $(CP) ${src} $(DEBUG_DIR)(+)$(MODULE_NAME).debug
+#        "$(OBJCOPY)" $(OBJCOPY_STRIPFLAG) ${src}
+#
+#        #
+#        #The below 2 lines are only needed for UNIXGCC tool chain, which generates PE image directly
+#        #
+#        -"$(OBJCOPY)" $(OBJCOPY_ADDDEBUGFLAG) ${src}
+#        -$(CP) $(DEBUG_DIR)(+)$(MODULE_NAME).debug $(BIN_DIR)(+)$(MODULE_NAME_GUID).debug
+#
+#        "$(GENFW)" -e $(MODULE_TYPE) -o ${dst} ${src} $(GENFW_FLAGS)
+#        $(CP) ${dst} $(DEBUG_DIR)
+#        $(CP) ${dst} $(BIN_DIR)(+)$(MODULE_NAME_GUID).efi
+#        -$(CP) $(DEBUG_DIR)(+)*.map $(OUTPUT_DIR)
+# Rewritten:
         $(CP) ${src} $(DEBUG_DIR)(+)$(MODULE_NAME).debug
-        "$(OBJCOPY)" $(OBJCOPY_STRIPFLAG) ${src}
-
-        #
-        #The below 2 lines are only needed for UNIXGCC tool chain, which generates PE image directly
-        #
-        -"$(OBJCOPY)" $(OBJCOPY_ADDDEBUGFLAG) ${src}
-        -$(CP) $(DEBUG_DIR)(+)$(MODULE_NAME).debug $(BIN_DIR)(+)$(MODULE_NAME_GUID).debug
-
-        "$(GENFW)" -e $(MODULE_TYPE) -o ${dst} ${src} $(GENFW_FLAGS)
+        $(CP) ${src} $(DEBUG_DIR)(+)$(MODULE_NAME).efi-tmp
+        "$(OBJCOPY)" $(OBJCOPY_STRIPFLAG) $(DEBUG_DIR)(+)$(MODULE_NAME).efi-tmp
+        "$(GENFW)" -e $(MODULE_TYPE) -o ${dst} $(DEBUG_DIR)(+)$(MODULE_NAME).efi-tmp $(GENFW_FLAGS)
         $(CP) ${dst} $(DEBUG_DIR)
         $(CP) ${dst} $(BIN_DIR)(+)$(MODULE_NAME_GUID).efi
-        -$(CP) $(DEBUG_DIR)(+)*.map $(OUTPUT_DIR)
+        $(CP) $(DEBUG_DIR)(+)$(MODULE_NAME).debug $(BIN_DIR)(+)$(MODULE_NAME_GUID).debug
+        -$(CP) $(DEBUG_DIR)(+)$(MODULE_NAME).map $(OUTPUT_DIR)
 
     <Command.XCODE>
         # tool to convert Mach-O to PE/COFF

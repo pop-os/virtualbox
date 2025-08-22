@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -7354,7 +7354,8 @@ iemNativeEmitTestBitInGprAndJmpToFixedIfCcEx(PIEMNATIVEINSTR pCodeBuf, uint32_t 
     /* Just use the TBNZ instruction here. */
     if (poffFixup)
         *poffFixup = off;
-    pCodeBuf[off++] = Armv8A64MkInstrTbzTbnz(fJmpIfSet, off - offTarget, iGprSrc, iBitNo);
+    pCodeBuf[off] = Armv8A64MkInstrTbzTbnz(fJmpIfSet, off - offTarget, iGprSrc, iBitNo);
+    off++;
 
 #else
 # error "Port me!"

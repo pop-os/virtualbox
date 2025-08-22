@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -38,8 +38,15 @@
 
 #include <VBox/GuestHost/DisplayServerType.h>
 
+/** Macros to separate selectable logging levels. */
+#define VBCL_INFO(fmt, ...)     VBClLogVerbose(1, fmt, __VA_ARGS__)
+#define VBCL_WARN(fmt, ...)     VBClLogVerbose(2, fmt, __VA_ARGS__)
+#define VBCL_WARN_NO_ARGS(msg)  VBClLogVerbose(2, msg)
+#define VBCL_DEBUG(fmt, ...)    VBClLogVerbose(3, fmt, __VA_ARGS__)
+#define VBCL_DEBUG_NO_ARGS(msg) VBClLogVerbose(3, msg)
+
 /** A shortcut to log callback entering. */
-#define VBCL_LOG_CALLBACK VBClLogVerbose(3, "%s\n", __func__)
+#define VBCL_LOG_CALLBACK       VBClLogVerbose(3, "%s\n", __func__)
 
 int VBClShowNotify(const char *pszHeader, const char *pszBody);
 

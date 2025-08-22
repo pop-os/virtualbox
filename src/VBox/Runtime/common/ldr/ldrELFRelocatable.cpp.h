@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1428,7 +1428,6 @@ static DECLCALLBACK(int) RTLDRELF_NAME(EnumSegments)(PRTLDRMODINTERNAL pMod, PFN
      * Do the enumeration.
      */
     char            szName[32];
-    Elf_Addr        uPrevMappedRva = 0;
     const Elf_Shdr *paShdrs    = pModElf->paShdrs;
     const Elf_Shdr *paOrgShdrs = pModElf->paOrgShdrs;
     for (unsigned iShdr = pModElf->iFirstSect; iShdr < pModElf->Ehdr.e_shnum; iShdr++)
@@ -1468,7 +1467,6 @@ static DECLCALLBACK(int) RTLDRELF_NAME(EnumSegments)(PRTLDRMODINTERNAL pMod, PFN
                 Seg.cbMapped = pShdr2->sh_addr - paShdrs[iShdr].sh_addr;
             else
                 Seg.cbMapped = pModElf->cbImage - paShdrs[iShdr].sh_addr;
-            uPrevMappedRva = Seg.RVA;
         }
         else
         {
@@ -1982,6 +1980,9 @@ static int RTLDRELF_NAME(ValidateElfHeader)(const Elf_Ehdr *pEhdr, uint64_t cbRa
 #elif ELF_MODE == 64
         case EM_X86_64:
             *penmArch = RTLDRARCH_AMD64;
+            break;
+        case EM_AARCH64:
+            *penmArch = RTLDRARCH_ARM64;
             break;
 #endif
         default:

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -77,13 +77,13 @@ public:
     /** Returns frame-buffer data address. */
     uchar *address();
     /** Returns frame-buffer width. */
-    ulong width() const;
+    int width() const;
     /** Returns frame-buffer height. */
-    ulong height() const;
+    int height() const;
     /** Returns frame-buffer bits-per-pixel value. */
-    ulong bitsPerPixel() const;
+    int bitsPerPixel() const;
     /** Returns frame-buffer bytes-per-line value. */
-    ulong bytesPerLine() const;
+    qsizetype bytesPerLine() const;
 
     /** Defines whether frame-buffer is <b>unused</b>.
       * @note Calls to this and any other EMT callback are synchronized (from GUI side). */

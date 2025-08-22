@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,6 +40,7 @@
 #define Bs3A20Enable BS3_CMN_MANGLER(Bs3A20Enable)
 #define Bs3A20EnableViaKbd BS3_CMN_MANGLER(Bs3A20EnableViaKbd)
 #define Bs3A20EnableViaPortA BS3_CMN_MANGLER(Bs3A20EnableViaPortA)
+#define Bs3Assert BS3_CMN_MANGLER(Bs3Assert)
 #define Bs3ExtCtxAlloc BS3_CMN_MANGLER(Bs3ExtCtxAlloc)
 #define Bs3ExtCtxCopy BS3_CMN_MANGLER(Bs3ExtCtxCopy)
 #define Bs3ExtCtxFree BS3_CMN_MANGLER(Bs3ExtCtxFree)

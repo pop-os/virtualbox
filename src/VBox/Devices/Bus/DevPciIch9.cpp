@@ -21,7 +21,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -996,7 +996,7 @@ DECLCALLBACK(int) devpcibridgeR3CommonRegisterDevice(PPDMDEVINS pDevIns, PPDMPCI
 }
 
 
-static DECLCALLBACK(int) ich9pciRegisterMsi(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, PPDMMSIREG pMsiReg)
+DECLCALLBACK(int) devpciR3CommonRegisterMsi(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, PPDMMSIREG pMsiReg)
 {
     //PDEVPCIBUS   pBus   = PDMINS_2_DATA(pDevIns, PDEVPCIBUS);
     PDEVPCIBUSCC pBusCC = PDMINS_2_DATA_CC(pDevIns, PDEVPCIBUSCC);
@@ -3386,7 +3386,7 @@ static DECLCALLBACK(int) ich9pciR3Construct(PPDMDEVINS pDevIns, int iInstance, P
     PDMPCIBUSREGCC PciBusReg;
     PciBusReg.u32Version                 = PDM_PCIBUSREGCC_VERSION;
     PciBusReg.pfnRegisterR3              = devpciR3CommonRegisterDevice;
-    PciBusReg.pfnRegisterMsiR3           = ich9pciRegisterMsi;
+    PciBusReg.pfnRegisterMsiR3           = devpciR3CommonRegisterMsi;
     PciBusReg.pfnIORegionRegisterR3      = devpciR3CommonIORegionRegister;
     PciBusReg.pfnInterceptConfigAccesses = devpciR3CommonInterceptConfigAccesses;
     PciBusReg.pfnConfigRead              = devpciR3CommonConfigRead;
@@ -3696,7 +3696,7 @@ static DECLCALLBACK(int) ich9pcibridgeR3Construct(PPDMDEVINS pDevIns, int iInsta
     PDMPCIBUSREGCC PciBusReg;
     PciBusReg.u32Version                 = PDM_PCIBUSREGCC_VERSION;
     PciBusReg.pfnRegisterR3              = devpcibridgeR3CommonRegisterDevice;
-    PciBusReg.pfnRegisterMsiR3           = ich9pciRegisterMsi;
+    PciBusReg.pfnRegisterMsiR3           = devpciR3CommonRegisterMsi;
     PciBusReg.pfnIORegionRegisterR3      = devpciR3CommonIORegionRegister;
     PciBusReg.pfnInterceptConfigAccesses = devpciR3CommonInterceptConfigAccesses;
     PciBusReg.pfnConfigWrite             = devpciR3CommonConfigWrite;

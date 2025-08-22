@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -952,11 +952,6 @@ static int rtFdtDumpRootAsDts(PRTFDTINT pThis, RTVFSIOSTREAM hVfsIos, PRTERRINFO
         if (u32Token == DTB_FDT_TOKEN_END)
             Log3(("rtFdtDumpAsDtsRoot: END token at offset %#zx\n", rtFdtStructsGetOffset(pThis, &Dump)));
     }
-
-    /* Need to end on an END token. */
-    if (u32Token != DTB_FDT_TOKEN_END)
-        return RTErrInfoSetF(pErrInfo, VERR_FDT_DTB_STRUCTS_BLOCK_TOKEN_INVALID, "The structs block doesn't end with an END token (got %#RX32, expected %#RX32)",
-                             RT_BE2H_U32(u32Token), DTB_FDT_TOKEN_END);
 
     return VINF_SUCCESS;
 }

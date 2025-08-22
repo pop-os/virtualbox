@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -559,7 +559,7 @@ static int dbgcCmdHelpCmdOrFunc(PDBGCCMDHLP pCmdHlp, const char *pszName, bool f
             return DBGCCmdHlpPrintf(pCmdHlp, "%*s %s\n", cchPadding, "", pszDescription);
         else
         {
-            /* Split on preceeding blank. */
+            /* Split on preceding blank. */
             const char *pszEnd  = &pszDescription[cchCurWidth];
             if (!RT_C_IS_BLANK(*pszEnd))
                 while (pszEnd != pszDescription && !RT_C_IS_BLANK(pszEnd[-1]))

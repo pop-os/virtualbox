@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,20 +40,19 @@
 #include "UIChooserHandlerMouse.h"
 #include "UIChooserHandlerKeyboard.h"
 #include "UIChooserItemGroup.h"
-#include "UIChooserItemGlobal.h"
 #include "UIChooserItemMachine.h"
 #include "UIChooserModel.h"
 #include "UIChooserNode.h"
 #include "UIChooserNodeGroup.h"
-#include "UIChooserNodeGlobal.h"
 #include "UIChooserNodeMachine.h"
 #include "UIChooserView.h"
 #include "UICloudNetworkingStuff.h"
+#include "UICommon.h"
 #include "UIExtraDataManager.h"
 #include "UIMessageCenter.h"
 #include "UIModalWindowManager.h"
 #include "UINotificationCenter.h"
-#include "UIVirtualBoxManagerWidget.h"
+#include "UIVirtualBoxEventHandler.h"
 #include "UIVirtualMachineItemCloud.h"
 #include "UIVirtualMachineItemLocal.h"
 
@@ -75,7 +74,6 @@ UIChooserModel::UIChooserModel(UIChooser *pParent, UIActionPool *pActionPool)
     , m_iCurrentSearchResultIndex(-1)
     , m_iScrollingTokenSize(30)
     , m_fIsScrollingInProgress(false)
-    , m_iGlobalItemHeightHint(0)
     , m_pTimerCloudProfileUpdate(0)
 {
     prepare();
@@ -120,24 +118,6 @@ QPaintDevice *UIChooserModel::paintDevice() const
 QGraphicsItem *UIChooserModel::itemAt(const QPointF &position, const QTransform &deviceTransform /* = QTransform() */) const
 {
     return scene() ? scene()->itemAt(position, deviceTransform) : 0;
-}
-
-void UIChooserModel::handleToolButtonClick(UIChooserItem *pItem)
-{
-    emit sigToolMenuRequested(pItem->mapToScene(QPointF(pItem->size().width(), 0)).toPoint(),
-                              pItem->type() == UIChooserNodeType_Machine ? pItem->toMachineItem()->cache() : 0);
-}
-
-void UIChooserModel::handlePinButtonClick(UIChooserItem *pItem)
-{
-    switch (pItem->type())
-    {
-        case UIChooserNodeType_Global:
-            pItem->setFavorite(!pItem->isFavorite());
-            break;
-        default:
-            break;
-    }
 }
 
 void UIChooserModel::setSelectedItems(const QList<UIChooserItem*> &items)
@@ -298,11 +278,6 @@ bool UIChooserModel::isGroupItemSelected() const
     return firstSelectedItem() && firstSelectedItem()->type() == UIChooserNodeType_Group;
 }
 
-bool UIChooserModel::isGlobalItemSelected() const
-{
-    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserNodeType_Global;
-}
-
 bool UIChooserModel::isMachineItemSelected() const
 {
     return firstSelectedItem() && firstSelectedItem()->type() == UIChooserNodeType_Machine;
@@ -373,7 +348,11 @@ bool UIChooserModel::isAllItemsOfOneGroupSelected() const
 
 QString UIChooserModel::fullGroupName() const
 {
-    return isSingleGroupSelected() ? firstSelectedItem()->fullName() : firstSelectedItem()->parentItem()->fullName();
+    return   !firstSelectedItem()
+           ? QString()
+           : isSingleGroupSelected()
+           ? firstSelectedItem()->fullName()
+           : firstSelectedItem()->parentItem()->fullName();
 }
 
 UIChooserItem *UIChooserModel::findClosestUnselectedItem() const
@@ -393,8 +372,7 @@ UIChooserItem *UIChooserModel::findClosestUnselectedItem() const
             {
                 pItem = navigationItems().at(idxAfter);
                 if (   !selectedItems().contains(pItem)
-                    && (   pItem->type() == UIChooserNodeType_Machine
-                        || pItem->type() == UIChooserNodeType_Global))
+                    && pItem->type() == UIChooserNodeType_Machine)
                     return pItem;
                 ++idxAfter;
             }
@@ -402,8 +380,7 @@ UIChooserItem *UIChooserModel::findClosestUnselectedItem() const
             {
                 pItem = navigationItems().at(idxBefore);
                 if (   !selectedItems().contains(pItem)
-                    && (   pItem->type() == UIChooserNodeType_Machine
-                        || pItem->type() == UIChooserNodeType_Global))
+                    && pItem->type() == UIChooserNodeType_Machine)
                     return pItem;
                 --idxBefore;
             }
@@ -432,10 +409,6 @@ void UIChooserModel::makeSureNoItemWithCertainIdSelected(const QUuid &uId)
     const QSet<UIChooserItem*> selectedItemsSet(selectedItemsList.begin(), selectedItemsList.end());
     if (selectedItemsSet.intersects(matchedItems))
         setSelectedItem(findClosestUnselectedItem());
-
-    /* If global item is currently chosen, selection should be invalidated: */
-    if (firstSelectedItem() && firstSelectedItem()->type() == UIChooserNodeType_Global)
-        emit sigSelectionInvalidated();
 }
 
 void UIChooserModel::makeSureAtLeastOneItemSelected()
@@ -492,6 +465,11 @@ const QList<UIChooserItem*> &UIChooserModel::navigationItems() const
     return m_navigationItems;
 }
 
+bool UIChooserModel::isNavigationListEmpty() const
+{
+    return m_navigationItems.isEmpty();
+}
+
 void UIChooserModel::removeFromNavigationItems(UIChooserItem *pItem)
 {
     AssertMsg(pItem, ("Passed item is invalid!"));
@@ -502,6 +480,7 @@ void UIChooserModel::updateNavigationItemList()
 {
     m_navigationItems.clear();
     m_navigationItems = createNavigationItemList(root());
+    emit sigNavigationListChanged();
 }
 
 UIChooserItem *UIChooserModel::searchItemByDefinition(const QString &strDefinition) const
@@ -537,14 +516,6 @@ UIChooserItem *UIChooserModel::searchItemByDefinition(const QString &strDefiniti
         pItem = root()->searchForItem(strItemDescriptor,
                                       UIChooserItemSearchFlag_CloudProfile |
                                       UIChooserItemSearchFlag_FullName);
-    }
-    /* Its a global-item definition? */
-    else if (strItemType == prefixToString(UIChooserNodeDataPrefixType_Global))
-    {
-        /* Search for global-item with required name: */
-        pItem = root()->searchForItem(strItemDescriptor,
-                                      UIChooserItemSearchFlag_Global |
-                                      UIChooserItemSearchFlag_ExactName);
     }
     /* Its a machine-item definition? */
     else if (strItemType == prefixToString(UIChooserNodeDataPrefixType_Machine))
@@ -1027,17 +998,6 @@ void UIChooserModel::setCurrentMachineItem(const QUuid &uId)
         setSelectedItem(pItem);
 }
 
-void UIChooserModel::setCurrentGlobalItem()
-{
-    /* Look whether we have such item at all: */
-    UIChooserItem *pItem = root()->searchForItem(QString(),
-                                                 UIChooserItemSearchFlag_Global);
-
-    /* Select item if exists: */
-    if (pItem)
-        setSelectedItem(pItem);
-}
-
 void UIChooserModel::setCurrentDragObject(QDrag *pDragObject)
 {
     /* Make sure real focus unset: */
@@ -1076,13 +1036,6 @@ void UIChooserModel::updateLayout()
     root()->resize(iViewportWidth, iViewportHeight);
     /* Layout root content: */
     root()->updateLayout();
-}
-
-void UIChooserModel::setGlobalItemHeightHint(int iHint)
-{
-    /* Save and apply global item height hint: */
-    m_iGlobalItemHeightHint = iHint;
-    applyGlobalItemHeightHint();
 }
 
 void UIChooserModel::sltHandleViewResized()
@@ -1286,9 +1239,189 @@ void UIChooserModel::sltHandleCloudProfileManagerCumulativeChange()
     buildTreeForMainRoot(true /* preserve selection */);
 }
 
+void UIChooserModel::sltHandleCommitData()
+{
+    cleanupConnections();
+}
+
+void UIChooserModel::sltHandleSettingsExpertModeChange()
+{
+    /* Invalidate local and cloud machine context-menus (we are reseting property values): */
+    m_localMenus.value(UIChooserNodeType_Machine)->setProperty("is_valid", QVariant());
+    m_cloudMenus.value(UIChooserNodeType_Machine)->setProperty("is_valid", QVariant());
+}
+
+void UIChooserModel::sltHandleMachineStateChange(const QUuid &uId)
+{
+    /* If that was first selected VM item: */
+    if (   firstSelectedMachineItem()
+        && firstSelectedMachineItem()->id() == uId)
+    {
+        /* Invalidate local and cloud machine context-menus (we are reseting property values): */
+        m_localMenus.value(UIChooserNodeType_Machine)->setProperty("is_valid", QVariant());
+        m_cloudMenus.value(UIChooserNodeType_Machine)->setProperty("is_valid", QVariant());
+    }
+}
+
+void UIChooserModel::sltHandleSelectionChanged()
+{
+    /* Invalidate local and cloud machine context-menus (we are reseting property values): */
+    m_localMenus.value(UIChooserNodeType_Machine)->setProperty("is_valid", QVariant());
+    m_cloudMenus.value(UIChooserNodeType_Machine)->setProperty("is_valid", QVariant());
+}
+
+void UIChooserModel::sltUpdateContextMenu()
+{
+    /* Determine sender: */
+    QMenu *pMenu = qobject_cast<QMenu*>(sender());
+    AssertPtrReturnVoid(pMenu);
+
+    /* Check if that was one of local menus: */
+    const UIChooserNodeType enmLocalType = m_localMenus.key(pMenu, UIChooserNodeType_Any);
+    if (enmLocalType != UIChooserNodeType_Any)
+    {
+        switch (enmLocalType)
+        {
+            case UIChooserNodeType_Group:
+            {
+                if (!pMenu->property("is_valid").toBool())
+                {
+                    pMenu->clear();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_New));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Add));
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Rename));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Remove));
+                    pMenu->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_MoveToGroup)->menu());
+                    pMenu->addSeparator();
+                    if (   firstSelectedMachineItem()
+                        && firstSelectedMachineItem()->isItemPoweredOff())
+                        pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_M_Start));
+                    else
+                        pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Show));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_T_Pause));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Reset));
+                    // pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Detach));
+                    pMenu->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_Stop)->menu());
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Discard));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Refresh));
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_ShowInFileManager));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_CreateShortcut));
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Sort));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_T_Search));
+                    pMenu->setProperty("is_valid", true);
+                }
+                break;
+            }
+            case UIChooserNodeType_Machine:
+            {
+                if (!pMenu->property("is_valid").toBool())
+                {
+                    pMenu->clear();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Settings));
+                    if (gEDataManager->isSettingsInExpertMode())
+                    {
+                        pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Clone));
+                        pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Move));
+                    }
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_ExportToOCI));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Remove));
+                    pMenu->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_MoveToGroup)->menu());
+                    pMenu->addSeparator();
+                    if (   firstSelectedMachineItem()
+                        && firstSelectedMachineItem()->isItemPoweredOff())
+                        pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_M_Start));
+                    else
+                        pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Show));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_T_Pause));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Reset));
+                    // pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Detach));
+                    pMenu->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_Stop)->menu());
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Discard));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Refresh));
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_ShowInFileManager));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_CreateShortcut));
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_SortParent));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_T_Search));
+                    pMenu->setProperty("is_valid", true);
+                }
+                break;
+            }
+            default:
+                AssertMsgFailed(("Unhandled local context-menu type: %d\n", (int)enmLocalType));
+                break;
+        }
+        return;
+    }
+
+    /* Check if that was one of cloud menus: */
+    const UIChooserNodeType enmCloudType = m_cloudMenus.key(pMenu, UIChooserNodeType_Any);
+    if (enmCloudType != UIChooserNodeType_Any)
+    {
+        switch (enmCloudType)
+        {
+            case UIChooserNodeType_Group:
+            {
+                if (!pMenu->property("is_valid").toBool())
+                {
+                    pMenu->clear();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_New));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Add));
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_M_Start));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Reset));
+                    pMenu->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_Console)->menu());
+                    pMenu->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_Stop)->menu());
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Refresh));
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Sort));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Group_T_Search));
+                    pMenu->setProperty("is_valid", true);
+                }
+                break;
+            }
+            case UIChooserNodeType_Machine:
+            {
+                if (!pMenu->property("is_valid").toBool())
+                {
+                    pMenu->clear();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Settings));
+                    if (gEDataManager->isSettingsInExpertMode())
+                        pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Clone));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Remove));
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_M_Start));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Reset));
+                    pMenu->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_Console)->menu());
+                    pMenu->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_Stop)->menu());
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Refresh));
+                    pMenu->addSeparator();
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_SortParent));
+                    pMenu->addAction(actionPool()->action(UIActionIndexMN_M_Machine_T_Search));
+                    pMenu->setProperty("is_valid", true);
+                }
+                break;
+            }
+            default:
+                AssertMsgFailed(("Unhandled cloud context-menu type: %d\n", (int)enmCloudType));
+                break;
+        }
+        return;
+    }
+}
+
 void UIChooserModel::sltMakeSureCurrentItemVisible()
 {
-    root()->toGroupItem()->makeSureItemIsVisible(currentItem());
+    if (currentItem())
+        root()->toGroupItem()->makeSureItemIsVisible(currentItem());
 }
 
 void UIChooserModel::sltCurrentItemDestroyed()
@@ -1461,133 +1594,25 @@ void UIChooserModel::prepareScene()
 
 void UIChooserModel::prepareContextMenu()
 {
-    /* Context menu for global(s): */
-    m_localMenus[UIChooserNodeType_Global] = new QMenu;
-    if (QMenu *pMenuGlobal = m_localMenus.value(UIChooserNodeType_Global))
-    {
-#ifdef VBOX_WS_MAC
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_About));
-        pMenuGlobal->addSeparator();
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
-        pMenuGlobal->addSeparator();
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ImportAppliance));
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ExportAppliance));
-# ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ShowExtraDataManager));
-        pMenuGlobal->addSeparator();
-# endif
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_M_Tools));
-
-#else /* !VBOX_WS_MAC */
-
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
-        pMenuGlobal->addSeparator();
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ImportAppliance));
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ExportAppliance));
-        pMenuGlobal->addSeparator();
-# ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ShowExtraDataManager));
-        pMenuGlobal->addSeparator();
-# endif
-        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_M_Tools));
-        pMenuGlobal->addSeparator();
-# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-        if (gEDataManager->applicationUpdateEnabled())
-            pMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
-# endif
-#endif /* !VBOX_WS_MAC */
-    }
-
     /* Context menu for local group(s): */
     m_localMenus[UIChooserNodeType_Group] = new QMenu;
     if (QMenu *pMenuGroup = m_localMenus.value(UIChooserNodeType_Group))
-    {
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_New));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Add));
-        pMenuGroup->addSeparator();
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Rename));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Remove));
-        pMenuGroup->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_MoveToGroup)->menu());
-        pMenuGroup->addSeparator();
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_M_StartOrShow));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_T_Pause));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Reset));
-        // pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Detach));
-        pMenuGroup->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_Stop)->menu());
-        pMenuGroup->addSeparator();
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Discard));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Refresh));
-        pMenuGroup->addSeparator();
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_ShowInFileManager));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_CreateShortcut));
-        pMenuGroup->addSeparator();
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Sort));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_T_Search));
-    }
+        connect(pMenuGroup, &QMenu::aboutToShow, this, &UIChooserModel::sltUpdateContextMenu);
 
     /* Context menu for local machine(s): */
     m_localMenus[UIChooserNodeType_Machine] = new QMenu;
     if (QMenu *pMenuMachine = m_localMenus.value(UIChooserNodeType_Machine))
-    {
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Settings));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Clone));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Move));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_ExportToOCI));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Remove));
-        pMenuMachine->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_MoveToGroup)->menu());
-        pMenuMachine->addSeparator();
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_M_StartOrShow));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_T_Pause));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Reset));
-        // pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Detach));
-        pMenuMachine->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_Stop)->menu());
-        pMenuMachine->addSeparator();
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Discard));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Refresh));
-        pMenuMachine->addSeparator();
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_ShowInFileManager));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_CreateShortcut));
-        pMenuMachine->addSeparator();
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_SortParent));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_T_Search));
-    }
+        connect(pMenuMachine, &QMenu::aboutToShow, this, &UIChooserModel::sltUpdateContextMenu);
 
     /* Context menu for cloud group(s): */
     m_cloudMenus[UIChooserNodeType_Group] = new QMenu;
     if (QMenu *pMenuGroup = m_cloudMenus.value(UIChooserNodeType_Group))
-    {
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_New));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Add));
-        pMenuGroup->addSeparator();
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_M_StartOrShow));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Reset));
-        pMenuGroup->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_Console)->menu());
-        pMenuGroup->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_Stop)->menu());
-        pMenuGroup->addSeparator();
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Refresh));
-        pMenuGroup->addSeparator();
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Sort));
-        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_T_Search));
-    }
+        connect(pMenuGroup, &QMenu::aboutToShow, this, &UIChooserModel::sltUpdateContextMenu);
 
     /* Context menu for cloud machine(s): */
     m_cloudMenus[UIChooserNodeType_Machine] = new QMenu;
     if (QMenu *pMenuMachine = m_cloudMenus.value(UIChooserNodeType_Machine))
-    {
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Settings));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Clone));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Remove));
-        pMenuMachine->addSeparator();
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_M_StartOrShow));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Reset));
-        pMenuMachine->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_Console)->menu());
-        pMenuMachine->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_Stop)->menu());
-        pMenuMachine->addSeparator();
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Refresh));
-        pMenuMachine->addSeparator();
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_SortParent));
-        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_T_Search));
-    }
+        connect(pMenuMachine, &QMenu::aboutToShow, this, &UIChooserModel::sltUpdateContextMenu);
 }
 
 void UIChooserModel::prepareHandlers()
@@ -1605,6 +1630,14 @@ void UIChooserModel::prepareCloudUpdateTimer()
 
 void UIChooserModel::prepareConnections()
 {
+    connect(&uiCommon(), &UICommon::sigAskToCommitData,
+            this, &UIChooserModel::sltHandleCommitData);
+    connect(gEDataManager, &UIExtraDataManager::sigSettingsExpertModeChange,
+            this, &UIChooserModel::sltHandleSettingsExpertModeChange);
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigMachineStateChange,
+            this, &UIChooserModel::sltHandleMachineStateChange);
+    connect(this, &UIChooserModel::sigSelectionChanged,
+            this, &UIChooserModel::sltHandleSelectionChanged);
     connect(this, &UIChooserModel::sigSelectionChanged,
             this, &UIChooserModel::sltUpdateSelectedCloudProfiles);
     connect(m_pTimerCloudProfileUpdate, &QTimer::timeout,
@@ -1620,6 +1653,10 @@ void UIChooserModel::loadSettings()
 
 void UIChooserModel::cleanupConnections()
 {
+    disconnect(gVBoxEvents, &UIVirtualBoxEventHandler::sigMachineStateChange,
+               this, &UIChooserModel::sltHandleMachineStateChange);
+    disconnect(this, &UIChooserModel::sigSelectionChanged,
+               this, &UIChooserModel::sltHandleSelectionChanged);
     disconnect(this, &UIChooserModel::sigSelectionChanged,
                this, &UIChooserModel::sltUpdateSelectedCloudProfiles);
     disconnect(m_pTimerCloudProfileUpdate, &QTimer::timeout,
@@ -1656,7 +1693,6 @@ void UIChooserModel::cleanupScene()
 
 void UIChooserModel::cleanup()
 {
-    cleanupConnections();
     cleanupCloudUpdateTimer();
     cleanupHandlers();
     cleanupContextMenu();
@@ -1675,12 +1711,6 @@ bool UIChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEv
             {
                 switch (pItem->type())
                 {
-                    case UIChooserNodeType_Global:
-                    {
-                        /* Global context menu for all global item cases: */
-                        m_localMenus.value(UIChooserNodeType_Global)->exec(pEvent->screenPos());
-                        break;
-                    }
                     case UIChooserNodeType_Group:
                     {
                         /* Get group-item: */
@@ -1729,12 +1759,6 @@ bool UIChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEv
             {
                 switch (pItem->type())
                 {
-                    case UIChooserNodeType_Global:
-                    {
-                        /* Global context menu for all global item cases: */
-                        m_localMenus.value(UIChooserNodeType_Global)->exec(pEvent->screenPos());
-                        break;
-                    }
                     case UIChooserNodeType_Group:
                     {
                         /* Get group-item: */
@@ -1791,9 +1815,6 @@ QList<UIChooserItem*> UIChooserModel::createNavigationItemList(UIChooserItem *pI
     /* Prepare navigation list: */
     QList<UIChooserItem*> navigationItems;
 
-    /* Iterate over all the global-items: */
-    foreach (UIChooserItem *pGlobalItem, pItem->items(UIChooserNodeType_Global))
-        navigationItems << pGlobalItem;
     /* Iterate over all the group-items: */
     foreach (UIChooserItem *pGroupItem, pItem->items(UIChooserNodeType_Group))
     {
@@ -1850,9 +1871,6 @@ void UIChooserModel::buildTreeForMainRoot(bool fPreserveSelection /* = false */)
 
     /* Update tree for main root: */
     updateTreeForMainRoot();
-
-    /* Apply current global item height hint: */
-    applyGlobalItemHeightHint();
 
     /* Restore all selected items if requested: */
     if (fPreserveSelection)
@@ -1914,40 +1932,35 @@ void UIChooserModel::unregisterLocalMachines(const QList<CMachine> &machines)
 {
     /* Confirm machine removal: */
     const int iResultCode = msgCenter().confirmMachineRemoval(machines);
-    if (iResultCode == AlertButton_Cancel)
+    if (iResultCode & AlertButton_Cancel)
         return;
 
     /* For every selected machine: */
     foreach (CMachine comMachine, machines)
     {
-        if (iResultCode == AlertButton_Choice1)
+        /* Unregister machine first: */
+        CMediumVector media = comMachine.Unregister(KCleanupMode_DetachAllReturnHardDisksAndVMRemovable);
+        if (!comMachine.isOk())
         {
-            /* Unregister machine first: */
-            CMediumVector media = comMachine.Unregister(KCleanupMode_DetachAllReturnHardDisksAndVMRemovable);
-            if (!comMachine.isOk())
-            {
-                UINotificationMessage::cannotRemoveMachine(comMachine);
-                continue;
-            }
-            /* Removing machine: */
-            UINotificationProgressMachineMediaRemove *pNotification = new UINotificationProgressMachineMediaRemove(comMachine, media);
+            UINotificationMessage::cannotRemoveMachine(comMachine);
+            continue;
+        }
+
+        /* Now remove machine fully if requested: */
+        if (iResultCode & AlertOption_CheckBox)
+        {
+            /* Removing machine fully (together with config file and all the media): */
+            UINotificationProgressMachineMediaRemove *pNotification =
+                new UINotificationProgressMachineMediaRemove(comMachine, media);
             gpNotificationCenter->append(pNotification);
         }
-        else if (iResultCode == AlertButton_Choice2 || iResultCode == AlertButton_Ok)
+        /* Or just close the media if exists: */
+        else
         {
-            /* Unregister machine first: */
-            CMediumVector media = comMachine.Unregister(KCleanupMode_DetachAllReturnHardDisksAndVMRemovable);
-            if (!comMachine.isOk())
-            {
-                UINotificationMessage::cannotRemoveMachine(comMachine);
-                continue;
-            }
-            /* Finally close all media, deliberately ignoring errors: */
+            /* Just close all the media (deliberately ignoring errors): */
             foreach (CMedium comMedium, media)
-            {
                 if (!comMedium.isNull())
                     comMedium.Close();
-            }
         }
     }
 }
@@ -2040,24 +2053,4 @@ bool UIChooserModel::processDragLeaveEvent(QGraphicsSceneDragDropEvent *pEvent)
 
     /* Pass event: */
     return false;
-}
-
-void UIChooserModel::applyGlobalItemHeightHint()
-{
-    /* Make sure there is something to apply: */
-    if (m_iGlobalItemHeightHint == 0)
-        return;
-
-    /* Walk thrugh all the items of navigation list: */
-    foreach (UIChooserItem *pItem, navigationItems())
-    {
-        /* And for each global item: */
-        if (pItem->type() == UIChooserNodeType_Global)
-        {
-            /* Apply the height hint we have: */
-            UIChooserItemGlobal *pGlobalItem = pItem->toGlobalItem();
-            if (pGlobalItem)
-                pGlobalItem->setHeightHint(m_iGlobalItemHeightHint);
-        }
-    }
 }

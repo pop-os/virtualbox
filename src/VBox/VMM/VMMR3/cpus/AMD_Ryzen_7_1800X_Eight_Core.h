@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -5208,17 +5208,20 @@ static CPUMMSRRANGE const g_aMsrRanges_AMD_Ryzen_7_1800X_Eight_Core[] =
 /**
  * Database entry for AMD Ryzen 7 1800X Eight-Core Processor.
  */
-static CPUMDBENTRY const g_Entry_AMD_Ryzen_7_1800X_Eight_Core =
+static CPUMDBENTRYX86 const g_Entry_AMD_Ryzen_7_1800X_Eight_Core =
 {
-    /*.pszName          = */ "AMD Ryzen 7 1800X Eight-Core",
-    /*.pszFullName      = */ "AMD Ryzen 7 1800X Eight-Core Processor",
-    /*.enmVendor        = */ CPUMCPUVENDOR_AMD,
+    {
+        /*.pszName      = */ "AMD Ryzen 7 1800X Eight-Core",
+        /*.pszFullName  = */ "AMD Ryzen 7 1800X Eight-Core Processor",
+        /*.enmVendor    = */ CPUMCPUVENDOR_AMD,
+        /*.enmMicroarch = */ kCpumMicroarch_AMD_Zen_Ryzen,
+        /*.fFlags       = */ 0,
+        /*.enmEntryType = */ CPUMDBENTRYTYPE_X86,
+    },
     /*.uFamily          = */ 23,
     /*.uModel           = */ 1,
     /*.uStepping        = */ 1,
-    /*.enmMicroarch     = */ kCpumMicroarch_AMD_Zen_Ryzen,
     /*.uScalableBusFreq = */ CPUM_SBUSFREQ_UNKNOWN,
-    /*.fFlags           = */ 0,
     /*.cMaxPhysAddrWidth= */ 48,
     /*.fMxCsrMask       = */ 0x0002ffff,
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_AMD_Ryzen_7_1800X_Eight_Core),

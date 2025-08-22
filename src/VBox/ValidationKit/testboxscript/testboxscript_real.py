@@ -8,7 +8,7 @@ TestBox Script - main().
 
 __copyright__ = \
 """
-Copyright (C) 2012-2024 Oracle and/or its affiliates.
+Copyright (C) 2012-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 165070 $"
+__version__ = "$Revision: 170187 $"
 
 
 # Standard python imports.
@@ -302,6 +302,8 @@ class TestBoxScript(object):
                 raise TestBoxScriptException('Unsupported server type %s.' % (sType,));
 
         elif sHostOs == 'linux':
+            if sShare == 'builds':
+                sMountOpt = 'vers=2.1'  # right now only linux unhappy with builds mount, adding vers to avoid it
             if sMountOpt != '':
                 sMountOpt = ',' + sMountOpt
             utils.sudoProcessCall(['/bin/umount', sMountPoint]);

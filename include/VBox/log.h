@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -122,6 +122,8 @@ typedef enum VBOXLOGGROUP
     LOG_GROUP_DEV_FDC,
     /** Flash Device group. */
     LOG_GROUP_DEV_FLASH,
+    /** Generic Interrupt Controller Device group. */
+    LOG_GROUP_DEV_GIC,
     /** Guest Interface Manager Device group. */
     LOG_GROUP_DEV_GIM,
     /** General Purpose I/O controller Device group. */
@@ -170,6 +172,8 @@ typedef enum VBOXLOGGROUP
     LOG_GROUP_DEV_PIT,
     /** Generic Platform Device group. */
     LOG_GROUP_DEV_PLATFORM,
+    /** PMU Device group. */
+    LOG_GROUP_DEV_PMU,
     /** QEMU firmware config Device group. */
     LOG_GROUP_DEV_QEMUFWCFG,
     /** RTC Device group. */
@@ -310,6 +314,8 @@ typedef enum VBOXLOGGROUP
     LOG_GROUP_HM,
     /** IEM group. */
     LOG_GROUP_IEM,
+    /** IEM C/C++ instruction implementation group. */
+    LOG_GROUP_IEM_CIMPL,
     /** IEM memory access group. */
     LOG_GROUP_IEM_MEM,
     /** IEM native recompiler group. */
@@ -722,6 +728,8 @@ typedef enum VBOXLOGGROUP
     LOG_GROUP_MM_PHYS,
     /** MM Page pool group. */
     LOG_GROUP_MM_POOL,
+    /** Libslirp NAT Enginer */
+    LOG_GROUP_NAT_ENGINE,
     /** The NAT service group */
     LOG_GROUP_NAT_SERVICE,
     /** NEM group. */
@@ -740,6 +748,8 @@ typedef enum VBOXLOGGROUP
     LOG_GROUP_PATM,
     /** PDM group. */
     LOG_GROUP_PDM,
+    /** PDM APIC group. */
+    LOG_GROUP_PDM_APIC,
     /** PDM Async completion group. */
     LOG_GROUP_PDM_ASYNC_COMPLETION,
     /** PDM Block cache group. */
@@ -752,6 +762,8 @@ typedef enum VBOXLOGGROUP
     LOG_GROUP_PDM_DEVICE,
     /** PDM Driver group. */
     LOG_GROUP_PDM_DRIVER,
+    /** PDM GIC group. */
+    LOG_GROUP_PDM_GIC,
     /** PDM Loader group. */
     LOG_GROUP_PDM_LDR,
     /** PDM Queue group. */
@@ -810,6 +822,8 @@ typedef enum VBOXLOGGROUP
     LOG_GROUP_USB_MOUSE,
     /** MSD USB device group. */
     LOG_GROUP_USB_MSD,
+    /** USB Ethernet device group. */
+    LOG_GROUP_USB_NET,
     /** USB remote support. */
     LOG_GROUP_USB_REMOTE,
     /** USB webcam. */
@@ -853,7 +867,9 @@ typedef enum VBOXLOGGROUP
     /** VSCSI group */
     LOG_GROUP_VSCSI,
     /** Webservice group. */
-    LOG_GROUP_WEBSERVICE
+    LOG_GROUP_WEBSERVICE,
+    /** Generic XPCOM group.   */
+    LOG_GROUP_XPCOM
     /* !!!ALPHABETICALLY!!! */
 } VBOXLOGGROUP;
 
@@ -900,6 +916,7 @@ typedef enum VBOXLOGGROUP
     "DEV_ELNK", \
     "DEV_FDC", \
     "DEV_FLASH", \
+    "DEV_GIC", \
     "DEV_GIM", \
     "DEV_GPIO", \
     "DEV_HDA", \
@@ -924,6 +941,7 @@ typedef enum VBOXLOGGROUP
     "DEV_PIC", \
     "DEV_PIT", \
     "DEV_PLATFORM", \
+    "DEV_PMU", \
     "DEV_QEMUFWCFG", \
     "DEV_RTC", \
     "DEV_SB16", \
@@ -994,6 +1012,7 @@ typedef enum VBOXLOGGROUP
     "HGSMI", \
     "HM", \
     "IEM", \
+    "IEM_CIMPL", \
     "IEM_MEM", \
     "IEM_RE_NATIVE", \
     "IEM_RE_THREADED", \
@@ -1200,6 +1219,7 @@ typedef enum VBOXLOGGROUP
     "MM_HYPER_HEAP", \
     "MM_PHYS", \
     "MM_POOL", \
+    "NAT_ENGINE", \
     "NAT_SERVICE", \
     "NEM", \
     "NET_ADP_DRV", \
@@ -1209,12 +1229,14 @@ typedef enum VBOXLOGGROUP
     "NET_SHAPER", \
     "PATM", \
     "PDM", \
+    "PDM_APIC", \
     "PDM_ASYNC_COMPLETION", \
     "PDM_BLK_CACHE", \
     "PDM_CRITSECT", \
     "PDM_CRITSECTRW", \
     "PDM_DEVICE", \
     "PDM_DRIVER", \
+    "PDM_GIC", \
     "PDM_LDR", \
     "PDM_QUEUE", \
     "PDM_TASK", \
@@ -1244,6 +1266,7 @@ typedef enum VBOXLOGGROUP
     "USB_KBD", \
     "USB_MOUSE", \
     "USB_MSD", \
+    "USB_NET", \
     "USB_REMOTE", \
     "USB_WEBCAM", \
     "VBGL", \
@@ -1266,6 +1289,7 @@ typedef enum VBOXLOGGROUP
     "VRDP", \
     "VSCSI", \
     "WEBSERVICE", \
+    "XPCOM", \
 }
 
 /** @} */

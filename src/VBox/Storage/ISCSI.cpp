@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1531,7 +1531,6 @@ static int iscsiLogin(PISCSIIMAGE pImage)
                                     /* Authentication offered, but none required.  Skip to operational parameters. */
                                     csg = 1;
                                     nsg = 1;
-                                    transit = true;
                                     substate = 0;
                                     break;
                                 }
@@ -1591,7 +1590,6 @@ static int iscsiLogin(PISCSIIMAGE pImage)
                                 if (RT_FAILURE(rc))
                                     break;
                                 substate++;
-                                transit = true;
                                 break;
                             }
                             case 0x0002:    /* security negotiation, step 2: check authentication success. */
@@ -1902,7 +1900,7 @@ static int iscsiCommand(PISCSIIMAGE pImage, PSCSIREQ pRequest)
     /* If not in normal state, then the transport connection was dropped. Try
      * to reestablish by logging in, the target might be responsive again. */
     if (pImage->state == ISCSISTATE_FREE)
-        rc = iscsiAttach(pImage);
+        iscsiAttach(pImage);
 
     /* If still not in normal state, then the underlying transport connection
      * cannot be established. Get out before bad things happen (and make
@@ -2779,7 +2777,7 @@ static int iscsiPDUTxPrepare(PISCSIIMAGE pImage, PISCSICMD pIScsiCmd)
      * Allocate twice as much entries as required for padding (worst case).
      * The additional segment is for the BHS.
      */
-    size_t cI2TSegs = 2*(pScsiReq->cI2TSegs + 1);
+    uint32_t cI2TSegs = 2 * (pScsiReq->cI2TSegs + 1);
     pIScsiPDU = (PISCSIPDUTX)RTMemAllocZ(RT_UOFFSETOF_DYN(ISCSIPDUTX, aISCSIReq[cI2TSegs]));
     if (!pIScsiPDU)
         return VERR_NO_MEMORY;

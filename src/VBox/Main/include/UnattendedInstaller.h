@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -936,6 +936,19 @@ public:
     ~UnattendedOracleLinux9Installer() {}
 };
 
+/**
+ * Oracle Linux 10 installer.
+ *
+ * Currently the same as the OL9 installer, using the same kickerstarter config.
+ */
+class UnattendedOracleLinux10Installer : public UnattendedOracleLinux9Installer
+{
+public:
+    DECLARE_TRANSLATE_METHODS(UnattendedOracleLinux10Installer)
+
+    UnattendedOracleLinux10Installer(Unattended *pParent) : UnattendedOracleLinux9Installer(pParent, "ol9_ks.cfg") {}
+    ~UnattendedOracleLinux10Installer() {}
+};
 
 #if 0 /* fixme */
 /**

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -170,19 +170,20 @@ typedef struct CPUMCTX
 {
     /** The general purpose register array view. */
     CPUMCTXGREG         aGRegs[31];
+    CPUMCTXGREG         Padding0;
     /** The NEON SIMD & FP register array view. */
     CPUMCTXVREG         aVRegs[32];
-    /** The stack registers (EL0, EL1). */
-    CPUMCTXSYSREG       aSpReg[2];
+    /** The stack registers (SP_EL0, SP_EL1, SP_EL2, SP_EL3). */
+    CPUMCTXSYSREG       aSpReg[4];
     /** The program counter. */
     CPUMCTXSYSREG       Pc;
-    /** The SPSR (Saved Program Status Register) (EL1 only). */
+    /** The SPSR_EL1 register (Saved Program Status Register). */
     CPUMCTXSYSREG       Spsr;
-    /** The ELR (Exception Link Register) (EL1 only). */
+    /** The ELR_EL1 register (Exception Link Register). */
     CPUMCTXSYSREG       Elr;
     /** The SCTLR_EL1 register. */
     CPUMCTXSYSREG       Sctlr;
-    /** THe TCR_EL1 register. */
+    /** The TCR_EL1 register. */
     CPUMCTXSYSREG       Tcr;
     /** The TTBR0_EL1 register. */
     CPUMCTXSYSREG       Ttbr0;
@@ -190,21 +191,22 @@ typedef struct CPUMCTX
     CPUMCTXSYSREG       Ttbr1;
     /** The VBAR_EL1 register. */
     CPUMCTXSYSREG       VBar;
-    /** Breakpoint registers, DBGB{C,V}n_EL1. */
-    CPUMCTXSYSREGDBG    aBp[16];
-    /** Watchpoint registers, DBGW{C,V}n_EL1. */
-    CPUMCTXSYSREGDBG    aWp[16];
     /** The MDSCR_EL1 register. */
     CPUMCTXSYSREG       Mdscr;
-    /** APDA key register state. */
+    uint64_t            uPadding1;
+    /** Breakpoint registers, DBGB{C,V}Rn_EL1. */
+    CPUMCTXSYSREGDBG    aBp[16];
+    /** Watchpoint registers, DBGW{C,V}Rn_EL1. */
+    CPUMCTXSYSREGDBG    aWp[16];
+    /** APDA key register state (APDAKeyLo_EL1, APDAKeyHi_EL1). */
     CPUMCTXSYSREGPAKEY  Apda;
-    /** APDB key register state. */
+    /** APDB key register state (APDBKeyLo_EL1, APDBKeyHi_EL1). */
     CPUMCTXSYSREGPAKEY  Apdb;
-    /** APGA key register state. */
+    /** APGA key register state (APGAKeyLo_EL1, APGAKeyHi_EL1). */
     CPUMCTXSYSREGPAKEY  Apga;
-    /** APIA key register state. */
+    /** APIA key register state (APIAKeyLo_EL1, APIAKeyHi_EL1). */
     CPUMCTXSYSREGPAKEY  Apia;
-    /** APIB key register state. */
+    /** APIB key register state (APIBKeyLo_EL1, APIBKeyHi_EL1). */
     CPUMCTXSYSREGPAKEY  Apib;
     /** The AFSR0_EL1 register. */
     CPUMCTXSYSREG       Afsr0;
@@ -230,20 +232,22 @@ typedef struct CPUMCTX
     CPUMCTXSYSREG       Par;
     /** The TPIDRRO_EL0 register. */
     CPUMCTXSYSREG       TpIdrRoEl0;
-    /** The TPIDR_ELn registers. */
-    CPUMCTXSYSREG       aTpIdr[2];
-    /** TheMDCCINT_EL1 register. */
+    /** The TPIDR_EL0, TPIDR_EL1, TPIDR_EL2, TPIDR_EL3 registers. */
+    CPUMCTXSYSREG       aTpIdr[4];
+    /** The MDCCINT_EL1 register. */
     CPUMCTXSYSREG       MDccInt;
+    /** The ACTLR_EL1 register. */
+    CPUMCTXSYSREG       Actlr;
 
     /** @name Hypervisor (EL2) support.
      * @{ */
     /** The CNTHCTL_EL2 register. */
     CPUMCTXSYSREG       CntHCtlEl2;
-    /** The CNTP_CTL_EL2 register. */
+    /** The CNTHP_CTL_EL2 register. */
     CPUMCTXSYSREG       CntHpCtlEl2;
-    /** The CNTP_CVAL_EL2 register. */
+    /** The CNTHP_CVAL_EL2 register. */
     CPUMCTXSYSREG       CntHpCValEl2;
-    /** The CNTP_TVAL_EL2 register. */
+    /** The CNTHP_TVAL_EL2 register. */
     CPUMCTXSYSREG       CntHpTValEl2;
     /** The CNTVOFF_EL2 register. */
     CPUMCTXSYSREG       CntVOffEl2;
@@ -267,12 +271,8 @@ typedef struct CPUMCTX
     CPUMCTXSYSREG       SctlrEl2;
     /** The SPSR_EL2 register. */
     CPUMCTXSYSREG       SpsrEl2;
-    /** The SP_EL2 register. */
-    CPUMCTXSYSREG       SpEl2;
     /** The TCR_EL2 register. */
     CPUMCTXSYSREG       TcrEl2;
-    /** The TPIDR_EL2 register. */
-    CPUMCTXSYSREG       TpidrEl2;
     /** The TTBR0_EL2 register. */
     CPUMCTXSYSREG       Ttbr0El2;
     /** The TTBR1_EL2 register. */
@@ -293,14 +293,12 @@ typedef struct CPUMCTX
     uint64_t            fpcr;
     /** Floating point status register. */
     uint64_t            fpsr;
+    /* --  64 byte alignment boundrary -- */
     /** The internal PSTATE state (as given from SPSR_EL2). */
     uint64_t            fPState;
 
-    uint32_t            fPadding0;
-
     /** OS lock status accessed through OSLAR_EL1 and OSLSR_EL1. */
     bool                fOsLck;
-
     uint8_t             afPadding1[7];
 
     /** Externalized state tracker, CPUMCTX_EXTRN_XXX. */
@@ -311,7 +309,7 @@ typedef struct CPUMCTX
     /** The CNTV_CVAL_EL0 register, always synced during VM-exit. */
     uint64_t            CntvCValEl0;
 
-    uint64_t            au64Padding2[3];
+    /*uint64_t            au64Padding2[0]; */
 } CPUMCTX;
 
 

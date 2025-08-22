@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1002,7 +1002,8 @@ DECLCALLBACK(VBOXSTRICTRC) iomMmioHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS
          * Check the return code.
          */
 #ifdef IN_RING3
-        AssertMsg(rcStrict == VINF_SUCCESS, ("%Rrc -  Access type %d - %RGp - %s\n",
+        AssertMsg(   rcStrict == VINF_SUCCESS
+                  || rcStrict == VINF_EM_DBG_STEP, ("%Rrc -  Access type %d - %RGp - %s\n",
                                              VBOXSTRICTRC_VAL(rcStrict), enmAccessType, GCPhysFault, pRegEntry->pszDesc));
 #else
         AssertMsg(   rcStrict == VINF_SUCCESS
@@ -1319,8 +1320,8 @@ VMMDECL(int) IOMMmioResetRegion(PVMCC pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRe
             RTHCPHYS HCPhys;
             rc = PGMShwGetPage(pVCpu, (RTGCPTR)GCPhys, &fFlags, &HCPhys);
             Assert(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
-            cb     -= RT_MIN(GUEST_PAGE_SIZE, HOST_PAGE_SIZE);
-            GCPhys += RT_MIN(GUEST_PAGE_SIZE, HOST_PAGE_SIZE);
+            cb     -= RT_MIN(GUEST_PAGE_SIZE, HOST_PAGE_SIZE_DYNAMIC);
+            GCPhys += RT_MIN(GUEST_PAGE_SIZE, HOST_PAGE_SIZE_DYNAMIC);
         }
     }
 # endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -169,9 +169,9 @@ void UIVideoMemoryEditor::setMinimumLayoutIndent(int iIndent)
 void UIVideoMemoryEditor::sltRetranslateUI()
 {
     if (m_pLabelMemory)
-        m_pLabelMemory->setText(tr("Video &Memory:"));
+        m_pLabelMemory->setText(tr("Video &Memory"));
 
-    const QString strToolTip(tr("Holds the amount of video memory provided to the virtual machine."));
+    const QString strToolTip(tr("Amount of video memory the virtual machine has"));
     if (m_pSlider)
         m_pSlider->setToolTip(strToolTip);
     if (m_pSpinBox)
@@ -183,12 +183,12 @@ void UIVideoMemoryEditor::sltRetranslateUI()
     if (m_pLabelMemoryMin)
     {
         m_pLabelMemoryMin->setText(tr("%1 MB").arg(0));
-        m_pLabelMemoryMin->setToolTip(tr("Minimum possible video memory size."));
+        m_pLabelMemoryMin->setToolTip(tr("Minimum video memory size"));
     }
     if (m_pLabelMemoryMax)
     {
         m_pLabelMemoryMax->setText(tr("%1 MB").arg(m_iMaxVRAM));
-        m_pLabelMemoryMax->setToolTip(tr("Maximum possible video memory size."));
+        m_pLabelMemoryMax->setToolTip(tr("Maximum video memory size"));
     }
 }
 

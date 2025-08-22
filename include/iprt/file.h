@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -297,7 +297,7 @@ typedef RTFILEACTION *PRTFILEACTION;
  * @param   fSet            Open flags to be forced set.
  * @param   fMask           Open flags to be masked out.
  */
-RTR3DECL(int)  RTFileSetForceFlags(unsigned fOpenForAccess, unsigned fSet, unsigned fMask);
+RTR3DECL(int)  RTFileSetForceFlags(uint64_t fOpenForAccess, uint64_t fSet, uint64_t fMask);
 #endif /* IN_RING3 */
 
 /**

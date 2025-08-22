@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -43,11 +43,48 @@
 
 #include <iprt/param.h>
 #include <iprt/cdefs.h>
+#ifdef VMM_HOST_PAGE_SIZE_DYNAMIC
+# include <iprt/system.h>
+#endif
 
 
 /** @defgroup   grp_vbox_param  VBox Parameter Definition
  * @{
  */
+
+/** @def GUEST_MIN_PAGE_SIZE
+ * Minimum guest page size.   */
+#define GUEST_MIN_PAGE_SIZE         0x1000
+/** @def GUEST_MIN_PAGE_OFFSET_MASK
+ * Minimum guest page size.
+ * @note If one-complementing this, always put a typecast after the operator! */
+#define GUEST_MIN_PAGE_OFFSET_MASK  0xfff
+/** @def GUEST_MIN_PAGE_SHIFT
+ * Minimum guest page size.   */
+#define GUEST_MIN_PAGE_SHIFT        12
+
+/** @def GUEST_MAX_PAGE_SIZE
+ * Maximum guest page size.   */
+#ifdef VBOX_VMM_TARGET_ARMV8
+# define GUEST_MAX_PAGE_SIZE        0x10000
+#elif defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define GUEST_MAX_PAGE_SIZE        0x1000
+#endif
+/** @def GUEST_MAX_PAGE_OFFSET_MASK
+ * Maximum guest page size.
+ * @note If one-complementing this, always put a typecast after the operator! */
+#ifdef VBOX_VMM_TARGET_ARMV8
+# define GUEST_MAX_PAGE_OFFSET_MASK 0xffff
+#elif defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define GUEST_MAX_PAGE_OFFSET_MASK 0xfff
+#endif
+/** @def GUEST_MAX_PAGE_SHIFT
+ * Maximum guest page size.   */
+#ifdef VBOX_VMM_TARGET_ARMV8
+# define GUEST_MAX_PAGE_SHIFT       16
+#elif defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define GUEST_MAX_PAGE_SHIFT       12
+#endif
 
 /** The guest page size (x86). */
 #define GUEST_PAGE_SIZE             0x1000
@@ -56,6 +93,7 @@
 #define GUEST_PAGE_OFFSET_MASK      0xfff
 /** The guest page shift (x86). */
 #define GUEST_PAGE_SHIFT            12
+
 
 /** Host page size. */
 #define HOST_PAGE_SIZE              PAGE_SIZE
@@ -66,20 +104,41 @@
 #define HOST_PAGE_SHIFT             PAGE_SHIFT
 
 
+/** The host page size which can be dynamic on certain hosts, linux.arm64 for instance */
+#ifdef VMM_HOST_PAGE_SIZE_DYNAMIC
+# define HOST_PAGE_SIZE_DYNAMIC     RTSystemGetPageSize()
+#else
+# define HOST_PAGE_SIZE_DYNAMIC     HOST_PAGE_SIZE
+#endif
+/** The host page shift which can be dynamic on certain hosts, linux.arm64 for instance */
+#ifdef VMM_HOST_PAGE_SIZE_DYNAMIC
+# define HOST_PAGE_SHIFT_DYNAMIC     RTSystemGetPageShift()
+#else
+# define HOST_PAGE_SHIFT_DYNAMIC     HOST_PAGE_SHIFT
+#endif
+
+
+/** The maximum memory size that can be allocated and mapped
+ * by various MM, PGM and SUP APIs. */
+#define VBOX_MAX_ALLOC_SIZE          _512M
+
+
 /** The maximum number of pages that can be allocated and mapped
  * by various MM, PGM and SUP APIs. */
 #if ARCH_BITS == 64
-# define VBOX_MAX_ALLOC_PAGE_COUNT   (_512M / PAGE_SIZE)
+# define VBOX_MAX_ALLOC_PAGE_COUNT   (VBOX_MAX_ALLOC_SIZE / PAGE_SIZE)
 #else
-# define VBOX_MAX_ALLOC_PAGE_COUNT   (_256M / PAGE_SIZE)
+# define VBOX_MAX_ALLOC_PAGE_COUNT   (_256M / PAGE_SIZE) /** @todo r=aeichner Remove? */
 #endif
 
 /** @def VBOX_WITH_PAGE_SHARING
- * Enables the page sharing code.
- * @remarks This must match GMMR0Init; currently we only support page fusion on
- *          all 64-bit hosts except Mac OS X */
+ * Enables the page sharing code on the host side (do not use in guest code).
+ * @remarks Currently we only support page fusion on mainline AMD64 hosts,
+ *          except Mac OS X (no ring-0). */
 #if (   HC_ARCH_BITS == 64          /* ASM-NOINC */ \
+     && defined(RT_ARCH_AMD64)      /* ASM-NOINC */ \
      && (defined(RT_OS_FREEBSD) || defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)) ) /* ASM-NOINC */ \
+     && (defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)) /* quick hack */ \
  || defined(DOXYGEN_RUNNING)        /* ASM-NOINC */
 # define VBOX_WITH_PAGE_SHARING     /* ASM-NOINC */
 #endif                              /* ASM-NOINC */

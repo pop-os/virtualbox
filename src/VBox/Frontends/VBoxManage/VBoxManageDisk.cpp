@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -83,7 +83,7 @@ static int parseMediumVariant(const char *psz, MediumVariant_T *pMediumVariant)
         size_t len;
         const char *pszComma = strchr(psz, ',');
         if (pszComma)
-            len = pszComma - psz;
+            len = (size_t)(pszComma - psz);
         else
             len = strlen(psz);
         if (len > 0)
@@ -621,7 +621,7 @@ RTEXITCODE handleCreateMedium(HandlerArg *a)
         }
 
         if (fBase)
-            CHECK_ERROR(pMedium, CreateBaseStorage(size, ComSafeArrayAsInParam(l_variants), pProgress.asOutParam()));
+            CHECK_ERROR(pMedium, CreateBaseStorage((LONG64)size, ComSafeArrayAsInParam(l_variants), pProgress.asOutParam()));
         else
             CHECK_ERROR(pParentMedium, CreateDiffStorage(pMedium, ComSafeArrayAsInParam(l_variants), pProgress.asOutParam()));
         if (SUCCEEDED(hrc) && pProgress)
@@ -666,7 +666,6 @@ static const RTGETOPTDEF g_aModifyMediumOptions[] =
 
 RTEXITCODE handleModifyMedium(HandlerArg *a)
 {
-    HRESULT hrc;
     int vrc;
     enum {
         CMD_NONE,
@@ -740,29 +739,28 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
                 char *pszProperty = RTStrDup(ValueUnion.psz);
                 if (pszProperty)
                 {
-                    char *pDelimiter = strchr(pszProperty, '=');
-                    if (pDelimiter)
+                    char *pszDelimiter = strchr(pszProperty, '=');
+                    if (pszDelimiter)
                     {
-                        *pDelimiter = '\0';
+                        *pszDelimiter = '\0';
 
                         Bstr bstrName(pszProperty);
-                        Bstr bstrValue(&pDelimiter[1]);
+                        Bstr bstrValue(&pszDelimiter[1]);
                         bstrName.detachTo(mediumPropNames.appendedRaw());
                         bstrValue.detachTo(mediumPropValues.appendedRaw());
                         fModifyProperties = true;
                     }
-                    else
-                    {
-                        errorArgument(Disk::tr("Invalid --property argument '%s'"), ValueUnion.psz);
-                        hrc = E_FAIL;
-                    }
+
                     RTStrFree(pszProperty);
+
+                    if (!pszDelimiter)
+                        return errorArgument(Disk::tr("Invalid --property argument '%s'"), ValueUnion.psz);
                 }
                 else
                 {
                     RTStrmPrintf(g_pStdErr, Disk::tr("Error: Failed to allocate memory for medium property '%s'\n"),
                                  ValueUnion.psz);
-                    hrc = E_FAIL;
+                    return RTEXITCODE_FAILURE;
                 }
                 break;
             }
@@ -840,6 +838,8 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
         && !fModifyDescription
         )
         return errorSyntax(Disk::tr("No operation specified"));
+
+    HRESULT hrc;
 
     /* Always open the medium if necessary, there is no other way. */
     if (cmd == CMD_DISK)
@@ -928,7 +928,7 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
     if (fModifyResize)
     {
         ComPtr<IProgress> pProgress;
-        CHECK_ERROR(pMedium, Resize(cbResize, pProgress.asOutParam()));
+        CHECK_ERROR(pMedium, Resize((LONG64)cbResize, pProgress.asOutParam()));
         if (SUCCEEDED(hrc))
             hrc = showProgress(pProgress);
         if (FAILED(hrc))
@@ -955,7 +955,7 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
 
             if (SUCCEEDED(hrc) && !pProgress.isNull())
             {
-                hrc = showProgress(pProgress);
+                showProgress(pProgress);
                 CHECK_PROGRESS_ERROR(pProgress, (Disk::tr("Failed to move medium")));
             }
 
@@ -1196,7 +1196,7 @@ RTEXITCODE handleCloneMedium(HandlerArg *a)
 
         if (fNeedResize)
         {
-            CHECK_ERROR_BREAK(pSrcMedium, ResizeAndCloneTo(pDstMedium, cbResize, ComSafeArrayAsInParam(l_variants), NULL, pProgress.asOutParam()));
+            CHECK_ERROR_BREAK(pSrcMedium, ResizeAndCloneTo(pDstMedium, (LONG64)cbResize, ComSafeArrayAsInParam(l_variants), NULL, pProgress.asOutParam()));
         }
         else
         {
@@ -1204,7 +1204,7 @@ RTEXITCODE handleCloneMedium(HandlerArg *a)
         }
 
 
-        hrc = showProgress(pProgress);
+        showProgress(pProgress);
         CHECK_PROGRESS_ERROR_BREAK(pProgress, (Disk::tr("Failed to clone medium")));
 
         Bstr uuid;
@@ -1772,7 +1772,6 @@ static const RTGETOPTDEF g_aCloseMediumOptions[] =
 
 RTEXITCODE handleCloseMedium(HandlerArg *a)
 {
-    HRESULT hrc = S_OK;
     enum {
         CMD_NONE,
         CMD_DISK,
@@ -1841,8 +1840,11 @@ RTEXITCODE handleCloseMedium(HandlerArg *a)
     /* check for required options */
     if (cmd == CMD_NONE)
         cmd = CMD_DISK;
+
     if (!pszFilenameOrUuid)
         return errorSyntax(Disk::tr("Medium name or UUID required"));
+
+    HRESULT hrc = S_OK;
 
     ComPtr<IMedium> pMedium;
     if (cmd == CMD_DISK)
@@ -1866,7 +1868,7 @@ RTEXITCODE handleCloseMedium(HandlerArg *a)
             CHECK_ERROR(pMedium, DeleteStorage(pProgress.asOutParam()));
             if (SUCCEEDED(hrc))
             {
-                hrc = showProgress(pProgress);
+                showProgress(pProgress);
                 CHECK_PROGRESS_ERROR(pProgress, (Disk::tr("Failed to delete medium")));
             }
             else
@@ -2286,7 +2288,7 @@ static RTEXITCODE mediumIOOpenMediumForIO(HandlerArg *pHandler, PCMEDIUMIOCOMMON
         {
             LONG64 cbLogical = 0;
             CHECK_ERROR2I_STMT(ptrMedium, COMGETTER(LogicalSize)(&cbLogical), hrc = hrcCheck);
-            *pcbMedium = cbLogical;
+            *pcbMedium = (uint64_t)cbLogical;
             if (!SUCCEEDED(hrc))
                 rPtrMediumIO.setNull();
         }
@@ -2454,7 +2456,7 @@ static RTEXITCODE handleMediumIOCat(HandlerArg *a, int iFirst, PMEDIUMIOCOMMONOP
                 /* Do the reading. */
                 uint32_t const  cbToRead = (uint32_t)RT_MIN(cb, _128K);
                 SafeArray<BYTE> SafeArrayBuf;
-                HRESULT hrc = ptrMediumIO->Read(off, cbToRead, ComSafeArrayAsOutParam(SafeArrayBuf));
+                HRESULT hrc = ptrMediumIO->Read((LONG64)off, cbToRead, ComSafeArrayAsOutParam(SafeArrayBuf));
                 if (FAILED(hrc))
                 {
                     RTStrPrintf(szLine, sizeof(szLine), Disk::tr("Read(%zu bytes at %#RX64)", "", cbToRead), cbToRead, off);
@@ -2511,7 +2513,7 @@ static RTEXITCODE handleMediumIOCat(HandlerArg *a, int iFirst, PMEDIUMIOCOMMONOP
                                 for (i = 0; i < cchWidth && offHex + i < offHexEnd; i++)
                                 {
                                     uint8_t const u8 = pbBuf[i];
-                                    szLine[cch++] = u8 < 127 && u8 >= 32 ? u8 : '.';
+                                    szLine[cch++] = u8 < 127 && u8 >= 32 ? (char)u8 : '.';
                                 }
                                 szLine[cch++] = '\n';
                                 szLine[cch]   = '\0';

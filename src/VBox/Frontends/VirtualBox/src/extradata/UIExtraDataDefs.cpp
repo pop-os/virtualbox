@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -108,6 +108,7 @@ const char *UIExtraDataDefs::GUI_Toolbar_MachineTools_Order = "GUI/Toolbar/Machi
 const char *UIExtraDataDefs::GUI_Toolbar_GlobalTools_Order = "GUI/Toolbar/GlobalTools/Order";
 const char *UIExtraDataDefs::GUI_Tools_LastItemsSelected = "GUI/Tools/LastItemsSelected";
 const char *UIExtraDataDefs::GUI_Tools_Detached = "GUI/Tools/Detached";
+const char *UIExtraDataDefs::GUI_Tools_Text = "GUI/Tools/Text";
 const char *UIExtraDataDefs::GUI_Statusbar = "GUI/Statusbar";
 const char *UIExtraDataDefs::GUI_GroupDefinitions = "GUI/GroupDefinitions";
 const char *UIExtraDataDefs::GUI_LastItemSelected = "GUI/LastItemSelected";
@@ -234,6 +235,7 @@ const char *UIExtraDataDefs::GUI_GuestControl_FileManagerListDirectoriesFirst = 
 const char *UIExtraDataDefs::GUI_GuestControl_FileManagerShowDeleteConfirmation = "ShowDeleteConfimation";
 const char *UIExtraDataDefs::GUI_GuestControl_FileManagerShowHumanReadableSizes = "ShowHumanReadableSizes";
 const char *UIExtraDataDefs::GUI_GuestControl_FileManagerShowHiddenObjects = "ShowHiddenObjects";
+const char *UIExtraDataDefs::GUI_GuestControl_FileManagerAllowInteractiveColumnWidths = "AllowInteractiveColumnWidths";
 
 /* Virtual Machine: Close dialog: */
 const char *UIExtraDataDefs::GUI_DefaultCloseAction = "GUI/DefaultCloseAction";
@@ -282,44 +284,35 @@ QMultiMap<QString, QString> UIExtraDataDefs::prepareObsoleteKeysMap()
 QMultiMap<QString, QString> UIExtraDataDefs::g_mapOfObsoleteKeys = UIExtraDataDefs::prepareObsoleteKeysMap();
 
 
-bool UIToolStuff::isTypeOfClass(UIToolType enmType, UIToolClass enmClass)
+UIToolClass UIToolStuff::castTypeToClass(UIToolType enmType)
 {
-    switch (enmClass)
+    switch (enmType)
     {
-        case UIToolClass_Global:
-        {
-            switch (enmType)
-            {
-                case UIToolType_Welcome:
-                case UIToolType_Extensions:
-                case UIToolType_Media:
-                case UIToolType_Network:
-                case UIToolType_Cloud:
-                case UIToolType_CloudConsole:
-                case UIToolType_VMActivityOverview:
-                    return true;
-                default:
-                    break;
-            }
-            break;
-        }
-        case UIToolClass_Machine:
-        {
-            switch (enmType)
-            {
-                case UIToolType_Details:
-                case UIToolType_Snapshots:
-                case UIToolType_Logs:
-                case UIToolType_VMActivity:
-                case UIToolType_FileManager:
-                    return true;
-                default:
-                    break;
-            }
-            break;
-        }
+        case UIToolType_Toggle:
+            return UIToolClass_Aux;
+        case UIToolType_Home:
+        case UIToolType_Machines:
+        case UIToolType_Extensions:
+        case UIToolType_Media:
+        case UIToolType_Network:
+        case UIToolType_Cloud:
+        case UIToolType_CloudConsole:
+        case UIToolType_Resources:
+            return UIToolClass_Global;
+        case UIToolType_Error:
+        case UIToolType_Details:
+        case UIToolType_Snapshots:
+        case UIToolType_Logs:
+        case UIToolType_ResourceUse:
+        case UIToolType_FileManager:
+            return UIToolClass_Machine;
         default:
             break;
     }
-    return false;
+    return UIToolClass_Invalid;
+}
+
+bool UIToolStuff::isTypeOfClass(UIToolType enmType, UIToolClass enmClass)
+{
+    return castTypeToClass(enmType) == enmClass;
 }

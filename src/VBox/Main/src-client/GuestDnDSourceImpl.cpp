@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -457,7 +457,7 @@ HRESULT GuestDnDSource::drop(const com::Utf8Str &aFormat, DnDAction_T aAction, C
         {
             delete pTask;
             LogRel2(("DnD: Receive data task failed to initialize\n"));
-            throw hrc = E_FAIL;
+            throw hrc;
         }
 
         /* Drop write lock before creating thread. */

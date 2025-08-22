@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2017-2024 Oracle and/or its affiliates.
+# Copyright (C) 2017-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -42,6 +42,8 @@
 /VBox*: --no-external-copyright --set-svn-keywords --convert-tabs --strip-trailing-blanks --strip-trailing-lines \
         --force-final-eol --fix-todos --license-ose-dual
 
+/*/VBox*: --no-external-copyright --set-svn-keywords --convert-tabs --strip-trailing-blanks --strip-trailing-lines \
+        --force-final-eol --fix-todos --license-ose-dual
 
 # Build related files using '#' for comments.
 /*.dec:        --treat-as Makefile
@@ -177,6 +179,7 @@
 /VBoxPkg/VBoxVgaMiniPortDxe/VBoxVgaFont*.h: --external-copyright
 /VBoxPkg/E1kNetDxe/*.*: --external-copyright
 /VBoxPkg/VmwSvga3Dxe/*.*: --external-copyright
+/VBoxPkg/VBoxAcpiPlatformDxe/*.*: --external-copyright
 /VBoxPkg/VBoxMisc/efi-app/Readme.txt: --treat-as .scm-settings
 
 #/src/VBox/Devices/EFI/Firmware2/VBoxPkg/VBoxVgaDxe/Edid.c: --no-convert-tabs

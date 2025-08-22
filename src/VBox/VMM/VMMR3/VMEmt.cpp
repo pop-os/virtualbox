@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -100,7 +100,9 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
      */
     rc = VINF_SUCCESS;
     Log(("vmR3EmulationThread: Emulation thread starting the days work... Thread=%#x pUVM=%p\n", hThreadSelf, pUVM));
+#ifdef LOG_ENABLED
     VMSTATE enmBefore = VMSTATE_CREATED; /* (only used for logging atm.) */
+#endif
     ASMAtomicIncU32(&pUVM->vm.s.cActiveEmts);
     for (;;)
     {
@@ -164,7 +166,9 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
              * We check for state changes in addition to status codes when
              * servicing requests. (Look after the ifs.)
              */
+#ifdef LOG_ENABLED
             enmBefore = pVM->enmVMState;
+#endif
             if (pUVM->vm.s.fTerminateEMT)
             {
                 rc = VINF_EM_TERMINATE;
@@ -361,7 +365,7 @@ static int vmR3FatalWaitError(PUVMCPU pUVCpu, const char *pszFmt, int rcFmt)
 /**
  * The old halt loop.
  */
-static DECLCALLBACK(int) vmR3HaltOldDoHalt(PUVMCPU pUVCpu, const uint32_t fMask, uint64_t /* u64Now*/)
+static DECLCALLBACK(int) vmR3HaltOldDoHalt(PUVMCPU pUVCpu, const uint64_t fMask, uint64_t /* u64Now*/)
 {
     /*
      * Halt loop.
@@ -520,7 +524,7 @@ static DECLCALLBACK(int) vmR3HaltMethod1Init(PUVM pUVM)
  * switch to spinning for 10-30ms with occasional blocking until
  * the lag has been eliminated.
  */
-static DECLCALLBACK(int) vmR3HaltMethod1Halt(PUVMCPU pUVCpu, const uint32_t fMask, uint64_t u64Now)
+static DECLCALLBACK(int) vmR3HaltMethod1Halt(PUVMCPU pUVCpu, const uint64_t fMask, uint64_t u64Now)
 {
     PUVM    pUVM    = pUVCpu->pUVM;
     PVMCPU  pVCpu   = pUVCpu->pVCpu;
@@ -567,9 +571,9 @@ static DECLCALLBACK(int) vmR3HaltMethod1Halt(PUVMCPU pUVCpu, const uint32_t fMas
         pUVCpu->vm.s.Halt.Method12.u64StartSpinTS = 0;
     }
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
-    uint64_t cNsVTimerActivate = TMCpuGetVTimerActivationNano(pVCpu);
-    const bool fVTimerActive = cNsVTimerActivate != UINT64_MAX;
+#ifdef VBOX_VMM_TARGET_ARMV8
+    uint64_t   cNsVTimerActivate = TMCpuGetVTimerActivationNano(pVCpu);
+    const bool fVTimerActive     = cNsVTimerActivate != UINT64_MAX;
 #endif
 
     /*
@@ -589,18 +593,18 @@ static DECLCALLBACK(int) vmR3HaltMethod1Halt(PUVMCPU pUVCpu, const uint32_t fMas
         STAM_REL_PROFILE_ADD_PERIOD(&pUVCpu->vm.s.StatHaltTimers, cNsElapsedTimers);
         if (    VM_FF_IS_ANY_SET(pVM, VM_FF_EXTERNAL_HALTED_MASK)
             ||  VMCPU_FF_IS_ANY_SET(pVCpu, fMask)
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
             ||  cNsElapsedTimers >= cNsVTimerActivate
 #endif
             )
         {
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
             cNsVTimerActivate = 0;
 #endif
             break;
         }
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
         cNsVTimerActivate -= cNsElapsedTimers;
 #endif
 
@@ -613,7 +617,7 @@ static DECLCALLBACK(int) vmR3HaltMethod1Halt(PUVMCPU pUVCpu, const uint32_t fMas
             ||  VMCPU_FF_IS_ANY_SET(pVCpu, fMask))
             break;
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
         u64NanoTS = RT_MIN(cNsVTimerActivate, u64NanoTS);
 #endif
 
@@ -678,7 +682,7 @@ static DECLCALLBACK(int) vmR3HaltMethod1Halt(PUVMCPU pUVCpu, const uint32_t fMas
                 &&  Elapsed > 100000 /* 0.1 ms */)
                 fBlockOnce = false;
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
             cNsVTimerActivate -= RT_MIN(cNsVTimerActivate, Elapsed);
             /* Did the vTimer expire? */
             if (!cNsVTimerActivate)
@@ -688,7 +692,7 @@ static DECLCALLBACK(int) vmR3HaltMethod1Halt(PUVMCPU pUVCpu, const uint32_t fMas
     }
     //if (fSpinning) RTLogRelPrintf("spun for %RU64 ns %u loops; lag=%RU64 pct=%d\n", RTTimeNanoTS() - u64Now, cLoops, TMVirtualSyncGetLag(pVM), u32CatchUpPct);
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
     if (fVTimerActive)
     {
         if (!cNsVTimerActivate)
@@ -744,7 +748,7 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Init(PUVM pUVM)
  * The global 1 halt method - Block in GMM (ring-0) and let it
  * try take care of the global scheduling of EMT threads.
  */
-static DECLCALLBACK(int) vmR3HaltGlobal1Halt(PUVMCPU pUVCpu, const uint32_t fMask, uint64_t u64Now)
+static DECLCALLBACK(int) vmR3HaltGlobal1Halt(PUVMCPU pUVCpu, const uint64_t fMask, uint64_t u64Now)
 {
     PUVM    pUVM  = pUVCpu->pUVM;
     PVMCPU  pVCpu = pUVCpu->pVCpu;
@@ -1063,6 +1067,35 @@ static DECLCALLBACK(void) vmR3DefaultNotifyCpuFF(PUVMCPU pUVCpu, uint32_t fFlags
 }
 
 
+#if defined(VBOX_VMM_TARGET_ARMV8) && defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NATIVE_NEM)
+
+/**
+ * Method NEM - The host (NEM) does the halting.
+ */
+static DECLCALLBACK(int) vmR3HaltNemHalt(PUVMCPU pUVCpu, const uint64_t fMask, uint64_t u64Now)
+{
+    PVMCPU  pVCpu   = pUVCpu->pVCpu;
+
+    RT_NOREF(fMask, u64Now);
+    return NEMR3Halt(pUVCpu->pVM, pVCpu);
+}
+
+
+/**
+ * Default VMR3NotifyFF() worker.
+ *
+ * @param   pUVCpu          Pointer to the user mode VMCPU structure.
+ * @param   fFlags          Notification flags, VMNOTIFYFF_FLAGS_*.
+ */
+static DECLCALLBACK(void) vmR3NemNotifyCpuFF(PUVMCPU pUVCpu, uint32_t fFlags)
+{
+    PVMCPU pVCpu = pUVCpu->pVCpu;
+    if (pVCpu)
+        NEMR3NotifyFF(pUVCpu->pVM, pVCpu, fFlags);
+}
+#endif
+
+
 /**
  * Array with halt method descriptors.
  * VMINT::iHaltMethod contains an index into this array.
@@ -1078,7 +1111,7 @@ static const struct VMHALTMETHODDESC
     /** The term function. */
     DECLR3CALLBACKMEMBER(void,  pfnTerm,(PUVM pUVM));
     /** The VMR3WaitHaltedU function. */
-    DECLR3CALLBACKMEMBER(int,   pfnHalt,(PUVMCPU pUVCpu, const uint32_t fMask, uint64_t u64Now));
+    DECLR3CALLBACKMEMBER(int,   pfnHalt,(PUVMCPU pUVCpu, const uint64_t fMask, uint64_t u64Now));
     /** The VMR3WaitU function. */
     DECLR3CALLBACKMEMBER(int,   pfnWait,(PUVMCPU pUVCpu));
     /** The VMR3NotifyCpuFFU function. */
@@ -1091,6 +1124,9 @@ static const struct VMHALTMETHODDESC
     { VMHALTMETHOD_OLD,       false, NULL,                NULL,   vmR3HaltOldDoHalt,   vmR3DefaultWait,     vmR3DefaultNotifyCpuFF,     NULL },
     { VMHALTMETHOD_1,         false, vmR3HaltMethod1Init, NULL,   vmR3HaltMethod1Halt, vmR3DefaultWait,     vmR3DefaultNotifyCpuFF,     NULL },
     { VMHALTMETHOD_GLOBAL_1,   true, vmR3HaltGlobal1Init, NULL,   vmR3HaltGlobal1Halt, vmR3HaltGlobal1Wait, vmR3HaltGlobal1NotifyCpuFF, NULL },
+#if defined(VBOX_VMM_TARGET_ARMV8) && defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NATIVE_NEM)
+    { VMHALTMETHOD_NEM,       false, NULL,                NULL,   vmR3HaltNemHalt,     vmR3DefaultWait,     vmR3NemNotifyCpuFF,         NULL },
+#endif
 };
 
 
@@ -1156,12 +1192,12 @@ VMMR3_INT_DECL(int) VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
     /*
      * Check Relevant FFs.
      */
-#if defined(VBOX_VMM_TARGET_ARMV8)
-    const uint32_t fMaskInterrupts =   ((fFlags & VMWAITHALTED_F_IGNORE_IRQS) ? VMCPU_FF_INTERRUPT_IRQ : 0)
-                                     | ((fFlags & VMWAITHALTED_F_IGNORE_FIQS) ? VMCPU_FF_INTERRUPT_FIQ : 0);
-    const uint32_t fMask = VMCPU_FF_EXTERNAL_HALTED_MASK & ~fMaskInterrupts;
+#ifdef VBOX_VMM_TARGET_ARMV8
+    const uint64_t fMaskIrqs = ((fFlags & VMWAITHALTED_F_IGNORE_IRQS) ? VMCPU_FF_INTERRUPT_IRQ : 0)
+                                   | ((fFlags & VMWAITHALTED_F_IGNORE_FIQS) ? VMCPU_FF_INTERRUPT_FIQ : 0);
+    const uint64_t fMask     = VMCPU_FF_EXTERNAL_HALTED_MASK & ~fMaskIrqs;
 #else
-    const uint32_t fMask = !(fFlags & VMWAITHALTED_F_IGNORE_IRQS)
+    const uint64_t fMask     = !(fFlags & VMWAITHALTED_F_IGNORE_IRQS)
         ? VMCPU_FF_EXTERNAL_HALTED_MASK
         : VMCPU_FF_EXTERNAL_HALTED_MASK & ~(VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC);
 #endif
@@ -1401,6 +1437,16 @@ int vmR3SetHaltMethodU(PUVM pUVM, VMHALTMETHOD enmHaltMethod)
             enmHaltMethod = VMHALTMETHOD_GLOBAL_1;
             //enmHaltMethod = VMHALTMETHOD_1;
             //enmHaltMethod = VMHALTMETHOD_OLD;
+
+#if defined(VBOX_VMM_TARGET_ARMV8) && defined(RT_OS_WINDOWS) && defined(RT_ARCH_ARM64)
+        /*
+         * HACK ALERT! We can't use the global halt method on Windows/ARM
+         * with Hyper-V as APs can't be brought online by the guest due to
+         * missing PSCI VM exits currently.
+         */
+        if (VM_IS_NEM_ENABLED(pVM))
+            enmHaltMethod = VMHALTMETHOD_NEM;
+#endif
     }
 
     /*
@@ -1413,7 +1459,12 @@ int vmR3SetHaltMethodU(PUVM pUVM, VMHALTMETHOD enmHaltMethod)
     {
         LogRel(("VMEmt: Halt method %s (%d) not available in driverless mode, using %s (%d) instead\n",
                 vmR3GetHaltMethodName(enmHaltMethod), enmHaltMethod, vmR3GetHaltMethodName(VMHALTMETHOD_1), VMHALTMETHOD_1));
-        enmHaltMethod = VMHALTMETHOD_1;
+#if defined(VBOX_VMM_TARGET_ARMV8) && defined(RT_OS_WINDOWS) && defined(RT_ARCH_ARM64)
+        if (VM_IS_NEM_ENABLED(pVM))
+            enmHaltMethod = VMHALTMETHOD_NEM; /* See above. */
+        else
+#endif
+            enmHaltMethod = VMHALTMETHOD_1;
     }
 
 

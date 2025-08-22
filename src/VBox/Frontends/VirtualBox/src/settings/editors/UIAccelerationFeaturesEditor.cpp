@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -82,12 +82,12 @@ void UIAccelerationFeaturesEditor::setMinimumLayoutIndent(int iIndent)
 void UIAccelerationFeaturesEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("Hardware Virtualization:"));
+        m_pLabel->setText(tr("Hardware Virtualization"));
     if (m_pCheckBoxEnableNestedPaging)
     {
-        m_pCheckBoxEnableNestedPaging->setText(tr("Enable Nested Pa&ging"));
-        m_pCheckBoxEnableNestedPaging->setToolTip(tr("When checked, the virtual machine will try to make use of the nested "
-                                                     "paging extension of Intel VT-x and AMD-V."));
+        m_pCheckBoxEnableNestedPaging->setText(tr("Nested Pa&ging"));
+        m_pCheckBoxEnableNestedPaging->setToolTip(tr("Use the nested paging extension of Intel VT-x "
+                                                     "and AMD-V on the virtual machine"));
     }
 }
 

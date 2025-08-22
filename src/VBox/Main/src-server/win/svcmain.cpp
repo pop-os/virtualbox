@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2004-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -931,6 +931,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
         { "--reregserver",  'f',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
         { "-reregserver",   'f',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
         { "/reregserver",   'f',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
+        { "--help",         'h',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
+        { "-help" ,         'h',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
+        { "/help",          'h',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
+        { "/?",             'h',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
         { "--helper",       'H',    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_ICASE },
         { "-helper",        'H',    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_ICASE },
         { "/helper",        'H',    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_ICASE },
@@ -949,6 +953,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
         { "--registervbox", 'b',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
         { "-registervbox",  'b',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
         { "/registervbox",  'b',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
+        { "--version",      'V',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
+        { "-version",       'V',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
+        { "/version",       'V',    RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_ICASE },
     };
 
     bool            fRun = true;
@@ -965,10 +972,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
     int vrc = RTGetOptInit(&GetOptState, argc, argv, &s_aOptions[0], RT_ELEMENTS(s_aOptions), 1, 0 /*fFlags*/);
     AssertRC(vrc);
 
+    char            ch;
     RTGETOPTUNION   ValueUnion;
-    while ((vrc = RTGetOpt(&GetOptState, &ValueUnion)))
+    while ((ch = RTGetOpt(&GetOptState, &ValueUnion)))
     {
-        switch (vrc)
+        switch (ch)
         {
             case 'e':
                 /* already handled above */
@@ -1048,7 +1056,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
                 /** @todo this assumes that stderr is visible, which is not
                  * true for standard Windows applications. */
                 /* continue on command line errors... */
-                RTGetOptPrintError(vrc, &ValueUnion);
+                RTGetOptPrintError(ch, &ValueUnion);
         }
     }
 

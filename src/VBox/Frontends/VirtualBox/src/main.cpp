@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -48,8 +48,10 @@
 #endif
 
 /* Other VBox includes: */
+#include <iprt/arch.h>
 #include <iprt/buildconfig.h>
 #include <iprt/stream.h>
+#include <iprt/system.h>
 #include <VBox/err.h>
 #include <VBox/version.h>
 #include <VBox/sup.h>
@@ -518,7 +520,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
          * We did it to avoid various Qt crashes while testing widget attributes or acquiring winIds.
          * Yes, we aware of note that alien widgets faster to draw but the only widget we need to be fast
          * is viewport of VM which was always native since we are using his id for 3D service needs. */
+        /* We have realized that making all windows native messes up widget updates in several cases like
+           ssh forwarding, wayland qpa etc. Thus we experiment with not doing it any longer. */
+#if 0
         a.setAttribute(Qt::AA_NativeWindows);
+#endif
 
 # ifdef Q_OS_SOLARIS
         a.setStyle("fusion");
@@ -548,6 +554,19 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
             break;
         }
 #endif /* VBOX_WS_NIX */
+
+        /* Make sure we're not running inside an emulator (these days,
+         * running amd64 code in an emulator on arm64). */
+        uint32_t const uNativeArch = RTSystemGetNativeArch();
+        if (uNativeArch != RT_ARCH_VAL && uNativeArch != 0)
+        {
+            QString strMsg = QApplication::tr("This VirtualBox application was built for a different CPU architecture (<b>%1</b>) than the host (<b>%2</b>). Please reinstall.")
+                                              .arg(RTArchValToString(RT_ARCH_VAL))
+                                              .arg(RTArchValToString(uNativeArch));
+            QMessageBox::critical(0, QApplication::tr("Mismatching CPU Architecture"),
+                                  strMsg, QMessageBox::Abort, QMessageBox::NoButton);
+            break;
+        }
 
         /* Create modal-window manager: */
         UIModalWindowManager::create();

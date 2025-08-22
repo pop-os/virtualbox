@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -930,7 +930,7 @@ QString UIFileManagerGuestTable::fsObjectPropertyString()
         propertyStringList << UIFileManager::tr("<b>Access:</b> %1<br/>").
             arg(QDateTime::fromMSecsSinceEpoch(fileInfo.GetAccessTime() / RT_NS_1MS).toString());
 
-        /* Join the list elements into a single string seperated by empty string: */
+        /* Join the list elements into a single string separated by empty string: */
         return propertyStringList.join(QString());
     }
 

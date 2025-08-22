@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -45,7 +45,7 @@ static const char *g_pszChromiumDll =
 #endif
 ;
 
-extern struct VBOXWDDMDLLPROC aIcdProcs[];
+extern struct VBOXWDDMDLLPROC g_aIcdProcs[];
 
 HMODULE volatile g_hmodICD = NULL;
 
@@ -83,7 +83,7 @@ void VBoxLoadICD(void)
 
     D3DKMTLoad();
 
-    Status = vboxDispKmtOpenAdapter(&hAdapter);
+    Status = VBoxWddmKmtOpenAdapter(&hAdapter);
     if (Status == STATUS_SUCCESS)
     {
         VBOXWDDM_QAI adapterInfo;
@@ -103,12 +103,12 @@ void VBoxLoadICD(void)
                 g_hmodICD = VBoxWddmLoadSystemDll(pszDll);
                 if (g_hmodICD)
                 {
-                    VBoxWddmLoadAdresses(g_hmodICD, aIcdProcs);
+                    VBoxWddmLoadAdresses(g_hmodICD, g_aIcdProcs);
                 }
             }
         }
 
-        vboxDispKmtCloseAdapter(hAdapter);
+        VBoxWddmKmtCloseAdapter(hAdapter);
     }
 }
 
@@ -119,6 +119,9 @@ void VBoxLoadICD(void)
  *
  * However it turned out that loading the real ICD from DLL_PROCESS_ATTACH works,
  * and loading it in a lazy way fails for unknown reason on 64 bit Windows.
+ *
+ * Update 2024-10-24 / bird: It fails on AMD64 because you trash the parameter registers
+ *                           when making the call. duh.
  *
  * So just call VBoxLoadICD from DLL_PROCESS_ATTACH.
  */

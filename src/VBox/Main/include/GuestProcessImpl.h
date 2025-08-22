@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -177,7 +177,12 @@ private:
          *  returned from the guest side. */
         int                      mLastError;
 
-        Data(void) : mpSessionBaseEnv(NULL)
+        Data(void)
+            : mpSessionBaseEnv(NULL)
+            , mExitCode(0)
+            , mPID(0)
+            , mStatus(ProcessStatus_Undefined)
+            , mLastError(0)
         { }
         ~Data(void)
         {

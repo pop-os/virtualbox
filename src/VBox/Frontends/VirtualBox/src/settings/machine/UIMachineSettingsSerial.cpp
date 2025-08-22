@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -626,7 +626,7 @@ bool UIMachineSettingsSerial::savePortData(int iSlot)
             // If the requested host mode is changed to disconnected we should do it first.
             // That allows to automatically fulfill the requirements for some of the settings below.
             /* Save port host mode: */
-            if (   fSuccess && isMachineOffline()
+            if (   /*fSuccess &&*/ isMachineOffline()
                 && newPortData.m_hostMode != oldPortData.m_hostMode
                 && newPortData.m_hostMode == KPortMode_Disconnected)
             {

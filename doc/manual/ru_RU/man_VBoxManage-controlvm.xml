@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage controlvm
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-controlvm" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2024-09-11 14:58:28 +0200 (Wed, 11 Sep 2024) $</pubdate>
+    <pubdate>$Date: 2025-08-11 19:18:47 +0200 (Mon, 11 Aug 2025) $</pubdate>
     <title>VBoxManage controlvm</title>
   </refentryinfo>
 
@@ -1246,7 +1246,7 @@
         <literal>disabled</literal>, <literal>hosttoguest</literal>,
         <literal>guesttohost</literal> и <literal>bidirectional</literal>.
         Значение по умолчанию <literal>disabled</literal>. Смотрите
-        <xref linkend="generalsettings" />.
+        <xref linkend="ct_generalsettings" />.
       </para>
       <para>
         Этот функционал требует наличия Дополнений Гостевой ОС &product-name;,

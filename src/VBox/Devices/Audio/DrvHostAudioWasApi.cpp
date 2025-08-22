@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1484,6 +1484,8 @@ static int drvHostAudioWasCacheLookupOrCreate(PDRVHOSTAUDIOWAS pThis, IMMDevice 
  *
  * @param   pThis       The WASAPI host audio driver instance data.
  * @param   pDevCfg     The device config to put back.
+ *
+ * @note    Caller *must* check if pDevCfg still is valid. Can be NULL after return!
  */
 static void drvHostAudioWasCachePutBack(PDRVHOSTAUDIOWAS pThis, PDRVHOSTAUDIOWASCACHEDEVCFG pDevCfg)
 {
@@ -1514,7 +1516,8 @@ static void drvHostAudioWasCachePutBack(PDRVHOSTAUDIOWAS pThis, PDRVHOSTAUDIOWAS
     }
     else
     {
-        Log8Func(("IAudioClient::Reset failed (%Rhrc) on %p/'%s', destroying it.\n", hrc, pDevCfg, pDevCfg->szProps));
+        LogRelMax(64, ("WasAPI: IAudioClient::Reset failed (%Rhrc) on %p/'%s', destroying device config ...\n",
+                       hrc, pDevCfg, pDevCfg->szProps));
         drvHostAudioWasCacheDestroyDevConfig(pThis, pDevCfg);
     }
 }
@@ -2035,18 +2038,22 @@ static void drvHostAudioWasCompleteStreamDevSwitch(PDRVHOSTAUDIOWAS pThis, PDRVH
     /* Put the old config back into the cache. */
     drvHostAudioWasCachePutBack(pThis, pDevCfgOld);
 
-    AssertPtr(pDevCfgOld->pDevEntry);
-    if (pDevCfgOld->pDevEntry->fStale)
+    if (pThis->fCacheEnabled)
     {
-        LogRelFunc(("Removing stale device from cache\n"));
-        RTListNodeRemove(&pDevCfgOld->pDevEntry->ListEntry);
+        if (   pDevCfgOld /* Might be NULL if resetting failed in drvHostAudioWasCachePutBack() above. */
+            && pDevCfgOld->pDevEntry
+            && pDevCfgOld->pDevEntry->fStale)
+        {
+            LogRel2(("WasAPI: Removing stale device from cache\n"));
+            RTListNodeRemove(&pDevCfgOld->pDevEntry->ListEntry);
 
-        drvHostAudioWasCacheInvalidateDevEntryConfig(pThis, pDevCfgOld->pDevEntry);
-        drvHostAudioWasCacheDestroyDevEntry(pThis, pDevCfgOld->pDevEntry);
-        pDevCfgOld = NULL; /* Got invalid due to drvHostAudioWasCacheDestroyDevEntry() above. */
+            drvHostAudioWasCacheInvalidateDevEntryConfig(pThis, pDevCfgOld->pDevEntry);
+            drvHostAudioWasCacheDestroyDevEntry(pThis, pDevCfgOld->pDevEntry);
+            pDevCfgOld = NULL; /* Got invalid due to drvHostAudioWasCacheDestroyDevEntry() above. */
+        }
     }
 
-    LogFlowFunc(("returns with '%s' state: %s\n", pStreamWas->Cfg.szName, drvHostWasStreamStatusString(pStreamWas) ));
+    LogFlowFunc(("returns with '%s' state: %s\n", pStreamWas->Cfg.szName, drvHostWasStreamStatusString(pStreamWas)));
 }
 
 

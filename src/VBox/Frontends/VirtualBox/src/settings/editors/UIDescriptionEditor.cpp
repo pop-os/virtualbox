@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -62,8 +62,7 @@ void UIDescriptionEditor::sltRetranslateUI()
 {
     if (m_pTextEdit)
     {
-        m_pTextEdit->setToolTip(tr("Holds the description of the virtual machine. The description field is useful "
-                                   "for commenting on configuration details of the installed guest OS."));
+        m_pTextEdit->setToolTip(tr("Description of the VM's configuration"));
         m_pTextEdit->setProperty("description", QApplication::translate("UICommon", "Description", "DetailsElementType"));
     }
 }

@@ -71,7 +71,7 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Universal/Console/TerminalDxe/TerminalDxe.inf
   INF MdeModulePkg/Universal/SerialDxe/SerialDxe.inf
 
-  INF ArmPkg/Drivers/ArmGic/ArmGicDxe.inf
+  INF ArmPkg/Drivers/ArmGicDxe/ArmGicDxe.inf
   INF ArmPkg/Drivers/TimerDxe/TimerDxe.inf
   INF OvmfPkg/VirtNorFlashDxe/VirtNorFlashDxe.inf
   INF MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
@@ -103,14 +103,13 @@ READ_LOCK_STATUS   = TRUE
 
 !ifdef $(VBOX)
   INF VBoxPkg/VmwSvga3Dxe/VmwSvga3VideoDxe.inf
+
+  INF MdeModulePkg/Bus/Pci/SataControllerDxe/SataControllerDxe.inf
+  INF MdeModulePkg/Bus/Ata/AtaAtapiPassThru/AtaAtapiPassThru.inf
+  INF MdeModulePkg/Bus/Ata/AtaBusDxe/AtaBusDxe.inf
 !endif
 
-
-  INF ShellPkg/Application/Shell/Shell.inf
-  INF ShellPkg/DynamicCommand/TftpDynamicCommand/TftpDynamicCommand.inf
-  INF ShellPkg/DynamicCommand/HttpDynamicCommand/HttpDynamicCommand.inf
-  INF ShellPkg/DynamicCommand/VariablePolicyDynamicCommand/VariablePolicyDynamicCommand.inf
-  INF OvmfPkg/LinuxInitrdDynamicShellCommand/LinuxInitrdDynamicShellCommand.inf
+!include OvmfPkg/Include/Fdf/ShellDxe.fdf.inc
 
   #
   # Bds
@@ -153,7 +152,11 @@ READ_LOCK_STATUS   = TRUE
 !if $(ARCH) == AARCH64
   INF MdeModulePkg/Universal/Acpi/AcpiTableDxe/AcpiTableDxe.inf
   INF MdeModulePkg/Universal/Acpi/BootGraphicsResourceTableDxe/BootGraphicsResourceTableDxe.inf
+!ifndef $(VBOX)
   INF OvmfPkg/AcpiPlatformDxe/AcpiPlatformDxe.inf
+!else
+  INF VBoxPkg/VBoxAcpiPlatformDxe/VBoxAcpiPlatformDxe.inf
+!endif
 !endif
 
   #

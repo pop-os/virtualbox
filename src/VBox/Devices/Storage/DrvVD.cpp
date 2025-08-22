@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -56,9 +56,6 @@ RT_C_DECLS_BEGIN
 #include <lwip/inet.h>
 #include <lwip/tcp.h>
 #include <lwip/sockets.h>
-# if LWIP_IPV6
-#  include <lwip/inet6.h>
-# endif
 RT_C_DECLS_END
 #endif /* VBOX_WITH_INIP */
 

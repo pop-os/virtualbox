@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -299,7 +299,9 @@ endif
 # Microsoft Windows.
 ifdef VBOX_WITH_ADDITIONS_ISO.win.amd64
  VBOX_PATH_ADDITIONS.win.amd64 = $(PATH_OUT_BASE)/win.amd64/$(KBUILD_TYPE)/bin/additions
- VBOX_PATH_ADDITIONS.win = $(VBOX_PATH_ADDITIONS.win.amd64)
+ ifeq ($(KBUILD_TARGET_ARCH),amd64)
+  VBOX_PATH_ADDITIONS.win = $(VBOX_PATH_ADDITIONS.win.amd64)
+ endif
  GUESTADDITIONS_FILESPEC.win.amd64 = \
  	VBoxWindowsAdditions-amd64.exe=$(VBOX_PATH_ADDITIONS.win.amd64)/VBoxWindowsAdditions-amd64.exe
  ifndef VBOX_WITH_ADDITIONS_ISO.win.x86
@@ -310,7 +312,9 @@ endif
 
 ifdef VBOX_WITH_ADDITIONS_ISO.win.x86
  VBOX_PATH_ADDITIONS.win.x86 = $(PATH_OUT_BASE)/win.x86/$(KBUILD_TYPE)/bin/additions
- VBOX_PATH_ADDITIONS.win = $(VBOX_PATH_ADDITIONS.win.x86)
+ ifeq ($(KBUILD_TARGET_ARCH),x86)
+  VBOX_PATH_ADDITIONS.win = $(VBOX_PATH_ADDITIONS.win.x86)
+ endif
  GUESTADDITIONS_FILESPEC.win.x86 = \
  	VBoxWindowsAdditions-x86.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxWindowsAdditions-x86.exe \
  	VBoxWindowsAdditions.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxWindowsAdditions.exe \
@@ -324,7 +328,20 @@ ifdef VBOX_WITH_ADDITIONS_ISO.win.x86
  	NT3x/VBoxAddInstallNt3x.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxAddInstallNt3x.exe
 endif # win.x86
 
-if defined(VBOX_WITH_ADDITIONS_ISO.win.amd64) || defined(VBOX_WITH_ADDITIONS_ISO.win.x86)
+ifdef VBOX_WITH_ADDITIONS_ISO.win.arm64
+ VBOX_PATH_ADDITIONS.win.arm64 = $(PATH_OUT_BASE)/win.arm64/$(KBUILD_TYPE)/bin/additions
+ ifeq ($(KBUILD_TARGET_ARCH),arm64)
+  VBOX_PATH_ADDITIONS.win = $(VBOX_PATH_ADDITIONS.win.arm64)
+ endif
+ GUESTADDITIONS_FILESPEC.win.arm64 = \
+ 	VBoxWindowsAdditions-arm64.exe=$(VBOX_PATH_ADDITIONS.win.arm64)/VBoxWindowsAdditions-arm64.exe
+ if !defined(VBOX_WITH_ADDITIONS_ISO.win.x86) && !defined(VBOX_WITH_ADDITIONS_ISO.win.arm64)
+  GUESTADDITIONS_FILESPEC.win.arm64 += \
+  	cert/VBoxCertUtil.exe=$(VBOX_PATH_ADDITIONS.win.arm64)/VBoxCertUtil.exe
+ endif
+endif # win.arm64
+
+if defined(VBOX_WITH_ADDITIONS_ISO.win.amd64) || defined(VBOX_WITH_ADDITIONS_ISO.win.x86) || defined(VBOX_WITH_ADDITIONS_ISO.win.arm64)
  # Note! This probably only work reliably when packing is also done on a windows host!
  # When in "test" signing mode, skip adding the certificates below.
  if !defined(VBOX_SIGNING_MODE) || "$(VBOX_SIGNING_MODE)" == "test"
@@ -337,14 +354,17 @@ if defined(VBOX_WITH_ADDITIONS_ISO.win.amd64) || defined(VBOX_WITH_ADDITIONS_ISO
    GUESTADDITIONS_FILESPEC.win += cert/vbox-timestamp-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-timestamp-root.cer
   endif
  else
-  GUESTADDITIONS_FILESPEC.win = \
-  	cert/vbox-sha1.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1.cer \
-  	cert/vbox-sha1-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1-root.cer \
+  ifdef VBOX_CERTIFICATE_SUBJECT_NAME
+   GUESTADDITIONS_FILESPEC.win = \
+   	cert/vbox-sha1.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1.cer \
+   	cert/vbox-sha1-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1-root.cer
+   ifdef VBOX_TSA_URL_ARGS
+    GUESTADDITIONS_FILESPEC.win += cert/vbox-sha1-timestamp-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1-timestamp-root.cer
+   endif
+  endif
+  GUESTADDITIONS_FILESPEC.win += \
   	cert/vbox-sha256-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256-root.cer \
   	cert/vbox-sha256.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256.cer
-  ifdef VBOX_TSA_URL_ARGS
-   GUESTADDITIONS_FILESPEC.win += cert/vbox-sha1-timestamp-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1-timestamp-root.cer
-  endif
   ifdef VBOX_TSA_SHA2_URL_ARGS
    GUESTADDITIONS_FILESPEC.win += cert/vbox-sha256-timestamp-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256-timestamp-root.cer
   endif
@@ -371,6 +391,7 @@ GUESTADDITIONS_FILESPEC_ALL = \
 	$(GUESTADDITIONS_FILESPEC.win) \
 	$(GUESTADDITIONS_FILESPEC.win.x86) \
 	$(GUESTADDITIONS_FILESPEC.win.amd64) \
+	$(GUESTADDITIONS_FILESPEC.win.arm64) \
 	$(GUESTADDITIONS_FILESPEC.solaris.x86) \
 	$(GUESTADDITIONS_FILESPEC.solaris.amd64) \
 	$(GUESTADDITIONS_FILESPEC.os2.x86) \

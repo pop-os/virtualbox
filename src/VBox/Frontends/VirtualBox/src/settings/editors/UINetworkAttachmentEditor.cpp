@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -201,11 +201,11 @@ void UINetworkAttachmentEditor::sltRetranslateUI()
 {
     /* Translate type label: */
     if (m_pLabelType)
-        m_pLabelType->setText(tr("&Attached to:"));
+        m_pLabelType->setText(tr("&Attached to"));
 
     /* Translate name label: */
     if (m_pLabelName)
-        m_pLabelName->setText(tr("&Name:"));
+        m_pLabelName->setText(tr("&Name"));
 
     /* Translate type combo: */
     if (m_pComboType)
@@ -215,7 +215,7 @@ void UINetworkAttachmentEditor::sltRetranslateUI()
             const KNetworkAttachmentType enmType = m_pComboType->itemData(i).value<KNetworkAttachmentType>();
             m_pComboType->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pComboType->setToolTip(tr("Holds how this virtual adapter is attached to the real network of the Host OS."));
+        m_pComboType->setToolTip(tr("The way this virtual adapter is attached to the real network of the host OS"));
     }
 
     /* Translate name combo: */
@@ -472,33 +472,33 @@ void UINetworkAttachmentEditor::retranslateNameDescription()
     switch (valueType())
     {
         case KNetworkAttachmentType_Bridged:
-            m_pComboName->setToolTip(tr("Holds the network adapter on the host system that traffic "
-                                        "to and from this network card will go through."));
+            m_pComboName->setToolTip(tr("Network adapter on the host system that traffic "
+                                        "to and from this network card will go through"));
             break;
         case KNetworkAttachmentType_Internal:
-            m_pComboName->setToolTip(tr("Holds the name of the internal network that this network card "
+            m_pComboName->setToolTip(tr("Name of the internal network that this network card "
                                         "will be connected to. You can create a new internal network by "
                                         "choosing a name which is not used by any other network cards "
                                         "in this virtual machine or others."));
             break;
         case KNetworkAttachmentType_HostOnly:
-            m_pComboName->setToolTip(tr("Holds the virtual network adapter on the host system that traffic "
+            m_pComboName->setToolTip(tr("Virtual network adapter on the host system that traffic "
                                         "to and from this network card will go through. "
                                         "You can create and remove adapters using the Network Manager "
                                         "tool in the virtual machine manager window."));
             break;
         case KNetworkAttachmentType_Generic:
-            m_pComboName->setToolTip(tr("Holds the driver to be used with this network card."));
+            m_pComboName->setToolTip(tr("Driver to be used with this network card"));
             break;
         case KNetworkAttachmentType_NATNetwork:
-            m_pComboName->setToolTip(tr("Holds the name of the NAT network that this network card "
+            m_pComboName->setToolTip(tr("Name of the NAT network that this network card "
                                         "will be connected to. You can create and remove networks "
                                         "using the Network Manager tool in the virtual machine "
                                         "manager window."));
             break;
 #ifdef VBOX_WITH_CLOUD_NET
         case KNetworkAttachmentType_Cloud:
-            m_pComboName->setToolTip(tr("(experimental) Holds the name of the cloud network that this network card "
+            m_pComboName->setToolTip(tr("(experimental) Name of the cloud network that this network card "
                                         "will be connected to. You can add and remove networks "
                                         "using the Network Manager tool in the virtual machine "
                                         "manager window."));
@@ -506,7 +506,7 @@ void UINetworkAttachmentEditor::retranslateNameDescription()
 #endif /* VBOX_WITH_CLOUD_NET */
 #ifdef VBOX_WITH_VMNET
         case KNetworkAttachmentType_HostOnlyNetwork:
-            m_pComboName->setToolTip(tr("Holds the name of the host-only network that this network card "
+            m_pComboName->setToolTip(tr("Name of the host-only network that this network card "
                                         "will be connected to. You can add and remove networks "
                                         "using the Network Manager tool in the virtual machine "
                                         "manager window."));

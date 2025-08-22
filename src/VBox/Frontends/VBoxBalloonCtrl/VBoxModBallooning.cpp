@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -421,6 +421,7 @@ static int balloonMachineSetup(const Bstr& strUuid)
  * capable and ready for ballooning.
  *
  * @return  IPRT status code.
+ * @retval  VERR_NOT_FOUND if requested machine payload has not been found.
  * @param   pMachine                Pointer to the machine's internal structure.
  */
 static int balloonMachineUpdate(PVBOXWATCHDOG_MACHINE pMachine)
@@ -452,7 +453,7 @@ static int balloonMachineUpdate(PVBOXWATCHDOG_MACHINE pMachine)
 
         PVBOXWATCHDOG_BALLOONCTRL_PAYLOAD pData;
         pData = (PVBOXWATCHDOG_BALLOONCTRL_PAYLOAD)payloadFrom(pMachine, VBOX_MOD_BALLOONING_NAME);
-        AssertPtr(pData);
+        AssertPtrReturn(pData, VERR_NOT_FOUND);
 
         /* Determine if ballooning is enabled or disabled. */
         bool fEnabled = balloonIsEnabled(pMachine);

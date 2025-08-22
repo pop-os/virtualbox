@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -742,7 +742,7 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
         {
             delete pTask;
             LogRel(("DnD: Could not create SendDataTask object\n"));
-            throw hr = E_FAIL;
+            throw E_FAIL;
         }
 
         /* This function delete pTask in case of exceptions,

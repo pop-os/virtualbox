@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -106,10 +106,9 @@ DECLCALLBACK(D3DKMTFUNCTIONS const *) D3DKMTFunctions(void);
 DECLCALLBACK(void) VBoxDispMpLoggerLogF(const char *pszFormat, ...);
 DECLCALLBACK(void) VBoxWddmUmLog(const char *pszString);
 
-/** @todo Rename to VBoxWddm* */
-NTSTATUS vboxDispKmtOpenAdapter2(D3DKMT_HANDLE *phAdapter, LUID *pLuid);
-NTSTATUS vboxDispKmtOpenAdapter(D3DKMT_HANDLE *phAdapter);
-NTSTATUS vboxDispKmtCloseAdapter(D3DKMT_HANDLE hAdapter);
+NTSTATUS VBoxWddmKmtOpenAdapter2(D3DKMT_HANDLE *phAdapter, LUID *pLuid);
+NTSTATUS VBoxWddmKmtOpenAdapter(D3DKMT_HANDLE *phAdapter);
+NTSTATUS VBoxWddmKmtCloseAdapter(D3DKMT_HANDLE hAdapter);
 
 RT_C_DECLS_END
 

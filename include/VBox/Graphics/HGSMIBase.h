@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -43,11 +43,13 @@ RT_C_DECLS_BEGIN
 /** @name Base HGSMI Buffer APIs
  * @{ */
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 /** Acknowlege an IRQ. */
 DECLINLINE(void) VBoxHGSMIClearIrq(PHGSMIHOSTCOMMANDCONTEXT pCtx)
 {
     VBVO_PORT_WRITE_U32(pCtx->port, HGSMIOFFSET_VOID);
 }
+#endif
 
 DECLHIDDEN(void RT_UNTRUSTED_VOLATILE_HOST *) VBoxHGSMIBufferAlloc(PHGSMIGUESTCOMMANDCONTEXT pCtx, HGSMISIZE cbData,
                                                                    uint8_t u8Ch, uint16_t u16Op);

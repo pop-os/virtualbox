@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage sharedfolder
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-sharedfolder" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
+    <pubdate>$Date: 2025-08-11 19:18:47 +0200 (Mon, 11 Aug 2025) $</pubdate>
     <title>VBoxManage sharedfolder</title>
   </refentryinfo>
 
@@ -50,6 +50,7 @@
 <!-- The 'id' is mandatory and must start with 'synopsis-'. -->
       <command>VBoxManage sharedfolder add</command>
       <group choice="req">
+        <arg choice="plain">global</arg>
         <arg choice="plain"><replaceable>uuid</replaceable></arg>
         <arg choice="plain"><replaceable>vmname</replaceable></arg>
       </group>
@@ -64,6 +65,7 @@
     <cmdsynopsis id="synopsis-vboxmanage-sharedfolder-remove">
       <command>VBoxManage sharedfolder remove</command>
       <group choice="req">
+        <arg choice="plain">global</arg>
         <arg choice="plain"><replaceable>uuid</replaceable></arg>
         <arg choice="plain"><replaceable>vmname</replaceable></arg>
       </group>
@@ -124,6 +126,13 @@
         host system can be accessed from within the guest OS.
       </para>
       <variablelist>
+        <varlistentry>
+          <term><literal>global</literal></term>
+          <listitem><para>
+              Specifies that the share is global which means that it is
+              available to all virtual machines.
+            </para></listitem>
+        </varlistentry>
         <varlistentry>
           <term><option><replaceable>uuid</replaceable> | <replaceable>vmname</replaceable></option></term>
           <listitem><para>
@@ -202,6 +211,13 @@
         removes a shared folder.
       </para>
       <variablelist>
+        <varlistentry>
+          <term><literal>global</literal></term>
+          <listitem><para>
+              Specifies that the share is global which means that it is
+              accessible from all applicable guest VMs.
+            </para></listitem>
+        </varlistentry>
         <varlistentry>
           <term><option><replaceable>uuid</replaceable> | <replaceable>vmname</replaceable></option></term>
           <listitem><para>

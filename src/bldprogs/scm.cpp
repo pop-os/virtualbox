@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -837,7 +837,7 @@ static SCMCFGENTRY const g_aConfigs[] =
     SCM_CFG_ENTRY("image",      g_apRewritersFor_Images,           true,  "*.png|*.bmp|*.jpg|*.pnm|*.ico|*.icns|*.tiff|*.tif|"
                                                                           "*.xcf|*.gif|*.jar|*.dll|*.exe|*.ttf|*.woff|*.woff2" ),
     SCM_CFG_ENTRY("xslt",       g_apRewritersFor_Xslt,             false, "*.xsl" ),
-    SCM_CFG_ENTRY("xml",        g_apRewritersFor_Xml,              false, "*.xml|*.dist|*.qhcp" ),
+    SCM_CFG_ENTRY("xml",        g_apRewritersFor_Xml,              false, "*.xml|*.dist|*.dita|*.qhcp" ),
     SCM_CFG_ENTRY("wix",        g_apRewritersFor_Wix,              false, "*.wxi|*.wxs|*.wxl" ),
     SCM_CFG_ENTRY("qt-pro",     g_apRewritersFor_QtProject,        false, "*.pro" ),
     SCM_CFG_ENTRY("qt-rc",      g_apRewritersFor_QtResourceFiles,  false, "*.qrc" ),
@@ -1408,6 +1408,9 @@ static int scmSettingsBaseHandleOpt(PSCMSETTINGSBASE pSettings, int rc, PRTGETOP
                 pszSrc += cchPattern + 1;
             }
             /* not reached */
+#if RT_MSC_PREREQ(RT_MSC_VER_VS2022) /* VS 2022 complains about fall thru, other compilers complains about unreachable code. */
+           break;
+#endif
         }
 
         case SCMOPT_TREAT_AS:
@@ -2964,7 +2967,7 @@ static int scmHelp(PCRTGETOPTDEF paOpts, size_t cOpts)
                 break;
             case SCMOPT_GUARD_RELATIVE_TO_DIR:
                 RTPrintf("      Header guard should be normalized relative to given dir.\n"
-                         "      When relative to settings files, no preceeding slash.\n"
+                         "      When relative to settings files, no preceding slash.\n"
                          "      Header relative directory specification: {dir} and {parent}\n"
                          "      If empty no normalization takes place.  Default: '%s'\n", g_Defaults.pszGuardRelativeToDir);
                 break;
@@ -3146,7 +3149,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 164827 $";
+                static const char s_szRev[] = "$Revision: 170187 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

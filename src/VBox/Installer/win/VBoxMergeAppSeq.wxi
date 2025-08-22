@@ -2,7 +2,7 @@
     VirtualBox Windows Installation Script (WiX)
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -37,6 +37,7 @@
     <Custom Action="ca_VBoxSupDrvUninst" After="ca_VBoxSupDrvUninstParms"
             Condition="NOT (UPGRADINGPRODUCTCODE) AND (Installed) AND (REMOVE=&quot;ALL&quot;)" />
 
+    <Custom Action="ca_GetPlatformArchitecture" Before="LaunchConditions"/>
 <?if $(env.VBOX_WITH_CRT_PACKING) = "no" ?>
     <Custom Action="ca_IsMSCRTInstalled" Before="LaunchConditions"/>
 <?endif?>
@@ -46,6 +47,6 @@
          See @bugref{10616} -->
     <Custom Action="ca_CheckTargetDirPost" After="InstallFinalize" Condition="NOT REMOVE"/>
 
-    <Custom Action="ca_IsWindows10" After="FileCost"/>
+    <Custom Action="ca_IsWindowsSupported" After="FileCost"/>
 
 </Include>

@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage list
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-list" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2024-09-16 16:03:52 +0200 (Mon, 16 Sep 2024) $</pubdate>
+    <pubdate>$Date: 2025-08-11 19:18:47 +0200 (Mon, 11 Aug 2025) $</pubdate>
     <title>VBoxManage list</title>
   </refentryinfo>
 
@@ -201,7 +201,7 @@
       </para>
       <para>
         Эта команда выполняет ту же функцию, что и Менеджер виртуальных
-        носителей. Смотрите <xref linkend="virtual-media-manager"/>.
+        носителей. Смотрите <xref linkend="ct_virtual-media-manager"/>.
       </para>
     </refsect2>
     <refsect2 id="vboxmanage-list-extpacks">
@@ -213,7 +213,7 @@
       <para>
         Команда <command>VBoxManage list extpacks</command> показывает
         все пакеты расширения &product-name;, установленные в системе
-        на данный момент. Смотрите <xref linkend="intro-installing"/> и
+        на данный момент. Смотрите <xref linkend="install-ext-pack"/> и
         <xref linkend="vboxmanage-extpack"/>.
       </para>
     </refsect2>
@@ -232,7 +232,7 @@
       </para>
       <para>
         Эта команда выполняет ту же функцию, что и Менеджер виртуальных
-        носителей. Смотрите <xref linkend="virtual-media-manager"/>.
+        носителей. Смотрите <xref linkend="ct_virtual-media-manager"/>.
       </para>
     </refsect2>
     <refsect2 id="vboxmanage-list-groups">
@@ -274,7 +274,7 @@
       </para>
       <para>
         Эта команда выполняет ту же функцию, что и Менеджер виртуальных
-        носителей. Смотрите <xref linkend="virtual-media-manager"/>.
+        носителей. Смотрите <xref linkend="ct_virtual-media-manager"/>.
       </para>
     </refsect2>
     <refsect2 id="vboxmanage-list-hostcpuids">

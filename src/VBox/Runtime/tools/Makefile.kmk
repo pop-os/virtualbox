@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -79,6 +79,19 @@ if !defined(VBOX_ONLY_DOCS)
  bldRTManifest_TEMPLATE = VBoxAdvBldProg
  bldRTManifest_SOURCES  = RTManifest.cpp
 
+ # RTIasl - ACPI source language compiler/decompiler. - build version.
+ BLDPROGS += bldRTIasl
+ bldRTIasl_TEMPLATE := VBoxAdvBldProg
+ bldRTIasl_INCS     := ../include
+ bldRTIasl_DEFS     := IPRT_IN_BUILD_TOOL
+ bldRTIasl_SOURCES  := \
+ 	RTIasl.cpp \
+ 	../common/acpi/acpi.cpp \
+ 	../common/acpi/acpi-ast.cpp \
+ 	../common/acpi/acpi-compiler.cpp \
+ 	../common/acpi/acpi-decompiler.cpp \
+ 	../common/acpi/acpi-ns.cpp \
+ 	../common/script/scriptlex.cpp
 
  if !defined(VBOX_ONLY_EXTPACKS) || "$(KBUILD_TARGET)" == "win" || "$(KBUILD_TARGET)" == "darwin"
   # RTSignTool - Signing utility - build version.  Signed on windows so we can get the certificate from it.
@@ -246,6 +259,13 @@ if !defined(VBOX_ONLY_BUILD)
  RTDbgSymCache_TEMPLATE = VBoxR3Tool
  RTDbgSymCache_SOURCES = RTDbgSymCache.cpp
 
+ ifdef VBOX_WITH_LIBCURL
+  # RTDbgSymSrv - Symbol cache proxy.
+  PROGRAMS += RTDbgSymSrv
+  RTDbgSymSrv_TEMPLATE = VBoxR3Tool
+  RTDbgSymSrv_SOURCES = RTDbgSymSrv.cpp
+ endif
+
  # RTSignTool - Signing utility.
  PROGRAMS += RTSignTool
  RTSignTool_TEMPLATE := VBoxR3Tool
@@ -290,6 +310,11 @@ if !defined(VBOX_ONLY_BUILD)
  PROGRAMS += RTDtc
  RTDtc_TEMPLATE = VBoxR3Tool
  RTDtc_SOURCES = RTDtc.cpp
+
+ # RTIasl - ACPI source language compiler/decompiler.
+ PROGRAMS += RTIasl
+ RTIasl_TEMPLATE = VBoxR3Tool
+ RTIasl_SOURCES = RTIasl.cpp
 
 endif # !VBOX_ONLY_BUILD
 

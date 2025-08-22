@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2022-2024 Oracle and/or its affiliates.
+# Copyright (C) 2022-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -26,7 +26,7 @@
 #
 
 # Check .kmk files and some others selectively.
---filter-files *.kmk|.scm-settings|genjifaces.xsl|VBoxObjectBase.java|gen_python_deps.py|vboxxpcom.py|_iprt_atomic.h|xptc*_vbox.*|xpcom-namespace-cleanup.map|VBoxXPCOM*.def|openssl-mangling.h|threads_iprt.c|extF80_scale_extF80.c|*_sincos.*|platform.h|VBoxDxVkDeps.cpp
+--filter-files *.kmk|.scm-settings|genjifaces.xsl|VBoxObjectBase.java|gen_python_deps.py|vboxxpcom.py|_iprt_atomic.h|xptc*_vbox.*|xpcom-namespace-cleanup.map|VBoxXPCOM*.def|ipcMsg*.h|openssl-mangling.h|threads_iprt.c|old-solaris-asm-trick.h|vbox-pragma-once.sed|mythread.h|sysdefs.h|tuklib_physmem.h|extF80_scale_extF80.c|*_sincos.*|extF80_log2.c|extF80_tan.c|platform.h|VBoxDxVkDeps.cpp|jconfigint.h|sys_arch.c|VBoxLwipCore.cpp|VBoxLwipCore.h
 --filter-out-files /openssl-*/platform.h|/softfloat-*/build/Linux-*/platform.h|/softfloat-*/build/template-*/platform.h|/softfloat-*/build/Win*/platform.h|/softfloat-*/testfloat/*/platform.h
 
 /openssl-*/openssl-mangling.h: --no-fix-header-guards

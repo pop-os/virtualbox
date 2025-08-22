@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -73,6 +73,12 @@ QList<UIVirtualMachineItemCloud*> UIChooser::cloudMachineItems() const
     return model()->cloudMachineItems();
 }
 
+bool UIChooser::isNavigationListEmpty() const
+{
+    AssertPtrReturn(model(), true);
+    return model()->isNavigationListEmpty();
+}
+
 UIVirtualMachineItem *UIChooser::currentItem() const
 {
     AssertPtrReturn(model(), 0);
@@ -89,12 +95,6 @@ bool UIChooser::isGroupItemSelected() const
 {
     AssertPtrReturn(model(), false);
     return model()->isGroupItemSelected();
-}
-
-bool UIChooser::isGlobalItemSelected() const
-{
-    AssertPtrReturn(model(), false);
-    return model()->isGlobalItemSelected();
 }
 
 bool UIChooser::isMachineItemSelected() const
@@ -211,25 +211,6 @@ void UIChooser::setCurrentMachine(const QUuid &uId)
     model()->setCurrentMachineItem(uId);
 }
 
-void UIChooser::setCurrentGlobal()
-{
-    AssertPtrReturnVoid(model());
-    model()->setCurrentGlobalItem();
-}
-
-void UIChooser::setGlobalItemHeightHint(int iHeight)
-{
-    AssertPtrReturnVoid(model());
-    model()->setGlobalItemHeightHint(iHeight);
-}
-
-void UIChooser::sltToolMenuRequested(const QPoint &position, UIVirtualMachineItem *pItem)
-{
-    /* Translate scene coordinates to global one: */
-    AssertPtrReturnVoid(view());
-    emit sigToolMenuRequested(mapToGlobal(view()->mapFromScene(position)), pItem);
-}
-
 void UIChooser::prepare()
 {
     /* Prepare everything: */
@@ -288,12 +269,12 @@ void UIChooser::prepareConnections()
             this, &UIChooser::sigCloudUpdateStateChanged);
 
     /* Chooser-model connections: */
-    connect(model(), &UIChooserModel::sigToolMenuRequested,
-            this, &UIChooser::sltToolMenuRequested);
     connect(model(), &UIChooserModel::sigSelectionChanged,
             this, &UIChooser::sigSelectionChanged);
     connect(model(), &UIChooserModel::sigSelectionInvalidated,
             this, &UIChooser::sigSelectionInvalidated);
+    connect(model(), &UIChooserModel::sigNavigationListChanged,
+            this, &UIChooser::sigNavigationListChanged);
     connect(model(), &UIChooserModel::sigToggleStarted,
             this, &UIChooser::sigToggleStarted);
     connect(model(), &UIChooserModel::sigToggleFinished,
@@ -338,12 +319,12 @@ void UIChooser::cleanupConnections()
                this, &UIChooser::sigCloudUpdateStateChanged);
 
     /* Chooser-model connections: */
-    disconnect(model(), &UIChooserModel::sigToolMenuRequested,
-               this, &UIChooser::sltToolMenuRequested);
     disconnect(model(), &UIChooserModel::sigSelectionChanged,
                this, &UIChooser::sigSelectionChanged);
     disconnect(model(), &UIChooserModel::sigSelectionInvalidated,
                this, &UIChooser::sigSelectionInvalidated);
+    disconnect(model(), &UIChooserModel::sigNavigationListChanged,
+               this, &UIChooser::sigNavigationListChanged);
     disconnect(model(), &UIChooserModel::sigToggleStarted,
                this, &UIChooser::sigToggleStarted);
     disconnect(model(), &UIChooserModel::sigToggleFinished,

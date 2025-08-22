@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -501,8 +501,7 @@ static PFNRTDIRFILTER rtDirFilterWinNtInit(PRTDIRINTERNAL pDir)
         {
             fHaveWildcards = true;
             /* remove extra stars. */
-            RTUNICP uc2;
-            while ((uc2 = pDir->puszFilter[iRead + 1]) == '*')
+            while (pDir->puszFilter[iRead + 1] == '*')
                 iRead++;
         }
         else if (uc == '?' || uc == '>' || uc == '<' || uc == '"')

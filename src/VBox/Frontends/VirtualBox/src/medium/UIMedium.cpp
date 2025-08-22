@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -620,13 +620,13 @@ bool UIMedium::isMediumAttachedToHiddenMachinesOnly(const UIMedium &medium)
 UIMedium UIMedium::root() const
 {
     /* Redirect call to UICommon: */
-    return gpMediumEnumerator->medium(m_uRootId);
+    return UIMediumEnumerator::exists() ? gpMediumEnumerator->medium(m_uRootId) : UIMedium();
 }
 
 UIMedium UIMedium::parent() const
 {
     /* Redirect call to UICommon: */
-    return gpMediumEnumerator->medium(m_uParentId);
+    return UIMediumEnumerator::exists() ? gpMediumEnumerator->medium(m_uParentId) : UIMedium();
 }
 
 void UIMedium::checkNoDiffs(bool fNoDiffs)
@@ -646,7 +646,7 @@ void UIMedium::checkNoDiffs(bool fNoDiffs)
             if (m_noDiffs.toolTip.isNull())
                 m_noDiffs.toolTip = m_sstrRow.arg(QApplication::translate("UIMedium",
                                                                           "Some of the files in this hard disk chain "
-                                                                          "are inaccessible. Please use the Virtual Medium "
+                                                                          "are inaccessible. Please use the Virtual Media "
                                                                           "Manager to inspect these files."));
 
             if (!parentMedium.m_result.isOk())

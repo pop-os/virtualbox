@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -109,7 +109,12 @@
 #undef LOG_GROUP
 #include "VBox/log-vbox.c"
 #undef LOG_GROUP
-#include "VBox/RTLogWriteVmm-amd64-x86.c"
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include "VBox/RTLogWriteVmm-amd64-x86.c"
+#else
+# include "generic/RTLogWriteVmm-stub-generic.c"
+# include "common/asm/ASMMultU64ByU32DivByU32-generic.c"
+#endif
 
 #ifdef RT_ARCH_AMD64
 # undef LOG_GROUP

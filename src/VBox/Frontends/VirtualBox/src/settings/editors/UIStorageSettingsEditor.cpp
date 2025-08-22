@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1781,16 +1781,16 @@ QVariant StorageModel::data(const QModelIndex &specifiedIndex, int iRole) const
                     {
                         case ToolTipType_Expander:
                             if (index(0, 0, specifiedIndex).isValid())
-                                strTip = UIStorageSettingsEditor::tr("<nobr>Expands/Collapses&nbsp;item.</nobr>");
+                                strTip = UIStorageSettingsEditor::tr("<nobr>Expand/Collapse&nbsp;item</nobr>");
                             break;
                         case ToolTipType_HDAdder:
-                            strTip = UIStorageSettingsEditor::tr("<nobr>Adds&nbsp;hard&nbsp;disk.</nobr>");
+                            strTip = UIStorageSettingsEditor::tr("<nobr>Add&nbsp;hard&nbsp;disk</nobr>");
                             break;
                         case ToolTipType_CDAdder:
-                            strTip = UIStorageSettingsEditor::tr("<nobr>Adds&nbsp;optical&nbsp;drive.</nobr>");
+                            strTip = UIStorageSettingsEditor::tr("<nobr>Add&nbsp;optical&nbsp;drive</nobr>");
                             break;
                         case ToolTipType_FDAdder:
-                            strTip = UIStorageSettingsEditor::tr("<nobr>Adds&nbsp;floppy&nbsp;drive.</nobr>");
+                            strTip = UIStorageSettingsEditor::tr("<nobr>Add&nbsp;floppy&nbsp;drive</nobr>");
                             break;
                         default:
                             break;
@@ -3187,56 +3187,55 @@ void UIStorageSettingsEditor::sltRetranslateUI()
 {
     m_pLabelSeparatorLeftPane->setText(tr("&Devices"));
     m_pLabelSeparatorEmpty->setText(tr("Information"));
-    m_pLabelInfo->setText(tr("The Storage Tree can contain several controllers of different types. This machine currently has no "
+    m_pLabelInfo->setText(tr("Storage tree can contain several controllers of different types. This machine currently has no "
                              "controllers."));
     m_pLabelSeparatorParameters->setText(tr("Attributes"));
-    m_pLabelName->setText(tr("&Name:"));
-    m_pEditorName->setToolTip(tr("Holds the name of the storage controller currently selected in the Storage Tree."));
-    m_pLabelType->setText(tr("&Type:"));
-    m_pComboType->setToolTip(tr("Selects the sub-type of the storage controller currently selected in the Storage Tree."));
-    m_pLabelPortCount->setText(tr("&Port Count:"));
-    m_pSpinboxPortCount->setToolTip(tr("Selects the port count of the SATA storage controller currently selected in the "
-                                       "Storage Tree. This must be at least one more than the highest port number you need to "
-                                       "use."));
-    m_pCheckBoxIoCache->setToolTip(tr("When checked, allows to use host I/O caching capabilities."));
+    m_pLabelName->setText(tr("&Name"));
+    m_pEditorName->setToolTip(tr("Name of the storage controller currently selected in the storage tree"));
+    m_pLabelType->setText(tr("&Type"));
+    m_pComboType->setToolTip(tr("Sub-type of the storage controller currently selected in the storage tree"));
+    m_pLabelPortCount->setText(tr("&Port Count"));
+    m_pSpinboxPortCount->setToolTip(tr("Number of ports allocated to the controller. "
+                                       "This must always be one greater than the number of ports that can be used."));
+    m_pCheckBoxIoCache->setToolTip(tr("Allow to use host I/O caching capabilities"));
     m_pCheckBoxIoCache->setText(tr("Use Host I/O Cache"));
     m_pLabelSeparatorAttributes->setText(tr("Attributes"));
-    m_pLabelHD->setText(tr("Hard &Disk:"));
-    m_pLabelCD->setText(tr("Optical &Drive:"));
-    m_pLabelFD->setText(tr("Floppy &Drive:"));
-    m_pComboSlot->setToolTip(tr("Selects the slot on the storage controller used by this attachment. The available slots depend "
+    m_pLabelHD->setText(tr("Hard &Disk"));
+    m_pLabelCD->setText(tr("Optical &Drive"));
+    m_pLabelFD->setText(tr("Floppy &Drive"));
+    m_pComboSlot->setToolTip(tr("Slot on the storage controller used by this attachment. The available slots depend "
                                 "on the type of the controller and other attachments on it."));
     m_pToolButtonOpen->setText(QString());
-    m_pCheckBoxPassthrough->setToolTip(tr("When checked, allows the guest to send ATAPI commands directly to the host-drive "
+    m_pCheckBoxPassthrough->setToolTip(tr("Allow the guest to send ATAPI commands directly to the host-drive "
                                           "which makes it possible to use CD/DVD writers connected to the host inside the VM. "
                                           "Note that writing audio CD inside the VM is not yet supported."));
     m_pCheckBoxPassthrough->setText(tr("&Passthrough"));
-    m_pCheckBoxTempEject->setToolTip(tr("When checked, the virtual disk will not be removed when the guest system ejects it."));
+    m_pCheckBoxTempEject->setToolTip(tr("Virtual disk will not be removed when the guest system ejects it"));
     m_pCheckBoxTempEject->setText(tr("&Live CD/DVD"));
-    m_pCheckBoxNonRotational->setToolTip(tr("When checked, the guest system will see the virtual disk as a solid-state device."));
+    m_pCheckBoxNonRotational->setToolTip(tr("Guest system will see the virtual disk as a solid-state device"));
     m_pCheckBoxNonRotational->setText(tr("&Solid-state Drive"));
-    m_pCheckBoxHotPluggable->setToolTip(tr("When checked, the guest system will see the virtual disk as a hot-pluggable device."));
+    m_pCheckBoxHotPluggable->setToolTip(tr("Guest system will see the virtual disk as a hot-pluggable device"));
     m_pCheckBoxHotPluggable->setText(tr("&Hot-pluggable"));
     m_pLabelSeparatorInformation->setText(tr("Information"));
-    m_pLabelHDFormat->setText(tr("Type (Format):"));
-    m_pLabelHDVirtualSize->setText(tr("Virtual size:"));
-    m_pLabelHDActualSize->setText(tr("Actual size:"));
-    m_pLabelHDDetails->setText(tr("Storage details:"));
-    m_pLabelHDLocation->setText(tr("Location:"));
-    m_pLabelHDUsage->setText(tr("Attached to:"));
-    m_pLabelHDEncryption->setText(tr("Encryption key:"));
-    m_pLabelCDType->setText(tr("Type:"));
-    m_pLabelCDSize->setText(tr("Size:"));
-    m_pLabelCDLocation->setText(tr("Location:"));
-    m_pLabelCDUsage->setText(tr("Attached to:"));
-    m_pLabelFDType->setText(tr("Type:"));
-    m_pLabelFDSize->setText(tr("Size:"));
-    m_pLabelFDLocation->setText(tr("Location:"));
-    m_pLabelFDUsage->setText(tr("Attached to:"));
+    m_pLabelHDFormat->setText(tr("Type (Format)"));
+    m_pLabelHDVirtualSize->setText(tr("Virtual size"));
+    m_pLabelHDActualSize->setText(tr("Actual size"));
+    m_pLabelHDDetails->setText(tr("Storage details"));
+    m_pLabelHDLocation->setText(tr("Location"));
+    m_pLabelHDUsage->setText(tr("Attached to"));
+    m_pLabelHDEncryption->setText(tr("Encryption key"));
+    m_pLabelCDType->setText(tr("Type"));
+    m_pLabelCDSize->setText(tr("Size"));
+    m_pLabelCDLocation->setText(tr("Location"));
+    m_pLabelCDUsage->setText(tr("Attached to"));
+    m_pLabelFDType->setText(tr("Type"));
+    m_pLabelFDSize->setText(tr("Size"));
+    m_pLabelFDLocation->setText(tr("Location"));
+    m_pLabelFDUsage->setText(tr("Attached to"));
 
     /* Translate storage-view: */
-    m_pTreeViewStorage->setWhatsThis(tr("Lists all storage controllers for this machine and "
-                                        "the virtual images and host drives attached to them."));
+    m_pTreeViewStorage->setWhatsThis(tr("All storage controllers for this machine and "
+                                        "the virtual images and host drives attached to them"));
 
     /* Translate tool-bar: */
     m_pActionAddController->setShortcut(QKeySequence("Ins"));
@@ -3244,7 +3243,7 @@ void UIStorageSettingsEditor::sltRetranslateUI()
     m_pActionAddAttachment->setShortcut(QKeySequence("+"));
     m_pActionRemoveAttachment->setShortcut(QKeySequence("-"));
 
-    m_pActionAddController->setText(tr("Add Controller"));
+    m_pActionAddController->setText(tr("Add controller"));
     m_addControllerActions.value(KStorageControllerType_PIIX3)->setText(tr("PIIX3 (IDE)"));
     m_addControllerActions.value(KStorageControllerType_PIIX4)->setText(tr("PIIX4 (Default IDE)"));
     m_addControllerActions.value(KStorageControllerType_ICH6)->setText(tr("ICH6 (IDE)"));
@@ -3256,17 +3255,17 @@ void UIStorageSettingsEditor::sltRetranslateUI()
     m_addControllerActions.value(KStorageControllerType_USB)->setText(tr("USB"));
     m_addControllerActions.value(KStorageControllerType_NVMe)->setText(tr("NVMe (PCIe)"));
     m_addControllerActions.value(KStorageControllerType_VirtioSCSI)->setText(tr("virtio-scsi"));
-    m_pActionRemoveController->setText(tr("Remove Controller"));
-    m_pActionAddAttachment->setText(tr("Add Attachment"));
-    m_pActionAddAttachmentHD->setText(tr("Hard Disk"));
-    m_pActionAddAttachmentCD->setText(tr("Optical Drive"));
-    m_pActionAddAttachmentFD->setText(tr("Floppy Drive"));
-    m_pActionRemoveAttachment->setText(tr("Remove Attachment"));
+    m_pActionRemoveController->setText(tr("Remove controller"));
+    m_pActionAddAttachment->setText(tr("Add attachment"));
+    m_pActionAddAttachmentHD->setText(tr("Hard disk"));
+    m_pActionAddAttachmentCD->setText(tr("Optical drive"));
+    m_pActionAddAttachmentFD->setText(tr("Floppy drive"));
+    m_pActionRemoveAttachment->setText(tr("Remove attachment"));
 
-    m_pActionAddController->setToolTip(tr("Adds new storage controller."));
-    m_pActionRemoveController->setToolTip(tr("Removes selected storage controller."));
-    m_pActionAddAttachment->setToolTip(tr("Adds new storage attachment."));
-    m_pActionRemoveAttachment->setToolTip(tr("Removes selected storage attachment."));
+    m_pActionAddController->setToolTip(tr("Add new storage controller"));
+    m_pActionRemoveController->setToolTip(tr("Remove selected storage controller"));
+    m_pActionAddAttachment->setToolTip(tr("Add new storage attachment"));
+    m_pActionRemoveAttachment->setToolTip(tr("Remove selected storage attachment"));
 
     m_pActionAddController->setToolTip(m_pActionAddController->whatsThis());
     m_pActionRemoveController->setToolTip(m_pActionRemoveController->whatsThis());

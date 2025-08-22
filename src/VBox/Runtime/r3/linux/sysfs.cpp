@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -95,6 +95,7 @@ static int rtLinuxConstructPathV(char *pszBuf, size_t cchBuf,
 }
 
 
+#if 0 /*Unused*/
 /**
  * Constructs the path of a sysfs file from the format parameters passed,
  * prepending a prefix if the path is relative.
@@ -118,6 +119,7 @@ DECLINLINE(int) rtLinuxConstructPath(char *pszBuf, size_t cchBuf,
     va_end(va);
     return rc;
 }
+#endif
 
 
 /**

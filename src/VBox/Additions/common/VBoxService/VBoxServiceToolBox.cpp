@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -818,19 +818,26 @@ static int vgsvcToolboxLsHandleDirSub(char *pszDir, size_t cchDir, PRTDIRENTRYEX
                 break;
             }
         }
-    }
+
+        if (RT_FAILURE(rc))
+            break;
+    } /* for */
+
     if (rc != VERR_NO_MORE_FILES)
     {
         if (!(fOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE))
             RTMsgError("RTDirReadEx failed: %Rrc\npszDir=%.*s", rc, cchDir, pszDir);
     }
 
-    rc = RTDirClose(hDir);
-    if (RT_FAILURE(rc))
+    int rc2 = RTDirClose(hDir);
+    if (RT_FAILURE(rc2))
     {
         if (!(fOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE))
-            RTMsgError("RTDirClose failed: %Rrc\npszDir=%.*s", rc, cchDir, pszDir);
+            RTMsgError("RTDirClose failed: %Rrc\npszDir=%.*s", rc2, cchDir, pszDir);
     }
+
+    if (RT_SUCCESS(rc))
+        rc = rc2;
 
     return rc;
 }
@@ -906,7 +913,6 @@ static RTEXITCODE vgsvcToolboxLs(int argc, char **argv)
                           1 /*iFirst*/, RTGETOPTINIT_FLAGS_OPTS_FIRST);
     AssertRCReturn(rc, RTEXITCODE_INIT);
 
-    bool     fVerbose     = false;
     uint32_t fFlags       = VBOXSERVICETOOLBOXLSFLAG_NONE;
     uint32_t fOutputFlags = VBOXSERVICETOOLBOXOUTPUTFLAG_NONE;
 
@@ -937,7 +943,7 @@ static RTEXITCODE vgsvcToolboxLs(int argc, char **argv)
                 break;
 
             case VBOXSERVICETOOLBOXOPT_VERBOSE:
-                fVerbose = true;
+                /* Not implemented, ignore. */
                 break;
 
             case 'V':

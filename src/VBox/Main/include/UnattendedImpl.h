@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -157,6 +157,7 @@ private:
     Utf8Str         mStrAdditionsInstallPackage;
 
     bool            mfDoneDetectIsoOS;         /**< Set by detectIsoOS(), cleared by setIsoPath(). */
+    bool            mfProductKeyRequired;
     Utf8Str         mStrDetectedOSTypeId;
     Utf8Str         mStrDetectedOSVersion;
     Utf8Str         mStrDetectedOSFlavor;
@@ -213,6 +214,7 @@ private:
     HRESULT setAdditionsIsoPath(const com::Utf8Str &additionsIsoPath);
     HRESULT getInstallGuestAdditions(BOOL *installGuestAdditions);
     HRESULT setInstallGuestAdditions(BOOL installGuestAdditions);
+    HRESULT getProductKeyRequired(BOOL *productKeyRequired);
     HRESULT getValidationKitIsoPath(com::Utf8Str &aValidationKitIsoPath);
     HRESULT setValidationKitIsoPath(const com::Utf8Str &aValidationKitIsoPath);
     HRESULT getInstallTestExecService(BOOL *aInstallTestExecService);

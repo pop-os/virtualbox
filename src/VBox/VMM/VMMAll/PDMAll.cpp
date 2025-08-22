@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -36,9 +36,9 @@
 #include <VBox/vmm/vmcc.h>
 #include <VBox/err.h>
 #ifdef VBOX_VMM_TARGET_ARMV8
-# include <VBox/vmm/gic.h>
+# include <VBox/vmm/pdmgic.h>
 #else
-# include <VBox/vmm/apic.h>
+# include <VBox/vmm/pdmapic.h>
 #endif
 
 #include <VBox/log.h>
@@ -75,7 +75,7 @@ VMMDECL(int) PDMGetInterrupt(PVMCPUCC pVCpu, uint8_t *pu8Interrupt)
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
 
         uint32_t uTagSrc;
-        rc = APICGetInterrupt(pVCpu, pu8Interrupt, &uTagSrc);
+        rc = PDMApicGetInterrupt(pVCpu, pu8Interrupt, &uTagSrc);
         if (RT_SUCCESS(rc))
         {
             VBOXVMM_PDM_IRQ_GET(pVCpu, RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc), *pu8Interrupt);
@@ -149,7 +149,7 @@ VMMDECL(int) PDMIsaSetIrq(PVMCC pVM, uint8_t u8Irq, uint8_t u8Level, uint32_t uT
 
 #ifdef VBOX_VMM_TARGET_ARMV8
     int rc = VINF_SUCCESS;
-    GICSpiSet(pVM, u8Irq, u8Level == PDM_IRQ_LEVEL_HIGH ? true : false);
+    PDMGicSetSpi(pVM, u8Irq, u8Level == PDM_IRQ_LEVEL_HIGH ? true : false);
 #else
     int rc = VERR_PDM_NO_PIC_INSTANCE;
 /** @todo r=bird: This code is incorrect, as it ASSUMES the PIC and I/O APIC
@@ -206,7 +206,7 @@ VMM_INT_DECL(int) PDMIoApicSetIrq(PVM pVM, PCIBDF uBusDevFn, uint8_t u8Irq, uint
 
 #ifdef VBOX_VMM_TARGET_ARMV8
     RT_NOREF(uBusDevFn, uTagSrc);
-    GICSpiSet(pVM, u8Irq, u8Level == PDM_IRQ_LEVEL_HIGH ? true : false);
+    PDMGicSetSpi(pVM, u8Irq, u8Level == PDM_IRQ_LEVEL_HIGH ? true : false);
     return VINF_SUCCESS;
 #else
     if (pVM->pdm.s.IoApic.CTX_SUFF(pDevIns))
@@ -274,8 +274,14 @@ VMM_INT_DECL(void) PDMIoApicBroadcastEoi(PVMCC pVM, uint8_t uVector)
 VMM_INT_DECL(void) PDMIoApicSendMsi(PVMCC pVM, PCIBDF uBusDevFn, PCMSIMSG pMsi, uint32_t uTagSrc)
 {
     Log9(("PDMIoApicSendMsi: addr=%#RX64 data=%#RX32 tag=%#x src=%#x\n", pMsi->Addr.u64, pMsi->Data.u32, uTagSrc, uBusDevFn));
+#ifdef VBOX_VMM_TARGET_ARMV8
+    NOREF(uBusDevFn);
+    PCPDMGICBACKEND pGic = &pVM->pdm.s.Ic.u.armv8.GicBackend;
+    if (pGic->pfnSendMsi)
+        pGic->pfnSendMsi(pVM, uBusDevFn, pMsi, uTagSrc);
+#else
     PCPDMIOAPIC pIoApic = &pVM->pdm.s.IoApic;
-#ifdef IN_RING0
+# ifdef IN_RING0
     if (pIoApic->pDevInsR0)
         pIoApic->pfnSendMsiR0(pIoApic->pDevInsR0, uBusDevFn, pMsi, uTagSrc);
     else if (pIoApic->pDevInsR3)
@@ -294,12 +300,13 @@ VMM_INT_DECL(void) PDMIoApicSendMsi(PVMCC pVM, PCIBDF uBusDevFn, PCMSIMSG pMsi, 
         else
             AssertMsgFailed(("We're out of devhlp queue items!!!\n"));
     }
-#else
+# else
     if (pIoApic->pDevInsR3)
     {
         Assert(pIoApic->pfnSendMsiR3);
         pIoApic->pfnSendMsiR3(pIoApic->pDevInsR3, uBusDevFn, pMsi, uTagSrc);
     }
+# endif
 #endif
 }
 
@@ -325,7 +332,7 @@ VMM_INT_DECL(bool) PDMHasIoApic(PVM pVM)
  */
 VMM_INT_DECL(bool) PDMHasApic(PVM pVM)
 {
-    return pVM->pdm.s.Apic.pDevInsR3 != NIL_RTR3PTR;
+    return pVM->pdm.s.Ic.pDevInsR3 != NIL_RTR3PTR;
 }
 
 

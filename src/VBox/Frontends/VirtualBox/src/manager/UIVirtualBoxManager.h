@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,7 +42,7 @@
 #include "UICloudMachineSettingsDialog.h"
 #include "UIDefs.h"
 #include "UIExtraDataDefs.h"
-#include "UIAdvancedSettingsDialog.h"
+#include "UIManagerDefs.h"
 
 /* Forward declarations: */
 class QMenu;
@@ -51,7 +51,7 @@ class UIAction;
 class UIActionPool;
 class UINativeWizard;
 struct UIUnattendedInstallData;
-class UIVirtualBoxManagerWidget;
+class UIVirtualBoxWidget;
 class UIVirtualMachineItem;
 class CCloudMachine;
 class CUnattended;
@@ -142,40 +142,27 @@ private slots:
         /** Checks if USB device list can be enumerated and host produces any warning during enumeration. */
         void sltCheckUSBAccesibility();
 
-        /** Handles signal about Chooser-pane index change.  */
-        void sltHandleChooserPaneIndexChange();
-        /** Handles signal about group saving progress change. */
-        void sltHandleGroupSavingProgressChange();
-        /** Handles signal about cloud update progress change. */
-        void sltHandleCloudUpdateProgressChange();
+        /** Handles signal about Chooser-pane selection change.  */
+        void sltHandleChooserPaneSelectionChange();
 
         /** Handles signal about Global Tool type change.  */
         void sltHandleGlobalToolTypeChange();
         /** Handles signal about Machine Tool type change.  */
         void sltHandleMachineToolTypeChange();
 
+        /** Handles execute home @a enmTask request. */
+        void sltExecuteHomeTask(HomeTask enmTask);
+
         /** Handles create medium request. */
         void sltCreateMedium();
         /** Handles copy medium request. */
         void sltCopyMedium(const QUuid &uMediumId);
 
-        /** Handles current snapshot item change. */
-        void sltCurrentSnapshotItemChange();
-
         /** Handles request to detach Log Viewer pane. */
         void sltDetachToolPane(UIToolType enmToolType);
 
-        /** Handles state change for cloud machine with certain @a uId. */
-        void sltHandleCloudMachineStateChange(const QUuid &uId);
-
         /** Handles translation event. */
         void sltRetranslateUI();
-    /** @} */
-
-    /** @name CVirtualBox event handling stuff.
-      * @{ */
-        /** Handles CVirtualBox event about state change for machine with @a uID. */
-        void sltHandleStateChange(const QUuid &uID);
     /** @} */
 
     /** @name Action-pool stuff.
@@ -214,8 +201,8 @@ private slots:
         /** Handles call to close Preferences dialog. */
         void sltClosePreferencesDialog();
 
-        /** Handles call to switch to global tool corresponding to passed @a pAction. */
-        void sltPerformSwitchToGlobalTool(QAction *pAction);
+        /** Handles call to switch to tool corresponding to passed @a pAction. */
+        void sltPerformSwitchToTool(QAction *pAction);
 
         /** Handles call to exit application. */
         void sltPerformExit();
@@ -266,12 +253,16 @@ private slots:
 
         /** Handles call to start or show machine. */
         void sltPerformStartOrShowMachine();
+        /** Handles call to start machine. */
+        void sltPerformStartMachine();
         /** Handles call to start machine in normal mode. */
         void sltPerformStartMachineNormal();
         /** Handles call to start machine in headless mode. */
         void sltPerformStartMachineHeadless();
         /** Handles call to start machine in detachable mode. */
         void sltPerformStartMachineDetachable();
+        /** Handles call to show machine. */
+        void sltPerformShowMachine();
 
         /** Handles call to create console connection for group. */
         void sltPerformCreateConsoleConnectionForGroup();
@@ -342,9 +333,6 @@ private slots:
 
         /** Handles call to show help viewer. */
         void sltPerformShowHelpBrowser();
-
-        /** Handles signals that are emitted when an ext. pack un/installed. */
-        void sltExtensionPackInstalledUninstalled(const QString &strName);
     /** @} */
 
 private:
@@ -429,8 +417,10 @@ private:
         /** Creates an unattended installer and uses it to install guest os to newly created vm. */
         void startUnattendedInstall(const CUnattended &comUnattended, bool fStartHeadless, const QString &strMachineId);
 
-        /** Launches or shows virtual machines represented by passed @a items in corresponding @a enmLaunchMode (for launch). */
-        void performStartOrShowVirtualMachines(const QList<UIVirtualMachineItem*> &items, UILaunchMode enmLaunchMode);
+        /** Launches virtual machines represented by passed @a items in corresponding @a enmLaunchMode. */
+        void performStartVirtualMachines(const QList<UIVirtualMachineItem*> &items, UILaunchMode enmLaunchMode);
+        /** Shows virtual machines represented by passed @a items. */
+        void performShowVirtualMachines(const QList<UIVirtualMachineItem*> &items);
 
 #ifndef VBOX_WS_WIN
         /** Parses serialized @a strArguments string according to shell rules. */
@@ -531,7 +521,7 @@ private:
     QMap<WizardType, UINativeWizard*>  m_wizards;
 
     /** Holds the central-widget instance. */
-    UIVirtualBoxManagerWidget *m_pWidget;
+    UIVirtualBoxWidget *m_pWidget;
 
     /** Holds the geometry save timer ID. */
     int  m_iGeometrySaveTimerId;

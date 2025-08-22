@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -640,8 +640,9 @@ static void vbglR0HGCMInternalInitCall(VMMDevHGCMCall *pHGCMCall, PCVBGLIOCHGCMC
                         pDstPgLst->cPages           = (uint16_t)cPages; Assert(pDstPgLst->cPages == cPages);
                         for (iPage = 0; iPage < cPages; iPage++)
                         {
-                            pDstPgLst->aPages[iPage] = RTR0MemObjGetPagePhysAddr(hObj, iPage);
-                            Assert(pDstPgLst->aPages[iPage] != NIL_RTHCPHYS);
+                            RTGCPHYS64 * paPages = pDstPgLst->aPages;
+                            paPages[iPage] = RTR0MemObjGetPagePhysAddr(hObj, iPage);
+                            Assert(paPages[iPage] != NIL_RTHCPHYS);
                         }
 
                         offExtra += (uint32_t)RT_UOFFSETOF_FLEX_ARRAY(HGCMPageListInfo, aPages, cPages);

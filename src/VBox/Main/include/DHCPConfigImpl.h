@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -242,7 +242,8 @@ public:
     /** @name Constructors and destructors.
      * @{ */
     DHCPGroupCondition()
-        : m_enmType(DHCPGroupConditionType_MAC)
+        : m_fInclusive(false)
+        , m_enmType(DHCPGroupConditionType_MAC)
         , m_pParent(NULL)
     {}
     HRESULT FinalConstruct()

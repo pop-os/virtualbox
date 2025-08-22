@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -44,8 +44,7 @@
 #include "GuestScreenInfoWrap.h"
 
 #ifdef VBOX_WITH_RECORDING
-# include "RecordingInternals.h"
-class RecordingContext;
+# include "RecordingContext.h"
 #endif
 
 class Console;
@@ -163,9 +162,6 @@ public:
     void i_handleUpdateVMMDevSupportsGraphics(bool fSupportsGraphics);
     void i_handleUpdateGuestVBVACapabilities(uint32_t fNewCapabilities);
     void i_handleUpdateVBVAInputMapping(int32_t xOrigin, int32_t yOrigin, uint32_t cx, uint32_t cy);
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    int  i_handleVHWACommandProcess(int enmCmd, bool fGuestCmd, VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *pCommand);
-#endif
     int  i_handle3DNotifyProcess(VBOX3DNOTIFY *p3DNotify);
 
     int  i_saveVisibleRegion(uint32_t cRect, PRTRECT pRect);
@@ -269,7 +265,6 @@ private:
                                  ULONG aHeight);
     virtual HRESULT invalidateAndUpdate();
     virtual HRESULT invalidateAndUpdateScreen(ULONG aScreenId);
-    virtual HRESULT completeVHWACommand(BYTE *aCommand);
     virtual HRESULT viewportChanged(ULONG aScreenId,
                                     ULONG aX,
                                     ULONG aY,
@@ -325,10 +320,6 @@ private:
     static DECLCALLBACK(void)  i_displayProcessDisplayDataCallback(PPDMIDISPLAYCONNECTOR pInterface,
                                                                    void *pvVRAM, unsigned uScreenId);
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    static DECLCALLBACK(int)  i_displayVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, int enmCmd, bool fGuestCmd,
-                                                          VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *pCommand);
-#endif
     static DECLCALLBACK(int)  i_display3DNotifyProcess(PPDMIDISPLAYCONNECTOR pInterface,
                                                        VBOX3DNOTIFY *p3DNotify);
 

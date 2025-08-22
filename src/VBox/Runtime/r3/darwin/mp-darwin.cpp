@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -143,6 +143,9 @@ RTDECL(RTCPUID) RTMpCpuId(void)
 {
     /* xnu-7195.50.7.100.1/osfmk/arm64/start.s and machine_routines.c sets TPIDRRO_EL0
        to the cpu_data_t::cpu_id value. */
+/** @todo r=bird: set_thread_register() in cswitch.s OTOH, applies MACHDEP_CPUNUM_MASK to
+ * the value before taking it as the CPU number.  In libsyscall/os/tsd.h it is masked by
+ * the same value in _os_cpu_number(). */
     uint64_t u64Ret;
     __asm__ __volatile__("mrs %0,TPIDRRO_EL0\n\t" : "=r" (u64Ret));
     return (RTCPUID)u64Ret;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -585,7 +585,9 @@ bool UISession::putMouseEvent(long iDx, long iDy, long iDz, long iDw, long iButt
     CMouse comMouse = mouse();
     if (comMouse.isNull())
         return false;
-    comMouse.PutMouseEvent(iDx, iDy, iDz, iDw, iButtonState);
+    comMouse.PutMouseEvent((LONG)iDx, (LONG)iDy,
+                           (LONG)iDz, (LONG)iDw,
+                           (LONG)iButtonState);
     return comMouse.isOk();
 }
 
@@ -594,7 +596,9 @@ bool UISession::putMouseEventAbsolute(long iX, long iY, long iDz, long iDw, long
     CMouse comMouse = mouse();
     if (comMouse.isNull())
         return false;
-    comMouse.PutMouseEventAbsolute(iX, iY, iDz, iDw, iButtonState);
+    comMouse.PutMouseEventAbsolute((LONG)iX, (LONG)iY,
+                                   (LONG)iDz, (LONG)iDw,
+                                   (LONG)iButtonState);
     return comMouse.isOk();
 }
 
@@ -603,7 +607,7 @@ bool UISession::putEventMultiTouch(long iCount, const QVector<LONG64> &contacts,
     CMouse comMouse = mouse();
     if (comMouse.isNull())
         return false;
-    comMouse.PutEventMultiTouch(iCount, contacts, fIsTouchScreen, uScanTime);
+    comMouse.PutEventMultiTouch((LONG)iCount, contacts, fIsTouchScreen, (ULONG)uScanTime);
     return comMouse.isOk();
 }
 
@@ -760,7 +764,7 @@ bool UISession::storageDevices(KDeviceType enmActualDeviceType, QList<StorageDev
                 break;
             }
 
-            /* Fill structure fields: */
+            /* Fill and append structure fields: */
             StorageDeviceInfo guiStorageDevice;
             guiStorageDevice.m_strControllerName = strControllerName; // already confirmed
             const KStorageBus enmStorageBus = comController.GetBus();
@@ -782,31 +786,23 @@ bool UISession::storageDevices(KDeviceType enmActualDeviceType, QList<StorageDev
                 case KStorageBus_VirtioSCSI: guiStorageDevice.m_icon = UIIconPool::iconSet(":/virtio_scsi_16px.png"); break;
                 default: break;
             }
-            const long iPort = comAttachment.GetPort();
+            const int iPort = comAttachment.GetPort();
             fSuccess = comAttachment.isOk();
             if (!fSuccess)
             {
                 UINotificationMessage::cannotAcquireMediumAttachmentParameter(comAttachment);
                 break;
             }
-            const long iDevice = comAttachment.GetDevice();
+            const int iDevice = comAttachment.GetDevice();
             fSuccess = comAttachment.isOk();
             if (!fSuccess)
             {
                 UINotificationMessage::cannotAcquireMediumAttachmentParameter(comAttachment);
                 break;
             }
-            if (fSuccess)
-            {
-                const StorageSlot guiStorageSlot(enmStorageBus, iPort, iDevice);
-                guiStorageDevice.m_guiStorageSlot = guiStorageSlot;
-            }
-
-            /* Append or break if necessary: */
-            if (fSuccess)
-                guiStorageDevices << guiStorageDevice;
-            else
-                break;
+            const StorageSlot guiStorageSlot(enmStorageBus, iPort, iDevice);
+            guiStorageDevice.m_guiStorageSlot = guiStorageSlot;
+            guiStorageDevices << guiStorageDevice;
         }
     }
     return fSuccess;
@@ -1251,7 +1247,7 @@ bool UISession::webcamDetach(const QString &strPath, const QString &strName)
 bool UISession::acquireWhetherNetworkAdapterEnabled(ulong uSlot, bool &fEnabled)
 {
     CMachine comMachine = machine();
-    CNetworkAdapter comAdapter = comMachine.GetNetworkAdapter(uSlot);
+    CNetworkAdapter comAdapter = comMachine.GetNetworkAdapter((ULONG)uSlot);
     bool fSuccess = comMachine.isOk();
     if (!fSuccess)
         UINotificationMessage::cannotAcquireMachineParameter(comMachine);
@@ -1316,7 +1312,7 @@ bool UISession::acquireWhetherAtLeastOneNetworkAdapterEnabled(bool &fEnabled)
 bool UISession::acquireWhetherNetworkCableConnected(ulong uSlot, bool &fConnected)
 {
     CMachine comMachine = machine();
-    CNetworkAdapter comAdapter = comMachine.GetNetworkAdapter(uSlot);
+    CNetworkAdapter comAdapter = comMachine.GetNetworkAdapter((ULONG)uSlot);
     bool fSuccess = comMachine.isOk();
     if (!fSuccess)
         UINotificationMessage::cannotAcquireMachineParameter(comMachine);
@@ -1335,7 +1331,7 @@ bool UISession::acquireWhetherNetworkCableConnected(ulong uSlot, bool &fConnecte
 bool UISession::setNetworkCableConnected(ulong uSlot, bool fConnected)
 {
     CMachine comMachine = machine();
-    CNetworkAdapter comAdapter = comMachine.GetNetworkAdapter(uSlot);
+    CNetworkAdapter comAdapter = comMachine.GetNetworkAdapter((ULONG)uSlot);
     bool fSuccess = comMachine.isOk();
     if (!fSuccess)
         UINotificationMessage::cannotAcquireMachineParameter(comMachine);
@@ -1640,7 +1636,7 @@ bool UISession::acquireGuestScreenParameters(ulong uScreenId,
     ULONG uGuestWidth = 0, uGuestHeight = 0, uGuestBitsPerPixel = 0;
     LONG iGuestXOrigin = 0, iGuestYOrigin = 0;
     KGuestMonitorStatus enmGuestMonitorStatus = KGuestMonitorStatus_Disabled;
-    comDisplay.GetScreenResolution(uScreenId, uGuestWidth, uGuestHeight, uGuestBitsPerPixel,
+    comDisplay.GetScreenResolution((ULONG)uScreenId, uGuestWidth, uGuestHeight, uGuestBitsPerPixel,
                                    iGuestXOrigin, iGuestYOrigin, enmGuestMonitorStatus);
     const bool fSuccess = comDisplay.isOk();
     if (!fSuccess)
@@ -1664,7 +1660,8 @@ bool UISession::acquireSavedGuestScreenInfo(ulong uScreenId,
     CMachine comMachine = machine();
     ULONG uGuestXOrigin = 0, uGuestYOrigin = 0, uGuestWidth = 0, uGuestHeight = 0;
     BOOL fGuestEnabled = FALSE;
-    comMachine.QuerySavedGuestScreenInfo(uScreenId, uGuestXOrigin, uGuestYOrigin, uGuestWidth, uGuestHeight, fGuestEnabled);
+    comMachine.QuerySavedGuestScreenInfo((ULONG)uScreenId, uGuestXOrigin, uGuestYOrigin,
+                                         uGuestWidth, uGuestHeight, fGuestEnabled);
     const bool fSuccess = comMachine.isOk();
     if (!fSuccess)
         UINotificationMessage::cannotAcquireMachineParameter(comMachine);
@@ -1683,8 +1680,12 @@ bool UISession::setVideoModeHint(ulong uScreenId, bool fEnabled, bool fChangeOri
                                  ulong uWidth, ulong uHeight, ulong uBitsPerPixel, bool fNotify)
 {
     CDisplay comDisplay = display();
-    comDisplay.SetVideoModeHint(uScreenId, fEnabled, fChangeOrigin, xOrigin, yOrigin,
-                                uWidth, uHeight, uBitsPerPixel, fNotify);
+    comDisplay.SetVideoModeHint((ULONG)uScreenId,
+                                fEnabled,
+                                fChangeOrigin,
+                                (LONG)xOrigin, (LONG)yOrigin,
+                                (ULONG)uWidth, (ULONG)uHeight, (ULONG)uBitsPerPixel,
+                                fNotify);
     const bool fSuccess = comDisplay.isOk();
     if (!fSuccess)
         UINotificationMessage::cannotChangeDisplayParameter(comDisplay);
@@ -1699,7 +1700,7 @@ bool UISession::acquireVideoModeHint(ulong uScreenId, bool &fEnabled, bool &fCha
     BOOL fGuestEnabled = FALSE, fGuestChangeOrigin = FALSE;
     LONG iGuestXOrigin = 0, iGuestYOrigin = 0;
     ULONG uGuestWidth = 0, uGuestHeight = 0, uGuestBitsPerPixel = 0;
-    comDisplay.GetVideoModeHint(uScreenId, fGuestEnabled, fGuestChangeOrigin,
+    comDisplay.GetVideoModeHint((ULONG)uScreenId, fGuestEnabled, fGuestChangeOrigin,
                                 iGuestXOrigin, iGuestYOrigin, uGuestWidth, uGuestHeight,
                                 uGuestBitsPerPixel);
     const bool fSuccess = comDisplay.isOk();
@@ -1726,7 +1727,10 @@ bool UISession::acquireScreenShot(ulong uScreenId, ulong uWidth, ulong uHeight, 
     if (uiCommon().isSeparateProcess())
     {
         /* Take screen-data to array first: */
-        const QVector<BYTE> screenData = comDisplay.TakeScreenShotToArray(uScreenId, uWidth, uHeight, enmFormat);
+        const QVector<BYTE> screenData = comDisplay.TakeScreenShotToArray((ULONG)uScreenId,
+                                                                          (ULONG)uWidth,
+                                                                          (ULONG)uHeight,
+                                                                          enmFormat);
         fSuccess = comDisplay.isOk();
         if (!fSuccess)
             UINotificationMessage::cannotAcquireDisplayParameter(comDisplay);
@@ -1741,7 +1745,11 @@ bool UISession::acquireScreenShot(ulong uScreenId, ulong uWidth, ulong uHeight, 
     else
     {
         /* Take the screen-shot directly: */
-        comDisplay.TakeScreenShot(uScreenId, pBits, uWidth, uHeight, enmFormat);
+        comDisplay.TakeScreenShot((ULONG)uScreenId,
+                                  pBits,
+                                  (ULONG)uWidth,
+                                  (ULONG)uHeight,
+                                  enmFormat);
         fSuccess = comDisplay.isOk();
         if (!fSuccess && comDisplay.rc() != VBOX_E_NOT_SUPPORTED) /* VBOX_E_NOT_SUPPORTED: screens size 0x0 can't be snapshotted */
             UINotificationMessage::cannotAcquireDisplayParameter(comDisplay);
@@ -1753,7 +1761,8 @@ bool UISession::acquireSavedScreenshotInfo(ulong uScreenId, ulong &uWidth, ulong
 {
     CMachine comMachine = machine();
     ULONG uGuestWidth = 0, uGuestHeight = 0;
-    QVector<KBitmapFormat> guestFormats = comMachine.QuerySavedScreenshotInfo(uScreenId, uGuestWidth, uGuestHeight);
+    QVector<KBitmapFormat> guestFormats = comMachine.QuerySavedScreenshotInfo((ULONG)uScreenId,
+                                                                              uGuestWidth, uGuestHeight);
     const bool fSuccess = comMachine.isOk();
     if (!fSuccess)
         UINotificationMessage::cannotAcquireMachineParameter(comMachine);
@@ -1771,7 +1780,7 @@ bool UISession::acquireSavedScreenshot(ulong uScreenId, KBitmapFormat enmFormat,
 {
     CMachine comMachine = machine();
     ULONG uGuestWidth = 0, uGuestHeight = 0;
-    const QVector<BYTE> guestScreenshot = comMachine.ReadSavedScreenshotToArray(uScreenId, enmFormat,
+    const QVector<BYTE> guestScreenshot = comMachine.ReadSavedScreenshotToArray((ULONG)uScreenId, enmFormat,
                                                                                 uGuestWidth, uGuestHeight);
     const bool fSuccess = comMachine.isOk();
     if (!fSuccess)
@@ -1820,7 +1829,7 @@ bool UISession::viewportChanged(ulong uScreenId, ulong xOrigin, ulong yOrigin, u
     CDisplay comDisplay = display();
     if (comDisplay.isNull())
         return false;
-    comDisplay.ViewportChanged(uScreenId, xOrigin, yOrigin, uWidth, uHeight);
+    comDisplay.ViewportChanged((ULONG)uScreenId, (ULONG)xOrigin, (ULONG)yOrigin, (ULONG)uWidth, (ULONG)uHeight);
     const bool fSuccess = comDisplay.isOk();
     if (!fSuccess)
         UINotificationMessage::cannotChangeDisplayParameter(comDisplay);
@@ -1840,7 +1849,7 @@ bool UISession::invalidateAndUpdate()
 bool UISession::invalidateAndUpdateScreen(ulong uScreenId)
 {
     CDisplay comDisplay = display();
-    comDisplay.InvalidateAndUpdateScreen(uScreenId);
+    comDisplay.InvalidateAndUpdateScreen((ULONG)uScreenId);
     const bool fSuccess = comDisplay.isOk();
     if (!fSuccess)
         UINotificationMessage::cannotChangeDisplayParameter(comDisplay);
@@ -2325,7 +2334,7 @@ void UISession::dbgAdjustRelativePos()
     if (m_pDbgGui)
     {
         const QRect rct = activeMachineWindow()->frameGeometry();
-        m_pDbgGuiVT->pfnAdjustRelativePos(m_pDbgGui, rct.x(), rct.y(), rct.width(), rct.height());
+        m_pDbgGuiVT->pfnAdjustRelativePos(m_pDbgGui, rct.x(), rct.y(), (uint)rct.width(), (uint)rct.height());
     }
 }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
@@ -2636,7 +2645,7 @@ void UISession::prepareFramebuffers()
     /* Acquire guest-screen count: */
     ulong cGuestScreenCount = 0;
     acquireMonitorCount(cGuestScreenCount);
-    m_frameBufferVector.resize(cGuestScreenCount);
+    m_frameBufferVector.resize((int)cGuestScreenCount);
 
     /* Create new frame-buffers: */
     for (int iIndex = 0; iIndex < m_frameBufferVector.size(); ++iIndex)
@@ -2764,8 +2773,8 @@ bool UISession::preprocessInitialization()
         /* Enumerate all the virtual network adapters: */
         CPlatform comPlatform             = machine().GetPlatform();
         CPlatformProperties comProperties = gpGlobalSession->virtualBox().GetPlatformProperties(comPlatform.GetArchitecture());
-        const ulong cCount = comProperties.GetMaxNetworkAdapters(comPlatform.GetChipsetType());
-        for (ulong uAdapterIndex = 0; uAdapterIndex < cCount; ++uAdapterIndex)
+        const ULONG cCount = comProperties.GetMaxNetworkAdapters(comPlatform.GetChipsetType());
+        for (ULONG uAdapterIndex = 0; uAdapterIndex < cCount; ++uAdapterIndex)
         {
             CNetworkAdapter comNetworkAdapter = machine().GetNetworkAdapter(uAdapterIndex);
             if (comNetworkAdapter.GetEnabled())

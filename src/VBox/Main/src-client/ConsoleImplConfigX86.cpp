@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -77,7 +77,7 @@
 #include <VBox/settings.h> /* For MachineConfigFile::getHostDefaultAudioDriver(). */
 #include <VBox/vmm/pdmapi.h> /* For PDMR3DriverAttach/PDMR3DriverDetach. */
 #include <VBox/vmm/pdmusb.h> /* For PDMR3UsbCreateEmulatedDevice. */
-#include <VBox/vmm/pdmdev.h> /* For PDMAPICMODE enum. */
+#include <VBox/vmm/pdmapic.h> /* For PDMAPICMODE enum. */
 #include <VBox/vmm/pdmstorageifs.h>
 #include <VBox/version.h>
 
@@ -91,6 +91,8 @@
 # include "ExtPackManagerImpl.h"
 #endif
 
+/** The TPM MMIO base default. */
+#define TPM_MMIO_BASE_DEFAULT UINT64_C(0xfed40000)
 /** The TPM PPI MMIO base default (compatible with qemu). */
 #define TPM_PPI_MMIO_BASE_DEFAULT UINT64_C(0xfed45000)
 
@@ -608,7 +610,7 @@ int Console::i_configConstructorX86(PUVM pUVM, PVM pVM, PCVMMR3VTABLE pVMM, Auto
     virtualBox->GetGuestOSType(osTypeId.raw(), pGuestOSType.asOutParam());
 
     BOOL fOsXGuest = FALSE;
-    BOOL fWinGuest = FALSE;
+    /*BOOL fWinGuest = FALSE; unused*/
     BOOL fOs2Guest = FALSE;
     BOOL fW9xGuest = FALSE;
     BOOL fDosGuest = FALSE;
@@ -617,7 +619,7 @@ int Console::i_configConstructorX86(PUVM pUVM, PVM pVM, PCVMMR3VTABLE pVMM, Auto
         Bstr guestTypeFamilyId;
         hrc = pGuestOSType->COMGETTER(FamilyId)(guestTypeFamilyId.asOutParam());            H();
         fOsXGuest = guestTypeFamilyId == Bstr("MacOS");
-        fWinGuest = guestTypeFamilyId == Bstr("Windows");
+        /*fWinGuest = guestTypeFamilyId == Bstr("Windows");*/
         fOs2Guest = osTypeId.startsWith(GUEST_OS_ID_STR_PARTIAL("OS2"));
         fW9xGuest = osTypeId.startsWith(GUEST_OS_ID_STR_PARTIAL("Windows9"));    /* Does not include Windows Me. */
         fDosGuest = osTypeId.equals(GUEST_OS_ID_STR_X86("DOS")) || osTypeId.equals(GUEST_OS_ID_STR_X86("Windows31"));
@@ -1470,44 +1472,8 @@ int Console::i_configConstructorX86(PUVM pUVM, PVM pVM, PCVMMR3VTABLE pVMM, Auto
         hrc = ptrTpm->COMGETTER(Type)(&enmTpmType);                                         H();
         if (enmTpmType != TpmType_None)
         {
-            InsertConfigNode(pDevices, "tpm", &pDev);
-            InsertConfigNode(pDev,     "0", &pInst);
-            InsertConfigInteger(pInst, "Trusted", 1); /* boolean */
-            InsertConfigNode(pInst,    "Config", &pCfg);
-            InsertConfigNode(pInst,    "LUN#0", &pLunL0);
-
-            switch (enmTpmType)
-            {
-                case TpmType_v1_2:
-                case TpmType_v2_0:
-                    InsertConfigString(pLunL0, "Driver",               "TpmEmuTpms");
-                    InsertConfigNode(pLunL0,   "Config", &pCfg);
-                    InsertConfigInteger(pCfg, "TpmVersion", enmTpmType == TpmType_v1_2 ? 1 : 2);
-                    InsertConfigNode(pLunL0, "AttachedDriver", &pLunL1);
-                    InsertConfigString(pLunL1, "Driver", "NvramStore");
-                    break;
-                case TpmType_Host:
-#if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
-                    InsertConfigString(pLunL0, "Driver",               "TpmHost");
-                    InsertConfigNode(pLunL0,   "Config", &pCfg);
-#endif
-                    break;
-                case TpmType_Swtpm:
-                    hrc = ptrTpm->COMGETTER(Location)(bstr.asOutParam());                   H();
-                    InsertConfigString(pLunL0, "Driver",               "TpmEmu");
-                    InsertConfigNode(pLunL0,   "Config", &pCfg);
-                    InsertConfigString(pCfg,   "Location", bstr);
-                    break;
-                default:
-                    AssertFailedBreak();
-            }
-
-            /* Add the device for the physical presence interface. */
-            InsertConfigNode(   pDevices, "tpm-ppi",  &pDev);
-            InsertConfigNode(   pDev,     "0",        &pInst);
-            InsertConfigInteger(pInst,    "Trusted",  1); /* boolean */
-            InsertConfigNode(   pInst,    "Config",   &pCfg);
-            InsertConfigInteger(pCfg,     "MmioBase", TPM_PPI_MMIO_BASE_DEFAULT);
+            vrc = i_configTpm(ptrTpm, enmTpmType, pDevices, TPM_MMIO_BASE_DEFAULT, 10 /*uIrq*/,
+                              TPM_PPI_MMIO_BASE_DEFAULT, false /*fCrb*/);                   VRC();
         }
 #endif
 
@@ -1603,8 +1569,8 @@ int Console::i_configConstructorX86(PUVM pUVM, PVM pVM, PCVMMR3VTABLE pVMM, Auto
             Assert(eFwType == FirmwareType_EFI64 || eFwType == FirmwareType_EFI32 || eFwType == FirmwareType_EFIDUAL);
 #ifdef VBOX_WITH_EFI_IN_DD2
             const char *pszEfiRomFile = eFwType == FirmwareType_EFIDUAL ? "VBoxEFIDual.fd"
-                                      : eFwType == FirmwareType_EFI32   ? "VBoxEFI32.fd"
-                                      :                                   "VBoxEFI64.fd";
+                                      : eFwType == FirmwareType_EFI32   ? "VBoxEFI-x86.fd"
+                                      :                                   "VBoxEFI-amd64.fd";
 #else
             Utf8Str efiRomFile;
             vrc = findEfiRom(virtualBox, PlatformArchitecture_x86, eFwType, &efiRomFile);
@@ -1736,7 +1702,7 @@ int Console::i_configConstructorX86(PUVM pUVM, PVM pVM, PCVMMR3VTABLE pVMM, Auto
          */
         std::list<BootNic> llBootNics;
         vrc = i_configNetworkCtrls(pMachine, platformProperties, chipsetType, pBusMgr,
-                                   pVMM, pUVM, pDevices, llBootNics);                        VRC();
+                                   pVMM, pUVM, pDevices, pUsbDevices, llBootNics);           VRC();
 
         /*
          * Build network boot information and transfer it to the BIOS.

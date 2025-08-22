@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -159,7 +159,7 @@ typedef struct RTTIMER
  */
 static uint64_t rtTimerNtQueryInterruptTime(void)
 {
-# ifdef RT_ARCH_AMD64
+# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
     return KeQueryInterruptTime(); /* macro */
 # else
     if (g_pfnrtKeQueryInterruptTime)

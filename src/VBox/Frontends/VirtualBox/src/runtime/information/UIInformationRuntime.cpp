@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -475,11 +475,11 @@ QString UIRuntimeInfoWidget::tableData() const
         QITableWidgetItem *pItem = static_cast<QITableWidgetItem*>(item(i, 1));
         if (!pItem)
             continue;
-        QString strColumn1 = pItem ? pItem->text() : QString();
+        const QString strColumn1 = pItem->text();
         pItem = static_cast<QITableWidgetItem*>(item(i, 2));
         if (!pItem)
             continue;
-        QString strColumn2 = pItem ? pItem->text() : QString();
+        const QString strColumn2 = pItem->text();
         if (strColumn2.isEmpty())
             data << strColumn1;
         else

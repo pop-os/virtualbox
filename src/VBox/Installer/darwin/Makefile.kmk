@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -246,7 +246,7 @@ $(VBOX_PATH_PACK_TMP)/DiskImage/VirtualBox.pkg: \
 		-e 's+@VBOX_C_YEAR@+$(VBOX_C_YEAR)+g' \
 		--output $(VBOX_PATH_PACK_TMP)/VirtualBox.dist.res/English.lproj/Localizable.strings \
 		$(VBOX_PATH_DI_SRC)/VirtualBox_mpkg/Localizable.strings
-	$(INSTALL) -m 0644 $(VBOX_BRAND_DARWIN_INSTALLER_BG)                                    $(VBOX_PATH_PACK_TMP)/VirtualBox.dist.res/background.tif
+	$(INSTALL) -m 0644 $(VBOX_BRAND_DARWIN_INSTALLER_BG)                                    $(VBOX_PATH_PACK_TMP)/VirtualBox.dist.res/background.tiff
 	$(foreach f,$(VBOX_INSTALLER_ADD_LANGUAGES), \
 		$(MKDIR) -p \
 			$(VBOX_PATH_PACK_TMP)/VirtualBox.dist.res/$(VBOX_INSTALLER_$(f)_DARWIN_TARGET).lproj$(NLTAB) \
@@ -497,6 +497,10 @@ ifdef VBOX_WITH_DXVK
  	MacOS/VBoxDxVk.dylib \
  	MacOS/libMoltenVK.dylib
 endif
+ifdef VBOX_WITH_DXMT
+ VBOX_DI_VBAPP_DYLIBS += \
+ 	MacOS/VBoxDxMt.dylib
+endif
 
 if defined(VBOX_WITH_JXPCOM)
  VBOX_DI_VBAPP_DYLIBS += \
@@ -578,8 +582,13 @@ ifdef VBOX_WITH_ADDITIONS_PACKING
 endif
 ifdef VBOX_WITH_EFIFW_PACKING
  VBOX_DI_VBAPP_MISC_FILES += \
- 	MacOS/VBoxEFI32.fd \
- 	MacOS/VBoxEFI64.fd
+ 	MacOS/VBoxEFI-x86.fd \
+ 	MacOS/VBoxEFI-amd64.fd
+ ifdef VBOX_WITH_VIRT_ARMV8
+  VBOX_DI_VBAPP_MISC_FILES += \
+  	MacOS/VBoxEFI-arm32.fd \
+  	MacOS/VBoxEFI-arm64.fd
+ endif
 endif
 VBOX_DI_VBAPP_SYMLINKS =
 ifdef VBOX_WITH_QTGUI
@@ -782,6 +791,8 @@ endif
 	$(foreach f,$(VBOX_DI_VBAPP_MISC_FILES) \
 		,$(INSTALL) -m 0644 $(VBOX_PATH_DIST)/VirtualBox.app/Contents/$(f)              $(VBOX_PATH_VBOX_APP_TMP)/Contents/$(f)$(NLTAB) )
 	$(INSTALL) -m 644 $(VBOX_BRAND_LICENSE_TXT)                                             $(VBOX_PATH_VBOX_APP_TMP)/Contents/Resources/LICENSE
+	$(INSTALL) -m 644 $(VBOX_PATH_DIST)/VirtualBox.app/Contents/MacOS/.autoreg		$(VBOX_PATH_VBOX_APP_TMP)/Contents/MacOS
+	$(TOUCH)										$(VBOX_PATH_VBOX_APP_TMP)/Contents/MacOS/.autoreg
 ifdef VBOX_WITH_DOCS_PACKING
 	$(foreach f,$(VBOX_ADD_MANUALS) \
 		,$(INSTALL) -m 0644 $(f) $(VBOX_PATH_VBOX_APP_TMP)/Contents/MacOS/$(NLTAB))

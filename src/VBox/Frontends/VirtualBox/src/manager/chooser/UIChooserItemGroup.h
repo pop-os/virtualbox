@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -101,12 +101,6 @@ public:
         void open(bool fAnimated = true);
     /** @} */
 
-    /** @name Children stuff.
-      * @{ */
-        /** Updates positions of favorite items. */
-        void updateFavorites();
-    /** @} */
-
     /** @name Navigation stuff.
       * @{ */
         /** Returns scrolling location value in pixels. */
@@ -169,8 +163,8 @@ protected:
         /** Returns children items of certain @a enmType. */
         virtual QList<UIChooserItem*> items(UIChooserNodeType enmType = UIChooserNodeType_Any) const RT_OVERRIDE;
 
-        /** Adds possible @a fFavorite child @a pItem to certain @a iPosition. */
-        virtual void addItem(UIChooserItem *pItem, bool fFavorite, int iPosition) RT_OVERRIDE;
+        /** Adds a child @a pItem to certain @a iPosition. */
+        virtual void addItem(UIChooserItem *pItem, int iPosition) RT_OVERRIDE;
         /** Removes child @a pItem. */
         virtual void removeItem(UIChooserItem *pItem) RT_OVERRIDE;
 
@@ -369,15 +363,10 @@ private:
 
     /** @name Children stuff.
       * @{ */
-        /** Holds the favorite children container instance. */
-        QIGraphicsWidget      *m_pContainerFavorite;
-        /** Holds the favorite children layout instance. */
-        QGraphicsLinearLayout *m_pLayoutFavorite;
-
         /** Holds the children scroll-area instance. */
-        UIGraphicsScrollArea  *m_pScrollArea;
+        UIGraphicsScrollArea *m_pScrollArea;
         /** Holds the children container instance. */
-        QIGraphicsWidget      *m_pContainer;
+        QIGraphicsWidget     *m_pContainer;
 
         /** Holds the main layout instance. */
         QGraphicsLinearLayout *m_pLayout;
@@ -388,8 +377,6 @@ private:
         /** Holds the machine layout instance. */
         QGraphicsLinearLayout *m_pLayoutMachine;
 
-        /** Holds the global children list. */
-        QList<UIChooserItem*>  m_globalItems;
         /** Holds the group children list. */
         QList<UIChooserItem*>  m_groupItems;
         /** Holds the machine children list. */

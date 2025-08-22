@@ -1,10 +1,10 @@
 /* $Id: CPUMR0.cpp $ */
 /** @file
- * CPUM - Host Context Ring 0.
+ * CPUM - Host Context Ring 0, only targeting x86.
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -30,6 +30,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_CPUM
+#define VBOX_VMM_TARGET_X86
 #define CPUM_WITH_NONCONST_HOST_FEATURES
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/hm.h>
@@ -39,9 +40,11 @@
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/vmm/hm.h>
+
 #include <iprt/assert.h>
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/mem.h>
+#include <iprt/string.h>
 #include <iprt/x86.h>
 
 
@@ -49,9 +52,10 @@
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
 /** Host CPU features. */
-DECL_HIDDEN_DATA(CPUHOSTFEATURES)  g_CpumHostFeatures;
-/** Static storage for host MSRs. */
-static CPUMMSRS     g_CpumHostMsrs;
+DECL_HIDDEN_DATA(CPUHOSTFEATURES)   g_CpumHostFeatures;
+/** Static storage for host MSRs.
+ * @note this isn't really used beyond module init. */
+static SUPHWVIRTMSRS                g_CpumHostHwvirtMsrs;
 
 /**
  * CPUID bits to unify among all cores.
@@ -128,16 +132,10 @@ VMMR0_INT_DECL(int) CPUMR0ModuleInit(void)
                     ("SUPR0GetHwvirtMsrs -> %Rrc\n", rc));
     if (RT_SUCCESS(rc))
     {
-        SUPHWVIRTMSRS HwvirtMsrs;
-        rc = SUPR0GetHwvirtMsrs(&HwvirtMsrs, fHwCaps, false /*fIgnored*/);
+        rc = SUPR0GetHwvirtMsrs(&g_CpumHostHwvirtMsrs, fHwCaps, false /*fIgnored*/);
         AssertLogRelRC(rc);
-        if (RT_SUCCESS(rc))
-        {
-            if (fHwCaps & SUPVTCAPS_VT_X)
-                HMGetVmxMsrsFromHwvirtMsrs(&HwvirtMsrs, &g_CpumHostMsrs.hwvirt.vmx);
-            else
-                HMGetSvmMsrsFromHwvirtMsrs(&HwvirtMsrs, &g_CpumHostMsrs.hwvirt.svm);
-        }
+        if (RT_FAILURE(rc))
+            RT_ZERO(g_CpumHostHwvirtMsrs);
     }
 
     /*
@@ -145,7 +143,7 @@ VMMR0_INT_DECL(int) CPUMR0ModuleInit(void)
      */
     PCPUMCPUIDLEAF  paLeaves;
     uint32_t        cLeaves;
-    rc = CPUMCpuIdCollectLeavesX86(&paLeaves, &cLeaves);
+    rc = CPUMCpuIdCollectLeavesFromX86Host(&paLeaves, &cLeaves);
     AssertLogRelRCReturn(rc, rc);
 
     /*
@@ -157,9 +155,11 @@ VMMR0_INT_DECL(int) CPUMR0ModuleInit(void)
     /*
      * Populate the host CPU feature global variable.
      */
-    rc = cpumCpuIdExplodeFeaturesX86(paLeaves, cLeaves, &g_CpumHostMsrs, &g_CpumHostFeatures.s);
+    rc = CPUMCpuIdExplodeFeaturesX86(paLeaves, cLeaves, &g_CpumHostFeatures.s);
     RTMemFree(paLeaves);
     AssertLogRelRCReturn(rc, rc);
+    if (g_CpumHostFeatures.s.fVmx)
+        cpumCpuIdExplodeFeaturesX86VmxFromSupMsrs(&g_CpumHostHwvirtMsrs, &g_CpumHostFeatures.s);
 
     /*
      * Get MSR_IA32_ARCH_CAPABILITIES and expand it into the host feature structure.
@@ -203,7 +203,7 @@ VMMR0_INT_DECL(int) CPUMR0ModuleTerm(void)
 VMMR0_INT_DECL(void) CPUMR0InitPerVMData(PGVM pGVM)
 {
     /* Copy the ring-0 host feature set to the shared part so ring-3 can pick it up. */
-    pGVM->cpum.s.HostFeatures = g_CpumHostFeatures.s;
+    pGVM->cpum.s.HostFeatures.s = g_CpumHostFeatures.s;
 }
 
 
@@ -426,7 +426,7 @@ VMMR0_INT_DECL(int) CPUMR0InitVM(PVMCC pVM)
  */
 VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVMCC pVM, PVMCPUCC pVCpu)
 {
-    Assert(pVM->cpum.s.HostFeatures.fFxSaveRstor);
+    Assert(pVM->cpum.s.HostFeatures.s.fFxSaveRstor);
     Assert(ASMGetCR4() & X86_CR4_OSFXSR);
 
     /* If the FPU state has already been loaded, then it's a guest trap. */
@@ -497,7 +497,7 @@ VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVMCC pVM, PVMCPUCC pVCpu)
     /** @todo use return value? Currently skipping that to be on the safe side
      *        wrt. extended state (linux). */
 
-    if (!pVM->cpum.s.HostFeatures.fLeakyFxSR)
+    if (!pVM->cpum.s.HostFeatures.s.fLeakyFxSR)
     {
         Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE));
         rc = cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
@@ -538,7 +538,7 @@ VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVMCC pVM, PVMCPUCC pVCpu)
 VMMR0_INT_DECL(bool) CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(PVMCPUCC pVCpu)
 {
     bool fSavedGuest;
-    Assert(pVCpu->CTX_SUFF(pVM)->cpum.s.HostFeatures.fFxSaveRstor);
+    Assert(pVCpu->CTX_SUFF(pVM)->cpum.s.HostFeatures.s.fFxSaveRstor);
     Assert(ASMGetCR4() & X86_CR4_OSFXSR);
     if (pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST))
     {
@@ -569,8 +569,8 @@ VMMR0_INT_DECL(bool) CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(PVMCPUCC pVCpu)
     }
     else
         fSavedGuest = false;
-    Assert(!(  pVCpu->cpum.s.fUseFlags
-             & (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST | CPUM_USED_MANUAL_XMM_RESTORE)));
+    AssertMsg(!(  pVCpu->cpum.s.fUseFlags
+                & (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST | CPUM_USED_MANUAL_XMM_RESTORE)), ("%#x\n", pVCpu->cpum.s.fUseFlags));
     Assert(!pVCpu->cpum.s.Guest.fUsedFpuGuest);
     return fSavedGuest;
 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1180,7 +1180,7 @@ static size_t rtTraceLogRdrEvtItemGetSz(PRTTRACELOGRDRINT pThis, PCRTTRACELOGEVT
             if (pEvtItemDesc->cbRawData == 0)
             {
                 cbRet = pacbRawData[*pidxRawData];
-                pidxRawData++;
+                (*pidxRawData)++;
             }
             else
                 cbRet = pEvtItemDesc->cbRawData;

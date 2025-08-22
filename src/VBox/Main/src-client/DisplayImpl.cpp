@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -51,20 +51,12 @@
 #include <VBox/vmm/vmmr3vtable.h>
 #include <VBox/vmm/pdmdrv.h>
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-# include <VBoxVideo.h>
-#endif
 #include <VBoxVideo3D.h>
 
 #include <VBox/com/array.h>
 
 #ifdef VBOX_WITH_RECORDING
-# include <iprt/path.h>
-# include "Recording.h"
-# include "RecordingUtils.h"
-
-# include <VBox/vmm/pdmapi.h>
-# include <VBox/vmm/pdmaudioifs.h>
+# include "RecordingContext.h"
 #endif
 
 /**
@@ -82,10 +74,6 @@ typedef struct DRVMAINDISPLAY
     PPDMIDISPLAYPORT            pUpPort;
     /** Our display connector interface. */
     PDMIDISPLAYCONNECTOR        IConnector;
-#if defined(VBOX_WITH_VIDEOHWACCEL)
-    /** VBVA callbacks */
-    PPDMIDISPLAYVBVACALLBACKS   pVBVACallbacks;
-#endif
 } DRVMAINDISPLAY, *PDRVMAINDISPLAY;
 
 /** Converts PDMIDISPLAYCONNECTOR pointer to a DRVMAINDISPLAY pointer. */
@@ -1961,26 +1949,22 @@ HRESULT Display::takeScreenShotWorker(ULONG aScreenId,
                                       BitmapFormat_T aBitmapFormat,
                                       ULONG *pcbOut)
 {
-    HRESULT hrc = S_OK;
-
     /* Do not allow too small and too large screenshots. This also filters out negative
      * values passed as either 'aWidth' or 'aHeight'.
      */
-    CheckComArgExpr(aWidth, aWidth != 0 && aWidth <= 32767);
-    CheckComArgExpr(aHeight, aHeight != 0 && aHeight <= 32767);
+    if (aWidth == 0 || aWidth > 32767 || aHeight == 0 || aHeight > 32767)
+        return setError(E_INVALIDARG, tr("Unsupported resolution for screen shot: %ux%u (screen %u)"), aWidth, aHeight, aScreenId);
 
     if (   aBitmapFormat != BitmapFormat_BGR0
         && aBitmapFormat != BitmapFormat_BGRA
         && aBitmapFormat != BitmapFormat_RGBA
         && aBitmapFormat != BitmapFormat_PNG)
-    {
-        return setError(E_NOTIMPL,
-                        tr("Unsupported screenshot format 0x%08X"), aBitmapFormat);
-    }
+        return setError(E_NOTIMPL, tr("Unsupported screenshot format 0x%08X"), aBitmapFormat);
 
     Console::SafeVMPtr ptrVM(mParent);
-    if (!ptrVM.isOk())
-        return ptrVM.hrc();
+    HRESULT hrc = ptrVM.hrc();
+    if (FAILED(hrc))
+        return hrc;
 
     int vrc = i_displayTakeScreenshot(ptrVM.rawUVM(), ptrVM.vtable(), this, mpDrv, aScreenId, aAddress, aWidth, aHeight);
     if (RT_SUCCESS(vrc))
@@ -2055,7 +2039,7 @@ HRESULT Display::takeScreenShot(ULONG aScreenId,
                                 BitmapFormat_T aBitmapFormat)
 {
     LogRelFlowFunc(("[%d] address=%p, width=%d, height=%d, format 0x%08X\n",
-                     aScreenId, aAddress, aWidth, aHeight, aBitmapFormat));
+                    aScreenId, aAddress, aWidth, aHeight, aBitmapFormat));
 
     ULONG cbOut = 0;
     HRESULT hrc = takeScreenShotWorker(aScreenId, aAddress, aWidth, aHeight, aBitmapFormat, &cbOut);
@@ -2072,13 +2056,13 @@ HRESULT Display::takeScreenShotToArray(ULONG aScreenId,
                                        std::vector<BYTE> &aScreenData)
 {
     LogRelFlowFunc(("[%d] width=%d, height=%d, format 0x%08X\n",
-                     aScreenId, aWidth, aHeight, aBitmapFormat));
+                    aScreenId, aWidth, aHeight, aBitmapFormat));
 
     /* Do not allow too small and too large screenshots. This also filters out negative
      * values passed as either 'aWidth' or 'aHeight'.
      */
-    CheckComArgExpr(aWidth, aWidth != 0 && aWidth <= 32767);
-    CheckComArgExpr(aHeight, aHeight != 0 && aHeight <= 32767);
+    if (aWidth == 0 || aWidth > 32767 || aHeight == 0 || aHeight > 32767)
+        return setError(E_INVALIDARG, tr("Unsupported resolution for screen shot: %ux%u (screen %u)"), aWidth, aHeight, aScreenId);
 
     const size_t cbData = aWidth * 4 * aHeight;
     aScreenData.resize(cbData);
@@ -2198,17 +2182,10 @@ int Display::i_recordingScreenChanged(unsigned uScreenId, const DISPLAYFBINFO *p
 
     i_updateDeviceCursorCapabilities();
 
-    RECORDINGSURFACEINFO ScreenInfo;
-    ScreenInfo.uWidth        = pFBInfo->w;
-    ScreenInfo.uHeight       = pFBInfo->h;
-    /* We always operate with BRGA32 internally. */
-    ScreenInfo.uBPP          = 32;
-    ScreenInfo.uBytesPerLine = pFBInfo->w * 4 /* Bytes */;
-    ScreenInfo.enmPixelFmt   = RECORDINGPIXELFMT_BRGA32;
-
     uint64_t const tsNowMs = pCtx->GetCurrentPTS();
 
-    int vrc = pCtx->SendScreenChange(uScreenId, &ScreenInfo, tsNowMs);
+    int vrc = pCtx->SendScreenChange(uScreenId, pFBInfo->w, pFBInfo->h, RECORDINGPIXELFMT_BRGA32, pFBInfo->w * 4 /* Bytes */,
+                                     tsNowMs);
     if (RT_SUCCESS(vrc))
     {
         /* Make sure that we get the latest mouse pointer shape required for recording. */
@@ -2268,23 +2245,12 @@ int Display::i_recordingScreenUpdate(unsigned uScreenId, uint8_t *pauFramebuffer
 
     STAM_PROFILE_START(&Stats.Monitor[uScreenId].Recording.profileRecording, a);
 
-    uint8_t const uBytesPerPixel = 4;
+    uint8_t const uBytesPerPixel = 4 /* 32 BPP */;
     size_t  const offFrame = (y * uBytesPerLine) + (x * uBytesPerPixel);
     size_t  const cbFrame  = w * h * uBytesPerPixel;
 
-    RECORDINGVIDEOFRAME Frame =
-    {
-        { w, h, 32 /* BPP */, RECORDINGPIXELFMT_BRGA32, uBytesPerLine },
-        pauFramebuffer + offFrame, cbFrame,
-        { x, y }
-    };
-
-#if 0
-    RecordingUtilsDbgDumpImageData(pauFramebuffer + offFrame, cbFramebuffer,
-                                   "/tmp/recording", "display-screen-update", w, h, uBytesPerLine, 32 /* BPP */);
-#endif
-
-    int const vrc = pCtx->SendVideoFrame(uScreenId, &Frame, tsNowMs);
+    int const vrc = pCtx->SendVideoFrame(uScreenId, w, h, RECORDINGPIXELFMT_BRGA32, uBytesPerLine,
+                                         pauFramebuffer + offFrame, cbFrame, x, y, tsNowMs);
 
     STAM_PROFILE_STOP(&Stats.Monitor[uScreenId].Recording.profileRecording, a);
 
@@ -2678,18 +2644,6 @@ HRESULT Display::invalidateAndUpdateScreen(ULONG aScreenId)
 
     LogRelFlowFunc(("hrc=%Rhrc\n", hrc));
     return hrc;
-}
-
-HRESULT Display::completeVHWACommand(BYTE *aCommand)
-{
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    AssertPtr(mpDrv->pVBVACallbacks);
-    mpDrv->pVBVACallbacks->pfnVHWACommandCompleteAsync(mpDrv->pVBVACallbacks, (VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *)aCommand);
-    return S_OK;
-#else
-    RT_NOREF(aCommand);
-    return E_NOTIMPL;
-#endif
 }
 
 HRESULT Display::viewportChanged(ULONG aScreenId, ULONG aX, ULONG aY, ULONG aWidth, ULONG aHeight)
@@ -3250,51 +3204,6 @@ DECLCALLBACK(void) Display::i_displayProcessDisplayDataCallback(PPDMIDISPLAYCONN
     pDrv->pDisplay->processDisplayData(pvVRAM, uScreenId);
 }
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-
-int Display::i_handleVHWACommandProcess(int enmCmd, bool fGuestCmd, VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *pCommand)
-{
-    /* bugref:9691 Disable the legacy VHWA interface.
-     * Keep the host commands enabled because they are needed when an old saved state is loaded.
-     */
-    if (fGuestCmd)
-        return VERR_NOT_IMPLEMENTED;
-
-    unsigned id = (unsigned)pCommand->iDisplay;
-    if (id >= mcMonitors)
-        return VERR_INVALID_PARAMETER;
-
-    ComPtr<IFramebuffer> pFramebuffer;
-    AutoReadLock arlock(this COMMA_LOCKVAL_SRC_POS);
-    pFramebuffer = maFramebuffers[id].pFramebuffer;
-    bool fVHWASupported = RT_BOOL(maFramebuffers[id].u32Caps & FramebufferCapabilities_VHWA);
-    arlock.release();
-
-    if (pFramebuffer == NULL || !fVHWASupported)
-        return VERR_NOT_IMPLEMENTED; /* Implementation is not available. */
-
-    HRESULT hr = pFramebuffer->ProcessVHWACommand((BYTE *)pCommand, enmCmd, fGuestCmd);
-    if (hr == S_FALSE)
-        return VINF_SUCCESS;
-    if (SUCCEEDED(hr))
-        return VINF_CALLBACK_RETURN;
-    if (hr == E_ACCESSDENIED)
-        return VERR_INVALID_STATE; /* notify we can not handle request atm */
-    if (hr == E_NOTIMPL)
-        return VERR_NOT_IMPLEMENTED;
-    return VERR_GENERAL_FAILURE;
-}
-
-DECLCALLBACK(int) Display::i_displayVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, int enmCmd, bool fGuestCmd,
-                                                       VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *pCommand)
-{
-    PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
-
-    return pDrv->pDisplay->i_handleVHWACommandProcess(enmCmd, fGuestCmd, pCommand);
-}
-
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-
 int Display::i_handle3DNotifyProcess(VBOX3DNOTIFY *p3DNotify)
 {
     unsigned const id = (unsigned)p3DNotify->iDisplay;
@@ -3826,9 +3735,6 @@ DECLCALLBACK(void) Display::i_drvPowerOff(PPDMDRVINS pDrvIns)
 #ifdef VBOX_WITH_RECORDING
         pThis->pDisplay->mParent->i_recordingStop();
 #endif
-#if defined(VBOX_WITH_VIDEOHWACCEL)
-        pThis->pVBVACallbacks = NULL;
-#endif
     }
 }
 
@@ -3863,16 +3769,9 @@ DECLCALLBACK(void) Display::i_drvDestruct(PPDMDRVINS pDrvIns)
 #ifdef VBOX_WITH_RECORDING
         pThis->pDisplay->mParent->i_recordingStop();
 #endif
-#if defined(VBOX_WITH_VIDEOHWACCEL)
-        pThis->pVBVACallbacks = NULL;
-#endif
-
         pThis->pDisplay->mpDrv = NULL;
         pThis->pDisplay = NULL;
     }
-#if defined(VBOX_WITH_VIDEOHWACCEL)
-    pThis->pVBVACallbacks = NULL;
-#endif
 }
 
 
@@ -3908,9 +3807,6 @@ DECLCALLBACK(int) Display::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     pThis->IConnector.pfnLFBModeChange         = Display::i_displayLFBModeChangeCallback;
     pThis->IConnector.pfnProcessAdapterData    = Display::i_displayProcessAdapterDataCallback;
     pThis->IConnector.pfnProcessDisplayData    = Display::i_displayProcessDisplayDataCallback;
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    pThis->IConnector.pfnVHWACommandProcess    = Display::i_displayVHWACommandProcess;
-#endif
 #ifdef VBOX_WITH_HGSMI
     pThis->IConnector.pfnVBVAEnable            = Display::i_displayVBVAEnable;
     pThis->IConnector.pfnVBVADisable           = Display::i_displayVBVADisable;
@@ -3934,9 +3830,7 @@ DECLCALLBACK(int) Display::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
         AssertMsgFailed(("Configuration error: No display port interface above!\n"));
         return VERR_PDM_MISSING_INTERFACE_ABOVE;
     }
-#if defined(VBOX_WITH_VIDEOHWACCEL)
-    pThis->pVBVACallbacks = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIDISPLAYVBVACALLBACKS);
-#endif
+
     /*
      * Get the Display object pointer and update the mpDrv member.
      */

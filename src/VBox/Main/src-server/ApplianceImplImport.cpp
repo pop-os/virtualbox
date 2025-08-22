@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -378,6 +378,10 @@ HRESULT Appliance::interpret()
                                  Utf8StrFmt("%RU64", vsysThis.ullMemorySize),
                                  Utf8StrFmt("%RU64", ullMemSizeVBox));
 
+            /* The NVRAM file does not have a <vbox:Machine> entry so we only need to check the OVF details. */
+            if (vsysThis.strNvramPath.isNotEmpty())
+                pNewDesc->i_addEntry(VirtualSystemDescriptionType_NVRAM, "", vsysThis.strNvramPath, vsysThis.strNvramPath);
+
             /* Audio */
             Utf8Str strSoundCard;
             Utf8Str strSoundCardOrig;
@@ -591,11 +595,14 @@ HRESULT Appliance::interpret()
             {
                 const ovf::HardDiskController &hdc = hdcIt->second;
 
+                /** @todo r=andy The following count checks look messy/wrong compared to what we define
+                 *               elsewhere (e.g. PlatformProperties).  Needs to be checked (and fixed). */
+
                 switch (hdc.system)
                 {
                     case ovf::HardDiskController::IDE:
                         /* Check for the constraints */
-                        if (cIDEused < 4)
+                        if (cIDEused < 4) /** @todo r=andy Is this really true? */
                         {
                             /// @todo figure out the IDE types
                             /* Use PIIX4 as default */
@@ -611,7 +618,7 @@ HRESULT Appliance::interpret()
                         }
                         else
                             /* Warn only once */
-                            if (cIDEused == 2)
+                            if (cIDEused == 4) /** @todo r=andy See todo above. */
                                 i_addWarning(tr("Virtual appliance \"%s\" was configured with more than two "
                                                 "IDE controllers however VirtualBox supports a maximum of two "
                                                 "IDE controllers."),
@@ -1601,7 +1608,10 @@ HRESULT Appliance::i_importCloudImpl(TaskCloud *pTask)
                         }
 
                         if ( hDir != NULL)
+                        {
                             vrc = RTDirClose(hDir);
+                            AssertRC(vrc);
+                        }
                     }
                     else
                         return setErrorVrc(vrc, tr("Can't open folder %s"), strMachineFolder.c_str());
@@ -1832,7 +1842,9 @@ HRESULT Appliance::i_importCloudImpl(TaskCloud *pTask)
                     if (aVBoxValues.size() != 0)
                     {
                         vsdData = aVBoxValues[0];
-                        memoryInBytes = RT_MIN((uint64_t)(RT_MAX(vsdData.toUInt64(), (uint64_t)MM_RAM_MIN)), MM_RAM_MAX);
+
+                        uint64_t cbRam = vsdData.toUInt64();
+                        memoryInBytes = RT_CLAMP(cbRam, (uint64_t)MM_RAM_MIN, (uint64_t)MM_RAM_MAX);
                     }
                     //and set in ovf::VirtualSystem in bytes
                     vsys.ullMemorySize = memoryInBytes;
@@ -2488,7 +2500,6 @@ HRESULT Appliance::i_readFSOVA(TaskOVF *pTask)
      * the OVA. The manifest is optional.)
      */
     char    *pszOvfNameBase = NULL;
-    size_t   cchOvfNameBase = 0; NOREF(cchOvfNameBase);
     unsigned cLeftToFind = 3;
     HRESULT  hrc = S_OK;
     do
@@ -2537,7 +2548,6 @@ HRESULT Appliance::i_readFSOVA(TaskOVF *pTask)
                             /* Set the base name. */
                             *pszSuffix = '\0';
                             pszOvfNameBase = pszName;
-                            cchOvfNameBase = strlen(pszName);
                             pszName = NULL;
                             cLeftToFind--;
                         }
@@ -3777,8 +3787,12 @@ HRESULT Appliance::i_importFS(TaskOVF *pTask)
             {
                 SafeIfaceArray<IMedium> aMedia;
                 hrc2 = failedMachine->Unregister(CleanupMode_DetachAllReturnHardDisksOnly, ComSafeArrayAsOutParam(aMedia));
+                if (FAILED(hrc2))
+                    LogRel(("Appliance::i_importFS: Cleaning up failed import failed with hrc2 -> %Rhrc in IMachine::Unregister()\n", hrc2));
                 ComPtr<IProgress> pProgress2;
                 hrc2 = failedMachine->DeleteConfig(ComSafeArrayAsInParam(aMedia), pProgress2.asOutParam());
+                if (FAILED(hrc2))
+                    LogRel(("Appliance::i_importFS: Cleaning up failed import failed with hrc2 -> %Rhrc in IMachine::DeleteConfig()\n", hrc2));
                 pProgress2->WaitForCompletion(-1);
             }
         }
@@ -4378,7 +4392,9 @@ void Appliance::i_importOneDiskImage(const ovf::DiskImage &di,
 
                 /* Now wait for the background import operation to complete; this throws
                  * HRESULTs on error. */
-                stack.pProgress->WaitForOtherProgressCompletion(pProgressImport, 0 /* indefinite wait */);
+                hrc = stack.pProgress->WaitForOtherProgressCompletion(pProgressImport, 0 /* indefinite wait */);
+                if (FAILED(hrc))
+                    throw hrc;
 
                 /* The creating/importing has placed the medium in the global
                  * media registry since the VM isn't created yet. Remove it
@@ -4589,13 +4605,38 @@ void Appliance::i_importMachineGeneric(const ovf::VirtualSystem &vsysThis,
         {
             if (stack.strFirmwareType.contains("32"))
                 firmwareType = FirmwareType_EFI32;
-            if (stack.strFirmwareType.contains("64"))
+            else if (stack.strFirmwareType.contains("64"))
                 firmwareType = FirmwareType_EFI64;
             else
                 firmwareType = FirmwareType_EFI;
         }
         hrc = pFirmwareSettings->COMSETTER(FirmwareType)(firmwareType);
         if (FAILED(hrc)) throw hrc;
+    }
+
+    if (stack.strNvramPath.isNotEmpty())
+    {
+        /* Construct source file path */
+        Utf8Str strSrcFilePath;
+        if (stack.hVfsFssOva != NIL_RTVFSFSSTREAM)
+            strSrcFilePath = stack.strNvramPath;
+        else
+        {
+            strSrcFilePath = stack.strSourceDir;
+            strSrcFilePath.append(RTPATH_SLASH_STR);
+            strSrcFilePath.append(stack.strNvramPath);
+        }
+
+        /* The basename of the destination filename needs to be the VM's name in
+         * order to match the VM's INvramStore::nonVolatileStorageFile attribute so
+         * that EFI can find it when booting the VM. */
+        Utf8Str strAbsDstPath;
+        Utf8Str strDstFilename = stack.strNameVBox;
+        strDstFilename += ".nvram";
+        int vrc = RTPathAbsExCxx(strAbsDstPath, stack.strMachineFolder, strDstFilename);
+        AssertRCStmt(vrc, throw Global::vboxStatusCodeToCOM(vrc));
+
+        i_importCopyFile(stack, strSrcFilePath, strAbsDstPath, stack.strNvramPath.c_str());
     }
 
     if (!stack.strAudioAdapter.isEmpty())
@@ -5528,6 +5569,32 @@ void Appliance::i_importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescT
         }
     }
 
+    /* Import the NRAM file if present */
+    if (stack.strNvramPath.isNotEmpty())
+    {
+        /* Construct source file path */
+        Utf8Str strSrcFilePath;
+        if (stack.hVfsFssOva != NIL_RTVFSFSSTREAM)
+            strSrcFilePath = stack.strNvramPath;
+        else
+        {
+            strSrcFilePath = stack.strSourceDir;
+            strSrcFilePath.append(RTPATH_SLASH_STR);
+            strSrcFilePath.append(stack.strNvramPath);
+        }
+
+        /* The basename of the destination filename needs to be the VM's name in
+         * order to match the VM's INvramStore::nonVolatileStorageFile attribute so
+         * that EFI can find it when booting the VM. */
+        Utf8Str strAbsDstPath;
+        Utf8Str strDstFilename = stack.strNameVBox;
+        strDstFilename += ".nvram";
+        int vrc = RTPathAbsExCxx(strAbsDstPath, stack.strMachineFolder, strDstFilename);
+        AssertRCStmt(vrc, throw Global::vboxStatusCodeToCOM(vrc));
+
+        i_importCopyFile(stack, strSrcFilePath, strAbsDstPath, stack.strNvramPath.c_str());
+    }
+
     /* Floppy controller */
     bool fFloppy = vsdescThis->i_findByType(VirtualSystemDescriptionType_Floppy).size() > 0;
     /* DVD controller */
@@ -6013,7 +6080,7 @@ l_skipped:
                  * 2. replacement of original UUID by new UUID in the current VM config (settings::MachineConfigFile).
                  */
                 {
-                    hrc = stack.saveOriginalUUIDOfAttachedDevice(d, Utf8Str(hdId));
+                    stack.saveOriginalUUIDOfAttachedDevice(d, Utf8Str(hdId));
                     d.uuid = hdId;
                 }
 
@@ -6193,6 +6260,12 @@ void Appliance::i_importMachines(ImportStack &stack)
         uint64_t ullMemorySizeMB = vsdeRAM.front()->strVBoxCurrent.toUInt64() / _1M;
         stack.ulMemorySizeMB = (uint32_t)ullMemorySizeMB;
 
+        // NVRAM file for VMs using EFI
+        stack.strNvramPath.setNull();
+        std::list<VirtualSystemDescriptionEntry*> vsdeNvram = vsdescThis->i_findByType(VirtualSystemDescriptionType_NVRAM);
+        if (!vsdeNvram.empty())
+            stack.strNvramPath = vsdeNvram.front()->strVBoxCurrent;
+
 #ifdef VBOX_WITH_USB
         // USB controller
         std::list<VirtualSystemDescriptionEntry*> vsdeUSBController =
@@ -6226,15 +6299,11 @@ void Appliance::i_importMachines(ImportStack &stack)
     } // for (it = pAppliance->m->llVirtualSystems.begin() ...
 }
 
-HRESULT Appliance::ImportStack::saveOriginalUUIDOfAttachedDevice(settings::AttachedDevice &device,
-                                                     const Utf8Str &newlyUuid)
+void Appliance::ImportStack::saveOriginalUUIDOfAttachedDevice(settings::AttachedDevice &device,
+                                                              const Utf8Str &newlyUuid)
 {
-    HRESULT hrc = S_OK;
-
     /* save for restoring */
     mapNewUUIDsToOriginalUUIDs.insert(std::make_pair(newlyUuid, device.uuid.toString()));
-
-    return hrc;
 }
 
 HRESULT Appliance::ImportStack::restoreOriginalUUIDOfAttachedDevice(settings::MachineConfigFile *config)

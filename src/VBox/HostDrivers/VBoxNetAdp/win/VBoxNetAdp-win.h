@@ -3,7 +3,7 @@
  * VBoxNetAdp-win.h - Host-only Miniport Driver, Windows-specific code.
  */
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,7 +40,7 @@
 #endif
 
 #define VBOXNETADP_VERSION_NDIS_MAJOR        6
-#define VBOXNETADP_VERSION_NDIS_MINOR        0
+#define VBOXNETADP_VERSION_NDIS_MINOR        30
 
 #define VBOXNETADP_VERSION_MAJOR             1
 #define VBOXNETADP_VERSION_MINOR             0

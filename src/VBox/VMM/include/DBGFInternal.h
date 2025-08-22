@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1115,8 +1115,8 @@ typedef struct DBGF
     /** The number of enabled hardware I/O breakpoints. */
     uint8_t                     cEnabledHwIoBreakpoints;
     uint8_t                     au8Alignment1[2]; /**< Alignment padding. */
-    /** The number of enabled INT3 breakpoints. */
-    uint32_t volatile           cEnabledInt3Breakpoints;
+    /** The number of enabled software breakpoints. */
+    uint32_t volatile           cEnabledSwBreakpoints;
 
     /** Debugger Attached flag.
      * Set if a debugger is attached, elsewise it's clear.
@@ -1509,6 +1509,16 @@ typedef struct DBGFDISSTATE
     DISOPPARAM      Param2;
     DISOPPARAM      Param3;
     DISOPPARAM      Param4;
+    /** Architecture specific state. */
+    RT_GCC_EXTENSION union
+    {
+        /** x86/AMD64 specific state. */
+        DIS_STATE_X86_T     x86;
+#if defined(VBOX_DIS_WITH_ARMV8)
+        /** ARMv8 specific state. */
+        DIS_STATE_ARMV8_T   armv8;
+#endif
+    };
 } DBGFDISSTATE;
 /** Pointer to a DBGF disassembler state. */
 typedef DBGFDISSTATE *PDBGFDISSTATE;

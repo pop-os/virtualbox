@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2017-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2240,7 +2240,6 @@ static DECLCALLBACK(int) rtFsIsoFile_PollOne(void *pvThis, uint32_t fEvents, RTM
         do
             rc = RTThreadSleep(cMillies);
         while (   rc == VERR_INTERRUPTED
-               && !fIntr
                && RTTimeMilliTS() - uMsStart < cMillies);
         if (rc == VERR_INTERRUPTED)
             rc = VERR_TIMEOUT;
@@ -3649,8 +3648,8 @@ static int rtFsIsoDir_FindEntryUdf(PRTFSISODIRSHRD pThis, const char *pszEntry, 
         }
         else if (*pbName == 8)
         {
-            if (   cb8Bit == pFid->cbName
-                && cb8Bit != UINT16_MAX)
+            if (   cb8Bit != UINT16_MAX
+                && cb8Bit == pFid->cbName)
             {
                 if (fSimple)
                 {

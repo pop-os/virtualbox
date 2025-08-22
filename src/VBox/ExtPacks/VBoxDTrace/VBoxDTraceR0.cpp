@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from http://www.virtualbox.org.
@@ -25,7 +25,9 @@
 #include <VBox/sup.h>
 #include <VBox/log.h>
 
-#include <iprt/asm-amd64-x86.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
 #include <iprt/err.h>
@@ -1442,7 +1444,7 @@ static void     vboxDtPOps_Provide(void *pvProv, const dtrace_probedesc_t *pDtPr
          size_t      cch;
          if (psz)
          {
-             /* skip blanks preceeding the parameter parenthesis. */
+             /* skip blanks preceding the parameter parenthesis. */
              while (   (uintptr_t)psz > (uintptr_t)pProbeLocRO->pszFunction
                     && RT_C_IS_BLANK(psz[-1]))
                  psz--;

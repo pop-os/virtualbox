@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -381,8 +381,6 @@ static int vboxImgMntVfsObjQueryFromPath(const char *pszPath, PRTVFSOBJ phVfsObj
             }
             else
                 rc = VERR_NOT_FOUND;
-
-            rc = VINF_SUCCESS;
         }
         else
             rc = VERR_NOT_FOUND;
@@ -1199,6 +1197,9 @@ static int vboxImgMntImageSetup(struct fuse_args *args)
         g_VDIfThreadSync.pfnFinishWrite = vboximgThreadFinishWrite;
         vrc = VDInterfaceAdd(&g_VDIfThreadSync.Core, "vboximg_ThreadSync", VDINTERFACETYPE_THREADSYNC,
                              &g_vdioLock, sizeof(VDINTERFACETHREADSYNC), &g_pVdIfs);
+        if (RT_FAILURE(vrc))
+            return RTMsgErrorExitFailure("ERROR: Failed to create thread synchronization interface "
+                                         "for virtual disk I/O, rc=%Rrc\n", vrc);
     }
     else
         return RTMsgErrorExitFailure("ERROR: Failed to create critsects "

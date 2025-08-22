@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -4640,7 +4640,6 @@ static bool omfDetails_AddSegDefIfNeeded(POMFDETAILS pOmfStuff, uint8_t bSegAttr
         {
             if (   pSegDef->bSegAttr   != bSegAttr
                 || pSegDef->f32bitRec  != fRec32
-                || pSegDef->idxName    != idxSegName
                 || pSegDef->idxClass   != idxSegClass
                 || pSegDef->idxOverlay != idxOverlay)
                 return error(pOmfStuff->pszFile,
@@ -4922,11 +4921,7 @@ static bool convertOmfWriteDebugData(POMFWRITER pThis, POMFDETAILS pOmfStuff)
             uint32_t cbSectionCovered = 0;
             uint32_t j = pSegLines->cFiles;
             while (j-- > 0)
-            {
-                uint32_t offLast = pSegLines->paFiles[j].paPairs[pSegLines->paFiles[j].cPairs - 1].offSection;
-                if (offLast > cbSectionCovered)
-                    offLast = cbSectionCovered;
-            }
+                pSegLines->paFiles[j].paPairs[pSegLines->paFiles[j].cPairs - 1].offSection;
 
             /* For simplicity and debuggability, just split the LEDATA here. */
             if (   !omfWriter_LEDataSplit(pThis)
@@ -5503,7 +5498,7 @@ int main(int argc, char **argv)
                         break;
 
                     case 'V':
-                        printf("%s\n", "$Revision: 164827 $");
+                        printf("%s\n", "$Revision: 170187 $");
                         return 0;
 
                     case '?':

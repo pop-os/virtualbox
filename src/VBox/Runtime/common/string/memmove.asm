@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2024 Oracle and/or its affiliates.
+; Copyright (C) 2006-2025 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -34,7 +34,9 @@
 ; SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 ;
 
-%define RT_ASM_WITH_SEH64
+%ifdef ASM_FORMAT_PE
+ %define RT_ASM_WITH_SEH64
+%endif
 %include "iprt/asmdefs.mac"
 
 
@@ -61,6 +63,11 @@ RT_NOCRT_BEGINPROC memmove
 %else
         push    edi
         push    esi
+ %ifdef ASM_CALL32_WATCOM
+        push    ecx
+        push    edx
+ %endif
+
  %ifdef ASM_CALL32_WATCOM
         mov     edi, eax
         mov     esi, edx
@@ -137,6 +144,10 @@ RT_NOCRT_BEGINPROC memmove
         mov     rsi, r11
  %endif
 %else
+ %ifdef ASM_CALL32_WATCOM
+        pop     edx
+        pop     ecx
+ %endif
         pop     esi
         pop     edi
 %endif

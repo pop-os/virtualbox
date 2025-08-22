@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2024 Oracle and/or its affiliates.
+; Copyright (C) 2006-2025 Oracle and/or its affiliates.
 ;
 ; This file is part of VirtualBox base platform packages, as
 ; available from https://www.virtualbox.org.
@@ -53,6 +53,8 @@ RT_NOCRT_BEGINPROC strcmp
  %endif
 %else
  %ifdef ASM_CALL32_WATCOM
+        push    ecx
+        push    edx
         mov     ecx, eax
  %else
         mov     ecx, [esp + 4]
@@ -99,6 +101,12 @@ RT_NOCRT_BEGINPROC strcmp
         jmp     .next
 
 .equal:
+%ifdef RT_ARCH_X86
+ %ifdef ASM_CALL32_WATCOM
+        pop     edx
+        pop     ecx
+ %endif
+%endif
         xor     eax, eax
         ret
 
@@ -106,6 +114,12 @@ RT_NOCRT_BEGINPROC strcmp
         movzx   ecx, ah
         and     eax, 0ffh
         sub     eax, ecx
+%ifdef RT_ARCH_X86
+ %ifdef ASM_CALL32_WATCOM
+        pop     edx
+        pop     ecx
+ %endif
+%endif
         ret
 ENDPROC RT_NOCRT(strcmp)
 

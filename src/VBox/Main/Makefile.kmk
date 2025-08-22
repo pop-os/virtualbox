@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2004-2024 Oracle and/or its affiliates.
+# Copyright (C) 2004-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -211,6 +211,15 @@ endif
 ifdef VBOX_WITH_GSTCTL_TOOLBOX_AS_CMDS
  VBOX_MAIN_DEFS += VBOX_WITH_GSTCTL_TOOLBOX_AS_CMDS
 endif
+ifdef VBOX_WITH_X86_ON_ARM_ENABLED
+ VBOX_MAIN_DEFS += VBOX_WITH_X86_ON_ARM_ENABLED
+endif
+ifdef VBOX_WITH_ARM_ON_X86_ENABLED
+ VBOX_MAIN_DEFS += VBOX_WITH_ARM_ON_X86_ENABLED
+endif
+ifdef VBOX_WITH_MAIN_OBJECT_TRACKER
+ VBOX_MAIN_DEFS += VBOX_WITH_MAIN_OBJECT_TRACKER
+endif
 # Unconditionally enable the new semaphore key generation code
 VBOX_MAIN_DEFS += VBOX_WITH_NEW_SYS_V_KEYGEN
 
@@ -295,7 +304,7 @@ $(PATH_TARGET)/VirtualBox.idl: \
 		$(VBOX_PATH_MAIN_SRC)/idl/doxygen.xsl \
 		| $(PATH_TARGET)/
 	$(call MSG_TOOL,xsltproc,,$<,$@)
-	$(QUIET)$(VBOX_XSLTPROC) --path ".:$(PATH_ROOT)/doc/manual" \
+	$(QUIET)$(VBOX_XSLTPROC) --path "." --path "$(PATH_ROOT)/doc/manual" \
 		-o "$@.tmp" $(VBOX_PATH_MAIN_SRC)/idl/doxygen.xsl $(VBOX_XIDL_FILE_SRC)
 	$(QUIET)$(SED) \
 		-e 's,@SLASH-ASTERISK@,<b></b>*,g' \
@@ -339,15 +348,15 @@ ifndef VBOX_ONLY_SDK
  #
  LIBRARIES += VBoxAPIWrap
  VBoxAPIWrap_TEMPLATE        = VBoxMainLib
- ifeq ($(KBUILD_TARGET),win)
-  ifndef VBOX_WITHOUT_PRECOMPILED_HEADERS
+ if defined(VBOX_WITH_PRECOMPILED_HEADERS) && !defined(VBOX_WITHOUT_PRECOMPILED_HEADERS)
+  ifeq ($(KBUILD_TARGET),win)
    VBoxAPIWrap_USES           = vccprecomp
    VBoxAPIWrap_PCH_HDR       := $(PATH_SUB_CURRENT)/src-all/win/VBoxAPIWrap-precomp_vcc.h
-  endif
- else if $(KBUILD_KMK_REVISION) >= 3256 && "$(KBUILD_TARGET)" != "darwin" && !defined(VBOX_WITHOUT_PRECOMPILED_HEADERS)
-  if $(VBOX_GCC_VERSION_CXX) >= 50000 # GCC 4.x runs into trouble compiling the header.
-   VBoxAPIWrap_USES        = gccprecomp
-   VBoxAPIWrap_PCH_HDR    := $(PATH_SUB_CURRENT)/src-all/xpcom/VBoxAPIWrap-precomp_gcc.h
+  else if $(KBUILD_KMK_REVISION) >= 3256 && "$(KBUILD_TARGET)" != "darwin"
+   if $(VBOX_GCC_VERSION_CXX) >= 50000 # GCC 4.x runs into trouble compiling the header.
+    VBoxAPIWrap_USES        = gccprecomp
+    VBoxAPIWrap_PCH_HDR    := $(PATH_SUB_CURRENT)/src-all/xpcom/VBoxAPIWrap-precomp_gcc.h
+   endif
   endif
  endif
  VBoxAPIWrap_SOURCES         = \
@@ -516,13 +525,15 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
  #
  PROGRAMS += VBoxSVC
  VBoxSVC_TEMPLATE = VBoxMainExe
- if defined(VBOX_WITH_PRECOMPILED_HEADERS) && "$(KBUILD_TARGET)" == "win"
-  VBoxSVC_USES   += vccprecomp
-  VBoxSVC_PCH_HDR := $(PATH_SUB_CURRENT)/src-server/win/precomp_vcc.h
- else if $(KBUILD_KMK_REVISION) >= 3256 && "$(KBUILD_TARGET)" != "darwin" && !defined(VBOX_WITHOUT_PRECOMPILED_HEADERS)
-  if $(VBOX_GCC_VERSION_CXX) >= 50000 # GCC 4.x runs into trouble compiling the header.
-   VBoxSVC_USES += gccprecomp
-   VBoxSVC_PCH_HDR := $(PATH_SUB_CURRENT)/src-server/xpcom/precomp_gcc.h
+ if defined(VBOX_WITH_PRECOMPILED_HEADERS) && !defined(VBOX_WITHOUT_PRECOMPILED_HEADERS)
+  if "$(KBUILD_TARGET)" == "win"
+   VBoxSVC_USES   += vccprecomp
+   VBoxSVC_PCH_HDR := $(PATH_SUB_CURRENT)/src-server/win/precomp_vcc.h
+  else if $(KBUILD_KMK_REVISION) >= 3256 && "$(KBUILD_TARGET)" != "darwin"
+   if $(VBOX_GCC_VERSION_CXX) >= 50000 # GCC 4.x runs into trouble compiling the header.
+    VBoxSVC_USES += gccprecomp
+    VBoxSVC_PCH_HDR := $(PATH_SUB_CURRENT)/src-server/xpcom/precomp_gcc.h
+   endif
   endif
  endif
  VBoxSVC_DEFS = \
@@ -608,6 +619,7 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
  VBoxSVC_SOURCES = \
  	$(VBOX_SVC_CERTS_FILE) \
  	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
+ 	src-all/AudioUtils.cpp \
  	src-all/AuthLibrary.cpp \
  	src-all/CryptoUtils.cpp \
  	src-all/DisplayPNGUtil.cpp \
@@ -619,9 +631,11 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
  	src-all/HashedPw.cpp \
  	src-all/Logging.cpp \
  	src-all/NvramStoreImpl.cpp \
+ 	$(if $(VBOX_WITH_MAIN_OBJECT_TRACKER),src-all/ObjectsTracker.cpp) \
  	src-all/PCIDeviceAttachmentImpl.cpp \
  	src-all/PlatformPropertiesImpl.cpp \
  	src-all/ProgressImpl.cpp \
+ 	src-all/RecordingUtils.cpp \
  	src-all/SecretKeyStore.cpp \
  	src-all/SharedFolderImpl.cpp \
  	src-all/AutoCaller.cpp \
@@ -1007,13 +1021,15 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
  #
  DLLS += VBoxC
  VBoxC_TEMPLATE = VBoxMainComp
- if defined(VBOX_WITH_PRECOMPILED_HEADERS) && "$(KBUILD_TARGET)" == "win"
-  VBoxC_USES    = vccprecomp
-  VBoxC_PCH_HDR := $(PATH_SUB_CURRENT)/src-client/win/precomp_vcc.h
- else if $(KBUILD_KMK_REVISION) >= 3256 && "$(KBUILD_TARGET)" != "darwin" && !defined(VBOX_WITHOUT_PRECOMPILED_HEADERS)
-  if $(VBOX_GCC_VERSION_CXX) >= 50000 # GCC 4.x runs into trouble compiling the header.
-   VBoxC_USES += gccprecomp
-   VBoxC_PCH_HDR := $(PATH_SUB_CURRENT)/src-client/xpcom/precomp_gcc.h
+ if defined(VBOX_WITH_PRECOMPILED_HEADERS) && !defined(VBOX_WITHOUT_PRECOMPILED_HEADERS)
+  if "$(KBUILD_TARGET)" == "win"
+   VBoxC_USES    = vccprecomp
+   VBoxC_PCH_HDR := $(PATH_SUB_CURRENT)/src-client/win/precomp_vcc.h
+  else if $(KBUILD_KMK_REVISION) >= 3256 && "$(KBUILD_TARGET)" != "darwin"
+   if $(VBOX_GCC_VERSION_CXX) >= 50000 # GCC 4.x runs into trouble compiling the header.
+    VBoxC_USES += gccprecomp
+    VBoxC_PCH_HDR := $(PATH_SUB_CURRENT)/src-client/xpcom/precomp_gcc.h
+   endif
   endif
  endif
  VBoxC_DEFS = \
@@ -1022,7 +1038,6 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
  	VBOX_COM_INPROC \
  	$(if $(VBOX_WITH_EFI),VBOX_WITH_EFI,) \
  	$(if $(VBOX_WITH_HGSMI),VBOX_WITH_HGSMI,) \
- 	$(if $(VBOX_WITH_VIDEOHWACCEL),VBOX_WITH_VIDEOHWACCEL,) \
  	$(if $(VBOX_WITH_3D_ACCELERATION),VBOX_WITH_3D_ACCELERATION,) \
  	$(if $(VBOX_WITH_DRAG_AND_DROP),VBOX_WITH_DRAG_AND_DROP,) \
  	$(if $(VBOX_WITH_DRAG_AND_DROP_GH),VBOX_WITH_DRAG_AND_DROP_GH,) \
@@ -1053,33 +1068,23 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
    VBoxC_DEFS += VBOX_WITH_LIBVPX
   endif
   VBoxC_SOURCES += \
+  	src-all/RecordingUtils.cpp \
   	src-client/EBMLWriter.cpp \
   	src-client/WebMWriter.cpp \
-  	src-client/Recording.cpp \
+  	src-client/RecordingContext.cpp \
   	src-client/RecordingInternals.cpp \
   	src-client/RecordingCodec.cpp \
-  	src-client/RecordingStream.cpp \
-  	src-client/RecordingUtils.cpp
+  	src-client/RecordingStream.cpp
 
   ifdef VBOX_WITH_AUDIO_RECORDING
-   VBoxC_DEFS += VBOX_WITH_AUDIO_RECORDING
-   # Needed in VBoxSVC for ISystemProperties.
-   src-server/SystemPropertiesImpl.cpp_DEFS += VBOX_WITH_AUDIO_RECORDING
    ifdef VBOX_WITH_LIBOGG
-    VBOX_MAIN_DEFS += VBOX_WITH_LIBOGG
-    VBoxC_SDKS    += VBoxLibOgg
-    VBoxC_DEFS    += VBOX_WITH_LIBOGG
-    ## @todo We need this for libvorbis down below. Remove once the libvorbis @todo is resolved.
-    VBoxSVC_SDKS  += VBoxLibOgg
+    VBoxC_SDKS += VBoxLibOgg
    endif
    ifdef VBOX_WITH_LIBVORBIS
-    VBOX_MAIN_DEFS += VBOX_WITH_LIBVORBIS
-    VBoxC_SDKS    += VBoxLibVorbis
-    ## @todo We also need to specify this for VBoxSVC, as we need to have VBOX_WITH_LIBVORBIS defined
-    ##       for SystemProperties::getSupportedRecordingAudioCodecs().
-    #        SystemPropertiesImpl_DEFS += VBOX_WITH_LIBVORBIS didn't work for precompiled headers on Windows --
-    #        needs to be solved properly so that we can remove the following _SDKS from VBoxSVC again.
-    VBoxSVC_SDKS  += VBoxLibVorbis
+    VBoxC_DEFS   += VBOX_WITH_LIBVORBIS
+    VBoxC_SDKS   += VBoxLibVorbis
+    # Needed in VBoxSVC for ISystemProperties + xml/Settings.cpp.
+    VBoxSVC_DEFS += VBOX_WITH_LIBVORBIS
    endif
    VBoxC_SOURCES += src-client/DrvAudioRec.cpp
   endif # VBOX_WITH_AUDIO_RECORDING
@@ -1139,6 +1144,7 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
 
  VBoxC_SOURCES += \
  	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
+ 	src-all/AudioUtils.cpp \
  	src-all/CryptoUtils.cpp \
  	src-all/ConsoleSharedFolderImpl.cpp \
  	src-all/DisplayPNGUtil.cpp \
@@ -1149,6 +1155,7 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
  	src-all/HashedPw.cpp \
  	src-all/Logging.cpp \
  	src-all/NvramStoreImpl.cpp \
+ 	$(if $(VBOX_WITH_MAIN_OBJECT_TRACKER),src-all/ObjectsTracker.cpp) \
  	src-all/PCIDeviceAttachmentImpl.cpp \
  	src-all/PlatformPropertiesImpl.cpp \
  	src-all/ProgressImpl.cpp \
@@ -1183,11 +1190,11 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
  	$(if $(VBOX_WITH_VIRT_ARMV8),src-client/ResourceAssignmentManager.cpp,) \
  	$(if $(VBOX_WITH_VIRT_ARMV8),src-client/ResourceStoreImpl.cpp,) \
  	src-client/SessionImpl.cpp \
+ 	$(if $(VBOX_WITH_VIRT_ARMV8),src-client/SystemTableBuilder.cpp,) \
  	src-client/USBDeviceImpl.cpp \
  	src-client/VBoxDriversRegister.cpp \
  	src-client/VirtualBoxClientImpl.cpp \
  	src-client/VMMDevInterface.cpp \
- 	xml/Settings.cpp \
  	$(VBOX_AUTOGEN_EVENT_CPP) \
  	$(VBOX_AUTOGEN_STRINGIFY_ENUMS_CPP) \
  	$(VBOX_XML_SCHEMADEFS_CPP)
@@ -1327,6 +1334,7 @@ if !defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_EXTPACKS) # Note this goes on f
   	src-all/Global.cpp \
   	src-all/GlobalStatusConversion.cpp \
   	src-all/AutoCaller.cpp \
+  	$(if $(VBOX_WITH_MAIN_OBJECT_TRACKER),src-all/ObjectsTracker.cpp) \
   	src-all/ThreadTask.cpp \
   	src-all/VirtualBoxBase.cpp \
   	src-all/VirtualBoxErrorInfoImpl.cpp \
@@ -1523,11 +1531,6 @@ if defined(VBOX_WITH_MIDL_PROXY_STUB) && "$(KBUILD_TARGET)" == "win" && !defined
  #
  # Experimental COM proxy + stub DLL w/ automatic registration updating.
  #
- # The Legacy stub is for older 64-bit windows versions (pre Windows 7) as we
- # were having various problems on windows server 2003 and 2008 with the code
- # MIDL generated.  Also, in windows 7 there are some potentially interesting
- # changes in the generated code where it uses new helpers from OLE32.
- #
  DLLS += VBoxProxyStub
  VBoxProxyStub_TEMPLATE = VBoxMainComp
  ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
@@ -1554,21 +1557,6 @@ if defined(VBOX_WITH_MIDL_PROXY_STUB) && "$(KBUILD_TARGET)" == "win" && !defined
  	$(PATH_SUB_CURRENT)/src-all/win/VBoxProxyStub.c
  src-all/win/VBoxProxyStub.rc_DEPS = $(VBoxCOM_0_OUTDIR)/VirtualBox.tlb
  VBoxProxyStub_VirtualBox_p.c_CFLAGS.x86 = /Gz # Workaround for incorrect ObjectStublessClient* prototypes in SDK v7.1.
-
- ifn1of ($(KBUILD_TARGET_ARCH), arm64)
-  DLLS += VBoxProxyStubLegacy
-  VBoxProxyStubLegacy_TEMPLATE = VBoxMainComp
-  VBoxProxyStubLegacy_EXTENDS  = VBoxProxyStub
-  VBoxProxyStubLegacy_DEFS     = $(VBoxProxyStub_DEFS) VBOX_IN_PROXY_STUB_LEGACY
-  VBoxProxyStubLegacy_INCS     = $(VBoxCOM_0_OUTDIR)/legacy/
-  VBoxProxyStubLegacy_SOURCES  = \
-  	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_p.c \
-  	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_i.c \
-  	src-all/win/VBoxProxyStub.def \
-  	src-all/win/VBoxProxyStubLegacy.rc \
-  	src-all/win/VBoxProxyStub.c
-  src-all/win/VBoxProxyStubLegacy.rc_DEPS = $(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.tlb
- endif
 
  ifdef VBOX_WITH_32_ON_64_MAIN_API
   DLLS += VBoxProxyStub-x86
@@ -1611,6 +1599,7 @@ ifdef VBOX_WITH_MAIN_NLS
 	$(call MSG_L1,lupdate all languages (nls/*.ts))
 	$(QUIET)$(TOOL_QT6_LUPDATE) \
 		$^ \
+		-locations none \
 		-ts \
 		$(filter-out nls/VirtualBoxAPI_en.ts, $(VirtualBoxAPI_QT_TRANSLATIONS)) \
 		$(VBOX_PATH_MAIN_SRC)/nls/VirtualBoxAPI_xx_YY.ts
@@ -1633,6 +1622,7 @@ ifdef VBOX_WITH_MAIN_NLS
 	$(call MSG_L1,lupdate $@)
 	$(QUIET)$(TOOL_QT6_LUPDATE) \
 		$^ \
+		-locations none \
 		-ts \
 		"$@"
 	$(QUIET)$(SED) -n -i \
@@ -1753,8 +1743,7 @@ if "$(KBUILD_TARGET)" == "win" || (defined(VBOX_ONLY_SDK) && !defined(VBOX_ONLY_
  endif
 
  if defined(VBOX_WITH_32_ON_64_MAIN_API) && !defined(VBOX_ONLY_EXTPACKS)
-  # The XP targetted 32-bit proxy stub works with all versions of windows (the
-  # issues leading to the VBoxProxyStubLegacy.dll are only on 64-bit windows).
+  # The XP targetted 32-bit proxy stub works with all versions of windows.
   $(call KB_FN_AUTO_CMD_DEPS,$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c)
   $(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c \
   $(if $(VBOX_WITH_MIDL_PROXY_STUB), + $(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c + $(VBoxCOM-x86_0_OUTDIR)/dlldata.c,) \

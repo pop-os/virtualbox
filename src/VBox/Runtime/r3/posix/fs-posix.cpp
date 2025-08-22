@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -281,6 +281,10 @@ RTR3DECL(int) RTFsQueryType(const char *pszFsPath, PRTFSTYPE penmType)
                                      || !strncmp("fuse.", mntEnt.mnt_type, 5)
                                      || !strcmp("fuseblk", mntEnt.mnt_type))
                                 *penmType = RTFSTYPE_FUSE;
+                            else if (!strcmp("ecryptfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_ECRYPTFS;
+                            else if (!strcmp("zfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_ZFS;
                             else
                             {
                                 /* sometimes there are more than one entry for the same partition */

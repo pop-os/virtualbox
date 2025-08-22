@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -179,6 +179,12 @@ INTNETR3DECL(int) SUPR0MemFree(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr)
     RTTEST_CHECK_RET(g_hTest, pSession == g_pSession, VERR_INVALID_PARAMETER);
     RTTestGuardedFree(g_hTest, (void *)uPtr);
     return VINF_SUCCESS;
+}
+
+INTNETR3DECL(int) SUPR0Printf(const char *pszFormat, ...)
+{
+    RT_NOREF(pszFormat);
+    return 0;
 }
 
 /* Fake non-existing ring-0 APIs. */

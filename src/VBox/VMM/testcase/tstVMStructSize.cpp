@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -282,7 +282,9 @@ int main()
     }
 #endif
     CHECK_SIZE_ALIGNMENT(CPUMCTX, 64);
+#ifdef RT_ARCH_AMD64
     CHECK_SIZE_ALIGNMENT(CPUMHOSTCTX, 64);
+#endif
     CHECK_SIZE_ALIGNMENT(CPUMCTXMSRS, 64);
 
     /* pdm */
@@ -315,13 +317,17 @@ int main()
     CHECK_PADDING2(PDMCRITSECTRW);
 
     /* pgm */
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_AGNOSTIC)
     CHECK_MEMBER_ALIGNMENT(PGMCPU, GCPhysCR3, sizeof(RTGCPHYS));
     CHECK_MEMBER_ALIGNMENT(PGMCPU, aGCPhysGstPaePDs, sizeof(RTGCPHYS));
     CHECK_MEMBER_ALIGNMENT(PGMCPU, Dis, 8);
     CHECK_MEMBER_ALIGNMENT(PGMCPU, cPoolAccessHandler, 8);
+#endif
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     CHECK_MEMBER_ALIGNMENT(PGMPOOLPAGE, idx, sizeof(uint16_t));
     CHECK_MEMBER_ALIGNMENT(PGMPOOLPAGE, pvPageR3, sizeof(RTHCPTR));
     CHECK_MEMBER_ALIGNMENT(PGMPOOLPAGE, GCPhys, sizeof(RTGCPHYS));
+#endif
     CHECK_SIZE(PGMPAGE, 16);
     CHECK_MEMBER_ALIGNMENT(PGMRAMRANGE, aPages, 16);
     CHECK_SIZE_ALIGNMENT(PGMREGMMIO2RANGE, 16);
@@ -385,7 +391,9 @@ int main()
     CHECK_PADDING_UVMCPU(32, vm);
 
     CHECK_PADDING_GVM(4, gvmm);
+#ifndef VBOX_WITH_MINIMAL_R0
     CHECK_PADDING_GVM(4, gmm);
+#endif
     CHECK_PADDING_GVMCPU(4, gvmm);
 
     /*
@@ -422,12 +430,24 @@ int main()
     PGM_PAGE_CLEAR(&Page);
     CHECK_EXPR(PGM_PAGE_GET_HCPHYS_NA(&Page) == 0);
     PGM_PAGE_SET_HCPHYS(NULL, &Page, UINT64_C(0x0000fffeff1ff000));
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     CHECK_EXPR(PGM_PAGE_GET_HCPHYS_NA(&Page) == UINT64_C(0x0000fffeff1ff000));
+#else
+    CHECK_EXPR(PGM_PAGE_GET_HCPHYS_NA(&Page) == 0);
+#endif
     PGM_PAGE_SET_HCPHYS(NULL, &Page, UINT64_C(0x0000000000001000));
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     CHECK_EXPR(PGM_PAGE_GET_HCPHYS_NA(&Page) == UINT64_C(0x0000000000001000));
+#else
+    CHECK_EXPR(PGM_PAGE_GET_HCPHYS_NA(&Page) == 0);
+#endif
 
     PGM_PAGE_INIT(&Page, UINT64_C(0x0000feedfacef000), UINT32_C(0x12345678), PGMPAGETYPE_RAM, PGM_PAGE_STATE_ALLOCATED);
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
     CHECK_EXPR(PGM_PAGE_GET_HCPHYS_NA(&Page) == UINT64_C(0x0000feedfacef000));
+#else
+    CHECK_EXPR(PGM_PAGE_GET_HCPHYS_NA(&Page) == 0);
+#endif
     CHECK_EXPR(PGM_PAGE_GET_PAGEID(&Page) == UINT32_C(0x12345678));
     CHECK_EXPR(PGM_PAGE_GET_TYPE_NA(&Page)   == PGMPAGETYPE_RAM);
     CHECK_EXPR(PGM_PAGE_GET_STATE_NA(&Page)  == PGM_PAGE_STATE_ALLOCATED);

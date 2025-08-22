@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -478,7 +478,14 @@ size_t VBClX11SeamlessMonitor::getRectCount(void)
     return mcRects;
 }
 
+#if RT_CLANG_PREREQ(3, 4) /* Most of the defined functions are not used. */
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wunused-function"
+#endif
 RTVEC_DECL(RectList, RTRECT)
+#if RT_CLANG_PREREQ(3, 4)
+# pragma clang diagnostic pop
+#endif
 
 static DECLCALLBACK(int) getRectsCallback(VBoxGuestWinInfo *pInfo, struct RectList *pRects)
 {
@@ -733,7 +740,7 @@ int VBClX11SeamlessSvc::nextStateChangeEvent(void)
 /**
  * The actual X11 window configuration change monitor thread function.
  */
-int VBClX11SeamlessSvc::x11MonitorThread(RTTHREAD hThreadSelf, void *pvUser)
+DECLCALLBACK(int) VBClX11SeamlessSvc::x11MonitorThread(RTTHREAD hThreadSelf, void *pvUser)
 {
     RT_NOREF(hThreadSelf);
 

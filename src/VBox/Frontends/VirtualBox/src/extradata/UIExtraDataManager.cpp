@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2882,7 +2882,8 @@ void UIExtraDataManager::setSelectorWindowToolBarTextVisible(bool fVisible)
     setExtraDataString(GUI_Toolbar_Text, toFeatureRestricted(!fVisible));
 }
 
-QList<UIToolType> UIExtraDataManager::toolsPaneLastItemsChosen()
+void UIExtraDataManager::toolsPaneLastItemsChosen(UIToolType &enmTypeGlobal,
+                                                  UIToolType &enmTypeMachine)
 {
     /* Parse loaded data: */
     QList<UIToolType> result;
@@ -2893,15 +2894,24 @@ QList<UIToolType> UIExtraDataManager::toolsPaneLastItemsChosen()
             result << enmType;
     }
 
-    /* Return result: */
-    return result;
+    /* Assign values: */
+    enmTypeGlobal = result.value(0);
+    if (!UIToolStuff::isTypeOfClass(enmTypeGlobal, UIToolClass_Global))
+        enmTypeGlobal = UIToolType_Home;
+    enmTypeMachine = result.value(1);
+    if (!UIToolStuff::isTypeOfClass(enmTypeMachine, UIToolClass_Machine))
+        enmTypeMachine = UIToolType_Details;
 }
 
-void UIExtraDataManager::setToolsPaneLastItemsChosen(const QList<UIToolType> &set)
+void UIExtraDataManager::setToolsPaneLastItemsChosen(UIToolType enmTypeGlobal,
+                                                     UIToolType enmTypeMachine)
 {
     /* Serialize passed values: */
+    const QList<UIToolType> currentTypes = QList<UIToolType>()
+                                         << enmTypeGlobal
+                                         << enmTypeMachine;
     QStringList data;
-    foreach (const UIToolType &enmType, set)
+    foreach (const UIToolType &enmType, currentTypes)
         data << gpConverter->toInternalString(enmType);
 
     /* Re-cache corresponding extra-data: */
@@ -2932,6 +2942,18 @@ void UIExtraDataManager::setDetachedTools(const QList<UIToolType> &tools)
 
     /* Re-cache corresponding extra-data: */
     setExtraDataStringList(GUI_Tools_Detached, data);
+}
+
+bool UIExtraDataManager::isToolTextVisible()
+{
+    /* 'False' unless feature allowed: */
+    return isFeatureAllowed(GUI_Tools_Text);
+}
+
+void UIExtraDataManager::setToolTextVisible(bool fVisible)
+{
+    /* 'True' if feature allowed, null-string otherwise: */
+    return setExtraDataString(GUI_Tools_Text, toFeatureAllowed(fVisible));
 }
 
 bool UIExtraDataManager::selectorWindowStatusBarVisible()
@@ -4189,7 +4211,7 @@ bool UIExtraDataManager::hidLedsSyncState(const QUuid &uID)
     return !isFeatureRestricted(GUI_HidLedsSync, uID);
 }
 
-double UIExtraDataManager::scaleFactor(const QUuid &uID, const int uScreenIndex)
+double UIExtraDataManager::scaleFactor(const QUuid &uID, int iScreenIndex)
 {
     /* Get corresponding extra-data for this machine: */
     QStringList data = extraDataStringList(GUI_ScaleFactor, uID);
@@ -4198,16 +4220,16 @@ double UIExtraDataManager::scaleFactor(const QUuid &uID, const int uScreenIndex)
     if (data.size() == 0)
         return 1.0;
 
-    int index = uScreenIndex;
-    /* use the 0th. scale factor in case we dont have a scale factor for @p uScreenIndex: */
-    if (data.size() <= uScreenIndex)
-        index = 0;
+    int iIndex = iScreenIndex;
+    /* use the 0th. scale factor in case we dont have a scale factor for @p iScreenIndex: */
+    if (data.size() <= iScreenIndex)
+        iIndex = 0;
 
     bool fOk = false;
-    double scaleFactor = data[index].toDouble(&fOk);
+    const double dScaleFactor = data.at(iIndex).toDouble(&fOk);
     if (!fOk)
         return 1.0;
-    return scaleFactor;
+    return dScaleFactor;
 }
 
 QList<double> UIExtraDataManager::scaleFactors(const QUuid &uID)
@@ -4235,19 +4257,18 @@ QList<double> UIExtraDataManager::scaleFactors(const QUuid &uID)
     return scaleFactorList;
 }
 
-void UIExtraDataManager::setScaleFactor(double dScaleFactor, const QUuid &uID, const int uScreenIndex)
+void UIExtraDataManager::setScaleFactor(double dScaleFactor, const QUuid &uID, int iScreenIndex)
 {
     QStringList data = extraDataStringList(GUI_ScaleFactor, uID);
 
     /* Just make sure that we have corresponding data item: */
-    if (data.size() <= uScreenIndex)
+    if (data.size() <= iScreenIndex)
     {
-        int listSize = data.size();
-        for (int i = listSize; i <= uScreenIndex; ++i)
+        for (int i = data.size(); i <= iScreenIndex; ++i)
             data.append(QString::number(1.0));
     }
 
-    data[uScreenIndex] = QString::number(dScaleFactor);
+    data[iScreenIndex] = QString::number(dScaleFactor);
     setExtraDataStringList(GUI_ScaleFactor, data, uID);
 }
 
@@ -4417,7 +4438,8 @@ QUuid UIExtraDataManager::softKeyboardSelectedLayout()
 void UIExtraDataManager::setFileManagerOptions(bool fListDirectoriesFirst,
                                                bool fShowDeleteConfirmation,
                                                bool fShowHumanReadableSizes,
-                                               bool fShowHiddenObjects)
+                                               bool fShowHiddenObjects,
+                                               bool fAllowInteractiveColumnWidths)
 {
     /* Serialize passed values: */
     QStringList data;
@@ -4430,9 +4452,22 @@ void UIExtraDataManager::setFileManagerOptions(bool fListDirectoriesFirst,
         data << GUI_GuestControl_FileManagerShowHumanReadableSizes;
     if (fShowHiddenObjects)
         data << GUI_GuestControl_FileManagerShowHiddenObjects;
+    if (fAllowInteractiveColumnWidths)
+        data << GUI_GuestControl_FileManagerAllowInteractiveColumnWidths;
 
     /* Re-cache corresponding extra-data: */
     setExtraDataStringList(GUI_GuestControl_FileManagerOptions, data);
+}
+
+bool UIExtraDataManager::fileManagerAllowInteractiveColumnWidths()
+{
+    const QStringList data = extraDataStringList(GUI_GuestControl_FileManagerOptions);
+    for (int i = 0; i < data.size(); ++i)
+    {
+        if (data[i] == GUI_GuestControl_FileManagerAllowInteractiveColumnWidths)
+            return true;
+    }
+    return false;
 }
 
 bool UIExtraDataManager::fileManagerListDirectoriesFirst()
@@ -4846,6 +4881,9 @@ void UIExtraDataManager::sltExtraDataChange(const QUuid &uMachineID, const QStri
             /* Runtime UI host-key combintation changed? */
             else if (strKey == GUI_Input_HostKeyCombination)
                 emit sigRuntimeUIHostKeyCombinationChange();
+            /* Tool labels visibility changed? */
+            else if (strKey == GUI_Tools_Text)
+                emit sigToolLabelsVisibilityChange(isToolTextVisible());
             /* Cloud Profile Manager restrictions changed: */
             else if (strKey == GUI_CloudProfileManager_Restrictions)
                 emit sigCloudProfileManagerRestrictionChange();

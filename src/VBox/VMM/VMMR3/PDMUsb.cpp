@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1543,6 +1543,50 @@ VMMR3DECL(int)  PDMR3UsbDriverDetach(PUVM pUVM, const char *pszDevice, unsigned 
 
     RTCritSectRwLeaveExcl(&pVM->pdm.s.CoreListCritSectRw);
     LogFlow(("PDMR3UsbDriverDetach: returns %Rrc\n", rc));
+    return rc;
+}
+
+
+/**
+ * Queries the base interface of a device LUN.
+ *
+ * This differs from PDMR3UsbQueryLun by that it returns the interface on the
+ * device and not the top level driver.
+ *
+ * @returns VBox status code.
+ * @param   pUVM            The user mode VM handle.
+ * @param   pszDevice       Device name.
+ * @param   iInstance       Device instance.
+ * @param   iLun            The Logical Unit to obtain the interface of.
+ * @param   ppBase          Where to store the base interface pointer.
+ */
+VMMR3DECL(int) PDMR3UsbQueryDeviceLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase)
+{
+    LogFlow(("PDMR3UsbQueryDeviceLun: pszDevice=%p:{%s} iInstance=%u iLun=%u ppBase=%p\n",
+             pszDevice, pszDevice, iInstance, iLun, ppBase));
+    *ppBase = NULL;
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+
+    /*
+     * Find the LUN.
+     */
+    RTCritSectRwEnterShared(&pVM->pdm.s.CoreListCritSectRw);
+
+    PPDMLUN pLun;
+    int rc = pdmR3UsbFindLun(pVM, pszDevice, iInstance, iLun, &pLun);
+    if (RT_SUCCESS(rc))
+    {
+        *ppBase = pLun->pBase;
+
+        RTCritSectRwLeaveShared(&pVM->pdm.s.CoreListCritSectRw);
+        LogFlow(("PDMR3UsbQueryDeviceLun: return %Rrc and *ppBase=%p\n", VINF_SUCCESS, *ppBase));
+        return VINF_SUCCESS;
+    }
+
+    RTCritSectRwLeaveShared(&pVM->pdm.s.CoreListCritSectRw);
+    LogFlow(("PDMR3UsbQueryDeviceLun: returns %Rrc\n", rc));
     return rc;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2077,7 +2077,7 @@ static bool ehciR3ItdHasUrbBeenCanceled(PEHCICC pThisCC, PVUSBURB pUrb, PEHCI_IT
     }
 
     /* Check buffer pointers */
-    for (unsigned i = 0; i < RT_ELEMENTS(pItd->Buffer.Buffer); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pItdCopy->Buffer.Buffer); i++)
     {
         if (pItd->Buffer.Buffer[i].Pointer  != pItdCopy->Buffer.Buffer[i].Pointer)
         {
@@ -2315,7 +2315,7 @@ static void ehciR3RhXferCompleteITD(PPDMDEVINS pDevIns, PEHCI pThis, PEHCICC pTh
                     /* Copy data. */
                     if (cb)
                     {
-                        uint8_t *pb = &pUrb->abData[pUrb->aIsocPkts[i].off];
+                        uint8_t *pb = &pUrb->pbData[pUrb->aIsocPkts[i].off];
 
                         RTGCPHYS GCPhysBuf = (RTGCPHYS)pItd->Buffer.Buffer[pg].Pointer << EHCI_BUFFER_PTR_SHIFT;
                         GCPhysBuf += pItd->Transaction[i].Offset;
@@ -2340,7 +2340,7 @@ static void ehciR3RhXferCompleteITD(PPDMDEVINS pDevIns, PEHCI pThis, PEHCICC pTh
 
                         Log5(("packet %d: off=%#x cb=%#x pb=%p (%#x)\n"
                               "%.*Rhxd\n",
-                              i, pUrb->aIsocPkts[i].off, cb, pb, pb - &pUrb->abData[0], cb, pb));
+                              i, pUrb->aIsocPkts[i].off, cb, pb, pb - &pUrb->pbData[0], cb, pb));
                     }
                 }
             }
@@ -2477,9 +2477,9 @@ static void ehciR3RhXferCompleteQH(PPDMDEVINS pDevIns, PEHCI pThis, PEHCICC pThi
             Log3Func(("packet data for page %d:\n"
                   "%.*Rhxd\n",
                   i,
-                  cbCurTransfer, &pUrb->abData[curOffset]));
+                  cbCurTransfer, &pUrb->pbData[curOffset]));
 
-            ehciPhysWrite(pDevIns, GCPhysBuf, &pUrb->abData[curOffset], cbCurTransfer);
+            ehciPhysWrite(pDevIns, GCPhysBuf, &pUrb->pbData[curOffset], cbCurTransfer);
             curOffset  += cbCurTransfer;
             cbLeft     -= cbCurTransfer;
 
@@ -2729,7 +2729,7 @@ static bool ehciR3SubmitQTD(PPDMDEVINS pDevIns, PEHCI pThis, PEHCICC pThisCC, RT
     AssertCompile(sizeof(pUrb->paTds[0].TdCopy) >= sizeof(*pQtd));
     memcpy(pUrb->paTds[0].TdCopy, pQtd, sizeof(*pQtd));
 #if 0 /* color the data */
-    memset(pUrb->abData, 0xfe, cbTotal);
+    memset(pUrb->pbData, 0xfe, cbTotal);
 #endif
 
     /* copy the data */
@@ -2751,11 +2751,11 @@ static bool ehciR3SubmitQTD(PPDMDEVINS pDevIns, PEHCI pThis, PEHCICC pThisCC, RT
             cbCurTransfer = GUEST_PAGE_SIZE - (GCPhysBuf & GUEST_PAGE_OFFSET_MASK);
             cbCurTransfer = RT_MIN(cbCurTransfer, cbTransfer);
 
-            ehciPhysRead(pDevIns, GCPhysBuf, &pUrb->abData[curOffset], cbCurTransfer);
+            ehciPhysRead(pDevIns, GCPhysBuf, &pUrb->pbData[curOffset], cbCurTransfer);
 
             Log3Func(("packet data:\n"
                   "%.*Rhxd\n",
-                  cbCurTransfer, &pUrb->abData[curOffset]));
+                  cbCurTransfer, &pUrb->pbData[curOffset]));
 
             curOffset  += cbCurTransfer;
             cbTransfer -= cbCurTransfer;
@@ -2852,7 +2852,7 @@ static bool ehciR3SubmitITD(PPDMDEVINS pDevIns, PEHCI pThis, PEHCICC pThisCC,
     AssertCompile(sizeof(pUrb->paTds[0].TdCopy) >= sizeof(*pItd));
     memcpy(pUrb->paTds[0].TdCopy, pItd, sizeof(*pItd));
 #if 0 /* color the data */
-    memset(pUrb->abData, 0xfe, cbTotal);
+    memset(pUrb->pbData, 0xfe, cbTotal);
 #endif
 
     /* copy the data */
@@ -2880,15 +2880,15 @@ static bool ehciR3SubmitITD(PPDMDEVINS pDevIns, PEHCI pThis, PEHCICC pThisCC,
                     unsigned    cb1 = GUEST_PAGE_SIZE - pItd->Transaction[i].Offset;
                     unsigned    cb2 = pItd->Transaction[i].Length - cb1;
 
-                    ehciPhysRead(pDevIns, GCPhysBuf, &pUrb->abData[curOffset], cb1);
+                    ehciPhysRead(pDevIns, GCPhysBuf, &pUrb->pbData[curOffset], cb1);
                     if ((pg + 1) >= EHCI_NUM_ITD_PAGES)
                        LogRelMax(10, ("EHCI: Crossing to nonstandard page %d in iTD at %RGp on submit.\n", pg + 1, pUrb->paTds[0].TdAddr));
 
                     GCPhysBuf = (RTGCPHYS)pItd->Buffer.Buffer[pg + 1].Pointer << EHCI_BUFFER_PTR_SHIFT;
-                    ehciPhysRead(pDevIns, GCPhysBuf, &pUrb->abData[curOffset + cb1], cb2);
+                    ehciPhysRead(pDevIns, GCPhysBuf, &pUrb->pbData[curOffset + cb1], cb2);
                 }
                 else
-                    ehciPhysRead(pDevIns, GCPhysBuf, &pUrb->abData[curOffset], pItd->Transaction[i].Length);
+                    ehciPhysRead(pDevIns, GCPhysBuf, &pUrb->pbData[curOffset], pItd->Transaction[i].Length);
 
                 curOffset += pItd->Transaction[i].Length;
             }

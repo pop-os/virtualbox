@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -44,6 +44,7 @@ class UIBaseMemoryEditor;
 class UIFilePathSelector;
 class UIHostnameDomainNameEditor;
 class UIPasswordLineEdit;
+class UIMediumSizeEditor;
 class UIUserNamePasswordEditor;
 class UIVirtualCPUEditor;
 
@@ -130,17 +131,18 @@ public:
 
     UIAdditionalUnattendedOptions(QWidget *pParent = 0);
 
-    /** @name Wrappers for UIFilePathSelector
+    /** @name Wrappers for member editors
       * @{ */
         QString hostname() const;
         void setHostname(const QString &strHostname);
         QString domainName() const;
         void setDomainName(const QString &strDomain);
         QString hostnameDomainName() const;
-        bool isComplete() const;
-        bool isHostnameComplete() const;
-        void mark();
+        bool hostDomainNameComplete() const;
+        void mark(bool fProductKeyRequired);
         void disableEnableProductKeyWidgets(bool fEnabled);
+        QString productKey() const;
+        bool hasProductKeyAcceptableInput() const;
     /** @} */
 
 private slots:
@@ -167,9 +169,9 @@ signals:
 
 public:
 
-    UINewVMHardwareContainer(QWidget *pParent = 0);
+    UINewVMHardwareContainer(QWidget *pParent);
 
-    /** @name Wrappers for UIFilePathSelector
+    /** @name Wrappers for members
       * @{ */
         void setMemorySize(int iSize);
         void setCPUCount(int iCount);

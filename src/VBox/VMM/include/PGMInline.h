@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -898,6 +898,7 @@ DECLINLINE(PEPTPML4) pgmGstGetEptPML4Ptr(PVMCPUCC pVCpu)
 # endif
 #endif /* VBOX_WITH_NESTED_HWVIRT_VMX_EPT */
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
 
 /**
  * Gets the shadow page directory, 32-bit.
@@ -1077,6 +1078,7 @@ DECLINLINE(PX86PML4E) pgmShwGetLongModePML4EPtr(PVMCPUCC pVCpu, unsigned int iPm
     return NULL;
 }
 
+# endif /* !VBOX_WITH_ONLY_PGM_NEM_MODE */
 #endif /* !VBOX_VMM_TARGET_ARMV8 */
 
 /**
@@ -1159,6 +1161,7 @@ DECLINLINE(PCPGMPHYSHANDLERTYPEINT) pgmHandlerPhysicalTypeHandleToPtr2(PVMCC pVM
     return pType;
 }
 
+#ifndef VBOX_WITH_ONLY_PGM_NEM_MODE
 
 /**
  * Internal worker for finding a 'in-use' shadow page give by it's physical address.
@@ -1187,16 +1190,16 @@ DECLINLINE(void) pgmTrackDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPG
     /*
      * Just deal with the simple case here.
      */
-#ifdef VBOX_STRICT
+# ifdef VBOX_STRICT
     PVMCC pVM = pPool->CTX_SUFF(pVM); NOREF(pVM);
-#endif
-#ifdef LOG_ENABLED
+# endif
+# ifdef LOG_ENABLED
     const unsigned uOrg = PGM_PAGE_GET_TRACKING(pPhysPage);
-#endif
+# endif
     const unsigned cRefs = PGM_PAGE_GET_TD_CREFS(pPhysPage);
     if (cRefs == 1)
     {
-#if 0 /* for more debug info */
+# if 0 /* for more debug info */
         AssertMsg(   pPoolPage->idx == PGM_PAGE_GET_TD_IDX(pPhysPage)
                   && iPte == PGM_PAGE_GET_PTE_INDEX(pPhysPage),
                   ("idx=%#x iPte=%#x enmKind=%d vs pPhysPage=%R[pgmpage] idx=%#x iPte=%#x enmKind=%d [iPte]=%#RX64\n",
@@ -1204,10 +1207,10 @@ DECLINLINE(void) pgmTrackDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPG
                    pPhysPage, PGM_PAGE_GET_TD_IDX(pPhysPage), PGM_PAGE_GET_PTE_INDEX(pPhysPage),
                    pPool->aPages[PGM_PAGE_GET_TD_IDX(pPhysPage)].enmKind,
                    ((uint64_t *)pPoolPage->CTX_SUFF(pvPage))[iPte]));
-#else
+# else
         Assert(pPoolPage->idx == PGM_PAGE_GET_TD_IDX(pPhysPage));
         Assert(iPte == PGM_PAGE_GET_PTE_INDEX(pPhysPage));
-#endif
+# endif
         /* Invalidate the tracking data. */
         PGM_PAGE_SET_TRACKING(pVM, pPhysPage, 0);
     }
@@ -1313,6 +1316,7 @@ DECLINLINE(bool) pgmPoolIsDirtyPage(PVMCC pVM, RTGCPHYS GCPhys)
     return pgmPoolIsDirtyPageSlow(pVM, GCPhys);
 }
 
+#endif /* !VBOX_WITH_ONLY_PGM_NEM_MODE */
 
 /** @} */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -116,8 +116,8 @@ RTR0DECL(bool) RTR0MemAreKrnlAndUsrDifferent(void)
 }
 RT_EXPORT_SYMBOL(RTR0MemAreKrnlAndUsrDifferent);
 
-
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+
 /**
  * Treats both source and destination as unsafe buffers.
  */
@@ -189,5 +189,6 @@ RTR0DECL(int) RTR0MemKernelCopyTo(void *pvDst, void const *pvSrc, size_t cb)
     return rtR0MemKernelCopyLnxWorker(pvDst, pvSrc, cb);
 }
 RT_EXPORT_SYMBOL(RTR0MemKernelCopyTo);
-#endif /* !RT_ARCH_AMD64 && !RT_ARCH_X86 */
+
+#endif /* RT_ARCH_AMD64 || RT_ARCH_X86 */
 

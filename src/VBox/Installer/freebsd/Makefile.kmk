@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -93,6 +93,7 @@ VBOX_FBSD_STRIP_BIN = \
 	VBoxDD2.so \
 	VBoxDDU.so \
 	VBoxVMM.so \
+	$(if $(VBOX_WITH_VIRT_ARMV8),VBoxVMMArm.so,) \
 	VBoxRT.so \
 	$(if $(VBOX_WITH_VBOXSDL),VBoxSDL $(if $(VBOX_WITH_HARDENING),VBoxSDL.so),) \
 	$(if $(VBOX_WITH_SHARED_CLIPBOARD), VBoxSharedClipboard.so,) \
@@ -133,8 +134,13 @@ VBOX_FBSD_NO_STRIP = \
 # EFI firmware
 ifdef VBOX_WITH_EFIFW_PACKING
  VBOX_FBSD_NO_STRIP += \
- 	VBoxEFI32.fd \
- 	VBoxEFI64.fd
+ 	VBoxEFI-x86.fd \
+ 	VBoxEFI-amd64.fd
+ ifdef VBOX_WITH_VIRT_ARMV8
+  VBOX_FBSD_NO_STRIP += \
+  	VBoxEFI-arm32.fd \
+  	VBoxEFI-arm64.fd
+ endif
 endif
 
 # Symlinks residing in bin/

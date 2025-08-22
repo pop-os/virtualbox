@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -27,6 +27,7 @@
 
 /* Qt includes: */
 #include <QAbstractButton>
+#include <QDir>
 #include <QLayout>
 
 /* GUI includes: */
@@ -40,7 +41,6 @@
 #include "UIWizardNewVMNameOSTypePage.h"
 #include "UIWizardNewVMUnattendedPage.h"
 #include "UIWizardNewVMHardwarePage.h"
-#include "UIWizardNewVMDiskPage.h"
 #include "UIWizardNewVMExpertPage.h"
 #include "UIWizardNewVMSummaryPage.h"
 
@@ -65,7 +65,7 @@ UIWizardNewVM::UIWizardNewVM(QWidget *pParent,
                              UIActionPool *pActionPool,
                              const QString &strMachineGroup,
                              const QString &strISOFilePath /* = QString() */)
-    : UINativeWizard(pParent, WizardType_NewVM, "create-vm-wizard" /* help keyword */)
+    : UINativeWizard(pParent, WizardType_NewVM, "tk_create-vm" /* help keyword */)
     , m_strMachineGroup(strMachineGroup)
     , m_iIDECount(0)
     , m_iSATACount(0)
@@ -106,14 +106,13 @@ void UIWizardNewVM::populatePages()
     {
         case WizardMode_Basic:
         {
-            UIWizardNewVMNameOSTypePage *pNamePage = new UIWizardNewVMNameOSTypePage;
+            UIWizardNewVMNameOSTypePage *pNamePage = new UIWizardNewVMNameOSTypePage("tk_create-vm-name-os" /* help keyword*/);
             addPage(pNamePage);
             if (!m_strInitialISOFilePath.isEmpty())
                 pNamePage->setISOFilePath(m_strInitialISOFilePath);
-            m_iUnattendedInstallPageIndex = addPage(new UIWizardNewVMUnattendedPage);
+            m_iUnattendedInstallPageIndex = addPage(new UIWizardNewVMUnattendedPage("tk_create-vm-unattended-install" /* help keyword */));
             setUnattendedPageVisible(false);
-            addPage(new UIWizardNewVMHardwarePage);
-            addPage(new UIWizardNewVMDiskPage(m_pActionPool));
+            addPage(new UIWizardNewVMHardwarePage("tk_create-vm-hardware" /* help keyword*/));
             addPage(new UIWizardNewVMSummaryPage);
             break;
         }
@@ -283,19 +282,32 @@ bool UIWizardNewVM::attachDefaultDevices()
         if (!m_virtualDisk.isNull())
         {
             KStorageBus enmHDDBus = gpGlobalSession->guestOSTypeManager().getRecommendedHDStorageBus(m_guestOSTypeId);
-            CStorageController comHDDController = m_machine.GetStorageControllerByInstance(enmHDDBus, 0);
+            CStorageController comHDDController = machine.GetStorageControllerByInstance(enmHDDBus, 0);
             if (!comHDDController.isNull())
             {
-                machine.AttachDevice(comHDDController.GetName(), 0, 0, KDeviceType_HardDisk, m_virtualDisk);
-                if (!machine.isOk())
-                    UINotificationMessage::cannotAttachDevice(machine, UIMediumDeviceType_HardDisk, m_strMediumPath,
-                                                              StorageSlot(enmHDDBus, 0, 0), notificationCenter());
+                LONG iPortNumber = portNumberForDevice(comHDDController);
+                if (iPortNumber != -1)
+                {
+                    machine.AttachDevice(comHDDController.GetName(), iPortNumber, 0, KDeviceType_HardDisk, m_virtualDisk);
+                    if (!machine.isOk())
+                        UINotificationMessage::cannotAttachDevice(machine, UIMediumDeviceType_HardDisk, m_strMediumPath,
+                                                                  StorageSlot(enmHDDBus, iPortNumber, 0), notificationCenter());
+                }
             }
+        }
+        /* Save machine settings here because  portNumberForDevice needs to inquiry port attachments of the controller: */
+        if (machine.isOk())
+        {
+            machine.SaveSettings();
+            if (machine.isOk())
+                success = true;
+            else
+                UINotificationMessage::cannotSaveMachineSettings(machine, notificationCenter());
         }
 
         /* Attach optical drive: */
         KStorageBus enmDVDBus = gpGlobalSession->guestOSTypeManager().getRecommendedDVDStorageBus(m_guestOSTypeId);
-        CStorageController comDVDController = m_machine.GetStorageControllerByInstance(enmDVDBus, 0);
+        CStorageController comDVDController = machine.GetStorageControllerByInstance(enmDVDBus, 0);
         if (!comDVDController.isNull())
         {
             CMedium opticalDisk;
@@ -308,16 +320,29 @@ bool UIWizardNewVM::attachDefaultDevices()
                 if (!vbox.isOk())
                     UINotificationMessage::cannotOpenMedium(vbox, strISOFilePath, notificationCenter());
             }
-            machine.AttachDevice(comDVDController.GetName(), 1, 0, KDeviceType_DVD, opticalDisk);
-            if (!machine.isOk())
-                UINotificationMessage::cannotAttachDevice(machine, UIMediumDeviceType_DVD, QString(),
-                                                          StorageSlot(enmDVDBus, 1, 0), notificationCenter());
+            LONG iPortNumber = portNumberForDevice(comDVDController);
+            if (iPortNumber != -1)
+            {
+                machine.AttachDevice(comDVDController.GetName(), iPortNumber, 0, KDeviceType_DVD, opticalDisk);
+                if (!machine.isOk())
+                    UINotificationMessage::cannotAttachDevice(machine, UIMediumDeviceType_DVD, QString(),
+                                                              StorageSlot(enmDVDBus, 1, 0), notificationCenter());
+            }
+        }
+        /* Save machine settings here because  portNumberForDevice needs to inquiry port attachments of the controller: */
+        if (machine.isOk())
+        {
+            machine.SaveSettings();
+            if (machine.isOk())
+                success = true;
+            else
+                UINotificationMessage::cannotSaveMachineSettings(machine, notificationCenter());
         }
 
         /* Attach an empty floppy drive if recommended */
         if (gpGlobalSession->guestOSTypeManager().getRecommendedFloppy(m_guestOSTypeId))
         {
-            CStorageController comFloppyController = m_machine.GetStorageControllerByInstance(KStorageBus_Floppy, 0);
+            CStorageController comFloppyController = machine.GetStorageControllerByInstance(KStorageBus_Floppy, 0);
             if (!comFloppyController.isNull())
             {
                 machine.AttachDevice(comFloppyController.GetName(), 0, 0, KDeviceType_Floppy, CMedium());
@@ -364,7 +389,7 @@ bool UIWizardNewVM::attachDefaultDevices()
 void UIWizardNewVM::sltRetranslateUI()
 {
     UINativeWizard::sltRetranslateUI();
-    setWindowTitle(tr("Create Virtual Machine"));
+    setWindowTitle(tr("New Virtual Machine"));
 }
 
 QString UIWizardNewVM::getNextControllerName(KStorageBus type)
@@ -498,7 +523,7 @@ const QString &UIWizardNewVM::createdMachineFolder() const
 
 void UIWizardNewVM::setCreatedMachineFolder(const QString &strCreatedMachineFolder)
 {
-    m_strCreatedFolder = strCreatedMachineFolder;
+    m_strCreatedFolder = QDir::cleanPath(strCreatedMachineFolder);
 }
 
 QString UIWizardNewVM::detectedOSTypeId() const
@@ -814,6 +839,12 @@ bool UIWizardNewVM::isGuestOSTypeWindows() const
     return m_strGuestOSFamilyId.contains("windows", Qt::CaseInsensitive);
 }
 
+bool UIWizardNewVM::isProductKeyRequired() const
+{
+    AssertReturn(!m_comUnattended.isNull(), false);
+    return m_comUnattended.GetProductKeyRequired();
+}
+
 void UIWizardNewVM::setUnattendedPageVisible(bool fVisible)
 {
     if (m_iUnattendedInstallPageIndex != -1)
@@ -828,4 +859,39 @@ bool UIWizardNewVM::checkUnattendedInstallError(const CUnattended &comUnattended
         return false;
     }
     return true;
+}
+
+LONG UIWizardNewVM::portNumberForDevice(CStorageController &comController)
+{
+    QVector<CMediumAttachment> attachments = m_machine.GetMediumAttachmentsOfController(comController.GetName());
+    QVector<LONG> attachmentPorts(attachments.size(), -1);
+    for (int i = 0; i < attachmentPorts.size(); ++i)
+        attachmentPorts[i] = attachments[i].GetPort();
+    LONG portCount = comController.GetPortCount();
+    /* Check if any of the ports in range [0, portCount) is unused. If so return it: */
+    for (int i = 0; i < portCount; ++i)
+    {
+        if (!attachmentPorts.contains(i))
+            return i;
+    }
+
+    if (!comController.isOk())
+    {
+        UINotificationMessage::cannotAcquireStorageControllerParameter(comController);
+        return -1;
+    }
+    /* Check if we can increase the port count: */
+    if (portCount + 1 >= (LONG)comController.GetMaxPortCount())
+    {
+        UINotificationMessage::cannotChangeStorageControllerParameter(comController);
+        return -1;
+    }
+    comController.SetPortCount(portCount + 1);
+    if (!comController.isOk())
+    {
+        UINotificationMessage::cannotChangeStorageControllerParameter(comController);
+        return -1;
+    }
+    /* Use the last port: */
+    return comController.GetPortCount() - 1;
 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -130,8 +130,10 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
 {
     /*  type,         dir,                       fOpt, "pszFile"              */
     /* ---------------------------------------------------------------------- */
+#ifdef VBOX_WITH_R0_MODULES
     {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VMMR0.r0" },
     {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VBoxDDR0.r0" },
+#endif
 
 #ifdef VBOX_WITH_RAW_MODE
     {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VMMRC.rc" },
@@ -1667,12 +1669,17 @@ static int supR3HardenedVerifyDirRecursive(char *pszDirPath, size_t cchDirPath, 
 
         struct dirent Entry;
         struct dirent *pEntry;
-#if RT_GNUC_PREREQ(4, 6)
+#if RT_CLANG_PREREQ(3, 4) /* Needs to come first because clang also triggers on RT_GNUC_PREREQ() but doesn't work there. */
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif RT_GNUC_PREREQ(4, 6)
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
         int iErr = readdir_r(pDir, &Entry, &pEntry);
-#if RT_GNUC_PREREQ(4, 6)
+#if RT_CLANG_PREREQ(3, 4)
+# pragma clang diagnostic pop
+#elif RT_GNUC_PREREQ(4, 6)
 # pragma GCC diagnostic pop
 #endif
         if (iErr)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1259,7 +1259,7 @@ static int rtFsNtfsVol_ParseMft(PRTFSNTFSVOL pThis, PRTFSNTFSMFTREC pRec, PRTERR
             if (cbMin >= NTFSATTRIBHDR_SIZE_NONRES_COMPRESSED)
             {
                 int64_t const cbCompressed = RT_LE2H_U64(pAttrHdr->u.NonRes.cbCompressed);
-                if (cbAllocated < 0)
+                if (cbCompressed < 0)
                     return RTERRINFO_LOG_REL_SET_F(pErrInfo, VERR_VFS_BOGUS_FORMAT,
                                                    "Bad MFT record %#RX64: Attribute (@%#x): cbCompressed (%#RX64) is negative",
                                                    pRec->TreeNode.Key, offRec, cbCompressed);

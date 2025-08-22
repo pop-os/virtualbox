@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -129,6 +129,7 @@ QIRichTextLabel::QIRichTextLabel(QWidget *pParent)
         {
             /* Configure text-browser: */
             m_pTextBrowser->setReadOnly(true);
+            m_pTextBrowser->setOpenLinks(false);
             m_pTextBrowser->setFocusPolicy(Qt::ClickFocus);
             m_pTextBrowser->setFrameShape(QFrame::NoFrame);
             m_pTextBrowser->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -484,6 +484,7 @@ HRESULT NvramStore::initUefiVariableStore(ULONG aSize)
             hrc = setError(E_FAIL, tr("Loading the NVRAM store failed (%Rrc)\n"), vrc);
     }
 
+    PlatformArchitecture_T const enmArch = m->pParent->i_getPlatform()->i_getArchitecture();
     if (SUCCEEDED(hrc))
     {
         int vrc = VINF_SUCCESS;
@@ -498,7 +499,8 @@ HRESULT NvramStore::initUefiVariableStore(ULONG aSize)
             if (RT_SUCCESS(vrc))
             {
                 /** @todo The size is hardcoded to match what the firmware image uses right now which is a gross hack... */
-                vrc = RTVfsFileSetSize(hVfsUefiVarStore, 540672, RTVFSFILE_SIZE_F_NORMAL);
+                uint64_t cbUefi = enmArch == PlatformArchitecture_ARM ? 3 * _256K : 132 * _4K;
+                vrc = RTVfsFileSetSize(hVfsUefiVarStore, cbUefi, RTVFSFILE_SIZE_F_NORMAL);
                 if (RT_SUCCESS(vrc))
                     m->mapNvram["efi/nvram"] = hVfsUefiVarStore;
                 else
@@ -507,8 +509,12 @@ HRESULT NvramStore::initUefiVariableStore(ULONG aSize)
         }
 
         if (RT_SUCCESS(vrc))
-        {
-            vrc = RTEfiVarStoreCreate(hVfsUefiVarStore, 0 /*offStore*/, 0 /*cbStore*/, RTEFIVARSTORE_CREATE_F_DEFAULT, 0 /*cbBlock*/,
+        {   /* We want to create NVRAM files matching the default QEMU_VARS.fd for now, see https://github.com/tianocore/edk2/commit/bf57a42a0e2cf1c68e9db2f61c82ce93c806ab07. */
+            static const RTEFIVARSTORECFG s_EfiNvramCfgArm = {   3 * _256K /*cbFv*/, _256K /*cbBlock*/, _256K /*cbVarStore*/,    0 /*cbNvEventLog*/,  2 * _256K /*cbFtw*/, 0x3ffe0 /*cbWriteQueue*/};
+            /* We want to create NVRAM files matching the default OVMF_VARS.fd for now, see https://github.com/tianocore/edk2/commit/b24fca05751f8222acf264853709012e0ab7bf49. */
+            static const RTEFIVARSTORECFG s_EfiNvramCfgX86 = { 132 * _4K   /*cbFv*/,   _4K /*cbBlock*/, _256K /*cbVarStore*/,  _4K /*cbNvEventLog*/, 67 *   _4K /*cbFtw*/, 0x00fe0 /*cbWriteQueue*/};
+
+            vrc = RTEfiVarStoreCreate(hVfsUefiVarStore, 0 /*offStore*/, enmArch == PlatformArchitecture_ARM ? &s_EfiNvramCfgArm : &s_EfiNvramCfgX86,
                                       NULL /*pErrInfo*/);
             if (RT_FAILURE(vrc))
                 return setError(E_FAIL, tr("Failed to initialize the UEFI variable store (%Rrc)"), vrc);
@@ -1214,13 +1220,12 @@ int NvramStore::i_saveStore(void)
                     vrc = i_setupEncryptionOrDecryption(hVfsIosDst, true /*fEncrypt*/,
                                                         &pCryptoIf, &pKey, &hVfsIosEncrypted);
 #endif
-
-                vrc = RTVfsUtilPumpIoStreams(hVfsIosSrc,
-                                               hVfsIosEncrypted != NIL_RTVFSIOSTREAM
-                                             ? hVfsIosEncrypted
-                                             : hVfsIosDst
-                                             , 0 /*cbBufHint*/);
-
+                if (RT_SUCCESS(vrc))
+                    vrc = RTVfsUtilPumpIoStreams(hVfsIosSrc,
+                                                   hVfsIosEncrypted != NIL_RTVFSIOSTREAM
+                                                 ? hVfsIosEncrypted
+                                                 : hVfsIosDst
+                                                 , 0 /*cbBufHint*/);
 #ifdef VBOX_WITH_FULL_VM_ENCRYPTION
                 if (hVfsIosEncrypted != NIL_RTVFSIOSTREAM)
                     i_releaseEncryptionOrDecryptionResources(hVfsIosEncrypted, pCryptoIf, pKey);

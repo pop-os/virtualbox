@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -48,6 +48,8 @@
 #endif
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 # include <iprt/asm-amd64-x86.h>
+#elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+# include <iprt/asm-arm.h>
 #endif
 #include <iprt/errcore.h>
 #if defined(IN_RING0) && defined(RT_OS_LINUX)
@@ -56,7 +58,7 @@
 
 
 
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
 /**
  * The slow case for SUPReadTsc where we need to apply deltas.
  *
@@ -82,7 +84,8 @@ SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip)
     /*
      * Read the TSC and get the corresponding aCPUs index.
      */
-#ifdef IN_RING3
+# ifdef IN_RING3
+#  if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     if (pGip->fGetGipCpu & SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS)
     {
         /* RDTSCP gives us all we need, no loops/cli. */
@@ -97,7 +100,7 @@ SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip)
         uint32_t cTries = 0;
         for (;;)
         {
-            uint16_t cbLim = ASMGetIdtrLimit();
+            uint16_t const cbLim = ASMGetIdtrLimit();
             uTsc = ASMReadTSC();
             if (RT_LIKELY(ASMGetIdtrLimit() == cbLim))
             {
@@ -120,7 +123,7 @@ SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip)
         uint32_t cTries = 0;
         for (;;)
         {
-            uint32_t idApic = ASMGetApicIdExt0B();
+            uint32_t const idApic = ASMGetApicIdExt0B();
             uTsc = ASMReadTSC();
             if (RT_LIKELY(ASMGetApicIdExt0B() == idApic))
             {
@@ -141,7 +144,7 @@ SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip)
         uint32_t cTries = 0;
         for (;;)
         {
-            uint32_t idApic = ASMGetApicIdExt8000001E();
+            uint32_t const idApic = ASMGetApicIdExt8000001E();
             uTsc = ASMReadTSC();
             if (RT_LIKELY(ASMGetApicIdExt8000001E() == idApic))
             {
@@ -162,7 +165,7 @@ SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip)
         uint32_t cTries = 0;
         for (;;)
         {
-            uint8_t idApic = ASMGetApicId();
+            uint8_t const idApic = ASMGetApicId();
             uTsc = ASMReadTSC();
             if (RT_LIKELY(ASMGetApicId() == idApic))
             {
@@ -177,6 +180,51 @@ SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip)
             cTries++;
         }
     }
+
+#  else /* !AMD64 || !X86 */
+#   if defined(RT_OS_WINDOWS)
+    /* Use TPIDRRO_EL0 (=cpu number) before and after reading the TSC. */
+    uint32_t cTries = 0;
+    for (;;)
+    {
+        RTCCUINTREG const idApic = ASMGetThreadIdRoEL0();
+        uTsc = ASMReadTSC();
+        if (RT_LIKELY(ASMGetThreadIdRoEL0() == idApic))
+        {
+            AssertBreakStmt(idApic < RT_ELEMENTS(pGip->aiCpuFromApicId), iGipCpu = UINT16_MAX);
+            iGipCpu = pGip->aiCpuFromApicId[idApic & 0xffff];
+            break;
+        }
+        if (cTries >= 16)
+        {
+            iGipCpu = UINT16_MAX;
+            break;
+        }
+        cTries++;
+    }
+#   else
+    /* Use RTMpCpuId before and after reading the TSC. */
+    uint32_t cTries = 0;
+    for (;;)
+    {
+        RTCPUID const idCpu = RTMpCpuId();
+        uTsc = ASMReadTSC();
+        if (RT_LIKELY(RTMpCpuId() == idCpu))
+        {
+            int const iCpuSet = RTMpCpuIdToSetIndex(idCpu);
+            iGipCpu = pGip->aiCpuFromCpuSetIdx[iCpuSet];
+            break;
+        }
+        if (cTries >= 16)
+        {
+            iGipCpu = UINT16_MAX;
+            break;
+        }
+        cTries++;
+    }
+#   endif
+#  endif /* !AMD64 || !X86 */
+
 #elif defined(IN_RING0)
     /* Ring-0: Use use RTMpCpuId(), no loops. */
     RTCCUINTREG uFlags  = ASMIntDisableFlags();
@@ -233,7 +281,7 @@ SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip)
 # ifdef SUPR0_EXPORT_SYMBOL
 SUPR0_EXPORT_SYMBOL(SUPReadTscWithDelta);
 # endif
-#endif /* RT_ARCH_AMD64 || RT_ARCH_X86 */
+#endif /* defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32) */
 
 
 /**

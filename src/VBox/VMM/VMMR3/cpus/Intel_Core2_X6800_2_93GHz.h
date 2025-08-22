@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -246,17 +246,20 @@ static CPUMMSRRANGE const g_aMsrRanges_Intel_Core2_X6800_2_93GHz[] =
 /**
  * Database entry for Intel(R) Core(TM)2 CPU         X6800  @ 2.93GHz.
  */
-static CPUMDBENTRY const g_Entry_Intel_Core2_X6800_2_93GHz =
+static CPUMDBENTRYX86 const g_Entry_Intel_Core2_X6800_2_93GHz =
 {
-    /*.pszName          = */ "Intel Core2 X6800 2.93GHz",
-    /*.pszFullName      = */ "Intel(R) Core(TM)2 CPU         X6800  @ 2.93GHz",
-    /*.enmVendor        = */ CPUMCPUVENDOR_INTEL,
+    {
+        /*.pszName      = */ "Intel Core2 X6800 2.93GHz",
+        /*.pszFullName  = */ "Intel(R) Core(TM)2 CPU         X6800  @ 2.93GHz",
+        /*.enmVendor    = */ CPUMCPUVENDOR_INTEL,
+        /*.enmMicroarch = */ kCpumMicroarch_Intel_Core2_Merom,
+        /*.fFlags       = */ 0,
+        /*.enmEntryType = */ CPUMDBENTRYTYPE_X86,
+    },
     /*.uFamily          = */ 6,
     /*.uModel           = */ 15,
     /*.uStepping        = */ 6,
-    /*.enmMicroarch     = */ kCpumMicroarch_Intel_Core2_Merom,
     /*.uScalableBusFreq = */ CPUM_SBUSFREQ_267MHZ,
-    /*.fFlags           = */ 0,
     /*.cMaxPhysAddrWidth= */ 36,
     /*.fMxCsrMask       = */ 0x0000ffff,
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_Intel_Core2_X6800_2_93GHz),

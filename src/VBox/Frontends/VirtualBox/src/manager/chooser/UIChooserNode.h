@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -43,7 +43,6 @@
 /* Forward declaration: */
 class UIChooserAbstractModel;
 class UIChooserNodeGroup;
-class UIChooserNodeGlobal;
 class UIChooserNodeMachine;
 
 
@@ -56,9 +55,8 @@ class UIChooserNode : public QObject
 
 public:
 
-    /** Constructs chooser node passing @a pParent to the base-class.
-      * @param  fFavorite  Brings whether the node is favorite. */
-    UIChooserNode(UIChooserNode *pParent = 0, bool fFavorite = false);
+    /** Constructs chooser node passing @a pParent to the base-class. */
+    UIChooserNode(UIChooserNode *pParent = 0);
     /** Destructs chooser node. */
     virtual ~UIChooserNode() RT_OVERRIDE;
 
@@ -67,8 +65,6 @@ public:
 
     /** Casts node to group one. */
     UIChooserNodeGroup *toGroupNode();
-    /** Casts node to global one. */
-    UIChooserNodeGlobal *toGlobalNode();
     /** Casts node to machine one. */
     UIChooserNodeMachine *toMachineNode();
 
@@ -78,11 +74,6 @@ public:
     bool isRoot() const { return !m_pParent; }
     /** Returns root node reference. */
     UIChooserNode *rootNode() const;
-
-    /** Returns whether the node is favorite. */
-    bool isFavorite() const { return m_fFavorite; }
-    /** Defines whether the node is @a fFavorite. */
-    void setFavorite(bool fFavorite) { m_fFavorite = fFavorite; }
 
     /** Defines the @a pModel reference. */
     void setModel(UIChooserAbstractModel *pModel) { m_pModel = pModel; }
@@ -142,9 +133,7 @@ public:
 protected:
 
     /** Holds the parent node reference. */
-    UIChooserNode  *m_pParent;
-    /** Holds whether the node is favorite. */
-    bool            m_fFavorite;
+    UIChooserNode *m_pParent;
 
     /** Holds the model reference. */
     UIChooserAbstractModel *m_pModel;
@@ -156,8 +145,7 @@ protected:
     QString  m_strDescription;
 
     /** Holds the flag to indicate whether the node is disabled or not. */
-    bool m_fDisabled;
-
+    bool  m_fDisabled;
 };
 
 

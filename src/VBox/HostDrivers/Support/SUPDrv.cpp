@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -45,8 +45,14 @@
 # include <iprt/param.h>
 #endif
 #include <iprt/asm.h>
-#include <iprt/asm-amd64-x86.h>
 #include <iprt/asm-math.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+# include <iprt/asm-arm.h>
+#else
+# error "Port me!"
+#endif
 #include <iprt/cpuset.h>
 #if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)
 # include <iprt/dbg.h>
@@ -70,6 +76,9 @@
 #endif
 #include <iprt/uint128.h>
 #include <iprt/x86.h>
+#ifdef RT_ARCH_ARM64
+# include <iprt/armv8.h>
+#endif
 
 #include <VBox/param.h>
 #include <VBox/log.h>
@@ -177,7 +186,12 @@ DECLINLINE(int)             supdrvLdrLock(PSUPDRVDEVEXT pDevExt);
 DECLINLINE(int)             supdrvLdrUnlock(PSUPDRVDEVEXT pDevExt);
 static int                  supdrvIOCtl_CallServiceModule(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPCALLSERVICE pReq);
 static int                  supdrvIOCtl_LoggerSettings(PSUPLOGGERSETTINGS pReq);
-static int                  supdrvIOCtl_MsrProber(PSUPDRVDEVEXT pDevExt, PSUPMSRPROBER pReq);
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+static int                  supdrvIOCtl_X86MsrProber(PSUPDRVDEVEXT pDevExt, PSUPMSRPROBER pReq);
+#endif
+#if defined(RT_ARCH_ARM64)
+static int                  supdrvIOCtl_ArmGetSysRegs(PSUPARMGETSYSREGS pReq, uint32_t cMaxRegs, RTCPUID idCpu, uint32_t fFlags);
+#endif
 static int                  supdrvIOCtl_ResumeSuspendedKbds(void);
 
 
@@ -246,18 +260,20 @@ static SUPFUNC g_aFunctions[] =
     /* name                                     function */
         /* Entries with absolute addresses determined at runtime, fixup
            code makes ugly ASSUMPTIONS about the order here: */
-    SUPEXP_CUSTOM(      0,  SUPR0AbsIs64bit,          0),
-    SUPEXP_CUSTOM(      0,  SUPR0Abs64bitKernelCS,    0),
-    SUPEXP_CUSTOM(      0,  SUPR0Abs64bitKernelSS,    0),
-    SUPEXP_CUSTOM(      0,  SUPR0Abs64bitKernelDS,    0),
-    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelCS,         0),
-    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelSS,         0),
-    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelDS,         0),
-    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelES,         0),
-    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelFS,         0),
-    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelGS,         0),
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
+    SUPEXP_CUSTOM(      0,  SUPR0AbsIs64bit,       0),  /* not-arch-arm64 */
+    SUPEXP_CUSTOM(      0,  SUPR0Abs64bitKernelCS, 0),  /* not-arch-arm64 */
+    SUPEXP_CUSTOM(      0,  SUPR0Abs64bitKernelSS, 0),  /* not-arch-arm64 */
+    SUPEXP_CUSTOM(      0,  SUPR0Abs64bitKernelDS, 0),  /* not-arch-arm64 */
+    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelCS,      0),  /* not-arch-arm64 */
+    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelSS,      0),  /* not-arch-arm64 */
+    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelDS,      0),  /* not-arch-arm64 */
+    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelES,      0),  /* not-arch-arm64 */
+    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelFS,      0),  /* not-arch-arm64 */
+    SUPEXP_CUSTOM(      0,  SUPR0AbsKernelGS,      0),  /* not-arch-arm64 */
+#endif
         /* Normal function & data pointers: */
-    SUPEXP_CUSTOM(      0,  g_pSUPGlobalInfoPage,     &g_pSUPGlobalInfoPage),            /* SED: DATA */
+    SUPEXP_CUSTOM(      0,  g_pSUPGlobalInfoPage,  &g_pSUPGlobalInfoPage),            /* SED: DATA */
     SUPEXP_STK_OKAY(    0,  SUPGetGIP),
     SUPEXP_STK_BACK(    1,  SUPReadTscWithDelta),
     SUPEXP_STK_BACK(    1,  SUPGetTscDeltaSlow),
@@ -270,19 +286,21 @@ static SUPFUNC g_aFunctions[] =
     SUPEXP_STK_BACK(    2,  SUPR0ComponentRegisterFactory),
     SUPEXP_STK_BACK(    5,  SUPR0ContAlloc),
     SUPEXP_STK_BACK(    2,  SUPR0ContFree),
-    SUPEXP_STK_BACK(    2,  SUPR0ChangeCR4),
-    SUPEXP_STK_BACK(    1,  SUPR0EnableVTx),
-    SUPEXP_STK_OKAY(    1,  SUPR0FpuBegin),
-    SUPEXP_STK_OKAY(    1,  SUPR0FpuEnd),
-    SUPEXP_STK_BACK(    0,  SUPR0SuspendVTxOnCpu),
-    SUPEXP_STK_BACK(    1,  SUPR0ResumeVTxOnCpu),
-    SUPEXP_STK_OKAY(    1,  SUPR0GetCurrentGdtRw),
     SUPEXP_STK_OKAY(    0,  SUPR0GetKernelFeatures),
-    SUPEXP_STK_BACK(    3,  SUPR0GetHwvirtMsrs),
     SUPEXP_STK_BACK(    0,  SUPR0GetPagingMode),
-    SUPEXP_STK_BACK(    1,  SUPR0GetSvmUsability),
-    SUPEXP_STK_BACK(    1,  SUPR0GetVTSupport),
-    SUPEXP_STK_BACK(    1,  SUPR0GetVmxUsability),
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
+    SUPEXP_STK_OKAY(    1,  SUPR0FpuBegin),             /* not-arch-arm64 */
+    SUPEXP_STK_OKAY(    1,  SUPR0FpuEnd),               /* not-arch-arm64 */
+    SUPEXP_STK_BACK(    2,  SUPR0ChangeCR4),            /* not-arch-arm64 */
+    SUPEXP_STK_BACK(    1,  SUPR0EnableVTx),            /* not-arch-arm64 */
+    SUPEXP_STK_BACK(    0,  SUPR0SuspendVTxOnCpu),      /* not-arch-arm64 */
+    SUPEXP_STK_BACK(    1,  SUPR0ResumeVTxOnCpu),       /* not-arch-arm64 */
+    SUPEXP_STK_OKAY(    1,  SUPR0GetCurrentGdtRw),      /* not-arch-arm64 */
+    SUPEXP_STK_BACK(    3,  SUPR0GetHwvirtMsrs),        /* not-arch-arm64 */
+    SUPEXP_STK_BACK(    1,  SUPR0GetSvmUsability),      /* not-arch-arm64 */
+    SUPEXP_STK_BACK(    1,  SUPR0GetVTSupport),         /* not-arch-arm64 */
+    SUPEXP_STK_BACK(    1,  SUPR0GetVmxUsability),      /* not-arch-arm64 */
+#endif
     SUPEXP_STK_BACK(    2,  SUPR0LdrIsLockOwnerByMod),
     SUPEXP_STK_BACK(    1,  SUPR0LdrLock),
     SUPEXP_STK_BACK(    1,  SUPR0LdrUnlock),
@@ -449,8 +467,10 @@ static SUPFUNC g_aFunctions[] =
 #endif
     SUPEXP_STK_BACK(    0,  RTR0MemAreKrnlAndUsrDifferent),
     SUPEXP_STK_BACK(    1,  RTR0MemKernelIsValidAddr),
+#if !defined(RT_OS_LINUX) || defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     SUPEXP_STK_BACK(    3,  RTR0MemKernelCopyFrom),
     SUPEXP_STK_BACK(    3,  RTR0MemKernelCopyTo),
+#endif
     SUPEXP_STK_OKAY(    1,  RTR0MemObjAddress),
     SUPEXP_STK_OKAY(    1,  RTR0MemObjAddressR3),
     SUPEXP_STK_BACK(    5,  RTR0MemObjAllocContTag),
@@ -700,8 +720,9 @@ int VBOXCALL supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession)
                          * Because of the table indexing assumptions we'll have a little #ifdef orgy
                          * here rather than distributing this to OS specific files. At least for now.
                          */
-#ifdef RT_OS_DARWIN
-# if ARCH_BITS == 32
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# ifdef RT_OS_DARWIN
+#  if ARCH_BITS == 32
                         if (SUPR0GetPagingMode() >= SUPPAGINGMODE_AMD64)
                         {
                             g_aFunctions[0].pfn = (void *)1;                    /* SUPR0AbsIs64bit */
@@ -717,7 +738,7 @@ int VBOXCALL supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession)
                         g_aFunctions[7].pfn = (void *)0x10;                     /* SUPR0AbsKernelES - KERNEL_DS, seg.h */
                         g_aFunctions[8].pfn = (void *)0x10;                     /* SUPR0AbsKernelFS - KERNEL_DS, seg.h */
                         g_aFunctions[9].pfn = (void *)0x48;                     /* SUPR0AbsKernelGS - CPU_DATA_GS, seg.h */
-# else /* 64-bit darwin: */
+#  else /* 64-bit darwin: */
                         g_aFunctions[0].pfn = (void *)1;                        /* SUPR0AbsIs64bit */
                         g_aFunctions[1].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0Abs64bitKernelCS */
                         g_aFunctions[2].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0Abs64bitKernelSS */
@@ -729,23 +750,24 @@ int VBOXCALL supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession)
                         g_aFunctions[8].pfn = (void *)0;                        /* SUPR0AbsKernelFS */
                         g_aFunctions[9].pfn = (void *)0;                        /* SUPR0AbsKernelGS */
 
-# endif
-#else  /* !RT_OS_DARWIN */
-# if ARCH_BITS == 64
+#  endif
+# else  /* !RT_OS_DARWIN */
+#  if ARCH_BITS == 64
                         g_aFunctions[0].pfn = (void *)1;                        /* SUPR0AbsIs64bit */
                         g_aFunctions[1].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0Abs64bitKernelCS */
                         g_aFunctions[2].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0Abs64bitKernelSS */
                         g_aFunctions[3].pfn = (void *)(uintptr_t)ASMGetDS();    /* SUPR0Abs64bitKernelDS */
-# else
+#  else
                         g_aFunctions[0].pfn = g_aFunctions[1].pfn = g_aFunctions[2].pfn = g_aFunctions[3].pfn = (void *)0;
-# endif
+#  endif
                         g_aFunctions[4].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0AbsKernelCS */
                         g_aFunctions[5].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0AbsKernelSS */
                         g_aFunctions[6].pfn = (void *)(uintptr_t)ASMGetDS();    /* SUPR0AbsKernelDS */
                         g_aFunctions[7].pfn = (void *)(uintptr_t)ASMGetES();    /* SUPR0AbsKernelES */
                         g_aFunctions[8].pfn = (void *)(uintptr_t)ASMGetFS();    /* SUPR0AbsKernelFS */
                         g_aFunctions[9].pfn = (void *)(uintptr_t)ASMGetGS();    /* SUPR0AbsKernelGS */
-#endif /* !RT_OS_DARWIN */
+# endif /* !RT_OS_DARWIN */
+#endif /* AMD64 || X86 */
                         return VINF_SUCCESS;
                     }
 
@@ -2155,8 +2177,8 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
         {
             /* validate */
             PSUPPAGEALLOCEX pReq = (PSUPPAGEALLOCEX)pReqHdr;
-            REQ_CHECK_EXPR(SUP_IOCTL_PAGE_ALLOC_EX, pReq->Hdr.cbIn <= SUP_IOCTL_PAGE_ALLOC_EX_SIZE_IN);
-            REQ_CHECK_SIZES_EX(SUP_IOCTL_PAGE_ALLOC_EX, SUP_IOCTL_PAGE_ALLOC_EX_SIZE_IN, SUP_IOCTL_PAGE_ALLOC_EX_SIZE_OUT(pReq->u.In.cPages));
+            REQ_CHECK_SIZE_IN(SUP_IOCTL_PAGE_ALLOC_EX, SUP_IOCTL_PAGE_ALLOC_EX_SIZE_IN);
+            REQ_CHECK_SIZE_OUT(SUP_IOCTL_PAGE_ALLOC_EX, SUP_IOCTL_PAGE_ALLOC_EX_SIZE_OUT(pReq->u.In.cPages));
             REQ_CHECK_EXPR_FMT(pReq->u.In.fKernelMapping || pReq->u.In.fUserMapping,
                                ("SUP_IOCTL_PAGE_ALLOC_EX: No mapping requested!\n"));
             REQ_CHECK_EXPR_FMT(pReq->u.In.fUserMapping,
@@ -2402,19 +2424,6 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
             return 0;
         }
 
-        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_VT_CAPS):
-        {
-            /* validate */
-            PSUPVTCAPS pReq = (PSUPVTCAPS)pReqHdr;
-            REQ_CHECK_SIZES(SUP_IOCTL_VT_CAPS);
-
-            /* execute */
-            pReq->Hdr.rc = SUPR0QueryVTCaps(pSession, &pReq->u.Out.fCaps);
-            if (RT_FAILURE(pReq->Hdr.rc))
-                pReq->Hdr.cbOut = sizeof(pReq->Hdr);
-            return 0;
-        }
-
         case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_TRACER_OPEN):
         {
             /* validate */
@@ -2485,6 +2494,7 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
             return 0;
         }
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
         case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_MSR_PROBER):
         {
             /* validate */
@@ -2493,9 +2503,31 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
             REQ_CHECK_EXPR(SUP_IOCTL_MSR_PROBER,
                            pReq->u.In.enmOp > SUPMSRPROBEROP_INVALID && pReq->u.In.enmOp < SUPMSRPROBEROP_END);
 
-            pReqHdr->rc = supdrvIOCtl_MsrProber(pDevExt, pReq);
+            pReqHdr->rc = supdrvIOCtl_X86MsrProber(pDevExt, pReq);
+
             return 0;
         }
+
+#elif defined(RT_ARCH_ARM64)
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_ARM_GET_SYSREGS):
+        {
+            /* validate */
+            PSUPARMGETSYSREGS pReq  = (PSUPARMGETSYSREGS)pReqHdr;
+            uint32_t const cMaxRegs = pReq->Hdr.cbOut <= RT_UOFFSETOF(SUPARMGETSYSREGS, u.Out.aRegs) ? 0
+                                    : (pReq->Hdr.cbOut - RT_UOFFSETOF(SUPARMGETSYSREGS, u.Out.aRegs)) / sizeof(SUPARMSYSREGVAL);
+            REQ_CHECK_SIZE_IN(SUP_IOCTL_ARM_GET_SYSREGS, SUP_IOCTL_ARM_GET_SYSREGS_SIZE_IN);
+
+            REQ_CHECK_SIZE_OUT(SUP_IOCTL_ARM_GET_SYSREGS, SUP_IOCTL_ARM_GET_SYSREGS_SIZE_OUT(cMaxRegs));
+            REQ_CHECK_EXPR_FMT(!(pReq->u.In.fFlags & ~SUP_ARM_SYS_REG_F_VALID_MASK),
+                               ("SUP_IOCTL_ARM_GET_SYSREGS: fFlags=%#x!\n", pReq->u.In.fFlags));
+
+            pReqHdr->rc = supdrvIOCtl_ArmGetSysRegs(pReq, cMaxRegs, pReq->u.In.idCpu, pReq->u.In.fFlags);
+            if (RT_FAILURE(pReqHdr->rc))
+                pReqHdr->cbOut = sizeof(*pReqHdr);
+
+            return 0;
+        }
+#endif
 
         case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_RESUME_SUSPENDED_KBDS):
         {
@@ -2536,6 +2568,21 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
             return 0;
         }
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_VT_CAPS):
+        {
+            /* validate */
+            PSUPVTCAPS pReq = (PSUPVTCAPS)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_VT_CAPS);
+
+            /* execute */
+            pReq->Hdr.rc = SUPR0QueryVTCaps(pSession, &pReq->u.Out.fCaps);
+            if (RT_FAILURE(pReq->Hdr.rc))
+                pReq->Hdr.cbOut = sizeof(pReq->Hdr);
+            return 0;
+        }
+
         case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_UCODE_REV):
         {
             /* validate */
@@ -2564,6 +2611,8 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
             return 0;
         }
+
+#endif /* defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) */
 
         default:
             Log(("Unknown IOCTL %#lx\n", (long)uIOCtl));
@@ -2637,6 +2686,7 @@ static int supdrvIOCtlInnerRestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, P
             return 0;
         }
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
         case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_VT_CAPS):
         {
             /* validate */
@@ -2649,6 +2699,7 @@ static int supdrvIOCtlInnerRestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, P
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
             return 0;
         }
+#endif /* defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) */
 
         default:
             Log(("Unknown IOCTL %#lx\n", (long)uIOCtl));
@@ -4136,6 +4187,7 @@ SUPR0_EXPORT_SYMBOL(SUPR0BadContext);
  */
 SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void)
 {
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     SUPPAGINGMODE enmMode;
 
     RTR0UINTREG cr0 = ASMGetCR0();
@@ -4207,9 +4259,19 @@ SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void)
         }
     }
     return enmMode;
+
+#elif defined(RT_ARCH_ARM64)
+    /** @todo portme? */
+    return SUPPAGINGMODE_INVALID;
+
+#else
+# error "port me"
+#endif
 }
 SUPR0_EXPORT_SYMBOL(SUPR0GetPagingMode);
 
+
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 
 /**
  * Change CR4 and take care of the kernel CR4 shadow if applicable.
@@ -4227,15 +4289,15 @@ SUPR0_EXPORT_SYMBOL(SUPR0GetPagingMode);
  */
 SUPR0DECL(RTCCUINTREG) SUPR0ChangeCR4(RTCCUINTREG fOrMask, RTCCUINTREG fAndMask)
 {
-#ifdef RT_OS_LINUX
+# ifdef RT_OS_LINUX
     return supdrvOSChangeCR4(fOrMask, fAndMask);
-#else
+# else
     RTCCUINTREG uOld = ASMGetCR4();
     RTCCUINTREG uNew = (uOld & fAndMask) | fOrMask;
     if (uNew != uOld)
         ASMSetCR4(uNew);
     return uOld;
-#endif
+# endif
 }
 SUPR0_EXPORT_SYMBOL(SUPR0ChangeCR4);
 
@@ -4251,12 +4313,12 @@ SUPR0_EXPORT_SYMBOL(SUPR0ChangeCR4);
  */
 SUPR0DECL(int) SUPR0EnableVTx(bool fEnable)
 {
-#ifdef RT_OS_DARWIN
+# if defined(RT_OS_DARWIN) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
     return supdrvOSEnableVTx(fEnable);
-#else
+# else
     RT_NOREF1(fEnable);
     return VERR_NOT_SUPPORTED;
-#endif
+# endif
 }
 SUPR0_EXPORT_SYMBOL(SUPR0EnableVTx);
 
@@ -4270,11 +4332,11 @@ SUPR0_EXPORT_SYMBOL(SUPR0EnableVTx);
  */
 SUPR0DECL(bool) SUPR0SuspendVTxOnCpu(void)
 {
-#ifdef RT_OS_DARWIN
+# if defined(RT_OS_DARWIN) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
     return supdrvOSSuspendVTxOnCpu();
-#else
+# else
     return false;
-#endif
+# endif
 }
 SUPR0_EXPORT_SYMBOL(SUPR0SuspendVTxOnCpu);
 
@@ -4288,24 +4350,24 @@ SUPR0_EXPORT_SYMBOL(SUPR0SuspendVTxOnCpu);
  */
 SUPR0DECL(void) SUPR0ResumeVTxOnCpu(bool fSuspended)
 {
-#ifdef RT_OS_DARWIN
+# if defined(RT_OS_DARWIN) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
     supdrvOSResumeVTxOnCpu(fSuspended);
-#else
+# else
     RT_NOREF1(fSuspended);
     Assert(!fSuspended);
-#endif
+# endif
 }
 SUPR0_EXPORT_SYMBOL(SUPR0ResumeVTxOnCpu);
 
 
 SUPR0DECL(int) SUPR0GetCurrentGdtRw(RTHCUINTPTR *pGdtRw)
 {
-#ifdef RT_OS_LINUX
+# if defined(RT_OS_LINUX) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
     return supdrvOSGetCurrentGdtRw(pGdtRw);
-#else
+# else
     NOREF(pGdtRw);
     return VERR_NOT_IMPLEMENTED;
-#endif
+# endif
 }
 SUPR0_EXPORT_SYMBOL(SUPR0GetCurrentGdtRw);
 
@@ -4451,7 +4513,7 @@ SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous)
          * for it.
          */
         uint32_t fFeaturesECX, uDummy;
-#ifdef VBOX_STRICT
+# ifdef VBOX_STRICT
         /* Callers should have verified these at some point. */
         uint32_t uMaxId, uVendorEBX, uVendorECX, uVendorEDX;
         ASMCpuId(0, &uMaxId, &uVendorEBX, &uVendorECX, &uVendorEDX);
@@ -4459,7 +4521,7 @@ SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous)
         Assert(   RTX86IsIntelCpu(     uVendorEBX, uVendorECX, uVendorEDX)
                || RTX86IsViaCentaurCpu(uVendorEBX, uVendorECX, uVendorEDX)
                || RTX86IsShanghaiCpu(  uVendorEBX, uVendorECX, uVendorEDX));
-#endif
+# endif
         ASMCpuId(1, &uDummy, &uDummy, &fFeaturesECX, &uDummy);
         bool fSmxVmxHwSupport = false;
         if (   (fFeaturesECX & X86_CPUID_FEATURE_ECX_VMX)
@@ -4684,7 +4746,7 @@ SUPR0_EXPORT_SYMBOL(SUPR0QueryVTCaps);
  */
 static int VBOXCALL supdrvQueryUcodeRev(uint32_t *puRevision)
 {
-    int  rc = VERR_UNSUPPORTED_CPU;
+    int                  rc           = VERR_UNSUPPORTED_CPU;
     RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
 
     /*
@@ -4779,10 +4841,9 @@ SUPR0_EXPORT_SYMBOL(SUPR0QueryUcodeRev);
  */
 SUPR0DECL(int) SUPR0GetHwvirtMsrs(PSUPHWVIRTMSRS pMsrs, uint32_t fCaps, bool fForce)
 {
-    NOREF(fForce);
-
     int rc;
     RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
+    RT_NOREF_PV(fForce);
 
     /*
      * Input validation.
@@ -4872,6 +4933,8 @@ SUPR0DECL(int) SUPR0GetHwvirtMsrs(PSUPHWVIRTMSRS pMsrs, uint32_t fCaps, bool fFo
     return rc;
 }
 SUPR0_EXPORT_SYMBOL(SUPR0GetHwvirtMsrs);
+
+#endif /* defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) */
 
 
 /**
@@ -7131,6 +7194,7 @@ static int supdrvIOCtl_LoggerSettings(PSUPLOGGERSETTINGS pReq)
 }
 
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 /**
  * Implements the MSR prober operations.
  *
@@ -7138,9 +7202,9 @@ static int supdrvIOCtl_LoggerSettings(PSUPLOGGERSETTINGS pReq)
  * @param   pDevExt     The device extension.
  * @param   pReq        The request.
  */
-static int supdrvIOCtl_MsrProber(PSUPDRVDEVEXT pDevExt, PSUPMSRPROBER pReq)
+static int supdrvIOCtl_X86MsrProber(PSUPDRVDEVEXT pDevExt, PSUPMSRPROBER pReq)
 {
-#ifdef SUPDRV_WITH_MSR_PROBER
+# ifdef SUPDRV_WITH_MSR_PROBER
     RTCPUID const idCpu = pReq->u.In.idCpu == UINT32_MAX ? NIL_RTCPUID : pReq->u.In.idCpu;
     int rc;
 
@@ -7185,12 +7249,312 @@ static int supdrvIOCtl_MsrProber(PSUPDRVDEVEXT pDevExt, PSUPMSRPROBER pReq)
     }
     RT_NOREF1(pDevExt);
     return rc;
-#else
+# else
     RT_NOREF2(pDevExt, pReq);
     return VERR_NOT_IMPLEMENTED;
-#endif
+# endif
+}
+#endif /* RT_ARCH_AMD64 || RT_ARCH_X86 */
+
+
+#if defined(RT_ARCH_ARM64)
+
+/**
+ * Gathers ARM system registers.
+ *
+ * This is either called directly or via RTMpOnSpecific.  The latter means that
+ * we must not trigger any paging activity or block.
+ */
+static void supdrvIOCtl_ArmGetSysRegsOnCpu(PSUPARMGETSYSREGS pReq, uint32_t const cMaxRegs, uint32_t fFlags)
+{
+    /*
+     * Reader macro.
+     */
+    uint32_t const fSavedFlags = fFlags;
+    uint32_t       idxReg      = 0;
+    uint64_t       uRegVal;
+#  ifdef _MSC_VER
+#   define COMPILER_READ_SYS_REG(a_u64Dst, a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) \
+        (a_u64Dst) = (uint64_t)_ReadStatusReg(ARMV8_AARCH64_SYSREG_ID_CREATE(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) & 0x7fff)
+#   define COMPILER_READ_SYS_REG_NAMED(a_u64Dst, a_SysRegName) \
+        (a_u64Dst) = (uint64_t)_ReadStatusReg(RT_CONCAT(ARMV8_AARCH64_SYSREG_,a_SysRegName) & 0x7fff)
+#  else
+#   define COMPILER_READ_SYS_REG(a_u64Dst, a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) \
+        __asm__ __volatile__ ("mrs %0, s" #a_Op0 "_" #a_Op1 "_c" #a_CRn "_c" #a_CRm "_" #a_Op2  : "=r" (a_u64Dst))
+#   define COMPILER_READ_SYS_REG_NAMED(a_u64Dst, a_SysRegName) \
+        __asm__ __volatile__ ("mrs %0, " #a_SysRegName  : "=r" (a_u64Dst))
+#  endif
+# define READ_SYS_REG_UNDEF(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) do { \
+            uRegVal = 0; \
+            COMPILER_READ_SYS_REG(uRegVal, a_Op0, a_Op1, a_CRn, a_CRm, a_Op2); \
+            if (uRegVal != 0 || (fFlags & SUP_ARM_SYS_REG_F_INC_ZERO_REG_VAL)) \
+            { \
+                if (idxReg < cMaxRegs) \
+                { \
+                    pReq->u.Out.aRegs[idxReg].uValue = uRegVal; \
+                    pReq->u.Out.aRegs[idxReg].idReg  = ARMV8_AARCH64_SYSREG_ID_CREATE(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2); \
+                    pReq->u.Out.aRegs[idxReg].fFlags = 0; \
+                } \
+                idxReg += 1; \
+            } \
+        } while (0)
+
+# define READ_SYS_REG_NAMED(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2, a_SysRegName) do { \
+            AssertCompile(   ARMV8_AARCH64_SYSREG_ID_CREATE(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2) \
+                          == RT_CONCAT(ARMV8_AARCH64_SYSREG_,a_SysRegName)); \
+            READ_SYS_REG_UNDEF(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2); \
+        } while (0)
+
+# define READ_SYS_REG__TODO(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2, a_SysRegName) READ_SYS_REG_UNDEF(a_Op0, a_Op1, a_CRn, a_CRm, a_Op2)
+    /*
+     * Standard ID registers.
+     *
+     * DDI0487L.a section D23.3.1, 3rd item in note states that the registers in
+     * the range 3,0,0,2,0 thru 3,0,0,7,7 are defined to be accessible and if not
+     * defined will read-as-zero.
+     */
+
+    /* The first three seems to be in a sparse block. Haven't found any docs on
+       what the Op2 values 1-4 and 7 may do if read. */
+    READ_SYS_REG_NAMED(3, 0, 0, 0, 0, MIDR_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 0, 5, MPIDR_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 0, 6, REVIDR_EL1);
+
+    /* AArch64 feature registers
+       The CRm values 4 thru 7 are RAZ when undefined as per the D23.3.1 note. */
+    READ_SYS_REG_NAMED(3, 0, 0, 4, 0, ID_AA64PFR0_EL1);
+    uint64_t const fPfr0 = uRegVal;
+    bool const fA32 = ((fPfr0 & ARMV8_ID_AA64PFR0_EL1_EL0_MASK) >> ARMV8_ID_AA64PFR0_EL1_EL0_SHIFT) == ARMV8_ID_AA64PFR0_EL1_EL0_AARCH64_AARCH32
+                   || ((fPfr0 & ARMV8_ID_AA64PFR0_EL1_EL1_MASK) >> ARMV8_ID_AA64PFR0_EL1_EL1_SHIFT) == ARMV8_ID_AA64PFR0_EL1_EL1_AARCH64_AARCH32
+                   || ((fPfr0 & ARMV8_ID_AA64PFR0_EL1_EL2_MASK) >> ARMV8_ID_AA64PFR0_EL1_EL2_SHIFT) == ARMV8_ID_AA64PFR0_EL1_EL2_AARCH64_AARCH32
+                   || ((fPfr0 & ARMV8_ID_AA64PFR0_EL1_EL3_MASK) >> ARMV8_ID_AA64PFR0_EL1_EL3_SHIFT) == ARMV8_ID_AA64PFR0_EL1_EL3_AARCH64_AARCH32;
+    READ_SYS_REG_NAMED(3, 0, 0, 4, 1, ID_AA64PFR1_EL1);
+    uint64_t const fPfr1 = uRegVal;
+    READ_SYS_REG_NAMED(3, 0, 0, 4, 2, ID_AA64PFR2_EL1);
+    READ_SYS_REG_UNDEF(3, 0, 0, 4, 3);
+    READ_SYS_REG_NAMED(3, 0, 0, 4, 4, ID_AA64ZFR0_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 4, 5, ID_AA64SMFR0_EL1);
+    READ_SYS_REG_UNDEF(3, 0, 0, 4, 6);
+    READ_SYS_REG_NAMED(3, 0, 0, 4, 7, ID_AA64FPFR0_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 5, 0, ID_AA64DFR0_EL1);
+    uint64_t const fDfr0 = uRegVal;
+    READ_SYS_REG_NAMED(3, 0, 0, 5, 1, ID_AA64DFR1_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 5, 2, ID_AA64DFR2_EL1);
+    READ_SYS_REG_UNDEF(3, 0, 0, 5, 3);
+    READ_SYS_REG_NAMED(3, 0, 0, 5, 4, ID_AA64AFR0_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 5, 5, ID_AA64AFR1_EL1);
+    READ_SYS_REG_UNDEF(3, 0, 0, 5, 6);
+    READ_SYS_REG_UNDEF(3, 0, 0, 5, 7);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 6, 0, ID_AA64ISAR0_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 6, 1, ID_AA64ISAR1_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 6, 2, ID_AA64ISAR2_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 6, 3, ID_AA64ISAR3_EL1);
+    READ_SYS_REG_UNDEF(3, 0, 0, 6, 4);
+    READ_SYS_REG_UNDEF(3, 0, 0, 6, 5);
+    READ_SYS_REG_UNDEF(3, 0, 0, 6, 6);
+    READ_SYS_REG_UNDEF(3, 0, 0, 6, 7);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 7, 0, ID_AA64MMFR0_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 7, 1, ID_AA64MMFR1_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 7, 2, ID_AA64MMFR2_EL1);
+    //uint64_t const fMmfr2 = uRegVal;
+    READ_SYS_REG_NAMED(3, 0, 0, 7, 3, ID_AA64MMFR3_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 7, 4, ID_AA64MMFR4_EL1);
+    READ_SYS_REG_UNDEF(3, 0, 0, 7, 5);
+    READ_SYS_REG_UNDEF(3, 0, 0, 7, 6);
+    READ_SYS_REG_UNDEF(3, 0, 0, 7, 7);
+
+    /* AArch32 feature registers (covered by the D23.3.1 note).
+       If AA64PFR0 doesn't indicate any AARCH32 support, switch to only report
+       these registers if they are non-zero. */
+    if (!fA32)
+        fFlags &= ~SUP_ARM_SYS_REG_F_INC_ZERO_REG_VAL;
+    READ_SYS_REG_NAMED(3, 0, 0, 1, 0, ID_PFR0_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 1, 1, ID_PFR1_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 1, 2, ID_DFR0_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 1, 3, ID_AFR0_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 1, 4, ID_MMFR0_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 1, 5, ID_MMFR1_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 1, 6, ID_MMFR2_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 1, 7, ID_MMFR3_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 2, 0, ID_ISAR0_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 2, 1, ID_ISAR1_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 2, 2, ID_ISAR2_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 2, 3, ID_ISAR3_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 2, 4, ID_ISAR4_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 2, 5, ID_ISAR5_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 2, 6, ID_MMFR4_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 2, 7, ID_ISAR6_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 3, 0, MVFR0_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 3, 1, MVFR1_EL1);
+    READ_SYS_REG_NAMED(3, 0, 0, 3, 2, MVFR2_EL1);
+
+    READ_SYS_REG_UNDEF(3, 0, 0, 3, 3);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 3, 4, ID_PFR2_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 3, 5, ID_DFR1_EL1);
+
+    READ_SYS_REG_NAMED(3, 0, 0, 3, 6, ID_MMFR5_EL1);
+
+    READ_SYS_REG_UNDEF(3, 0, 0, 3, 7);
+    fFlags = fSavedFlags; /* restore SUP_ARM_SYS_REG_F_INC_ZERO_REG_VAL */
+
+    /*
+     * Feature dependent registers outside the ID block:
+     */
+    bool const fFeatRas = ((fPfr0 >> ARMV8_ID_AA64PFR0_EL1_RAS_SHIFT) & 0xfU) >= 1; /* FEAT_RAS <->  ID_AA64PFR0_EL1.RAS >= 1 */
+    if (fFeatRas)
+        READ_SYS_REG_NAMED(3, 0, 5, 3, 0, ERRIDR_EL1);
+
+    bool const fFeatSpe = ((fDfr0 >> 32) & 0xfU) >= 1;  /* FEAT_SPS <-> ID_AA64DFR0_EL1.PMSVer >= 1 */
+    if (fFeatSpe)
+    {
+        READ_SYS_REG_NAMED(3, 0, 9,  9, 7, PMSIDR_EL1);
+        READ_SYS_REG_NAMED(3, 0, 9, 10, 7, PMBIDR_EL1);
+    }
+
+    bool const fFeatTrbe = ((fDfr0 >> 44) & 0xfU) >= 1;  /* FEAT_TRBE <-> ID_AA64DFR0_EL1.TraceBuffer >= 1 */
+    if (fFeatTrbe)
+        READ_SYS_REG_NAMED(3, 0, 9, 11, 7, TRBIDR_EL1);
+
+    uint32_t const uPMUVer = (uint32_t)((fDfr0 >> 8) & 0xfU);
+    bool const fFeatPmuV3P4 = uPMUVer >= 5 && uPMUVer < 15; /* FEAT_PMUv3p4 <-> ID_AA64DFR0_EL1.PMUVer >= 5 && ID_AA64DFR0_EL1.PMUVer < 15 */
+    if (fFeatPmuV3P4)
+        READ_SYS_REG_NAMED(3, 0, 9, 14, 6, PMMIR_EL1);
+
+    bool const fFeatMpam = ((fPfr0 >> ARMV8_ID_AA64PFR0_EL1_MPAM_SHIFT) & 0xfU) >= 1; /* FEAT_MPAM <-> ID_AA64PFR0_EL1.MPAM >= 1 */
+    if (fFeatMpam)
+    {
+        READ_SYS_REG_NAMED(3, 0, 10, 4, 4, MPAMIDR_EL1);
+        uint64_t const fMpamidr = uRegVal;
+        bool const fFeatMpamPeBwCtrl = !!(fMpamidr & RT_BIT_64(56)); /* FEAT_MPAM_PE_BW_CTRL <-> FEAT_MPAM && MPAMIDR_EL1.HAS_BW_CTRL */
+        if (fFeatMpamPeBwCtrl)
+            READ_SYS_REG_NAMED(3, 0, 10, 4, 5, MPAMBWIDR_EL1);
+    }
+
+    /// @todo LORID_EL1 3,0,10,4,7  - FEAT_LOR
+    /// @todo PMCEID0_EL0 ?
+    /// @todo PMCEID1_EL0 ?
+    /// @todo AMCFGR_EL0 ?
+    /// @todo AMCGCR_EL0 ?
+    /// @todo AMCG1IDR_EL0 ?
+    /// @todo AMEVTYPER0<n>_EL0 ?
+
+    bool const fFeatMte2 = ((fPfr1 >> ARMV8_ID_AA64PFR1_EL1_MTE_SHIFT) & 0xfU) >= 2; /* FEAT_MTE2 <-> ID_AA64PFR1_EL1.MTE >= 2 */
+    if (fFeatMte2)
+        READ_SYS_REG_NAMED(3, 1, 0, 0, 4, GMID_EL1);
+
+    bool const fFeatSme = ((fPfr1 >> 24) & 0xfU) >= 1; /* FEAT_SME <-> ID_AA64PFR1_EL1.SME >= 1 */
+    if (fFeatSme)
+        READ_SYS_REG_NAMED(3, 1, 0, 0, 6, SMIDR_EL1);
+
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  8, 7, TRCIDR0);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  9, 7, TRCIDR1);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 10, 7, TRCIDR2);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 11, 7, TRCIDR3);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 12, 7, TRCIDR4);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 13, 7, TRCIDR5);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 14, 7, TRCIDR6);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0, 15, 7, TRCIDR7);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  0, 6, TRCIDR8);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  1, 6, TRCIDR10);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  2, 6, TRCIDR11);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  4, 6, TRCIDR12);  */
+    /** @todo FEAT_ETE: READ_SYS_REG_NAMED(2, 1, 0,  5, 6, TRCIDR13);  */
+
+    bool const fFeatEte = ((fDfr0 >> 4) & 0xfU) >= 1U; /* FEAT_ETE <-> ID_AA64DFR0_EL1.TraceVer >= 1 */
+    if (fFeatEte)
+        READ_SYS_REG_NAMED(2, 1, 7, 15, 6, TRCDEVARCH);
+
+    /*
+     * Collections of other read-only registers.
+     */
+    READ_SYS_REG_NAMED(3, 1, 0, 0, 1, CLIDR_EL1);   /* cache level id register */
+    READ_SYS_REG_NAMED(3, 1, 0, 0, 7, AIDR_EL1);
+    READ_SYS_REG_NAMED(3, 3, 0, 0, 1, CTR_EL0);     /* cache type register */
+    READ_SYS_REG_NAMED(3, 3, 0, 0, 7, DCZID_EL0);
+    READ_SYS_REG_NAMED(3, 3,14, 0, 0, CNTFRQ_EL0);
+
+    /*
+     * Extract cache size details using CSSELR_EL1 and CCSIDR_EL1.
+     */
+    //READ_SYS_REG_NAMED(3, 1, 0, 0, 0, CCSIDR_EL1); /** @todo CCSIDR_EL1 - current cache size? */
+    //if ((fMmfr2 & (UINT32_C(15) << 20) /*CCIDX*/) == RT_BIT_32(20))
+    //    READ_SYS_REG_NAMED(3, 1, 0, 0, 2, CCSIDR2_EL1); /** @todo CCSIDR2_EL1 - current cache size \#2? */
+
+# undef READ_SYS_REG
+# undef COMPILER_READ_SYS_REG
+
+    /*
+     * Complete the request output.
+     */
+    pReq->u.Out.cRegsAvailable = idxReg;
+    if (idxReg > cMaxRegs)
+        idxReg = cMaxRegs;
+    pReq->u.Out.cRegs          = idxReg;
+    pReq->Hdr.cbOut = SUP_IOCTL_ARM_GET_SYSREGS_SIZE_OUT(idxReg);
 }
 
+
+/** Argument package for updrvIOCtl_ArmGetSysRegsOnCpuWorker. */
+typedef struct SUPARMGETSYSREGSONCPUARGS
+{
+    uint32_t            cMaxRegs;
+    uint32_t            fFlags;
+} SUPARMGETSYSREGSONCPUARGS;
+
+
+/** @callback_method_impl{FNRTMPWORKER}   */
+static DECLCALLBACK(void) supdrvIOCtl_ArmGetSysRegsOnCpuCallback(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    const SUPARMGETSYSREGSONCPUARGS *pArgs = (const SUPARMGETSYSREGSONCPUARGS *)pvUser2;
+    supdrvIOCtl_ArmGetSysRegsOnCpu((PSUPARMGETSYSREGS)pvUser1, pArgs->cMaxRegs, pArgs->fFlags);
+    RT_NOREF(idCpu);
+}
+
+
+/**
+ * Implements the ARM ID (and system) register getter.
+ *
+ * @returns VBox status code.
+ * @param   pReq        The request.
+ * @param   cMaxRegs    The maximum number of register we can return.
+ * @param   idCpu       The CPU to get system registers for.
+ * @param   fFlags      The request flags.
+ */
+static int supdrvIOCtl_ArmGetSysRegs(PSUPARMGETSYSREGS pReq, uint32_t const cMaxRegs, RTCPUID idCpu, uint32_t fFlags)
+{
+    int rc;
+
+    /* Zero the request array just in case someone hands us a pagable buffer. */
+    RT_BZERO(&pReq->u.Out.aRegs[0], cMaxRegs * sizeof(pReq->u.Out.aRegs[0]));
+
+    if (idCpu == NIL_RTCPUID)
+    {
+        supdrvIOCtl_ArmGetSysRegsOnCpu(pReq, cMaxRegs, fFlags);
+        rc = VINF_SUCCESS;
+    }
+    else
+    {
+        SUPARMGETSYSREGSONCPUARGS Args;
+        Args.cMaxRegs = cMaxRegs;
+        Args.fFlags   = fFlags;
+        rc = RTMpOnSpecific(idCpu, supdrvIOCtl_ArmGetSysRegsOnCpuCallback, pReq, &Args);
+    }
+    return rc;
+}
+
+#endif /* RT_ARCH_ARM64 */
 
 /**
  * Resume built-in keyboard on MacBook Air and Pro hosts.

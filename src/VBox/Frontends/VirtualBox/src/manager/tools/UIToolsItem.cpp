@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -35,11 +35,11 @@
 #include <QStateMachine>
 #include <QStyle>
 #include <QStyleOptionGraphicsItem>
+#include <QToolTip>
 #include <QWindow>
 
 /* GUI includes: */
-#include "UIImageTools.h"
-#include "UITools.h"
+#include "UICommon.h"
 #include "UIToolsItem.h"
 #include "UIToolsModel.h"
 #include "UIToolsView.h"
@@ -74,7 +74,7 @@ public:
         AssertPtrReturn(item(), 0);
 
         /* Return the parent: */
-        return QAccessible::queryAccessibleInterface(item()->model()->tools()->view());
+        return QAccessible::queryAccessibleInterface(item()->model()->view());
     }
 
     /** Returns the number of children. */
@@ -115,8 +115,8 @@ public:
         /* Now goes the mapping: */
         const QSize   itemSize         = item()->size().toSize();
         const QPointF itemPosInScene   = item()->mapToScene(QPointF(0, 0));
-        const QPoint  itemPosInView    = item()->model()->tools()->view()->mapFromScene(itemPosInScene);
-        const QPoint  itemPosInScreen  = item()->model()->tools()->view()->mapToGlobal(itemPosInView);
+        const QPoint  itemPosInView    = item()->model()->view()->mapFromScene(itemPosInScene);
+        const QPoint  itemPosInScreen  = item()->model()->view()->mapToGlobal(itemPosInView);
         const QRect   itemRectInScreen = QRect(itemPosInScreen, itemSize);
         return itemRectInScreen;
     }
@@ -161,7 +161,7 @@ public:
         state.selectable = true;
 
         /* Compose the state of current item: */
-        if (item() && item() == item()->model()->currentItem())
+        if (item() && item() == item()->model()->currentItem(item()->itemClass()))
         {
             state.active = true;
             state.focused = true;
@@ -179,43 +179,183 @@ private:
 };
 
 
+/** QObject extension used as animation engine object. */
+class UIToolsItemAnimationEngine : public QObject
+{
+    Q_OBJECT;
+
+signals:
+
+    /** Initiates transition to hovered state. */
+    void sigHovered();
+    /** Initiates transition to unhovered state. */
+    void sigUnhovered();
+
+public:
+
+    /** Constructs animation engine passing @a pParent to the base-class. */
+    UIToolsItemAnimationEngine(UIToolsItem *pParent);
+
+private:
+
+    /** Prepares everything. */
+    void prepare();
+    /** Prepares machine. */
+    void prepareMachine();
+    /** Prepares connections. */
+    void prepareConnections();
+
+    /** Inits engine. */
+    void init();
+
+    /** Holds the parent item reference. */
+    UIToolsItem *m_pParent;
+
+    /** Holds the state-machine instance. */
+    QStateMachine *m_pMachine;
+
+    /** Holds the Unhovered state instance. */
+    QState *m_pStateUnhovered;
+    /** Holds the Hovered state instance. */
+    QState *m_pStateHovered;
+};
+
+
+/** QPropertyAnimation extension used as tool-item animation wrapper. */
+class UIToolsItemAnimation : public QPropertyAnimation
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs tool-item animation passing @a pParent to the base-class.
+      * @param  pTarget       Brings the object animation alters property for.
+      * @param  propertyName  Brings the name of property inside the @a pTarget.
+      * @param  fForward      Brings whether animation goes to iValue or from it. */
+    UIToolsItemAnimation(QObject *pTarget, const QByteArray &propertyName, QObject *pParent, bool fForward);
+};
+
+
+/*********************************************************************************************************************************
+*   Class UIToolsItemAnimationEngine implementation.                                                                             *
+*********************************************************************************************************************************/
+
+UIToolsItemAnimationEngine::UIToolsItemAnimationEngine(UIToolsItem *pParent)
+    : QObject(pParent)
+    , m_pParent(pParent)
+    , m_pMachine(0)
+    , m_pStateUnhovered(0)
+    , m_pStateHovered(0)
+{
+    prepare();
+}
+
+void UIToolsItemAnimationEngine::prepare()
+{
+    /* Prepare everything: */
+    prepareMachine();
+    prepareConnections();
+
+    /* Init can be async,
+     * but for now it's Ok that way. */
+    init();
+}
+
+void UIToolsItemAnimationEngine::prepareMachine()
+{
+    /* Prepare animation machine: */
+    m_pMachine = new QStateMachine(this);
+    if (m_pMachine)
+    {
+        /* Prepare states: */
+        m_pStateUnhovered = new QState(m_pMachine);
+        m_pStateHovered = new QState(m_pMachine);
+
+        /* Configure Unhovered state: */
+        if (m_pStateUnhovered)
+        {
+            m_pStateUnhovered->assignProperty(m_pParent, "hoveringProgress", 0);
+
+            /* Add Unhovered=>Hovered state transition: */
+            QSignalTransition *pTrnUnhoveredToHovered =
+                m_pStateUnhovered->addTransition(this, SIGNAL(sigHovered()), m_pStateHovered);
+            if (pTrnUnhoveredToHovered)
+            {
+                /* Create animation for hoveringProgress: */
+                UIToolsItemAnimation *pAnmUnhoveredToHovered =
+                    new UIToolsItemAnimation(m_pParent, "hoveringProgress", this, true);
+                pTrnUnhoveredToHovered->addAnimation(pAnmUnhoveredToHovered);
+            }
+        }
+
+        /* Configure Hovered state: */
+        if (m_pStateHovered)
+        {
+            m_pStateHovered->assignProperty(m_pParent, "hoveringProgress", 100);
+
+            /* Add Hovered=>Unhovered state transition: */
+            QSignalTransition *pTrnHoveredToUnhovered =
+                m_pStateHovered->addTransition(this, SIGNAL(sigUnhovered()), m_pStateUnhovered);
+            if (pTrnHoveredToUnhovered)
+            {
+                /* Create animation for hoveringProgress: */
+                UIToolsItemAnimation *pAnmHoveredToUnhovered =
+                    new UIToolsItemAnimation(m_pParent, "hoveringProgress", this, false);
+                pTrnHoveredToUnhovered->addAnimation(pAnmHoveredToUnhovered);
+            }
+        }
+    }
+}
+
+void UIToolsItemAnimationEngine::prepareConnections()
+{
+    connect(m_pParent, &UIToolsItem::sigHovered, this, &UIToolsItemAnimationEngine::sigHovered);
+    connect(m_pParent, &UIToolsItem::sigUnhovered, this, &UIToolsItemAnimationEngine::sigUnhovered);
+}
+
+void UIToolsItemAnimationEngine::init()
+{
+    /* Define initial animation state: */
+    m_pMachine->setInitialState(m_pParent->isHovered() ? m_pStateHovered : m_pStateUnhovered);
+    m_pMachine->start();
+}
+
+
+/*********************************************************************************************************************************
+*   Class UIToolsItemAnimation implementation.                                                                                   *
+*********************************************************************************************************************************/
+
+UIToolsItemAnimation::UIToolsItemAnimation(QObject *pTarget, const QByteArray &propertyName, QObject *pParent, bool fForward)
+    : QPropertyAnimation(pTarget, propertyName, pParent)
+{
+    setEasingCurve(QEasingCurve(QEasingCurve::OutQuart));
+    setStartValue(fForward ? 0 : 100);
+    setEndValue(fForward ? 100 : 0);
+    setDuration(300);
+}
+
+
 /*********************************************************************************************************************************
 *   Class UIToolsItem implementation.                                                                                            *
 *********************************************************************************************************************************/
 
-UIToolsItem::UIToolsItem(QGraphicsScene *pScene,
-                         UIToolClass enmClass, UIToolType enmType,
-                         const QString &strName, const QIcon &icon)
+UIToolsItem::UIToolsItem(QGraphicsScene *pScene, const QIcon &icon, UIToolType enmType)
     : m_pScene(pScene)
-    , m_enmClass(enmClass)
-    , m_enmType(enmType)
     , m_icon(icon)
-    , m_strName(strName)
+    , m_enmClass(UIToolStuff::castTypeToClass(enmType))
+    , m_enmType(enmType)
+    , m_enmReason(HidingReason_Null)
     , m_fHovered(false)
-    , m_pHoveringMachine(0)
-    , m_pHoveringAnimationForward(0)
-    , m_pHoveringAnimationBackward(0)
-    , m_iAnimationDuration(400)
-    , m_iDefaultValue(0)
-    , m_iHoveredValue(100)
-    , m_iAnimatedValue(m_iDefaultValue)
-    , m_iDefaultLightnessStart(0)
-    , m_iDefaultLightnessFinal(0)
-    , m_iHoverLightnessStart(0)
-    , m_iHoverLightnessFinal(0)
-    , m_iHighlightLightnessStart(0)
-    , m_iHighlightLightnessFinal(0)
     , m_iPreviousMinimumWidthHint(0)
     , m_iPreviousMinimumHeightHint(0)
-    , m_iMaximumNameWidth(0)
+    , m_pAnimationEngine(0)
+    , m_iHoveringProgress(0)
 {
-    /* Prepare: */
     prepare();
 }
 
 UIToolsItem::~UIToolsItem()
 {
-    /* Cleanup: */
     cleanup();
 }
 
@@ -226,61 +366,15 @@ UIToolsModel *UIToolsItem::model() const
     return pModel;
 }
 
-void UIToolsItem::reconfigure(UIToolClass enmClass, UIToolType enmType,
-                              const QIcon &icon, const QString &strName)
+void UIToolsItem::setName(const QString &strName)
 {
-    /* If class is changed: */
-    if (m_enmClass != enmClass)
-    {
-        /* Update linked values: */
-        m_enmClass = enmClass;
-    }
-
-    /* If type is changed: */
-    if (m_enmType != enmType)
-    {
-        /* Update linked values: */
-        m_enmType = enmType;
-    }
-
-    /* Update linked values: */
-    m_icon = icon;
-    updatePixmap();
-
-    /* Update name finally: */
-    reconfigure(strName);
-}
-
-void UIToolsItem::reconfigure(const QString &strName)
-{
-    /* If name is changed: */
+    /* If name changed: */
     if (m_strName != strName)
     {
         /* Update linked values: */
         m_strName = strName;
-        updateMinimumNameSize();
-        updateVisibleName();
+        updateNameSize();
     }
-}
-
-UIToolClass UIToolsItem::itemClass() const
-{
-    return m_enmClass;
-}
-
-UIToolType UIToolsItem::itemType() const
-{
-    return m_enmType;
-}
-
-const QIcon &UIToolsItem::icon() const
-{
-    return m_icon;
-}
-
-const QString &UIToolsItem::name() const
-{
-    return m_strName;
 }
 
 void UIToolsItem::setEnabled(bool fEnabled)
@@ -292,18 +386,13 @@ void UIToolsItem::setEnabled(bool fEnabled)
     updatePixmap();
 }
 
-void UIToolsItem::setHovered(bool fHovered)
+void UIToolsItem::setHiddenByReason(bool fHidden, HidingReason enmReason)
 {
-    m_fHovered = fHovered;
-    if (m_fHovered)
-        emit sigHoverEnter();
-    else
-        emit sigHoverLeave();
-}
-
-bool UIToolsItem::isHovered() const
-{
-    return m_fHovered;
+    if (fHidden && !(m_enmReason & enmReason))
+        m_enmReason = (HidingReason)(m_enmReason | enmReason);
+    else if (!fHidden && (m_enmReason & enmReason))
+        m_enmReason = (HidingReason)(m_enmReason ^ enmReason);
+    setVisible(m_enmReason == HidingReason_Null);
 }
 
 void UIToolsItem::updateGeometry()
@@ -338,13 +427,37 @@ int UIToolsItem::minimumWidthHint() const
     /* Calculating proposed width: */
     int iProposedWidth = 0;
 
-    /* Two margins: */
+    /* Add 2 margins by default: */
     iProposedWidth += 2 * iMargin;
-    /* And Tools-item content to take into account: */
-    int iToolsItemWidth = m_pixmapSize.width() +
-                          iSpacing +
-                          m_minimumNameSize.width();
-    iProposedWidth += iToolsItemWidth;
+#ifdef VBOX_WS_MAC
+    /* Additional margin for non-Machine items (Global & Aux): */
+    if (m_enmClass == UIToolClass_Machine)
+        iProposedWidth += iMargin;
+    else
+        iProposedWidth += 2 * iMargin;
+#else
+    /* Additional 1 margin: */
+    iProposedWidth += iMargin;
+#endif
+
+    /* Add pixmap size by default: */
+    iProposedWidth += m_pixmapSize.width();
+
+    /* Take into account label size for non-Aux tools
+     * 1. if text labels requested or
+     * 2. machine item selected: */
+    const bool fCondition1 = m_enmClass == UIToolClass_Global && model()->showItemNames();
+    const bool fCondition2 = m_enmClass == UIToolClass_Machine && (   model()->showItemNames()
+                                                                   || model()->currentItem(itemClass()) == this);
+    if (fCondition1 || fCondition2)
+    {
+        iProposedWidth += m_nameSize.width();
+
+        /* Add 1 spacing by default: */
+        iProposedWidth += iSpacing;
+        /* Additional 1 spacing: */
+        iProposedWidth += iSpacing;
+    }
 
     /* Return result: */
     return iProposedWidth;
@@ -362,7 +475,7 @@ int UIToolsItem::minimumHeightHint() const
     iProposedHeight += 2 * iMargin;
     /* And Tools-item content to take into account: */
     int iToolsItemHeight = qMax(m_pixmapSize.height(),
-                                m_minimumNameSize.height());
+                                m_nameSize.height());
     iProposedHeight += iToolsItemHeight;
 
     /* Return result: */
@@ -387,30 +500,32 @@ void UIToolsItem::showEvent(QShowEvent *pEvent)
     updatePixmap();
 }
 
-void UIToolsItem::resizeEvent(QGraphicsSceneResizeEvent *pEvent)
-{
-    /* Call to base-class: */
-    QIGraphicsWidget::resizeEvent(pEvent);
-
-    /* What is the new geometry? */
-    const QRectF newGeometry = geometry();
-
-    /* Should we update visible name? */
-    if (previousGeometry().width() != newGeometry.width())
-        updateMaximumNameWidth();
-
-    /* Remember the new geometry: */
-    setPreviousGeometry(newGeometry);
-}
-
 void UIToolsItem::hoverMoveEvent(QGraphicsSceneHoverEvent *)
 {
     if (!m_fHovered)
     {
         m_fHovered = true;
-        emit sigHoverEnter();
-        update();
+
+        /* Show tooltip for all tools
+         * 0. for Aux unconditionally
+         * 1. for Global if text labels hidden
+         * 2. For Machine if text labels hidden and item isn't selected: */
+        const bool fCondition0 = m_enmClass == UIToolClass_Aux;
+        const bool fCondition1 = m_enmClass == UIToolClass_Global && !model()->showItemNames();
+        const bool fCondition2 = m_enmClass == UIToolClass_Machine && !model()->showItemNames()
+                                                                   && model()->currentItem(itemClass()) != this;
+        if (fCondition0 || fCondition1 || fCondition2)
+        {
+            const QPointF posAtScene = mapToScene(rect().topRight() + QPoint(3, -3));
+            const QPoint posAtScreen = model()->view()->parentWidget()->mapToGlobal(posAtScene.toPoint());
+            QToolTip::showText(posAtScreen, name());
+        }
+
+        /* Notify listeners: */
+        emit sigHovered();
     }
+
+    update();
 }
 
 void UIToolsItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *)
@@ -418,8 +533,13 @@ void UIToolsItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *)
     if (m_fHovered)
     {
         m_fHovered = false;
-        emit sigHoverLeave();
         update();
+
+        /* Hide tooltip for good: */
+        QToolTip::hideText();
+
+        /* Notify listeners: */
+        emit sigUnhovered();
     }
 }
 
@@ -430,8 +550,6 @@ void UIToolsItem::paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOpt
 
     /* Paint background: */
     paintBackground(pPainter, rectangle);
-    /* Paint frame: */
-    paintFrame(pPainter, rectangle);
     /* Paint tool info: */
     paintToolInfo(pPainter, rectangle);
 }
@@ -451,115 +569,21 @@ void UIToolsItem::prepare()
     /* Install Tools-view item accessibility interface factory: */
     QAccessible::installFactory(UIAccessibilityInterfaceForUIToolsItem::pFactory);
 
-    /* Prepare color tones: */
-#if defined(VBOX_WS_MAC)
-    m_iDefaultLightnessStart = 120;
-    m_iDefaultLightnessFinal = 110;
-    m_iHoverLightnessStart = 125;
-    m_iHoverLightnessFinal = 115;
-    m_iHighlightLightnessStart = 115;
-    m_iHighlightLightnessFinal = 105;
-#elif defined(VBOX_WS_WIN)
-    m_iDefaultLightnessStart = 120;
-    m_iDefaultLightnessFinal = 110;
-    m_iHoverLightnessStart = 220;
-    m_iHoverLightnessFinal = 210;
-    m_iHighlightLightnessStart = 190;
-    m_iHighlightLightnessFinal = 180;
-#else /* !VBOX_WS_MAC && !VBOX_WS_WIN */
-    m_iDefaultLightnessStart = 110;
-    m_iDefaultLightnessFinal = 100;
-    m_iHoverLightnessStart = 125;
-    m_iHoverLightnessFinal = 115;
-    m_iHighlightLightnessStart = 110;
-    m_iHighlightLightnessFinal = 100;
-#endif /* !VBOX_WS_MAC && !VBOX_WS_WIN */
-
-    /* Prepare fonts: */
-    m_nameFont = font();
-    m_nameFont.setWeight(QFont::Bold);
-
     /* Configure item options: */
     setOwnedByLayout(false);
     setAcceptHoverEvents(true);
     setFocusPolicy(Qt::NoFocus);
     setFlag(QGraphicsItem::ItemIsSelectable, false);
 
-    /* Prepare hover animation: */
-    prepareHoverAnimation();
     /* Prepare connections: */
     prepareConnections();
 
     /* Init: */
     updatePixmap();
-    updateMinimumNameSize();
-    updateVisibleName();
-}
+    updateNameSize();
 
-void UIToolsItem::prepareHoverAnimation()
-{
-    /* Create hovering animation machine: */
-    m_pHoveringMachine = new QStateMachine(this);
-    if (m_pHoveringMachine)
-    {
-        /* Create 'default' state: */
-        QState *pStateDefault = new QState(m_pHoveringMachine);
-        /* Create 'hovered' state: */
-        QState *pStateHovered = new QState(m_pHoveringMachine);
-
-        /* Configure 'default' state: */
-        if (pStateDefault)
-        {
-            /* When we entering default state => we assigning animatedValue to m_iDefaultValue: */
-            pStateDefault->assignProperty(this, "animatedValue", m_iDefaultValue);
-
-            /* Add state transitions: */
-            QSignalTransition *pDefaultToHovered = pStateDefault->addTransition(this, SIGNAL(sigHoverEnter()), pStateHovered);
-            if (pDefaultToHovered)
-            {
-                /* Create forward animation: */
-                m_pHoveringAnimationForward = new QPropertyAnimation(this, "animatedValue", this);
-                if (m_pHoveringAnimationForward)
-                {
-                    m_pHoveringAnimationForward->setDuration(m_iAnimationDuration);
-                    m_pHoveringAnimationForward->setStartValue(m_iDefaultValue);
-                    m_pHoveringAnimationForward->setEndValue(m_iHoveredValue);
-
-                    /* Add to transition: */
-                    pDefaultToHovered->addAnimation(m_pHoveringAnimationForward);
-                }
-            }
-        }
-
-        /* Configure 'hovered' state: */
-        if (pStateHovered)
-        {
-            /* When we entering hovered state => we assigning animatedValue to m_iHoveredValue: */
-            pStateHovered->assignProperty(this, "animatedValue", m_iHoveredValue);
-
-            /* Add state transitions: */
-            QSignalTransition *pHoveredToDefault = pStateHovered->addTransition(this, SIGNAL(sigHoverLeave()), pStateDefault);
-            if (pHoveredToDefault)
-            {
-                /* Create backward animation: */
-                m_pHoveringAnimationBackward = new QPropertyAnimation(this, "animatedValue", this);
-                if (m_pHoveringAnimationBackward)
-                {
-                    m_pHoveringAnimationBackward->setDuration(m_iAnimationDuration);
-                    m_pHoveringAnimationBackward->setStartValue(m_iHoveredValue);
-                    m_pHoveringAnimationBackward->setEndValue(m_iDefaultValue);
-
-                    /* Add to transition: */
-                    pHoveredToDefault->addAnimation(m_pHoveringAnimationBackward);
-                }
-            }
-        }
-
-        /* Initial state is 'default': */
-        m_pHoveringMachine->setInitialState(pStateDefault);
-        /* Start state-machine: */
-        m_pHoveringMachine->start();
-    }
+    /* Create animation engine: */
+    m_pAnimationEngine = new UIToolsItemAnimationEngine(this);
 }
 
 void UIToolsItem::prepareConnections()
@@ -577,23 +601,11 @@ void UIToolsItem::prepareConnections()
 
 void UIToolsItem::cleanup()
 {
-    /* If that item is focused: */
-    if (model()->focusItem() == this)
-    {
-        /* Unset the focus item: */
-        model()->setFocusItem(0);
-    }
     /* If that item is current: */
-    if (model()->currentItem() == this)
+    if (model()->currentItem(itemClass()) == this)
     {
         /* Unset the current item: */
         model()->setCurrentItem(0);
-    }
-    /* If that item is in navigation list: */
-    if (model()->navigationList().contains(this))
-    {
-        /* Remove item from the navigation list: */
-        model()->removeFromNavigationList(this);
     }
 }
 
@@ -603,19 +615,50 @@ QVariant UIToolsItem::data(int iKey) const
     switch (iKey)
     {
         /* Layout hints: */
-        case ToolsItemData_Margin:  return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 3 * 2;
-        case ToolsItemData_Spacing: return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 2;
+        case ToolsItemData_Margin:
+        {
+            const int iHint = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
+            return iHint / 3 * 2;
+        }
+        case ToolsItemData_Spacing:
+        {
+            const int iHint = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
+            return m_enmClass == UIToolClass_Machine ? iHint / 4 : iHint / 2;
+        }
+        case ToolsItemData_Padding:
+        {
+#ifdef VBOX_WS_MAC
+            return 6;
+#else
+            return 4;
+#endif
+        }
+
+        /* Font hints: */
+        case Qt::FontRole:
+        {
+            /* Init font: */
+            QFont fnt = font();
+            fnt.setWeight(QFont::Bold);
+
+            /* Make font a bit smaller: */
+            fnt.setPointSize(fnt.pointSize() - 1);
+
+            /* Return font: */
+            return fnt;
+        }
 
         /* Default: */
-        default: break;
+        default:
+            break;
     }
     return QVariant();
 }
 
 void UIToolsItem::updatePixmap()
 {
-    /* Prepare variables: */
-    const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) * 1.5;
+    /* Make icons a bit smaller: */
+    const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
 
     /* Prepare new pixmap size: */
     const QSize pixmapSize = QSize(iIconMetric, iIconMetric);
@@ -625,7 +668,6 @@ void UIToolsItem::updatePixmap()
     if (m_pixmapSize != pixmapSize)
     {
         m_pixmapSize = pixmapSize;
-        updateMaximumNameWidth();
         updateGeometry();
     }
     if (m_pixmap.toImage() != pixmap.toImage())
@@ -635,90 +677,18 @@ void UIToolsItem::updatePixmap()
     }
 }
 
-void UIToolsItem::updateMinimumNameSize()
+void UIToolsItem::updateNameSize()
 {
-    /* Prepare variables: */
-    QPaintDevice *pPaintDevice = model()->paintDevice();
-
-    /* Calculate new minimum name size: */
-    const QFontMetrics fm(m_nameFont, pPaintDevice);
-    const int iWidthOf15Letters = textWidthMonospace(m_nameFont, pPaintDevice, 15);
-    const QString strNameCompressedTo15Letters = compressText(m_nameFont, pPaintDevice, m_strName, iWidthOf15Letters);
-    const QSize minimumNameSize = QSize(fm.horizontalAdvance(strNameCompressedTo15Letters), fm.height());
+    /* Calculate new name size: */
+    const QFontMetrics fm(data(Qt::FontRole).value<QFont>(), model()->paintDevice());
+    const QSize nameSize = QSize(fm.horizontalAdvance(m_strName), fm.height());
 
     /* Update linked values: */
-    if (m_minimumNameSize != minimumNameSize)
+    if (m_nameSize != nameSize)
     {
-        m_minimumNameSize = minimumNameSize;
+        m_nameSize = nameSize;
         updateGeometry();
     }
-}
-
-void UIToolsItem::updateMaximumNameWidth()
-{
-    /* Prepare variables: */
-    const int iMargin = data(ToolsItemData_Margin).toInt();
-    const int iSpacing = data(ToolsItemData_Spacing).toInt();
-
-    /* Calculate new maximum name width: */
-    int iMaximumNameWidth = (int)geometry().width();
-    iMaximumNameWidth -= iMargin; /* left margin */
-    iMaximumNameWidth -= m_pixmapSize.width(); /* pixmap width */
-    iMaximumNameWidth -= iSpacing; /* spacing between pixmap and name(s) */
-    iMaximumNameWidth -= iMargin; /* right margin */
-
-    /* Update linked values: */
-    if (m_iMaximumNameWidth != iMaximumNameWidth)
-    {
-        m_iMaximumNameWidth = iMaximumNameWidth;
-        updateVisibleName();
-    }
-}
-
-void UIToolsItem::updateVisibleName()
-{
-    /* Prepare variables: */
-    QPaintDevice *pPaintDevice = model()->paintDevice();
-
-    /* Calculate new visible name: */
-    const QString strVisibleName = compressText(m_nameFont, pPaintDevice, m_strName, m_iMaximumNameWidth);
-
-    /* Update linked values: */
-    if (m_strVisibleName != strVisibleName)
-    {
-        m_strVisibleName = strVisibleName;
-        update();
-    }
-}
-
-/* static */
-int UIToolsItem::textWidthMonospace(const QFont &font, QPaintDevice *pPaintDevice, int iCount)
-{
-    /* Return text width, based on font-metrics: */
-    const QFontMetrics fm(font, pPaintDevice);
-    QString strString;
-    strString.fill('_', iCount);
-    return fm.horizontalAdvance(strString);
-}
-
-/* static */
-QString UIToolsItem::compressText(const QFont &font, QPaintDevice *pPaintDevice, QString strText, int iWidth)
-{
-    /* Check if passed text is empty: */
-    if (strText.isEmpty())
-        return strText;
-
-    /* Check if passed text already fits maximum width: */
-    const QFontMetrics fm(font, pPaintDevice);
-    if (fm.horizontalAdvance(strText) <= iWidth)
-        return strText;
-
-    /* Truncate otherwise: */
-    const QString strEllipsis = QString("...");
-    const int iEllipsisWidth = fm.horizontalAdvance(strEllipsis + " ");
-    while (!strText.isEmpty() && fm.horizontalAdvance(strText) + iEllipsisWidth > iWidth)
-        strText.truncate(strText.size() - 1);
-    return strText + strEllipsis;
 }
 
 void UIToolsItem::paintBackground(QPainter *pPainter, const QRect &rectangle) const
@@ -730,134 +700,107 @@ void UIToolsItem::paintBackground(QPainter *pPainter, const QRect &rectangle) co
     const QPalette pal = QApplication::palette();
 
     /* Selection background: */
-    if (model()->currentItem() == this)
+    if (model()->currentItem(itemClass()) == this)
     {
-        /* Prepare color: */
-        const QColor backgroundColor = isEnabled()
-                                     ? pal.color(QPalette::Active, QPalette::Highlight)
-                                     : pal.color(QPalette::Disabled, QPalette::Window);
-        /* Draw gradient: */
-        QLinearGradient bgGrad(rectangle.topLeft(), rectangle.bottomLeft());
-        bgGrad.setColorAt(0, backgroundColor.lighter(m_iHighlightLightnessStart));
-        bgGrad.setColorAt(1, backgroundColor.lighter(m_iHighlightLightnessFinal));
+        /* Acquire background color: */
+        const QColor selectionColor = uiCommon().isInDarkMode()
+                                    ? pal.color(QPalette::Active, QPalette::Button).lighter(150)
+                                    : pal.color(QPalette::Active, QPalette::Button).darker(150);
+        QColor selectionColor1 = selectionColor;
+        QColor selectionColor2 = selectionColor;
+        selectionColor1.setAlpha(100);
+        selectionColor2.setAlpha(110);
+
+        /* Acquire token color: */
+        const QColor highlightColor = isEnabled()
+                                    ? pal.color(QPalette::Active, QPalette::Highlight)
+                                    : pal.color(QPalette::Disabled, QPalette::Highlight);
+#ifdef VBOX_WS_MAC
+        const QColor highlightColor1 = uiCommon().isInDarkMode()
+                                     ? highlightColor.lighter(160)
+                                     : highlightColor.darker(160);
+        const QColor highlightColor2 = uiCommon().isInDarkMode()
+                                     ? highlightColor.lighter(140)
+                                     : highlightColor.darker(140);
+#else
+        const QColor highlightColor1 = uiCommon().isInDarkMode()
+                                     ? highlightColor.darker(120)
+                                     : highlightColor.lighter(120);
+        const QColor highlightColor2 = uiCommon().isInDarkMode()
+                                     ? highlightColor.darker(100)
+                                     : highlightColor.lighter(100);
+#endif
+
+        /* Draw gradient background: */
+        QLinearGradient bgGrad(rectangle.topLeft(), rectangle.topRight());
+        bgGrad.setColorAt(0, selectionColor1);
+        bgGrad.setColorAt(1, selectionColor2);
         pPainter->fillRect(rectangle, bgGrad);
 
-        if (isEnabled() && isHovered())
+        /* Depending on item class: */
+        switch (itemClass())
         {
-            /* Prepare color: */
-            QColor animationColor1 = QColor(Qt::white);
-            QColor animationColor2 = QColor(Qt::white);
-#ifdef VBOX_WS_MAC
-            animationColor1.setAlpha(90);
-#else
-            animationColor1.setAlpha(30);
-#endif
-            animationColor2.setAlpha(0);
-            /* Draw hovering animated gradient: */
-            QRect animatedRect = rectangle;
-            animatedRect.setWidth(animatedRect.height());
-            const int iLength = 2 * animatedRect.width() + rectangle.width();
-            const int iShift = - animatedRect.width() + iLength * animatedValue() / 100;
-            animatedRect.moveLeft(iShift);
-            QLinearGradient bgAnimatedGrad(animatedRect.topLeft(), animatedRect.bottomRight());
-            bgAnimatedGrad.setColorAt(0,   animationColor2);
-            bgAnimatedGrad.setColorAt(0.1, animationColor2);
-            bgAnimatedGrad.setColorAt(0.5, animationColor1);
-            bgAnimatedGrad.setColorAt(0.9, animationColor2);
-            bgAnimatedGrad.setColorAt(1,   animationColor2);
-            pPainter->fillRect(rectangle, bgAnimatedGrad);
+            case UIToolClass_Global:
+            {
+                /* Draw gradient token: */
+                QRect tokenRect(rectangle.topLeft(), QSize(3, rectangle.height()));
+                QLinearGradient tkGrad(tokenRect.topLeft(), tokenRect.bottomLeft());
+                tkGrad.setColorAt(0, highlightColor1);
+                tkGrad.setColorAt(1, highlightColor2);
+                pPainter->fillRect(tokenRect, tkGrad);
+                break;
+            }
+            case UIToolClass_Machine:
+            {
+                /* Draw gradient token: */
+                QRect tokenRect(rectangle.bottomLeft() - QPoint(0, 2), QSize(rectangle.width(), 2));
+                QLinearGradient hlGrad(tokenRect.bottomLeft(), tokenRect.bottomRight());
+                hlGrad.setColorAt(0, highlightColor1);
+                hlGrad.setColorAt(1, highlightColor2);
+                pPainter->fillRect(tokenRect, hlGrad);
+                break;
+            }
+            default:
+                break;
         }
     }
-    /* Hovering background: */
-    else if (isHovered())
-    {
-        /* Prepare color: */
-        const QColor backgroundColor = isEnabled()
-                                     ? pal.color(QPalette::Active, QPalette::Highlight)
-                                     : pal.color(QPalette::Disabled, QPalette::Window);
-        /* Draw gradient: */
-        QLinearGradient bgGrad(rectangle.topLeft(), rectangle.bottomLeft());
-        bgGrad.setColorAt(0, backgroundColor.lighter(m_iHoverLightnessStart));
-        bgGrad.setColorAt(1, backgroundColor.lighter(m_iHoverLightnessFinal));
-        pPainter->fillRect(rectangle, bgGrad);
 
-        if (isEnabled())
-        {
-            /* Prepare color: */
-            QColor animationColor1 = QColor(Qt::white);
-            QColor animationColor2 = QColor(Qt::white);
+    /* Hovering background for widget: */
+    else if (m_fHovered)
+    {
+        /* Prepare variables: */
+        const int iMargin = data(ToolsItemData_Margin).toInt();
+        const int iPadding = data(ToolsItemData_Padding).toInt();
+
+        /* Configure painter: */
+        pPainter->setRenderHint(QPainter::Antialiasing, true);
+        /* Acquire background color: */
+        const QColor backgroundColor = model() && model()->view()
+                                     ? model()->view()->palette().color(QPalette::Active, QPalette::Base)
+                                     : pal.color(QPalette::Active, QPalette::Window);
+
+        /* Prepare button sub-rect: */
+        QRect subRect;
+        subRect.setHeight(m_pixmap.height() / m_pixmap.devicePixelRatio() + iPadding * 2);
+        subRect.setWidth(subRect.height());
 #ifdef VBOX_WS_MAC
-            animationColor1.setAlpha(120);
+        /* Take into account additional margin for non-Machine items (Global & Aux): */
+        if (m_enmClass == UIToolClass_Machine)
+            subRect.moveTopLeft(rectangle.topLeft() + QPoint(1.5 * iMargin - iPadding, iMargin - iPadding));
+        else
+            subRect.moveTopLeft(rectangle.topLeft() + QPoint(2 * iMargin - iPadding, iMargin - iPadding));
 #else
-            animationColor1.setAlpha(50);
+        subRect.moveTopLeft(rectangle.topLeft() + QPoint(1.5 * iMargin - iPadding, iMargin - iPadding));
 #endif
-            animationColor2.setAlpha(0);
-            /* Draw hovering animated gradient: */
-            QRect animatedRect = rectangle;
-            animatedRect.setWidth(animatedRect.height());
-            const int iLength = 2 * animatedRect.width() + rectangle.width();
-            const int iShift = - animatedRect.width() + iLength * animatedValue() / 100;
-            animatedRect.moveLeft(iShift);
-            QLinearGradient bgAnimatedGrad(animatedRect.topLeft(), animatedRect.bottomRight());
-            bgAnimatedGrad.setColorAt(0,   animationColor2);
-            bgAnimatedGrad.setColorAt(0.1, animationColor2);
-            bgAnimatedGrad.setColorAt(0.5, animationColor1);
-            bgAnimatedGrad.setColorAt(0.9, animationColor2);
-            bgAnimatedGrad.setColorAt(1,   animationColor2);
-            pPainter->fillRect(rectangle, bgAnimatedGrad);
-        }
+
+        /* Prepare mouse cursor position: */
+        const QPoint  cursorPosInView = model()->view()->mapFromGlobal(QCursor::pos());
+        const QPointF cursorPosInScene = model()->view()->mapToScene(cursorPosInView);
+        const QPointF cursorPosInItem = mapFromScene(cursorPosInScene);
+
+        /* Paint button finally: */
+        paintRoundedButton(pPainter, subRect, cursorPosInItem, backgroundColor, iPadding);
     }
-    /* Default background: */
-    else
-    {
-        /* Prepare color: */
-        const QColor backgroundColor = isEnabled()
-                                     ? pal.color(QPalette::Active, QPalette::Window)
-                                     : pal.color(QPalette::Disabled, QPalette::Window);
-        /* Draw gradient: */
-        QLinearGradient bgGrad(rectangle.topLeft(), rectangle.bottomLeft());
-        bgGrad.setColorAt(0, backgroundColor.lighter(m_iDefaultLightnessStart));
-        bgGrad.setColorAt(1, backgroundColor.lighter(m_iDefaultLightnessFinal));
-        pPainter->fillRect(rectangle, bgGrad);
-    }
-
-    /* Restore painter: */
-    pPainter->restore();
-}
-
-void UIToolsItem::paintFrame(QPainter *pPainter, const QRect &rectangle) const
-{
-    /* Don't paint frame for disabled items: */
-    if (!isEnabled())
-        return;
-
-    /* Save painter: */
-    pPainter->save();
-
-    /* Prepare colors: */
-    const QPalette pal = QApplication::palette();
-    QColor strokeColor;
-
-    /* Selection frame: */
-    if (model()->currentItem() == this)
-        strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHighlightLightnessStart - 40);
-    /* Hovering frame: */
-    else if (isHovered())
-        strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHoverLightnessStart - 40);
-    /* Default frame: */
-    else
-        strokeColor = pal.color(QPalette::Active, QPalette::Window).lighter(m_iDefaultLightnessStart);
-
-    /* Create/assign pen: */
-    QPen pen(strokeColor);
-    pen.setWidth(0);
-    pPainter->setPen(pen);
-
-    /* Draw borders: */
-    pPainter->drawLine(rectangle.topLeft(),    rectangle.topRight());
-    pPainter->drawLine(rectangle.bottomLeft(), rectangle.bottomRight());
-    pPainter->drawLine(rectangle.topLeft(),    rectangle.bottomLeft());
-    pPainter->drawLine(rectangle.topRight(),   rectangle.bottomRight());
 
     /* Restore painter: */
     pPainter->restore();
@@ -871,36 +814,27 @@ void UIToolsItem::paintToolInfo(QPainter *pPainter, const QRect &rectangle) cons
     const int iSpacing = data(ToolsItemData_Spacing).toInt();
     const QPalette pal = QApplication::palette();
 
-    /* Selected or hovered item foreground: */
-    if (model()->currentItem() == this || isHovered())
-    {
-        /* Prepare palette: */
-        const QPalette pal = QApplication::palette();
-
-        /* Get background color: */
-        const QColor highlight = pal.color(QPalette::Active, QPalette::Highlight);
-        const QColor background = model()->currentItem() == this
-                                ? highlight.lighter(m_iHighlightLightnessStart)
-                                : highlight.lighter(m_iHoverLightnessStart);
-
-        /* Gather foreground color for background one: */
-        const QColor foreground = suitableForegroundColor(pal, background);
-        pPainter->setPen(foreground);
-    }
     /* Default item foreground: */
-    else
-    {
-        const QColor textColor = isEnabled()
-                               ? pal.color(QPalette::Active, QPalette::Text)
-                               : pal.color(QPalette::Disabled, QPalette::Text);
-        pPainter->setPen(textColor);
-    }
+    const QColor foreground = isEnabled()
+                            ? pal.color(QPalette::Active, QPalette::Text)
+                            : pal.color(QPalette::Disabled, QPalette::Text);
+    pPainter->setPen(foreground);
 
     /* Paint left column: */
     {
         /* Prepare variables: */
-        int iPixmapX = iMargin;
-        int iPixmapY = (iFullHeight - m_pixmap.height() / m_pixmap.devicePixelRatio()) / 2;
+#ifdef VBOX_WS_MAC
+        /* Take into account additional margin for non-Machine items (Global & Aux): */
+        int iPixmapX = 0;
+        if (m_enmClass == UIToolClass_Machine)
+            iPixmapX = 1.5 * iMargin;
+        else
+            iPixmapX = 2 * iMargin;
+#else
+        int iPixmapX = 1.5 * iMargin;
+#endif
+        const int iPixmapY = (iFullHeight - m_pixmap.height() / m_pixmap.devicePixelRatio()) / 2;
+
         /* Paint pixmap: */
         paintPixmap(/* Painter: */
                     pPainter,
@@ -911,21 +845,54 @@ void UIToolsItem::paintToolInfo(QPainter *pPainter, const QRect &rectangle) cons
     }
 
     /* Paint right column: */
+    if (m_enmClass != UIToolClass_Aux)
     {
         /* Prepare variables: */
-        int iNameX = iMargin + m_pixmapSize.width() + iSpacing;
-        int iNameY = (iFullHeight - m_minimumNameSize.height()) / 2;
-        /* Paint name: */
-        paintText(/* Painter: */
-                  pPainter,
-                  /* Point to paint in: */
-                  QPoint(iNameX, iNameY),
-                  /* Font to paint text: */
-                  m_nameFont,
-                  /* Paint device: */
-                  model()->paintDevice(),
-                  /* Text to paint: */
-                  m_strVisibleName);
+#ifdef VBOX_WS_MAC
+        /* Take into account additional margin for non-Machine items (Global & Aux): */
+        int iNameX = 0;
+        if (m_enmClass == UIToolClass_Machine)
+            iNameX = 1.5 * iMargin + m_pixmapSize.width() + 2 * iSpacing;
+        else
+            iNameX = 2 * iMargin + m_pixmapSize.width() + 2 * iSpacing;
+#else
+        int iNameX = 1.5 * iMargin + m_pixmapSize.width() + 2 * iSpacing;
+#endif
+        const int iNameY = (iFullHeight - m_nameSize.height()) / 2;
+
+        /* Paint name for non-Aux tools
+         * 1. if text labels requested or
+         * 2. machine item selected: */
+        const bool fCondition1 = m_enmClass == UIToolClass_Global && model()->showItemNames();
+        const bool fCondition2 = m_enmClass == UIToolClass_Machine && (   model()->showItemNames()
+                                                                       || model()->currentItem(itemClass()) == this);
+        if (fCondition1 || fCondition2)
+        {
+            /* Acquire font: */
+            const QFont fnt = data(Qt::FontRole).value<QFont>();
+
+            /* Paint text: */
+            paintText(/* Painter: */
+                      pPainter,
+                      /* Point to paint in: */
+                      QPoint(iNameX, iNameY),
+                      /* Font to paint text: */
+                      fnt,
+                      /* Paint device: */
+                      model()->paintDevice(),
+                      /* Text to paint: */
+                      m_strName);
+
+            /* Paint animated underline: */
+            if (hoveringProgress())
+            {
+                QFontMetrics fm(fnt);
+                const double fRatio = (double)hoveringProgress() / 100;
+                const int iLength = fRatio * fm.horizontalAdvance(m_strName);
+                pPainter->drawLine(QPoint(iNameX, iNameY + fm.height()),
+                                   QPoint(iNameX + iLength, iNameY + fm.height()));
+            }
+        }
     }
 }
 
@@ -953,8 +920,63 @@ void UIToolsItem::paintText(QPainter *pPainter, QPoint point,
     point += QPoint(0, fm.ascent());
 
     /* Draw text: */
+    // QPainterPath textPath;
+    // textPath.addText(0, 0, font, strText);
+    // textPath.translate(point);
+    // pPainter->setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+    // pPainter->setPen(QPen(uiCommon().isInDarkMode() ? Qt::black : Qt::white, 2, Qt::SolidLine, Qt::RoundCap));
+    // pPainter->drawPath(QPainterPathStroker().createStroke(textPath));
+    // pPainter->setBrush(uiCommon().isInDarkMode() ? Qt::white: Qt::black);
+    // pPainter->setPen(Qt::NoPen);
+    // pPainter->drawPath(textPath);
     pPainter->drawText(point, strText);
 
     /* Restore painter: */
     pPainter->restore();
 }
+
+/* static */
+void UIToolsItem::paintRoundedButton(QPainter *pPainter,
+                                     const QRect &rectangle,
+                                     const QPointF &cursorPosition,
+                                     const QColor &color,
+                                     int iPadding)
+{
+    /* Save painter: */
+    pPainter->save();
+
+    /* Configure painter path: */
+    QPainterPath painterPath;
+#ifndef VBOX_WS_MAC
+    iPadding /= 2;
+#endif
+    painterPath.addRoundedRect(rectangle, iPadding, iPadding);
+    pPainter->setClipPath(painterPath);
+
+    /* Paint active background: */
+    const QColor color0 = uiCommon().isInDarkMode()
+                        ? color.lighter(180)
+                        : color.darker(105);
+    const QColor color1 = uiCommon().isInDarkMode()
+                        ? color0.lighter(180)
+                        : color0.lighter(140);
+    const QColor color2 = uiCommon().isInDarkMode()
+                        ? color0.darker(180)
+                        : color0.darker(140);
+    QRadialGradient grad(rectangle.center(), rectangle.width(), cursorPosition);
+    grad.setColorAt(0, color1);
+    grad.setColorAt(1, color2);
+    pPainter->fillRect(rectangle, grad);
+
+    /* Restore painter: */
+    pPainter->restore();
+}
+
+void UIToolsItem::setHoveringProgress(int iProgress)
+{
+    m_iHoveringProgress = iProgress;
+    update();
+}
+
+
+#include "UIToolsItem.moc"

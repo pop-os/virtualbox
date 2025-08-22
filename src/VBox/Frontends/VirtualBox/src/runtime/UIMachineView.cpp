@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -297,7 +297,7 @@ void UIMachineView::applyMachineViewScaleFactor()
         return;
 
     /* Acquire selected scale-factor: */
-    double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), m_uScreenId);
+    double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), (int)m_uScreenId);
 
     /* Take the device-pixel-ratio into account: */
     frameBuffer()->setDevicePixelRatio(UIDesktopWidgetWatchdog::devicePixelRatio(machineWindow()));
@@ -612,8 +612,7 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
     }
 
 # elif defined(VBOX_WS_NIX)
-
-    if (uiCommon().X11ServerAvailable())
+    if (NativeWindowSubsystem::displayServerType() == VBGHDISPLAYSERVERTYPE_X11)
     {
         /* Make sure it's generic XCB event: */
         if (eventType != "xcb_generic_event_t")
@@ -969,17 +968,17 @@ void UIMachineView::sltHandleActionTriggerViewScreenToggle(int iScreen, bool fEn
             uHeight = 600;
 
         /* Update current window size limitations: */
-        setMaximumGuestSize(QSize(uWidth, uHeight));
+        setMaximumGuestSize(QSize((int)uWidth, (int)uHeight));
 
         /* Record the hint to extra data, needed for guests using VMSVGA:
          * This should be done before the actual hint is sent in case the guest overrides it.
          * Do not send a hint if nothing has changed to prevent the guest being notified about its own changes. */
         if (   !isFullscreenOrSeamless()
             && uimachine()->isGuestSupportsGraphics()
-            && (   frameBuffer()->width() != uWidth
-                || frameBuffer()->height() != uHeight
+            && (   (ulong)frameBuffer()->width() != uWidth
+                || (ulong)frameBuffer()->height() != uHeight
                 || uimachine()->isScreenVisible(screenId()) != uimachine()->isScreenVisibleHostDesires(screenId())))
-            setStoredGuestScreenSizeHint(QSize(uWidth, uHeight));
+            setStoredGuestScreenSizeHint(QSize((int)uWidth, (int)uHeight));
 
         /* Send enabling size-hint to the guest: */
         LogRel(("GUI: UIMachineView::sltHandleActionTriggerViewScreenToggle: Enabling guest-screen %d\n", (int)screenId()));
@@ -1034,7 +1033,7 @@ void UIMachineView::sltHandleActionTriggerViewScreenResize(int iScreen, const QS
                                   true /* enabled? */,
                                   false /* change origin? */,
                                   0 /* origin x */, 0 /* origin y */,
-                                  size.width(), size.height(),
+                                  (ulong)size.width(), (ulong)size.height(),
                                   0 /* bits per pixel */,
                                   true /* notify? */);
 }
@@ -1051,7 +1050,7 @@ void UIMachineView::sltHandleScaleFactorChange(const QUuid &uMachineID)
         return;
 
     /* Acquire selected scale-factor: */
-    double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), m_uScreenId);
+    double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), (int)m_uScreenId);
 
     /* Take the device-pixel-ratio into account: */
     const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
@@ -1179,25 +1178,25 @@ void UIMachineView::sltMousePointerShapeChange()
     QPixmap pixmapShape = uimachine()->cursorShapePixmap();
     QPixmap pixmapMask = uimachine()->cursorMaskPixmap();
     const QPoint hotspot = uimachine()->cursorHotspot();
-    uint uXHot = hotspot.x();
-    uint uYHot = hotspot.y();
+    int iXHot = hotspot.x();
+    int iYHot = hotspot.y();
 
     /* If there is no mask: */
     if (pixmapMask.isNull())
     {
         /* Scale the shape pixmap and
          * compose the cursor on the basis of shape only: */
-        updateMousePointerPixmapScaling(pixmapShape, uXHot, uYHot);
-        m_cursor = QCursor(pixmapShape, uXHot, uYHot);
+        updateMousePointerPixmapScaling(pixmapShape, iXHot, iYHot);
+        m_cursor = QCursor(pixmapShape, iXHot, iYHot);
     }
     /* Otherwise: */
     else
     {
         /* Scale the shape and the mask pixmaps and
          * compose the cursor on the basis of shape and mask both: */
-        updateMousePointerPixmapScaling(pixmapShape, uXHot, uYHot);
-        /// @todo updateMousePointerPixmapScaling(pixmapMask, uXHot, uYHot);
-        m_cursor = QCursor(QBitmap::fromPixmap(pixmapShape), QBitmap::fromPixmap(pixmapMask), uXHot, uYHot);
+        updateMousePointerPixmapScaling(pixmapShape, iXHot, iYHot);
+        /// @todo updateMousePointerPixmapScaling(pixmapMask, iXHot, iYHot);
+        m_cursor = QCursor(QBitmap::fromPixmap(pixmapShape), QBitmap::fromPixmap(pixmapMask), iXHot, iYHot);
     }
 
     /* Let the listeners know: */
@@ -1225,9 +1224,12 @@ UIMachineView::UIMachineView(UIMachineWindow *pMachineWindow, ulong uScreenId)
     , m_iHostScreenNumber(0)
     , m_enmMaximumGuestScreenSizePolicy(MaximumGuestScreenSizePolicy_Automatic)
     , m_u64MaximumGuestSize(0)
-#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    , m_pDnDHandler(NULL)
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
     , m_fIsDraggingFromGuest(false)
-#endif
+# endif
+#endif /* VBOX_WITH_DRAG_AND_DROP */
     , m_pNativeEventFilter(0)
 {
     /* Install Machine-view accessibility interface factory: */
@@ -1686,7 +1688,8 @@ void UIMachineView::takePausePixmapSnapshot()
         effectiveSize *= dDevicePixelRatio;
 
     /* Create a screen-shot on the basis of the screen-data we have in saved-state: */
-    QImage screenShot = QImage::fromData(screenData.data(), screenData.size(), "PNG").scaled(effectiveSize);
+    /// @todo rework it to make sure image size isn't limited with int type size.
+    QImage screenShot = QImage::fromData(screenData.data(), (int)screenData.size(), "PNG").scaled(effectiveSize);
 
     /* Dim screen-shot if it is Ok: */
     if (!screenShot.isNull())
@@ -2008,15 +2011,17 @@ void UIMachineView::focusOutEvent(QFocusEvent *pEvent)
 #ifdef VBOX_WS_NIX
 void UIMachineView::keyPressEvent(QKeyEvent *pEvent)
 {
-    if (uiCommon().displayServerType() == VBGHDISPLAYSERVERTYPE_PURE_WAYLAND)
-        uimachine()->putScancode(pEvent->nativeScanCode() - 8);
+    /* It looks like that QKeyEvent::nativeScanCode returns evdev codes with an offset of 8: */
+    quint32 uEvDevCode = pEvent->nativeScanCode() - 8;
+    machineLogic()->keyboardHandler()->handleKeyEvent(uEvDevCode, false /* is release*/);
     QAbstractScrollArea::keyPressEvent(pEvent);
 }
 
 void UIMachineView::keyReleaseEvent(QKeyEvent *pEvent)
 {
-    if (uiCommon().displayServerType() == VBGHDISPLAYSERVERTYPE_PURE_WAYLAND)
-        uimachine()->putScancode((pEvent->nativeScanCode() - 8) | 0x80);
+    /* It looks like that QKeyEvent::nativeScanCode returns evdev codes with an offset of 8: */
+    quint32 uEvDevCode = pEvent->nativeScanCode() - 8;
+    machineLogic()->keyboardHandler()->handleKeyEvent(uEvDevCode, true /* is release*/);
     QAbstractScrollArea::keyReleaseEvent(pEvent);
 }
 #endif
@@ -2177,7 +2182,7 @@ QSize UIMachineView::scaledBackward(QSize size) const
     return size;
 }
 
-void UIMachineView::updateMousePointerPixmapScaling(QPixmap &pixmap, uint &uXHot, uint &uYHot)
+void UIMachineView::updateMousePointerPixmapScaling(QPixmap &pixmap, int &iXHot, int &iYHot)
 {
 #if defined(VBOX_WS_MAC)
 
@@ -2189,8 +2194,8 @@ void UIMachineView::updateMousePointerPixmapScaling(QPixmap &pixmap, uint &uXHot
         /* Scale the pixmap up: */
         pixmap = pixmap.scaled((int)(pixmap.width() * dScaleFactor), (int)(pixmap.height() * dScaleFactor),
                                Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        uXHot *= dScaleFactor;
-        uYHot *= dScaleFactor;
+        iXHot *= dScaleFactor;
+        iYHot *= dScaleFactor;
     }
 
     /* Take into account device-pixel-ratio if necessary: */
@@ -2202,8 +2207,8 @@ void UIMachineView::updateMousePointerPixmapScaling(QPixmap &pixmap, uint &uXHot
     {
         /* Scale the pixmap down: */
         pixmap.setDevicePixelRatio(dDevicePixelRatio);
-        uXHot /= dDevicePixelRatio;
-        uYHot /= dDevicePixelRatio;
+        iXHot /= dDevicePixelRatio;
+        iYHot /= dDevicePixelRatio;
     }
 
 #elif defined(VBOX_WS_WIN) || defined(VBOX_WS_NIX)
@@ -2229,8 +2234,8 @@ void UIMachineView::updateMousePointerPixmapScaling(QPixmap &pixmap, uint &uXHot
         /* Scale the pixmap up: */
         pixmap = pixmap.scaled(pixmap.width() * dScaleMultiplier, pixmap.height() * dScaleMultiplier,
                                Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        uXHot *= dScaleMultiplier;
-        uYHot *= dScaleMultiplier;
+        iXHot *= dScaleMultiplier;
+        iYHot *= dScaleMultiplier;
     }
 
 # ifdef VBOX_WS_WIN
@@ -2239,16 +2244,16 @@ void UIMachineView::updateMousePointerPixmapScaling(QPixmap &pixmap, uint &uXHot
     {
         /* Scale the pixmap down: */
         pixmap.setDevicePixelRatio(dDevicePixelRatio);
-        uXHot /= dDevicePixelRatio;
-        uYHot /= dDevicePixelRatio;
+        iXHot /= dDevicePixelRatio;
+        iYHot /= dDevicePixelRatio;
     }
 # endif
 
 #else
 
     Q_UNUSED(pixmap);
-    Q_UNUSED(uXHot);
-    Q_UNUSED(uYHot);
+    Q_UNUSED(iXHot);
+    Q_UNUSED(iYHot);
 
 #endif
 }

@@ -5,7 +5,7 @@
         to dita for use in the user manual.
 -->
 <!--
-    Copyright (C) 2006-2024 Oracle and/or its affiliates.
+    Copyright (C) 2006-2025 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -209,7 +209,7 @@
 
         <xsl:apply-templates select="title"/>
 
-        <!-- Must put cmdsynopsis in a paragraph or it'll get too close to any preceeding section title -->
+        <!-- Must put cmdsynopsis in a paragraph or it'll get too close to any preceding section title -->
         <xsl:element name="body">
           <xsl:for-each select="node()">
             <xsl:choose>

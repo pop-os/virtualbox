@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -115,6 +115,7 @@ public:
     void    setCurrentPath(const QString &strPath);
     QMenu *menu() const;
     QString visoFileFullPath() const;
+    void openVISOFile(const QString &strFileName);
 
 #ifdef VBOX_WS_MAC
     /** Returns the toolbar. */
@@ -191,7 +192,7 @@ class SHARED_LIBRARY_STUFF UIVisoCreatorDialog : public QIWithRestorableGeometry
 public:
 
     UIVisoCreatorDialog(UIActionPool *pActionPool, QWidget *pParent,
-                        const QString& strVisoSavePath, const QString& strMachineName = QString());
+                        const QString& strVisoSavePath = QString(), const QString& strMachineName = QString());
 
     QStringList  entryList() const;
     QString visoName() const;
@@ -208,6 +209,9 @@ public:
     static QUuid createViso(UIActionPool *pActionPool, QWidget *pParent,
                             const QString &strDefaultFolder = QString(),
                             const QString &strMachineName  = QString());
+    static QUuid editViso(UIActionPool *pActionPool, QWidget *pParent,
+                          const QString &strVISOFilePath);
+    void openVISOFile(const QString &strFileName);
 
 protected:
 

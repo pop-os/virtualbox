@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -171,7 +171,7 @@ VMM_INT_DECL(uint64_t)  TMCpuTickGetLastSeen(PVMCPUCC pVCpu);
 VMMDECL(uint64_t)       TMCpuTicksPerSecond(PVMCC pVM);
 VMM_INT_DECL(bool)      TMCpuTickIsTicking(PVMCPUCC pVCpu);
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
 VMM_INT_DECL(void)      TMCpuSetVTimerNextActivation(PVMCPUCC pVCpu, uint64_t cNanoSecs);
 VMM_INT_DECL(uint64_t)  TMCpuGetVTimerActivationNano(PVMCPUCC pVCpu);
 #endif

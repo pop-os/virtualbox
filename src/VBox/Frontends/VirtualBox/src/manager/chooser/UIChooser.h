@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -72,18 +72,15 @@ signals:
         void sigCloudUpdateStateChanged();
     /** @} */
 
-    /** @name Tool stuff.
-      * @{ */
-        /** Notifies listeners about tool popup-menu request for certain @a position and optionally machine @a pItem. */
-        void sigToolMenuRequested(const QPoint &position, UIVirtualMachineItem *pItem);
-    /** @} */
-
     /** @name Selection stuff.
       * @{ */
         /** Notifies listeners about selection changed. */
         void sigSelectionChanged();
         /** Notifies listeners about selection invalidated. */
         void sigSelectionInvalidated();
+
+        /** Notifies listeners about navigation list change. */
+        void sigNavigationListChanged();
 
         /** Notifies listeners about group toggling started. */
         void sigToggleStarted();
@@ -136,6 +133,12 @@ public:
         QList<UIVirtualMachineItemCloud*> cloudMachineItems() const;
     /** @} */
 
+    /** @name Navigation stuff.
+      * @{ */
+        /** Returns whether navigation list empty. */
+        bool isNavigationListEmpty() const;
+    /** @} */
+
     /** @name Current-item stuff.
       * @{ */
         /** Returns current-item. */
@@ -145,8 +148,6 @@ public:
 
         /** Returns whether group item is selected. */
         bool isGroupItemSelected() const;
-        /** Returns whether global item is selected. */
-        bool isGlobalItemSelected() const;
         /** Returns whether machine item is selected. */
         bool isMachineItemSelected() const;
         /** Returns whether local machine item is selected. */
@@ -191,24 +192,6 @@ public:
         void setMachineSearchWidgetVisibility(bool fVisible);
         /** Changes current machine to the one with certain @a uId. */
         void setCurrentMachine(const QUuid &uId);
-        /** Set global tools to be the current item. */
-        void setCurrentGlobal();
-    /** @} */
-
-public slots:
-
-    /** @name Layout stuff.
-      * @{ */
-        /** Defines global item @a iHeight. */
-        void setGlobalItemHeightHint(int iHeight);
-    /** @} */
-
-private slots:
-
-    /** @name General stuff.
-      * @{ */
-        /** Handles signal about tool popup-menu request for certain @a position and optionally machine @a pItem. */
-        void sltToolMenuRequested(const QPoint &position, UIVirtualMachineItem *pItem);
     /** @} */
 
 private:

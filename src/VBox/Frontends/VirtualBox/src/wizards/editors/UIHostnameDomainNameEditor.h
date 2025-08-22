@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -65,10 +65,11 @@ public:
 
     QString hostnameDomainName() const;
 
-    bool isComplete() const;
-    void mark();
+    bool hostDomainNameComplete() const;
+    void mark(bool fProductKeyRequired);
 
     void disableEnableProductKeyWidgets(bool fEnabled);
+    bool hasProductKeyAcceptableInput() const;
 
 private slots:
 

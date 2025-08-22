@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -284,39 +284,37 @@ int UINameAndSystemEditor::firstColumnWidth() const
 void UINameAndSystemEditor::sltRetranslateUI()
 {
     if (m_pLabelName)
-        m_pLabelName->setText(tr("&Name:"));
+        m_pLabelName->setText(tr("VM &Name"));
     if (m_pLabelPath)
-        m_pLabelPath->setText(tr("&Folder:"));
+        m_pLabelPath->setText(tr("VM &Folder"));
     if (m_pLabelImage)
-        m_pLabelImage->setText(tr("&ISO Image:"));
+        m_pLabelImage->setText(tr("&ISO Image"));
     if (m_pLabelEdition)
-        m_pLabelEdition->setText(tr("&Edition:"));
+        m_pLabelEdition->setText(tr("OS &Edition"));
     if (m_pLabelFamily)
-        m_pLabelFamily->setText(tr("&Type:"));
+        m_pLabelFamily->setText(tr("&OS"));
     if (m_pLabelDistribution)
-        m_pLabelDistribution->setText(tr("&Subtype:"));
+        m_pLabelDistribution->setText(tr("OS &Distribution"));
     if (m_pLabelType)
-        m_pLabelType->setText(tr("&Version:"));
+        m_pLabelType->setText(tr("OS &Version"));
 
     if (m_pEditorName)
-        m_pEditorName->setToolTip(tr("Holds the name for virtual machine."));
+        m_pEditorName->setToolTip(tr("Descriptive name to uniquely identify the virtual machine"));
     if (m_pSelectorPath)
-        m_pSelectorPath->setToolTip(tr("Selects the folder hosting virtual machine."));
+        m_pSelectorPath->setToolTip(tr("Storage location for virtual machine files"));
     if (m_pComboEdition)
-        m_pComboEdition->setToolTip(tr("Selects the operating system edition when possible."));
+        m_pComboEdition->setToolTip(tr("Edition of guest operating system to install"));
+
     if (m_pComboFamily)
-        m_pComboFamily->setToolTip(tr("Selects the operating system type that "
-                                      "you plan to install into this virtual machine."));
+        m_pComboFamily->setToolTip(tr("Operating system, for example Linux, Windows"));
     if (m_pComboDistribution)
-        m_pComboDistribution->setToolTip(tr("Selects the operating system subtype that "
-                                            "you plan to install into this virtual machine."));
+        m_pComboDistribution->setToolTip(tr("OS distribution, if applicable"));
     if (m_pComboType)
-        m_pComboType->setToolTip(tr("Selects the operating system version that "
-                                    "you plan to install into this virtual machine "
-                                    "(called a guest operating system)."));
+        m_pComboType->setToolTip(tr("Version of OS"));
+
     if (m_pSelectorImage)
-        m_pSelectorImage->setToolTip(tr("Selects an ISO image to be attached to the "
-                                        "virtual machine or used in unattended install."));
+        m_pSelectorImage->setToolTip(tr("ISO image to be attached to the "
+                                        "virtual machine and possibly used in unattended install"));
 }
 
 void UINameAndSystemEditor::handleFilterChange()

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -75,10 +75,10 @@ void UIVRDEAuthLibraryEditor::setMinimumLayoutIndent(int iIndent)
 void UIVRDEAuthLibraryEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("V&RDP Authentication Library:"));
+        m_pLabel->setText(tr("V&RDP Authentication Library"));
     if (m_pSelector)
-        m_pSelector->setToolTip(tr("Holds the path to the library that provides "
-                                   "authentication for Remote Display (VRDP) clients."));
+        m_pSelector->setToolTip(tr("Path to the library that provides "
+                                   "authentication for Remote Display (VRDP) clients"));
 }
 
 void UIVRDEAuthLibraryEditor::prepare()

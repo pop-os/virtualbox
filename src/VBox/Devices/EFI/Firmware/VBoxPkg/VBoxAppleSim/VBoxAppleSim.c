@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -266,8 +266,8 @@ SetProperVariables(IN EFI_HANDLE ImageHandle, EFI_RUNTIME_SERVICES * rs)
 
     //static const CHAR8  vBootArgs[]      = "debug=0x15e keepsyms=1 acpi=0xffffffff acpi_debug=0xff acpi_level=7 -v -x32 -s"; // or just "debug=0x8 -legacy"
     // 0x14e for serial output
-    //static const CHAR8  vDefBootArgs[]      = "debug=0x146 usb=0x800 keepsyms=1 -v -serial=0x1";
-    static const CHAR8  vDefBootArgs[]      = "usb=0x800 keepsyms=1 -v -serial=0x1";
+    //static const CHAR8  vDefBootArgs[]      = "debug=0x146 usb=0x800 keepsyms=1 -v serial=0x1";
+    static const CHAR8  vDefBootArgs[]      = "usb=0x800 keepsyms=1";
     CHAR8  vBootArgs[256];
     UINT32 BootArgsLen;
 

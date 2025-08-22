@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -35,6 +35,7 @@
 #include <iprt/dir.h>
 #include <iprt/file.h>
 #include <iprt/path.h>
+#include <iprt/system.h>
 
 #include <VBox/hgcmsvc.h> /* For PVBOXHGCMSVCPARM. */
 #include <VBox/GuestHost/DragAndDrop.h>
@@ -190,7 +191,8 @@ struct GuestDnDMetaData
         if (cbSize == cbAllocated)
             return VINF_SUCCESS;
 
-        cbSize = RT_ALIGN_Z(cbSize, PAGE_SIZE);
+        size_t const cbPage = RTSystemGetPageSize();
+        cbSize = RT_ALIGN_Z(cbSize, cbPage);
 
         if (cbSize > _32M) /* Meta data can be up to 32MB. */
             return VERR_BUFFER_OVERFLOW;

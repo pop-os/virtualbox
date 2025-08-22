@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2005-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -140,6 +140,7 @@ private:
     typedef std::list<ComObjPtr<USBProxyBackend> > USBProxyBackendList;
     /** List of active USB backends. */
     USBProxyBackendList mBackends;
+    /** Last error (IPRT style). Set to VINF_SUCCESS if no last error yet. */
     int                 mLastError;
 };
 

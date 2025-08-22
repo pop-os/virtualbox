@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -58,6 +58,7 @@ DECLINLINE(void) utsProtocolPktHdrH2N(PUTSPKTHDR pPktHdr)
 }
 
 
+#if 0 /* unused */
 /**
  * Converts a UTS packet header from network to host byte order.
  *
@@ -94,6 +95,7 @@ DECLINLINE(void) utsProtocolStsHdrN2H(PUTSPKTSTS pPktHdr)
     pPktHdr->rcReq     = RT_N2H_U32(pPktHdr->rcReq);
     pPktHdr->cchStsMsg = RT_N2H_U32(pPktHdr->cchStsMsg);
 }
+#endif
 
 
 DECLHIDDEN(void) utsProtocolReqH2N(PUTSPKTHDR pPktHdr)

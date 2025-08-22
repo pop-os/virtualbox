@@ -3,7 +3,7 @@
  * VBoxNetLwf-win.h - Bridged Networking Driver, Windows-specific code.
  */
 /*
- * Copyright (C) 2014-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,7 +40,7 @@
 #endif
 
 #define VBOXNETLWF_VERSION_NDIS_MAJOR        6
-#define VBOXNETLWF_VERSION_NDIS_MINOR        0
+#define VBOXNETLWF_VERSION_NDIS_MINOR        30
 
 #define VBOXNETLWF_NAME_FRIENDLY             L"VirtualBox NDIS Light-Weight Filter"
 #define VBOXNETLWF_NAME_UNIQUE               L"{7af6b074-048d-4444-bfce-1ecc8bc5cb76}"

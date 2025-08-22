@@ -204,4 +204,4 @@ Troubleshooting
 
 
 :Status: $Id: VBoxAudioValidationKitReadMe.txt $
-:Copyright: Copyright (C) 2021-2024 Oracle Corporation.
+:Copyright: Copyright (C) 2021-2025 Oracle and/or its affiliates.

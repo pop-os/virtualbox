@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1260,6 +1260,52 @@ public:
     HRESULT assignEx(const char *a_pcszSrc, size_t a_cchSrc)
     {
         return copyFromExNComRC(a_pcszSrc, 0, a_cchSrc);
+    }
+
+    /** Resolve compiler confusion. */
+    Utf8Str &assign(const char *a_pszSrc)
+    {
+        RTCString::assign(a_pszSrc);
+        return *this;
+    }
+
+    /** Resolve compiler confusion. */
+    Utf8Str &assign(const char *a_pszSrc, size_t a_cchSrc)
+    {
+        RTCString::assign(a_pszSrc, a_cchSrc);
+        return *this;
+    }
+
+    /** Resolve compiler confusion. */
+    RTCString &assign(const RTCString &a_rSrc)
+    {
+        RTCString::assign(a_rSrc);
+        return *this;
+    }
+
+    /** Resolve compiler confusion. */
+    RTCString &assign(const RTCString &a_rSrc, size_t a_offSrc, size_t a_cchSrc = npos)
+    {
+        RTCString::assign(a_rSrc, a_offSrc, a_cchSrc);
+        return *this;
+    }
+
+    /** Resolve compiler confusion. */
+    RTCString &assign(size_t a_cTimes, char a_ch)
+    {
+        RTCString::assign(a_cTimes, a_ch);
+        return *this;
+    }
+
+    /**
+     * Assignment method for UTF-16 strings.
+     *
+     * @throws  std::bad_alloc if we failed to allocate a new empty string.
+     */
+    Utf8Str &assign(CBSTR that, size_t a_cwcSize = RTSTR_MAX)
+    {
+        copyFrom(that, a_cwcSize);
+        return *this;
     }
 
     RTMEMEF_NEW_AND_DELETE_OPERATORS();

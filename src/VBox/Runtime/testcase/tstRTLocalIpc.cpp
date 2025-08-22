@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -554,7 +554,7 @@ static DECLCALLBACK(int) testSessionDataThread(RTTHREAD hSelf, void *pvUser)
             {
                 rc = testSessionDataWriteMessages(hIpcSession, cRounds);
                 if (RT_SUCCESS(rc))
-                    rc = testSessionDataReadMessages(hIpcSession, cRounds);
+                    testSessionDataReadMessages(hIpcSession, cRounds);
             }
 
             RTTESTI_CHECK_RC(RTLocalIpcSessionClose(hIpcSession), VINF_OBJECT_DESTROYED);

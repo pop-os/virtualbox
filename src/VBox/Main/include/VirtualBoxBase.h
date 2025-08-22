@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -674,7 +674,6 @@ public:
         COM_INTERFACE_ENTRY_AGGREGATE(IID_IMarshal, m_pUnkMarshaler.m_p)
 #endif // !VBOX_WITH_XPCOM
 
-
 /**
  * Abstract base class for all component classes implementing COM
  * interfaces of the VirtualBox COM library.
@@ -688,6 +687,8 @@ class ATL_NO_VTABLE VirtualBoxBase
     , public ATL::CComObjectRootEx<ATL::CComMultiThreadModel>
 #if !defined (VBOX_WITH_XPCOM)
     , public ISupportErrorInfo
+#else
+    , public IUnknown
 #endif
 {
 protected:
@@ -697,6 +698,10 @@ protected:
 
      HRESULT BaseFinalConstruct();
      void BaseFinalRelease();
+
+     HRESULT getObjectId(com::Guid &aId);
+     HRESULT setTracked(uint64_t aLifeTime = 0, uint64_t afterLifeTime = 0);
+     HRESULT invalidateTracked();
 
 public:
     DECLARE_COMMON_CLASS_METHODS(VirtualBoxBase)
@@ -714,6 +719,13 @@ public:
      */
     virtual void uninit()
     { }
+
+    /**
+     */
+    const Guid &getObjectGuid() const
+    {
+        return mObjectId;
+    }
 
     /**
      */
@@ -804,6 +816,12 @@ public:
 
 
 private:
+    /** Unique ID identifying an object */
+    const Guid mObjectId;
+
+    /** Flag shows whether an object trackable or not */
+    bool mfTracked;
+
     /** Object for representing object state */
     ObjectState mState;
 
@@ -1116,4 +1134,3 @@ protected:
 };
 
 #endif /* !MAIN_INCLUDED_VirtualBoxBase_h */
-

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2024 Oracle and/or its affiliates.
+# Copyright (C) 2006-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -47,12 +47,21 @@ if   defined(VBOX_WITH_LIBCURL) \
 endif
 
 
-# dxvk-native for supporting DirectX over Vulkan on platforms other than Windows.
+# dxvk for supporting DirectX over Vulkan on platforms other than Windows.
 if   defined(VBOX_WITH_DXVK) \
   && !defined(VBOX_ONLY_BUILD) \
   && "$(SDK_VBoxDxVk_INCS)" == "$(SDK_VBoxDxVk_DEFAULT_INCS)" \
   && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
- include $(PATH_SUB_CURRENT)/dxvk-2.3.1/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/dxvk-2.6.2/Makefile.kmk
+endif
+
+
+# DXMT for supporting DirectX over Vulkan on macOS.
+if   defined(VBOX_WITH_DXMT) \
+  && !defined(VBOX_ONLY_BUILD) \
+  && "$(SDK_VBoxDxMt_INCS)" == "$(SDK_VBoxDxMt_DEFAULT_INCS)" \
+  && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
+ include $(PATH_SUB_CURRENT)/dxmt-0.60/Makefile.kmk
 endif
 
 
@@ -61,7 +70,7 @@ if   (defined(VBOX_WITH_VRDP) || defined(VBOX_WITH_USB_VIDEO_IMPL)) \
   && !defined(VBOX_ONLY_ADDITIONS) \
   && !defined(VBOX_ONLY_SDK) \
   && !defined(VBOX_ONLY_VALIDATIONKIT)
- include $(PATH_SUB_CURRENT)/libjpeg-turbo-2.1.3/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/libjpeg-turbo-3.1.0/Makefile.kmk
 endif
 
 
@@ -72,10 +81,9 @@ if   "$(SDK_VBoxLzf_INCS)" == "$(PATH_ROOT)/src/libs/liblzf-3.6" \
 endif
 
 # libslirp for NAT
-if   defined(VBOX_WITH_LIBSLIRP) \
-  && !defined(VBOX_ONLY_BUILD) \
+if   !defined(VBOX_ONLY_BUILD) \
   && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
- include $(PATH_SUB_CURRENT)/libslirp-4.8.0/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/libslirp-4.9.1/Makefile.kmk
 endif
 
 # libssh for cloud integration.
@@ -89,8 +97,9 @@ endif
 # libtpms for supporting the in process TPM emulation.
 if   defined(VBOX_WITH_LIBTPMS) \
   && !defined(VBOX_ONLY_BUILD) \
+  && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != "" \
   && ("$(SDK_VBoxLibTpms_INCS)" == "$(SDK_VBoxLibTpms_DEFAULT_INCS)")
- include $(PATH_SUB_CURRENT)/libtpms-0.9.6/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/libtpms-0.10.1/Makefile.kmk
 endif
 
 
@@ -135,6 +144,15 @@ if   defined(VBOX_WITH_LIBLZMA) \
   && !defined(VBOX_ONLY_SDK) \
   && "$(SDK_VBoxLibLzma_INCS)" == "$(PATH_ROOT)/src/libs/liblzma-5.8.1/api"
  include $(PATH_SUB_CURRENT)/liblzma-5.8.1/Makefile.kmk
+endif
+
+
+# lwip is used by DevINIP and the DHCP server.
+if   (   defined(VBOX_WITH_INIP) \
+  || defined(VBOX_WITH_NAT_SERVICE)) \
+  && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != "" \
+  && !defined(VBOX_ONLY_SDK)
+ include $(PATH_SUB_CURRENT)/lwip-2.2.1/Makefile.kmk
 endif
 
 

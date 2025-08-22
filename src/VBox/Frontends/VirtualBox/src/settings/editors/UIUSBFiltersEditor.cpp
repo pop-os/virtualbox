@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -275,7 +275,7 @@ void UIUSBFiltersEditor::sltRetranslateUI()
 
     /* Translate tree-widget: */
     if (m_pTreeWidget)
-        m_pTreeWidget->setWhatsThis(tr("Lists all USB filters of this machine. The checkbox to the left defines whether the "
+        m_pTreeWidget->setWhatsThis(tr("All USB filters of this machine. The checkbox to the left defines whether the "
                                        "particular filter is enabled or not. Use the context menu or buttons to the right to "
                                        "add or remove USB filters."));
 
@@ -283,34 +283,34 @@ void UIUSBFiltersEditor::sltRetranslateUI()
     if (m_pActionNew)
     {
         m_pActionNew->setText(tr("Add Empty Filter"));
-        m_pActionNew->setToolTip(tr("Adds new USB filter with all fields initially set to empty strings. "
+        m_pActionNew->setToolTip(tr("Add new USB filter with all fields initially set to empty strings. "
                                     "Note that such a filter will match any attached USB device."));
     }
     if (m_pActionAdd)
     {
         m_pActionAdd->setText(tr("Add Filter From Device"));
-        m_pActionAdd->setToolTip(tr("Adds new USB filter with all fields set to the values of the "
-                                "selected USB device attached to the host PC."));
+        m_pActionAdd->setToolTip(tr("Add new USB filter with all fields set to the values of the "
+                                    "selected USB device attached to the host PC"));
     }
     if (m_pActionEdit)
     {
         m_pActionEdit->setText(tr("Edit Filter"));
-        m_pActionEdit->setToolTip(tr("Edits selected USB filter."));
+        m_pActionEdit->setToolTip(tr("Edit selected USB filter"));
     }
     if (m_pActionRemove)
     {
         m_pActionRemove->setText(tr("Remove Filter"));
-        m_pActionRemove->setToolTip(tr("Removes selected USB filter."));
+        m_pActionRemove->setToolTip(tr("Remove selected USB filter"));
     }
     if (m_pActionMoveUp)
     {
         m_pActionMoveUp->setText(tr("Move Filter Up"));
-        m_pActionMoveUp->setToolTip(tr("Moves selected USB filter up."));
+        m_pActionMoveUp->setToolTip(tr("Move selected USB filter up"));
     }
     if (m_pActionMoveDown)
     {
         m_pActionMoveDown->setText(tr("Move Filter Down"));
-        m_pActionMoveDown->setToolTip(tr("Moves selected USB filter down."));
+        m_pActionMoveDown->setToolTip(tr("Move selected USB filter down"));
     }
 }
 

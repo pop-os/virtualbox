@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2024 Oracle and/or its affiliates.
+ * Copyright (C) 2024-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -90,6 +90,7 @@ typedef struct VBOXWINDRVSTOREENTRY
 typedef VBOXWINDRVSTOREENTRY *PVBOXWINDRVSTOREENTRY;
 
 struct VBOXWINDRVSTORE;
+/** Pointer to Windows driver store instance data. */
 typedef struct VBOXWINDRVSTORE *PVBOXWINDRVSTORE;
 
 /**
@@ -170,8 +171,6 @@ typedef struct VBOXWINDRVSTORE
     /** The backend this driver store uses. */
     VBOXWINDRVSTOREBACKEND Backend;
 } VBOXWINDRVSTORE;
-/** Pointer to Windows driver store instance data. */
-typedef VBOXWINDRVSTORE *PVBOXWINDRVSTORE;
 
 int VBoxWinDrvStoreCreate(PVBOXWINDRVSTORE *ppDrvStore);
 void VBoxWinDrvStoreDestroy(PVBOXWINDRVSTORE pDrvStore);

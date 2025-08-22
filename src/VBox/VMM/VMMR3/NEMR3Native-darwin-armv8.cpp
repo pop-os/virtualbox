@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2023-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2023-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -38,13 +38,14 @@
 #include <VBox/vmm/nem.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/gic.h>
+#include <VBox/vmm/pdmgic.h>
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/dbgftrace.h>
 #include <VBox/vmm/gcm.h>
 #include "NEMInternal.h"
 #include <VBox/vmm/vmcc.h>
 #include <VBox/vmm/vmm.h>
+#include <VBox/dis.h>
 #include <VBox/gic.h>
 #include "dtrace/VBoxVMM.h"
 
@@ -68,11 +69,6 @@
 
 
 /*********************************************************************************************************************************
-*   Defined Constants And Macros                                                                                                 *
-*********************************************************************************************************************************/
-
-
-/*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
 
@@ -89,7 +85,17 @@ typedef enum hv_gic_distributor_reg_t : uint16_t
 
 typedef enum hv_gic_icc_reg_t : uint16_t
 {
-    HV_GIC_ICC_REG_AP0R0_EL1
+    HV_GIC_ICC_REG_PMR_EL1,
+    HV_GIC_ICC_REG_BPR0_EL1,
+    HV_GIC_ICC_REG_AP0R0_EL1,
+    HV_GIC_ICC_REG_AP1R0_EL1,
+    HV_GIC_ICC_REG_RPR_EL1,
+    HV_GIC_ICC_REG_BPR1_EL1,
+    HV_GIC_ICC_REG_CTLR_EL1,
+    HV_GIC_ICC_REG_SRE_EL1,
+    HV_GIC_ICC_REG_IGRPEN0_EL1,
+    HV_GIC_ICC_REG_IGRPEN1_EL1,
+    HV_GIC_ICC_REG_INVALID,
     /** @todo */
 } hv_gic_icc_reg_t;
 
@@ -131,6 +137,10 @@ typedef enum hv_gic_intid_t : uint16_t
     HV_GIC_INT_PERFORMANCE_MONITOR = 30
 } hv_gic_intid_t;
 
+# define HV_SYS_REG_ACTLR_EL1   (hv_sys_reg_t)0xc081
+
+#else
+# define HV_GIC_ICC_REG_INVALID (hv_gic_icc_reg_t)UINT16_MAX
 #endif
 
 typedef hv_vm_config_t  FN_HV_VM_CONFIG_CREATE(void);
@@ -214,7 +224,7 @@ static FN_HV_GIC_SET_STATE                          *g_pfnHvGicSetState         
 static FN_HV_GIC_STATE_GET_SIZE                     *g_pfnHvGicStateGetSize                     = NULL; /* Since 15.0 */
 static FN_HV_GIC_STATE_GET_DATA                     *g_pfnHvGicStateGetData                     = NULL; /* Since 15.0 */
 static FN_HV_GIC_SEND_MSI                           *g_pfnHvGicSendMsi                          = NULL; /* Since 15.0 */
-static FN_HV_GIC_SET_SPI                            *g_pfnHvGicSetSpi                           = NULL; /* Since 15.0 */
+       FN_HV_GIC_SET_SPI                            *g_pfnHvGicSetSpi                           = NULL; /* Since 15.0, exported for GICR3Nem-darwin.cpp */
 static FN_HV_GIC_GET_DISTRIBUTOR_REG                *g_pfnHvGicGetDistributorReg                = NULL; /* Since 15.0 */
 static FN_HV_GIC_GET_MSI_REG                        *g_pfnHvGicGetMsiReg                        = NULL; /* Since 15.0 */
 static FN_HV_GIC_GET_ICC_REG                        *g_pfnHvGicGetIccReg                        = NULL; /* Since 15.0 */
@@ -498,10 +508,6 @@ static const struct
     { HV_SYS_REG_SP_EL1,            CPUMCTX_EXTRN_SP,               RT_UOFFSETOF(CPUMCTX, aSpReg[1].u64)    },
     { HV_SYS_REG_SPSR_EL1,          CPUMCTX_EXTRN_SPSR,             RT_UOFFSETOF(CPUMCTX, Spsr.u64)         },
     { HV_SYS_REG_ELR_EL1,           CPUMCTX_EXTRN_ELR,              RT_UOFFSETOF(CPUMCTX, Elr.u64)          },
-    { HV_SYS_REG_SCTLR_EL1,         CPUMCTX_EXTRN_SCTLR_TCR_TTBR,   RT_UOFFSETOF(CPUMCTX, Sctlr.u64)        },
-    { HV_SYS_REG_TCR_EL1,           CPUMCTX_EXTRN_SCTLR_TCR_TTBR,   RT_UOFFSETOF(CPUMCTX, Tcr.u64)          },
-    { HV_SYS_REG_TTBR0_EL1,         CPUMCTX_EXTRN_SCTLR_TCR_TTBR,   RT_UOFFSETOF(CPUMCTX, Ttbr0.u64)        },
-    { HV_SYS_REG_TTBR1_EL1,         CPUMCTX_EXTRN_SCTLR_TCR_TTBR,   RT_UOFFSETOF(CPUMCTX, Ttbr1.u64)        },
     { HV_SYS_REG_VBAR_EL1,          CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, VBar.u64)         },
     { HV_SYS_REG_AFSR0_EL1,         CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Afsr0.u64)        },
     { HV_SYS_REG_AFSR1_EL1,         CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Afsr1.u64)        },
@@ -519,6 +525,29 @@ static const struct
     { HV_SYS_REG_TPIDR_EL1,         CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, aTpIdr[1].u64)    },
     { HV_SYS_REG_MDCCINT_EL1,       CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, MDccInt.u64)      }
 
+};
+/** Paging registers (CPUMCTX_EXTRN_SCTLR_TCR_TTBR). */
+static const struct
+{
+    hv_sys_reg_t    enmHvReg;
+    uint32_t        offCpumCtx;
+} s_aCpumSysRegsPg[] =
+{
+    { HV_SYS_REG_SCTLR_EL1,         RT_UOFFSETOF(CPUMCTX, Sctlr.u64)        },
+    { HV_SYS_REG_TCR_EL1,           RT_UOFFSETOF(CPUMCTX, Tcr.u64)          },
+    { HV_SYS_REG_TTBR0_EL1,         RT_UOFFSETOF(CPUMCTX, Ttbr0.u64)        },
+    { HV_SYS_REG_TTBR1_EL1,         RT_UOFFSETOF(CPUMCTX, Ttbr1.u64)        }
+};
+
+/** Additional System registers to sync when on at least macOS Sequioa 15.0. */
+static const struct
+{
+    hv_sys_reg_t    enmHvReg;
+    uint32_t        fCpumExtrn;
+    uint32_t        offCpumCtx;
+} s_aCpumSysRegsSequioa[] =
+{
+    { HV_SYS_REG_ACTLR_EL1,         CPUMCTX_EXTRN_SYSREG_MISC,      RT_UOFFSETOF(CPUMCTX, Actlr.u64)        }
 };
 /** EL2 support system registers. */
 static const struct
@@ -542,9 +571,9 @@ static const struct
     //{ ARMV8_AARCH64_SYSREG_MDCR_EL2,       RT_UOFFSETOF(CPUMCTX, MdcrEl2.u64)       },
     { ARMV8_AARCH64_SYSREG_SCTLR_EL2,      RT_UOFFSETOF(CPUMCTX, SctlrEl2.u64)      },
     { ARMV8_AARCH64_SYSREG_SPSR_EL2,       RT_UOFFSETOF(CPUMCTX, SpsrEl2.u64)       },
-    { ARMV8_AARCH64_SYSREG_SP_EL2,         RT_UOFFSETOF(CPUMCTX, SpEl2.u64)         },
+    { ARMV8_AARCH64_SYSREG_SP_EL2,         RT_UOFFSETOF(CPUMCTX, aSpReg[2].u64)        },
     { ARMV8_AARCH64_SYSREG_TCR_EL2,        RT_UOFFSETOF(CPUMCTX, TcrEl2.u64)        },
-    { ARMV8_AARCH64_SYSREG_TPIDR_EL2,      RT_UOFFSETOF(CPUMCTX, TpidrEl2.u64)      },
+    { ARMV8_AARCH64_SYSREG_TPIDR_EL2,      RT_UOFFSETOF(CPUMCTX, aTpIdr[2].u64)      },
     { ARMV8_AARCH64_SYSREG_TTBR0_EL2,      RT_UOFFSETOF(CPUMCTX, Ttbr0El2.u64)      },
     { ARMV8_AARCH64_SYSREG_TTBR1_EL2,      RT_UOFFSETOF(CPUMCTX, Ttbr1El2.u64)      },
     { ARMV8_AARCH64_SYSREG_VBAR_EL2,       RT_UOFFSETOF(CPUMCTX, VBarEl2.u64)       },
@@ -553,31 +582,12 @@ static const struct
     { ARMV8_AARCH64_SYSREG_VTCR_EL2,       RT_UOFFSETOF(CPUMCTX, VTcrEl2.u64)       },
     { ARMV8_AARCH64_SYSREG_VTTBR_EL2,      RT_UOFFSETOF(CPUMCTX, VTtbrEl2.u64)      }
 };
-/** ID registers. */
-static const struct
-{
-    hv_feature_reg_t enmHvReg;
-    uint32_t         offIdStruct;
-} s_aIdRegs[] =
-{
-    { HV_FEATURE_REG_ID_AA64DFR0_EL1,       RT_UOFFSETOF(CPUMIDREGS, u64RegIdAa64Dfr0El1)  },
-    { HV_FEATURE_REG_ID_AA64DFR1_EL1,       RT_UOFFSETOF(CPUMIDREGS, u64RegIdAa64Dfr1El1)  },
-    { HV_FEATURE_REG_ID_AA64ISAR0_EL1,      RT_UOFFSETOF(CPUMIDREGS, u64RegIdAa64Isar0El1) },
-    { HV_FEATURE_REG_ID_AA64ISAR1_EL1,      RT_UOFFSETOF(CPUMIDREGS, u64RegIdAa64Isar1El1) },
-    { HV_FEATURE_REG_ID_AA64MMFR0_EL1,      RT_UOFFSETOF(CPUMIDREGS, u64RegIdAa64Mmfr0El1) },
-    { HV_FEATURE_REG_ID_AA64MMFR1_EL1,      RT_UOFFSETOF(CPUMIDREGS, u64RegIdAa64Mmfr1El1) },
-    { HV_FEATURE_REG_ID_AA64MMFR2_EL1,      RT_UOFFSETOF(CPUMIDREGS, u64RegIdAa64Mmfr2El1) },
-    { HV_FEATURE_REG_ID_AA64PFR0_EL1,       RT_UOFFSETOF(CPUMIDREGS, u64RegIdAa64Pfr0El1)  },
-    { HV_FEATURE_REG_ID_AA64PFR1_EL1,       RT_UOFFSETOF(CPUMIDREGS, u64RegIdAa64Pfr1El1)  },
-    { HV_FEATURE_REG_CLIDR_EL1,             RT_UOFFSETOF(CPUMIDREGS, u64RegClidrEl1)       },
-    { HV_FEATURE_REG_CTR_EL0,               RT_UOFFSETOF(CPUMIDREGS, u64RegCtrEl0)         },
-    { HV_FEATURE_REG_DCZID_EL0,             RT_UOFFSETOF(CPUMIDREGS, u64RegDczidEl0)       }
-};
 
 
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
+static FNSSMINTLOADDONE nemR3DarwinLoadDone;
 
 
 /**
@@ -603,6 +613,70 @@ DECLINLINE(int) nemR3DarwinHvSts2Rc(hv_return_t hrc)
 
     return VERR_IPE_UNEXPECTED_STATUS;
 }
+
+
+/** Puts a name to a hypervisor framework status code. */
+static const char *nemR3DarwinHvStatusName(hv_return_t hrc)
+{
+    switch (hrc)
+    {
+        RT_CASE_RET_STR(HV_SUCCESS);
+        RT_CASE_RET_STR(HV_ERROR);
+        RT_CASE_RET_STR(HV_BUSY);
+        RT_CASE_RET_STR(HV_BAD_ARGUMENT);
+        RT_CASE_RET_STR(HV_ILLEGAL_GUEST_STATE);
+        RT_CASE_RET_STR(HV_NO_RESOURCES);
+        RT_CASE_RET_STR(HV_NO_DEVICE);
+        RT_CASE_RET_STR(HV_DENIED);
+        RT_CASE_RET_STR(HV_UNSUPPORTED);
+    }
+    return "";
+}
+
+
+#if 0 /* unused right now */
+/**
+ * Converts an ICC system register into Darwin's Hypervisor.Framework equivalent.
+ *
+ * @returns HvF's ICC system register.
+ * @param   u32Reg      The ARMv8 ICC system register.
+ */
+static hv_gic_icc_reg_t nemR3DarwinIccRegFromSysReg(uint32_t u32Reg)
+{
+    switch (u32Reg)
+    {
+        case ARMV8_AARCH64_SYSREG_ICC_PMR_EL1:      return HV_GIC_ICC_REG_PMR_EL1;
+        case ARMV8_AARCH64_SYSREG_ICC_IAR0_EL1:     return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_EOIR0_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_HPPIR0_EL1:   return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_BPR0_EL1:     return HV_GIC_ICC_REG_BPR0_EL1;
+        case ARMV8_AARCH64_SYSREG_ICC_AP0R0_EL1:    return HV_GIC_ICC_REG_AP0R0_EL1;
+        case ARMV8_AARCH64_SYSREG_ICC_AP0R1_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_AP0R2_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_AP0R3_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_AP1R0_EL1:    return HV_GIC_ICC_REG_AP1R0_EL1;
+        case ARMV8_AARCH64_SYSREG_ICC_AP1R1_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_AP1R2_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_AP1R3_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_NMIAR1_EL1:   return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_DIR_EL1:      return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_RPR_EL1:      return HV_GIC_ICC_REG_RPR_EL1;
+        case ARMV8_AARCH64_SYSREG_ICC_SGI1R_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_ASGI1R_EL1:   return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_SGI0R_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_IAR1_EL1:     return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_EOIR1_EL1:    return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_HPPIR1_EL1:   return HV_GIC_ICC_REG_INVALID;
+        case ARMV8_AARCH64_SYSREG_ICC_BPR1_EL1:     return HV_GIC_ICC_REG_BPR1_EL1;
+        case ARMV8_AARCH64_SYSREG_ICC_CTLR_EL1:     return HV_GIC_ICC_REG_CTLR_EL1;
+        case ARMV8_AARCH64_SYSREG_ICC_SRE_EL1:      return HV_GIC_ICC_REG_SRE_EL1;
+        case ARMV8_AARCH64_SYSREG_ICC_IGRPEN0_EL1:  return HV_GIC_ICC_REG_IGRPEN0_EL1;
+        case ARMV8_AARCH64_SYSREG_ICC_IGRPEN1_EL1:  return HV_GIC_ICC_REG_IGRPEN1_EL1;
+    }
+    AssertReleaseFailed();
+    return HV_GIC_ICC_REG_INVALID;
+}
+#endif
 
 
 /**
@@ -827,7 +901,7 @@ static void nemR3DarwinLogState(PVMCC pVM, PVMCPUCC pVCpu)
                         "sp_el0=%016VR{sp_el0} sp_el1=%016VR{sp_el1} elr_el1=%016VR{elr_el1}\n"
                         "sctlr_el1=%016VR{sctlr_el1} tcr_el1=%016VR{tcr_el1}\n"
                         "ttbr0_el1=%016VR{ttbr0_el1} ttbr1_el1=%016VR{ttbr1_el1}\n"
-                        "vbar_el1=%016VR{vbar_el1}\n"
+                        "vbar_el1=%016VR{vbar_el1} actlr_el1=%016VR{actlr_el1}\n"
                         );
         if (pVM->nem.s.fEl2Enabled)
         {
@@ -907,7 +981,7 @@ static int nemR3DarwinCopyStateFromHv(PVMCC pVM, PVMCPUCC pVCpu, uint64_t fWhat)
     }
 
     if (   hrc == HV_SUCCESS
-        && (fWhat & (CPUMCTX_EXTRN_SPSR | CPUMCTX_EXTRN_ELR | CPUMCTX_EXTRN_SP | CPUMCTX_EXTRN_SCTLR_TCR_TTBR | CPUMCTX_EXTRN_SYSREG_MISC)))
+        && (fWhat & (CPUMCTX_EXTRN_SPSR | CPUMCTX_EXTRN_ELR | CPUMCTX_EXTRN_SP | CPUMCTX_EXTRN_SYSREG_MISC)))
     {
         /* System registers. */
         for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegs); i++)
@@ -917,6 +991,46 @@ static int nemR3DarwinCopyStateFromHv(PVMCC pVM, PVMCPUCC pVCpu, uint64_t fWhat)
                 uint64_t *pu64 = (uint64_t *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumSysRegs[i].offCpumCtx);
                 hrc |= hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, s_aCpumSysRegs[i].enmHvReg, pu64);
             }
+        }
+    }
+
+    /* The paging related system registers need to be treated differently as they might invoke a PGM mode change. */
+    bool fPgModeChange = false;
+    uint64_t u64RegSctlrEl1;
+    uint64_t u64RegTcrEl1;
+    if (   hrc == HV_SUCCESS
+        && (fWhat & CPUMCTX_EXTRN_SCTLR_TCR_TTBR))
+    {
+        hrc |= hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, HV_SYS_REG_SCTLR_EL1, &u64RegSctlrEl1);
+        hrc |= hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, HV_SYS_REG_TCR_EL1,   &u64RegTcrEl1);
+        hrc |= hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, HV_SYS_REG_TTBR0_EL1, &pVCpu->cpum.GstCtx.Ttbr0.u64);
+        hrc |= hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, HV_SYS_REG_TTBR1_EL1, &pVCpu->cpum.GstCtx.Ttbr1.u64);
+        if (   hrc == HV_SUCCESS
+            && (   u64RegSctlrEl1 != pVCpu->cpum.GstCtx.Sctlr.u64
+                || u64RegTcrEl1   != pVCpu->cpum.GstCtx.Tcr.u64))
+        {
+            pVCpu->cpum.GstCtx.Sctlr.u64 = u64RegSctlrEl1;
+            pVCpu->cpum.GstCtx.Tcr.u64   = u64RegTcrEl1;
+            fPgModeChange = true;
+        }
+    }
+
+    if (   hrc == HV_SUCCESS
+        && pVM->nem.s.fMacOsSequia
+        && (fWhat & CPUMCTX_EXTRN_SYSREG_MISC))
+    {
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegsSequioa); i++)
+        {
+            uint64_t *pu64 = (uint64_t *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumSysRegsSequioa[i].offCpumCtx);
+            hrc |= hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, s_aCpumSysRegsSequioa[i].enmHvReg, pu64);
+
+            /* Make sure only the TOS bit is kept as this seems to return 0x0000000000000c00 which fails during writes. */
+            /** @todo r=aeichner Need to find out where the value comes from, some bits were reverse engineered here
+             * https://github.com/AsahiLinux/docs/blob/main/docs/hw/cpu/system-registers.md#actlr_el1-arm-standard-not-standard
+             * But the ones being set are not documented. Maybe they are always set by the Hypervisor...
+             */
+            if (s_aCpumSysRegsSequioa[i].enmHvReg == HV_SYS_REG_ACTLR_EL1)
+                *pu64 &= RT_BIT_64(1);
         }
     }
 
@@ -938,6 +1052,12 @@ static int nemR3DarwinCopyStateFromHv(PVMCC pVM, PVMCPUCC pVCpu, uint64_t fWhat)
         hrc |= hv_vcpu_get_reg(pVCpu->nem.s.hVCpu, HV_REG_CPSR, &u64Tmp);
         if (hrc == HV_SUCCESS)
             pVCpu->cpum.GstCtx.fPState = (uint32_t)u64Tmp;
+    }
+
+    if (fPgModeChange)
+    {
+        int rc = PGMChangeMode(pVCpu, 1 /*bEl*/, u64RegSctlrEl1, u64RegTcrEl1);
+        AssertMsgReturn(rc == VINF_SUCCESS, ("rc=%Rrc\n", rc), RT_FAILURE_NP(rc) ? rc : VERR_NEM_IPE_1);
     }
 
     /* Almost done, just update extern flags. */
@@ -1009,8 +1129,8 @@ static int nemR3DarwinExportGuestState(PVMCC pVM, PVMCPUCC pVCpu)
     }
 
     if (   hrc == HV_SUCCESS
-        &&     (pVCpu->cpum.GstCtx.fExtrn & (CPUMCTX_EXTRN_SPSR | CPUMCTX_EXTRN_ELR | CPUMCTX_EXTRN_SP | CPUMCTX_EXTRN_SCTLR_TCR_TTBR | CPUMCTX_EXTRN_SYSREG_MISC))
-            !=                              (CPUMCTX_EXTRN_SPSR | CPUMCTX_EXTRN_ELR | CPUMCTX_EXTRN_SP | CPUMCTX_EXTRN_SCTLR_TCR_TTBR | CPUMCTX_EXTRN_SYSREG_MISC))
+        &&     (pVCpu->cpum.GstCtx.fExtrn & (CPUMCTX_EXTRN_SPSR | CPUMCTX_EXTRN_ELR | CPUMCTX_EXTRN_SP | CPUMCTX_EXTRN_SYSREG_MISC))
+            !=                              (CPUMCTX_EXTRN_SPSR | CPUMCTX_EXTRN_ELR | CPUMCTX_EXTRN_SP | CPUMCTX_EXTRN_SYSREG_MISC))
     {
         /* System registers. */
         for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegs); i++)
@@ -1020,6 +1140,28 @@ static int nemR3DarwinExportGuestState(PVMCC pVM, PVMCPUCC pVCpu)
                 uint64_t *pu64 = (uint64_t *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumSysRegs[i].offCpumCtx);
                 hrc |= hv_vcpu_set_sys_reg(pVCpu->nem.s.hVCpu, s_aCpumSysRegs[i].enmHvReg, *pu64);
             }
+        }
+    }
+
+    if (   hrc == HV_SUCCESS
+        && !(pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_SCTLR_TCR_TTBR))
+    {
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegsPg); i++)
+        {
+            uint64_t *pu64 = (uint64_t *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumSysRegsPg[i].offCpumCtx);
+            hrc |= hv_vcpu_set_sys_reg(pVCpu->nem.s.hVCpu, s_aCpumSysRegsPg[i].enmHvReg, *pu64);
+        }
+    }
+
+    if (   hrc == HV_SUCCESS
+        && pVM->nem.s.fMacOsSequia
+        && !(pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_SYSREG_MISC))
+    {
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCpumSysRegsSequioa); i++)
+        {
+            uint64_t *pu64 = (uint64_t *)((uint8_t *)&pVCpu->cpum.GstCtx + s_aCpumSysRegsSequioa[i].offCpumCtx);
+            hrc |= hv_vcpu_set_sys_reg(pVCpu->nem.s.hVCpu, s_aCpumSysRegsSequioa[i].enmHvReg, *pu64);
+            Assert(hrc == HV_SUCCESS);
         }
     }
 
@@ -1062,23 +1204,14 @@ static int nemR3DarwinLoadHv(PRTERRINFO pErrInfo)
         {
             int rc2 = RTLdrGetSymbol(hMod, g_aImports[i].pszName, (void **)g_aImports[i].ppfn);
             if (RT_SUCCESS(rc2))
-            {
-                LogRel(("NEM:  info: Found optional import Hypervisor!%s.\n",
-                        g_aImports[i].pszName));
-            }
+                LogRel(("NEM:  info: Found optional import Hypervisor!%s.\n", g_aImports[i].pszName));
             else
             {
                 *g_aImports[i].ppfn = NULL;
-
-                LogRel(("NEM:  info: Failed to import Hypervisor!%s: %Rrc\n",
-                        g_aImports[i].pszName, rc2));
+                LogRel(("NEM:  info: Optional import Hypervisor!%s not found: %Rrc\n", g_aImports[i].pszName, rc2));
             }
         }
-        if (RT_SUCCESS(rc))
-        {
-            Assert(!RTErrInfoIsSet(pErrInfo));
-        }
-
+        Assert(RT_SUCCESS(rc) && !RTErrInfoIsSet(pErrInfo));
         RTLdrClose(hMod);
     }
     else
@@ -1128,42 +1261,6 @@ static void nemR3DarwinDumpGicInfo(void)
 }
 
 
-/**
- * Sets the given SPI inside the in-kernel KVM GIC.
- *
- * @returns VBox status code.
- * @param   pVM         The VM instance.
- * @param   uIntId      The SPI ID to update.
- * @param   fAsserted   Flag whether the interrupt is asserted (true) or not (false).
- */
-VMMR3_INT_DECL(int) GICR3NemSpiSet(PVMCC pVM, uint32_t uIntId, bool fAsserted)
-{
-    RT_NOREF(pVM);
-    Assert(hv_gic_set_spi);
-
-    hv_return_t hrc = hv_gic_set_spi(uIntId + GIC_INTID_RANGE_SPI_START, fAsserted);
-    return nemR3DarwinHvSts2Rc(hrc);
-}
-
-
-/**
- * Sets the given PPI inside the in-kernel KVM GIC.
- *
- * @returns VBox status code.
- * @param   pVCpu       The vCPU for whih the PPI state is updated.
- * @param   uIntId      The PPI ID to update.
- * @param   fAsserted   Flag whether the interrupt is asserted (true) or not (false).
- */
-VMMR3_INT_DECL(int) GICR3NemPpiSet(PVMCPUCC pVCpu, uint32_t uIntId, bool fAsserted)
-{
-    RT_NOREF(pVCpu, uIntId, fAsserted);
-
-    /* Should never be called as the PPIs are handled entirely in Hypervisor.framework/AppleHV. */
-    AssertFailed();
-    return VERR_NEM_IPE_9;
-}
-
-
 static int nemR3DarwinGicCreate(PVM pVM)
 {
     nemR3DarwinDumpGicInfo();
@@ -1202,26 +1299,39 @@ static int nemR3DarwinGicCreate(PVM pVM)
     if (hrc != HV_SUCCESS)
         return nemR3DarwinHvSts2Rc(hrc);
 
-    /* Make sure the device is not instantiated as Hypervisor.framework provides it. */
-    //CFGMR3RemoveNode(pGicDev);
     return rc;
 }
 
 
 /**
- * Try initialize the native API.
- *
- * This may only do part of the job, more can be done in
- * nemR3NativeInitAfterCPUM() and nemR3NativeInitCompleted().
+ * Registers statistics for the given vCPU.
  *
  * @returns VBox status code.
  * @param   pVM             The cross context VM structure.
- * @param   fFallback       Whether we're in fallback mode or use-NEM mode. In
- *                          the latter we'll fail if we cannot initialize.
- * @param   fForced         Whether the HMForced flag is set and we should
- *                          fail if we cannot initialize.
+ * @param   idCpu           The CPU ID.
+ * @param   pNemCpu         The NEM CPU structure.
  */
-int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
+static int nemR3DarwinStatisticsRegister(PVM pVM, VMCPUID idCpu, PNEMCPU pNemCpu)
+{
+#define NEM_REG_STAT(a_pVar, a_enmType, s_enmVisibility, a_enmUnit, a_szNmFmt, a_szDesc) do { \
+                int rc = STAMR3RegisterF(pVM, a_pVar, a_enmType, s_enmVisibility, a_enmUnit, a_szDesc, a_szNmFmt, idCpu); \
+                AssertRC(rc); \
+            } while (0)
+#define NEM_REG_PROFILE(a_pVar, a_szNmFmt, a_szDesc) \
+           NEM_REG_STAT(a_pVar, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, a_szNmFmt, a_szDesc)
+#define NEM_REG_COUNTER(a, b, desc) NEM_REG_STAT(a, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, b, desc)
+
+    NEM_REG_COUNTER(&pNemCpu->StatExitAll, "/NEM/CPU%u/Exit/All", "Total exits (including nested-guest exits).");
+
+    return VINF_SUCCESS;
+
+#undef NEM_REG_COUNTER
+#undef NEM_REG_PROFILE
+#undef NEM_REG_STAT
+}
+
+
+DECLHIDDEN(int) nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
 {
     AssertReturn(!pVM->nem.s.fCreatedVm, VERR_WRONG_ORDER);
 
@@ -1241,18 +1351,41 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
     /* Resolve optional imports */
     int rc = nemR3DarwinLoadHv(pErrInfo);
     if (RT_FAILURE(rc))
+    {
+        if ((fForced || !fFallback) && RTErrInfoIsSet(pErrInfo))
+            return VMSetError(pVM, rc, RT_SRC_POS, "%s", pErrInfo->pszMsg);
         return rc;
+    }
+
+    /*
+     * Register state load callback.
+     */
+    rc = SSMR3RegisterInternal(pVM, "NEM-darwin-arm64-notify", 0, 0, 0,
+                               NULL, NULL, NULL,
+                               NULL, NULL, NULL,
+                               NULL, NULL, nemR3DarwinLoadDone);
+    AssertLogRelRCReturn(rc, rc);
 
     /*
      * Need to enable nested virt here if supported and reset the CFGM value to false
      * if not supported. This ASSUMES that NEM is initialized before CPUM.
      */
     PCFGMNODE pCfgCpum = CFGMR3GetChild(CFGMR3GetRoot(pVM), "CPUM/");
-    hv_vm_config_t hVmCfg = NULL;
 
+    /** @cfgm{/CPUM/NestedHWVirt, bool, false}
+     * Whether to expose the hardware virtualization (EL2/VHE) feature to the guest.
+     * The default is false. Only supported on M3 and later and macOS 15.0+ (Sonoma).
+     */
+    bool fNestedHWVirt = false;
+    rc = CFGMR3QueryBoolDef(pCfgCpum, "NestedHWVirt", &fNestedHWVirt, false);
+    AssertLogRelRCReturn(rc, rc);
+
+    hv_vm_config_t hVmCfg = NULL;
     if (   hv_vm_config_create
         && hv_vm_config_get_el2_supported)
     {
+        pVM->nem.s.fMacOsSequia = true; /* hv_vm_config_get_el2_supported is only available on Sequioa 15.0. */
+
         hVmCfg = hv_vm_config_create();
 
         bool fHvEl2Supported = false;
@@ -1260,32 +1393,25 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
         if (   hrc == HV_SUCCESS
             && fHvEl2Supported)
         {
-            /** @cfgm{/CPUM/NestedHWVirt, bool, false}
-             * Whether to expose the hardware virtualization (EL2/VHE) feature to the guest.
-             * The default is false. Only supported on M3 and later and macOS 15.0+ (Sonoma).
-             */
-            bool fNestedHWVirt = false;
-            rc = CFGMR3QueryBoolDef(pCfgCpum, "NestedHWVirt", &fNestedHWVirt, false);
-            AssertLogRelRCReturn(rc, rc);
             if (fNestedHWVirt)
             {
                 hrc = hv_vm_config_set_el2_enabled(hVmCfg, fNestedHWVirt);
                 if (hrc != HV_SUCCESS)
                     return VMSetError(pVM, VERR_CPUM_INVALID_HWVIRT_CONFIG, RT_SRC_POS,
-                                      "Cannot enable nested virtualization (hrc=%#x)!\n", hrc);
-                else
-                {
-                    pVM->nem.s.fEl2Enabled = true;
-                    LogRel(("NEM: Enabled nested virtualization (EL2) support\n"));
-                }
+                                      "Cannot enable nested virtualization: hrc=%#x %s!\n", hrc, nemR3DarwinHvStatusName(hrc));
+                pVM->nem.s.fEl2Enabled = true;
+                LogRel(("NEM: Enabled nested virtualization (EL2) support\n"));
             }
         }
         else
         {
             /* Ensure nested virt is not set. */
             rc = CFGMR3RemoveValue(pCfgCpum, "NestedHWVirt");
+            AssertLogRelRC(rc);
 
-            LogRel(("NEM: The host doesn't supported nested virtualization! (hrc=%#x fHvEl2Supported=%RTbool)\n",
+            LogRel(("NEM: %sThe host doesn't supported nested virtualization, %s (hrc=%#x fHvEl2Supported=%RTbool)\n",
+                    fNestedHWVirt ? "WARNING! " : "",
+                    fNestedHWVirt ? "so had to disable it for the VM!" : ", but is not configured and therefore harmless.",
                     hrc, fHvEl2Supported));
         }
     }
@@ -1293,7 +1419,11 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
     {
         /* Ensure nested virt is not set. */
         rc = CFGMR3RemoveValue(pCfgCpum, "NestedHWVirt");
-        LogRel(("NEM: Hypervisor.framework doesn't supported nested virtualization!\n"));
+        AssertLogRelRC(rc);
+
+        LogRel(("NEM: %sHypervisor.framework doesn't supported nested virtualization, %s\n",
+                fNestedHWVirt ? "WARNING! " : "",
+                fNestedHWVirt ? "so had to disable it for the VM!" : ", but is not configured and therefore harmless."));
     }
 
     hv_return_t hrc = hv_vm_create(hVmCfg);
@@ -1309,10 +1439,18 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
         VM_SET_MAIN_EXECUTION_ENGINE(pVM, VM_EXEC_ENGINE_NATIVE_API);
         Log(("NEM: Marked active!\n"));
         PGMR3EnableNemMode(pVM);
+
+        /* Register statistics for all VCPUs. */
+        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        {
+            PNEMCPU pNemCpu = &pVM->apCpusR3[idCpu]->nem.s;
+            nemR3DarwinStatisticsRegister(pVM, idCpu, pNemCpu);
+        }
+
+        return VINF_SUCCESS;
     }
-    else
-        rc = RTErrInfoSetF(pErrInfo, VERR_NEM_INIT_FAILED,
-                           "hv_vm_create() failed: %#x", hrc);
+
+    rc = RTErrInfoSetF(pErrInfo, VERR_NEM_INIT_FAILED, "hv_vm_create() failed: %#x %s", hrc, nemR3DarwinHvStatusName(hrc));
 
     /*
      * We only fail if in forced mode, otherwise just log the complaint and return.
@@ -1329,6 +1467,196 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
 
 
 /**
+ * @callback_method_impl{FNCPUMARMCPUIDREGQUERY}
+ */
+static DECLCALLBACK(int) nemR3DarwinArmCpuIdRegQuery(PVM pVM, PVMCPU pVCpu, uint32_t idReg, void *pvUser, uint64_t *puValue)
+{
+    *puValue = 0;
+    AssertReturn(pVCpu->idCpu == 0, VERR_INTERNAL_ERROR_4);
+    VMCPU_ASSERT_EMT(pVCpu);
+    RT_NOREF(pvUser);
+
+    /*
+     * There are just a handful of registers that can only be queried via the
+     * configuration object.  There are a bunch we can be quieried both ways,
+     * but VBoxCpuReport-arm.cpp experiments shows the values are the same, so
+     * we'll just query them as system registers.
+     */
+    hv_feature_reg_t enmFeatureReg;
+    switch (idReg)
+    {
+        case ARMV8_AARCH64_SYSREG_CLIDR_EL1:    enmFeatureReg = HV_FEATURE_REG_CLIDR_EL1; break;
+        case ARMV8_AARCH64_SYSREG_CTR_EL0:      enmFeatureReg = HV_FEATURE_REG_CTR_EL0; break;
+        case ARMV8_AARCH64_SYSREG_DCZID_EL0:    enmFeatureReg = HV_FEATURE_REG_DCZID_EL0; break;
+        default:                                enmFeatureReg = (hv_feature_reg_t)-1; break;
+    }
+    if (enmFeatureReg != (hv_feature_reg_t)-1)
+    {
+        hv_return_t const rcHvGet = hv_vcpu_config_get_feature_reg(pVM->nem.s.hVCpuCfg, enmFeatureReg, puValue);
+        LogFlow(("nemR3DarwinArmCpuIdRegQuery: hv_vcpu_config_get_feature_reg/%#x -> %#x%s %#RX64\n",
+                 idReg, rcHvGet, nemR3DarwinHvStatusName(rcHvGet), *puValue));
+        AssertLogRelMsgReturn(rcHvGet == HV_SUCCESS,
+                              ("rcHvGet=%#x %s idReg=%#x enmFeatureReg=%d\n",
+                               rcHvGet, nemR3DarwinHvStatusName(rcHvGet), idReg, enmFeatureReg),
+                              nemR3DarwinHvSts2Rc(rcHvGet));
+        return VINF_SUCCESS;
+    }
+
+    /*
+     * The system register ID scheme is the same as we're using in armv8.h.
+     */
+    AssertCompile(HV_SYS_REG_ID_AA64DFR0_EL1  == ARMV8_AARCH64_SYSREG_ID_AA64DFR0_EL1);
+    AssertCompile(HV_SYS_REG_ID_AA64DFR1_EL1  == ARMV8_AARCH64_SYSREG_ID_AA64DFR1_EL1);
+    AssertCompile(HV_SYS_REG_ID_AA64MMFR2_EL1 == ARMV8_AARCH64_SYSREG_ID_AA64MMFR2_EL1);
+    AssertCompile(HV_SYS_REG_ID_AA64ISAR1_EL1 == ARMV8_AARCH64_SYSREG_ID_AA64ISAR1_EL1);
+
+    hv_return_t const rcHvGet = hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, (hv_sys_reg_t)idReg, puValue);
+    LogRelFlow(("nemR3DarwinArmCpuIdRegQuery: hv_vcpu_get_sys_reg/%#x -> %#x%s %#RX64\n",
+                idReg, rcHvGet, nemR3DarwinHvStatusName(rcHvGet), *puValue));
+    if (rcHvGet == HV_SUCCESS)
+        return VINF_SUCCESS;
+
+    /* This shall work for the following: */
+    AssertLogRelMsgReturn(   idReg != ARMV8_AARCH64_SYSREG_ID_AA64DFR0_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64DFR1_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64MMFR0_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64MMFR1_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64MMFR2_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64PFR0_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64PFR1_EL1,
+                          ("rcHvGet=%#x %s idReg=%#x enmFeatureReg=%d\n",
+                           rcHvGet, nemR3DarwinHvStatusName(rcHvGet), idReg, enmFeatureReg),
+                          VERR_INTERNAL_ERROR_5);
+    /* Unsupported registers fail with bad argument status: */
+    if (rcHvGet == HV_BAD_ARGUMENT)
+        return VERR_CPUM_UNSUPPORTED_ID_REGISTER;
+    return nemR3DarwinHvSts2Rc(rcHvGet);
+}
+
+
+/**
+ * @callback_method_impl{FNCPUMARMCPUIDREGUPDATE}
+ */
+static DECLCALLBACK(int) nemR3DarwinArmCpuIdRegUpdate(PVM pVM, PVMCPU pVCpu, uint32_t idReg,
+                                                      uint64_t uNewValue, void *pvUser, uint64_t *puUpdatedValue)
+{
+    if (puUpdatedValue)
+        *puUpdatedValue = 0;
+    VMCPU_ASSERT_EMT(pVCpu);
+    RT_NOREF(pVM);
+
+    /*
+     * The system register ID scheme is the same as we're using in armv8.h.
+     */
+    AssertCompile(HV_SYS_REG_ID_AA64DFR0_EL1  == ARMV8_AARCH64_SYSREG_ID_AA64DFR0_EL1);
+    AssertCompile(HV_SYS_REG_ID_AA64DFR1_EL1  == ARMV8_AARCH64_SYSREG_ID_AA64DFR1_EL1);
+    AssertCompile(HV_SYS_REG_ID_AA64MMFR2_EL1 == ARMV8_AARCH64_SYSREG_ID_AA64MMFR2_EL1);
+    AssertCompile(HV_SYS_REG_ID_AA64ISAR1_EL1 == ARMV8_AARCH64_SYSREG_ID_AA64ISAR1_EL1);
+
+    /*
+     * Ignore attempts to set the three registers that aren't available via the
+     * hv_vcpu_get_sys_reg API (see nemR3DarwinArmCpuIdRegQuery).
+     */
+    switch (idReg)
+    {
+        case ARMV8_AARCH64_SYSREG_CLIDR_EL1:
+        case ARMV8_AARCH64_SYSREG_CTR_EL0:
+        case ARMV8_AARCH64_SYSREG_DCZID_EL0:
+            if (puUpdatedValue)
+                *puUpdatedValue = uNewValue;
+            return VINF_SUCCESS;
+    }
+
+    /*
+     * Do the setting.
+     */
+    char              szName[32];
+    uint64_t          uOldValue = 0;
+    hv_return_t const rcHvGet   = hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, (hv_sys_reg_t)idReg, &uOldValue);
+    hv_return_t const rcHvSet   = hv_vcpu_set_sys_reg(pVCpu->nem.s.hVCpu, (hv_sys_reg_t)idReg, uNewValue);
+    Assert((rcHvGet == HV_SUCCESS) == (rcHvSet == HV_SUCCESS)); RT_NOREF(rcHvGet);
+    if (rcHvSet == HV_SUCCESS)
+    {
+        uint64_t          uUpdatedValue = 0;
+        hv_return_t const rcHvGet2      = hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, (hv_sys_reg_t)idReg, &uUpdatedValue);
+        Assert(rcHvGet2 == HV_SUCCESS); RT_NOREF(rcHvGet2);
+
+        if (uNewValue != uUpdatedValue)
+            LogRel(("nemR3DarwinArmCpuIdRegUpdate: idCpu=%#x idReg=%#x (%s): old=%#RX64 new=%#RX64 -> %#RX64\n",
+                    pVCpu->idCpu, idReg, CPUMR3CpuIdGetIdRegName(idReg, szName), uOldValue, uNewValue, uUpdatedValue));
+        else if (uOldValue != uNewValue || LogRelIsFlowEnabled())
+            LogRel(("nemR3DarwinArmCpuIdRegUpdate: idCpu=%#x idReg=%#x (%s): old=%#RX64 new=%#RX64\n",
+                    pVCpu->idCpu, idReg, CPUMR3CpuIdGetIdRegName(idReg, szName), uOldValue, uNewValue));
+
+        if (puUpdatedValue)
+            *puUpdatedValue = rcHvGet2 == HV_SUCCESS ? uUpdatedValue : uNewValue;
+        return VINF_SUCCESS;
+    }
+    LogRel(("nemR3DarwinArmCpuIdRegUpdate: hv_vcpu_set_sys_reg(%#x, %#x (%s), %#RX64) -> %#x %s (OldValue=%#RX64 rcHvGet=%#x %s)\n",
+            pVCpu->idCpu, idReg, CPUMR3CpuIdGetIdRegName(idReg, szName), uNewValue, rcHvSet, nemR3DarwinHvStatusName(rcHvSet),
+            uOldValue, rcHvGet, nemR3DarwinHvStatusName(rcHvGet)));
+
+    /* This shall work for the following: */
+    AssertLogRelMsgReturn(   idReg != ARMV8_AARCH64_SYSREG_ID_AA64DFR0_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64DFR1_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64ISAR0_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64ISAR1_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64MMFR0_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64MMFR1_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64MMFR2_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64MMFR3_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64PFR0_EL1
+                          && idReg != ARMV8_AARCH64_SYSREG_ID_AA64PFR1_EL1,
+                          ("rcHvSet=%#x %s idReg=%#x\n", rcHvSet, nemR3DarwinHvStatusName(rcHvSet), idReg),
+                          VERR_INTERNAL_ERROR_5);
+
+    /* Unsupported registers fail with bad argument status when getting them: */
+    if (rcHvGet == HV_BAD_ARGUMENT)
+    {
+        /* HACK ALERT: If we're loading state, we ignore registers that cannot
+           be set provide the new value is zero. This handles the unsupported
+           ID registers from CPUMARMV8OLDIDREGS. */
+        if (pvUser && rcHvSet == HV_BAD_ARGUMENT && uNewValue == 0)
+        {
+            if (puUpdatedValue)
+                *puUpdatedValue = 0;
+            return VINF_SUCCESS;
+        }
+
+        return VERR_CPUM_UNSUPPORTED_ID_REGISTER;
+    }
+    /** @todo what's the other status codes here... */
+    return nemR3DarwinHvSts2Rc(rcHvSet);
+}
+
+
+/**
+ * @callback_method_impl{PFNSSMINTLOADDONE,
+ *          For loading saved system ID registers.}
+ */
+static DECLCALLBACK(int) nemR3DarwinLoadDone(PVM pVM, PSSMHANDLE pSSM)
+{
+    VM_ASSERT_EMT(pVM);
+    RT_NOREF(pSSM);
+
+    /*
+     * Call CPUMR3PopulateGuestFeaturesViaCallbacks on each VCpu to set the
+     * freshly loaded ID register values.  This ASSUMES that CPUM was able
+     * to sanitize the values after the load w/o the pfnUpdate status values.
+     */
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    {
+        int const rc = VMR3ReqCallWait(pVM, idCpu, (PFNRT)CPUMR3PopulateGuestFeaturesViaCallbacks,
+                                       5, pVM, pVM->apCpusR3[idCpu], NULL, nemR3DarwinArmCpuIdRegUpdate, pSSM);
+        if (RT_FAILURE(rc))
+            return SSMR3SetLoadError(pSSM, rc, RT_SRC_POS,
+                                     "CPUMR3PopulateGuestFeaturesViaCallbacks failed on #%u: %Rrc", idCpu, rc);
+    }
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Worker to create the vCPU handle on the EMT running it later on (as required by HV).
  *
  * @returns VBox status code
@@ -1340,28 +1668,14 @@ static DECLCALLBACK(int) nemR3DarwinNativeInitVCpuOnEmt(PVM pVM, PVMCPU pVCpu, V
 {
     if (idCpu == 0)
     {
+        /* Create a new vCPU config for all the vCPUs (for
+           nemR3DarwinArmCpuIdRegQuery to query).  As of 2025-05-30 there is
+           nothing officially settable on this config object. */
         Assert(pVM->nem.s.hVCpuCfg == NULL);
-
-        /* Create a new vCPU config and query the ID registers. */
         pVM->nem.s.hVCpuCfg = hv_vcpu_config_create();
         if (!pVM->nem.s.hVCpuCfg)
             return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
                               "Call to hv_vcpu_config_create failed on vCPU %u", idCpu);
-
-        /* Query ID registers and hand them to CPUM. */
-        CPUMIDREGS IdRegs; RT_ZERO(IdRegs);
-        for (uint32_t i = 0; i < RT_ELEMENTS(s_aIdRegs); i++)
-        {
-            uint64_t *pu64 = (uint64_t *)((uint8_t *)&IdRegs + s_aIdRegs[i].offIdStruct);
-            hv_return_t hrc = hv_vcpu_config_get_feature_reg(pVM->nem.s.hVCpuCfg, s_aIdRegs[i].enmHvReg, pu64);
-            if (hrc != HV_SUCCESS)
-                return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
-                                  "Call to hv_vcpu_get_feature_reg(, %#x, ) failed: %#x (%Rrc)", hrc, nemR3DarwinHvSts2Rc(hrc));
-        }
-
-        int rc = CPUMR3PopulateFeaturesByIdRegisters(pVM, &IdRegs);
-        if (RT_FAILURE(rc))
-            return rc;
     }
 
     hv_return_t hrc = hv_vcpu_create(&pVCpu->nem.s.hVCpu, &pVCpu->nem.s.pHvExit, pVM->nem.s.hVCpuCfg);
@@ -1369,19 +1683,8 @@ static DECLCALLBACK(int) nemR3DarwinNativeInitVCpuOnEmt(PVM pVM, PVMCPU pVCpu, V
         return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
                           "Call to hv_vcpu_create failed on vCPU %u: %#x (%Rrc)", idCpu, hrc, nemR3DarwinHvSts2Rc(hrc));
 
-    hrc = hv_vcpu_set_sys_reg(pVCpu->nem.s.hVCpu, HV_SYS_REG_MPIDR_EL1, idCpu);
-    if (hrc != HV_SUCCESS)
-        return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
-                          "Setting MPIDR_EL1 failed on vCPU %u: %#x (%Rrc)", idCpu, hrc, nemR3DarwinHvSts2Rc(hrc));
-
-#if 0 /* Will triger an VM-exit if the guest hits a breakpoint, handy for debugging the MS bootloader. */
-    hrc != hv_vcpu_set_trap_debug_exceptions(pVCpu->nem.s.hVCpu, true);
-    if (hrc != HV_SUCCESS)
-        return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
-                          "Trapping debug exceptions on vCPU %u: %#x (%Rrc)", idCpu, hrc, nemR3DarwinHvSts2Rc(hrc));
-#endif
-
-    return VINF_SUCCESS;
+    return CPUMR3PopulateGuestFeaturesViaCallbacks(pVM, pVCpu, idCpu == 0 ? nemR3DarwinArmCpuIdRegQuery : NULL,
+                                                   nemR3DarwinArmCpuIdRegUpdate, NULL /*pvUser*/);
 }
 
 
@@ -1406,13 +1709,7 @@ static DECLCALLBACK(int) nemR3DarwinNativeTermVCpuOnEmt(PVM pVM, PVMCPU pVCpu)
 }
 
 
-/**
- * This is called after CPUMR3Init is done.
- *
- * @returns VBox status code.
- * @param   pVM                 The VM handle..
- */
-int nemR3NativeInitAfterCPUM(PVM pVM)
+DECLHIDDEN(int) nemR3NativeInitAfterCPUM(PVM pVM)
 {
     /*
      * Validate sanity.
@@ -1455,14 +1752,14 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
 }
 
 
-int nemR3NativeInitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+DECLHIDDEN(int) nemR3NativeInitCompletedRing3(PVM pVM)
 {
-    RT_NOREF(pVM, enmWhat);
+    RT_NOREF(pVM);
     return VINF_SUCCESS;
 }
 
 
-int nemR3NativeTerm(PVM pVM)
+DECLHIDDEN(int) nemR3NativeTerm(PVM pVM)
 {
     /*
      * Delete the VM.
@@ -1497,25 +1794,13 @@ int nemR3NativeTerm(PVM pVM)
 }
 
 
-/**
- * VM reset notification.
- *
- * @param   pVM         The cross context VM structure.
- */
-void nemR3NativeReset(PVM pVM)
+DECLHIDDEN(void) nemR3NativeReset(PVM pVM)
 {
     RT_NOREF(pVM);
 }
 
 
-/**
- * Reset CPU due to INIT IPI or hot (un)plugging.
- *
- * @param   pVCpu       The cross context virtual CPU structure of the CPU being
- *                      reset.
- * @param   fInitIpi    Whether this is the INIT IPI or hot (un)plugging case.
- */
-void nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
+DECLHIDDEN(void) nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
 {
     RT_NOREF(pVCpu, fInitIpi);
 }
@@ -1560,7 +1845,7 @@ DECLINLINE(void) nemR3DarwinSetGReg(PVMCPU pVCpu, uint8_t uReg, bool f64BitReg, 
     if (f64BitReg)
         pVCpu->cpum.GstCtx.aGRegs[uReg].x = fSignExtend ? (int64_t)u64Val : u64Val;
     else
-        pVCpu->cpum.GstCtx.aGRegs[uReg].w = fSignExtend ? (int32_t)u64Val : u64Val; /** @todo Does this clear the upper half on real hardware? */
+        pVCpu->cpum.GstCtx.aGRegs[uReg].x = (uint64_t)(fSignExtend ? (int32_t)u64Val : (uint32_t)u64Val);
 
     /* Mark the register as not extern anymore. */
     switch (uReg)
@@ -1594,9 +1879,9 @@ DECLINLINE(void) nemR3DarwinSetGReg(PVMCPU pVCpu, uint8_t uReg, bool f64BitReg, 
  */
 DECLINLINE(uint64_t) nemR3DarwinGetGReg(PVMCPU pVCpu, uint8_t uReg)
 {
-    AssertReturn(uReg <= ARMV8_AARCH64_REG_ZR, 0);
+    AssertReturn(uReg <= ARMV8_A64_REG_XZR, 0);
 
-    if (uReg == ARMV8_AARCH64_REG_ZR)
+    if (uReg == ARMV8_A64_REG_XZR)
         return 0;
 
     /** @todo Import the register if extern. */
@@ -1667,32 +1952,138 @@ static VBOXSTRICTRC nemR3DarwinHandleExitExceptionDataAbort(PVM pVM, PVMCPU pVCp
         }
     }
 
-    AssertReturn(fIsv, VERR_NOT_SUPPORTED); /** @todo Implement using IEM when this should occur. */
-
-    EMHistoryAddExit(pVCpu,
-                     fWrite
-                     ? EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_WRITE)
-                     : EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_READ),
-                     pVCpu->cpum.GstCtx.Pc.u64, ASMReadTSC());
-
-    VBOXSTRICTRC rcStrict = VINF_SUCCESS;
-    uint64_t u64Val = 0;
-    if (fWrite)
+    VBOXSTRICTRC rcStrict;
+    if (fIsv)
     {
-        u64Val = nemR3DarwinGetGReg(pVCpu, uReg);
-        rcStrict = PGMPhysWrite(pVM, GCPhysDataAbrt, &u64Val, cbAcc, PGMACCESSORIGIN_HM);
-        Log4(("MmioExit/%u: %08RX64: WRITE %#RGp LB %u, %.*Rhxs -> rcStrict=%Rrc\n",
-              pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhysDataAbrt, cbAcc, cbAcc,
-              &u64Val, VBOXSTRICTRC_VAL(rcStrict) ));
+        EMHistoryAddExit(pVCpu,
+                         fWrite
+                         ? EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_WRITE)
+                         : EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_READ),
+                         pVCpu->cpum.GstCtx.Pc.u64, ASMReadTSC());
+
+        uint64_t u64Val = 0;
+        if (fWrite)
+        {
+            u64Val = nemR3DarwinGetGReg(pVCpu, uReg);
+            rcStrict = PGMPhysWrite(pVM, GCPhysDataAbrt, &u64Val, cbAcc, PGMACCESSORIGIN_HM);
+            Log4(("MmioExit/%u: %08RX64: WRITE %#RGp LB %u, %.*Rhxs -> rcStrict=%Rrc\n",
+                  pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhysDataAbrt, cbAcc, cbAcc,
+                  &u64Val, VBOXSTRICTRC_VAL(rcStrict) ));
+        }
+        else
+        {
+            rcStrict = PGMPhysRead(pVM, GCPhysDataAbrt, &u64Val, cbAcc, PGMACCESSORIGIN_HM);
+            Log4(("MmioExit/%u: %08RX64: READ %#RGp LB %u -> %.*Rhxs rcStrict=%Rrc\n",
+                  pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhysDataAbrt, cbAcc, cbAcc,
+                  &u64Val, VBOXSTRICTRC_VAL(rcStrict) ));
+            if (rcStrict == VINF_SUCCESS)
+                nemR3DarwinSetGReg(pVCpu, uReg, f64BitReg, fSignExtend, u64Val);
+        }
     }
     else
     {
-        rcStrict = PGMPhysRead(pVM, GCPhysDataAbrt, &u64Val, cbAcc, PGMACCESSORIGIN_HM);
-        Log4(("MmioExit/%u: %08RX64: READ %#RGp LB %u -> %.*Rhxs rcStrict=%Rrc\n",
-              pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhysDataAbrt, cbAcc, cbAcc,
-              &u64Val, VBOXSTRICTRC_VAL(rcStrict) ));
+        /** @todo Our UEFI firmware accesses the flash region with the following instruction
+         *        when the NVRAM actually contains data:
+         *             ldrb w9, [x6, #-0x0001]!
+         *        This is too complicated for the hardware so the ISV bit is not set. Until there
+         *        is a proper IEM implementation we just handle this here for now to avoid annoying
+         *        users too much.
+         */
+        /* The following ASSUMES that the vCPU state is completely synced. */
+
+        /* Read instruction. */
+        RTGCPTR GCPtrPage = pVCpu->cpum.GstCtx.Pc.u64 & ~(RTGCPTR)GUEST_PAGE_OFFSET_MASK;
+        const void *pvPageR3 = NULL;
+        PGMPAGEMAPLOCK  PageMapLock;
+
+        rcStrict = PGMPhysGCPtr2CCPtrReadOnly(pVCpu, GCPtrPage, &pvPageR3, &PageMapLock);
         if (rcStrict == VINF_SUCCESS)
-            nemR3DarwinSetGReg(pVCpu, uReg, f64BitReg, fSignExtend, u64Val);
+        {
+            uint32_t u32Instr = *(uint32_t *)((uint8_t *)pvPageR3 + (pVCpu->cpum.GstCtx.Pc.u64 - GCPtrPage));
+            PGMPhysReleasePageMappingLock(pVCpu->pVMR3, &PageMapLock);
+
+            DISSTATE Dis;
+            rcStrict = DISInstrWithPrefetchedBytes((uintptr_t)pVCpu->cpum.GstCtx.Pc.u64, DISCPUMODE_ARMV8_A64,  0 /*fFilter - none */,
+                                                   &u32Instr, sizeof(u32Instr), NULL, NULL, &Dis, NULL);
+            if (rcStrict == VINF_SUCCESS)
+            {
+                if (   Dis.pCurInstr->uOpcode == OP_ARMV8_A64_LDRB
+                    && Dis.aParams[0].armv8.enmType == kDisArmv8OpParmReg
+                    && Dis.aParams[0].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_32Bit
+                    && Dis.aParams[1].armv8.enmType == kDisArmv8OpParmAddrInGpr
+                    && Dis.aParams[1].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_64Bit
+                    && (Dis.aParams[1].fUse & DISUSE_PRE_INDEXED))
+                {
+                    /* The fault address is already the final address. */
+                    uint8_t bVal = 0;
+                    rcStrict = PGMPhysRead(pVM, GCPhysDataAbrt, &bVal, 1, PGMACCESSORIGIN_HM);
+                    Log4(("MmioExit/%u: %08RX64: READ %#RGp LB %u -> %.*Rhxs rcStrict=%Rrc\n",
+                          pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhysDataAbrt, sizeof(bVal), sizeof(bVal),
+                          &bVal, VBOXSTRICTRC_VAL(rcStrict) ));
+                    if (rcStrict == VINF_SUCCESS)
+                    {
+                        nemR3DarwinSetGReg(pVCpu, Dis.aParams[0].armv8.Op.Reg.idReg, false /*f64BitReg*/, false /*fSignExtend*/, bVal);
+                        /* Update the indexed register. */
+                        pVCpu->cpum.GstCtx.aGRegs[Dis.aParams[1].armv8.Op.Reg.idReg].x += Dis.aParams[1].armv8.u.offBase;
+                    }
+                }
+                /*
+                 * Seeing the following with the Windows 11/ARM TPM driver:
+                 *     %fffff800e5342888 48 25 45 29             ldp w8, w9, [x10, #+0x0028]
+                 */
+                else if (   Dis.pCurInstr->uOpcode == OP_ARMV8_A64_LDP
+                         && Dis.aParams[0].armv8.enmType == kDisArmv8OpParmReg
+                         && Dis.aParams[0].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_32Bit
+                         && Dis.aParams[1].armv8.enmType == kDisArmv8OpParmReg
+                         && Dis.aParams[1].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_32Bit
+                         && Dis.aParams[2].armv8.enmType == kDisArmv8OpParmAddrInGpr
+                         && Dis.aParams[2].armv8.Op.Reg.enmRegType == kDisOpParamArmV8RegType_Gpr_64Bit)
+                {
+                    /** @todo This is tricky to handle if the first register read returns something else than VINF_SUCCESS... */
+                    /* The fault address is already the final address. */
+                    uint32_t u32Val1 = 0;
+                    uint32_t u32Val2 = 0;
+                    rcStrict = PGMPhysRead(pVM, GCPhysDataAbrt, &u32Val1, sizeof(u32Val1), PGMACCESSORIGIN_HM);
+                    if (rcStrict == VINF_SUCCESS)
+                        rcStrict = PGMPhysRead(pVM, GCPhysDataAbrt + sizeof(uint32_t), &u32Val2, sizeof(u32Val2), PGMACCESSORIGIN_HM);
+                    Log4(("MmioExit/%u: %08RX64: READ %#RGp LB %u -> %.*Rhxs %.*Rhxs rcStrict=%Rrc\n",
+                          pVCpu->idCpu, pVCpu->cpum.GstCtx.Pc.u64, GCPhysDataAbrt, 2 * sizeof(uint32_t), sizeof(u32Val1),
+                          &u32Val1, sizeof(u32Val2), &u32Val2, VBOXSTRICTRC_VAL(rcStrict) ));
+                    if (rcStrict == VINF_SUCCESS)
+                    {
+                        nemR3DarwinSetGReg(pVCpu, Dis.aParams[0].armv8.Op.Reg.idReg, false /*f64BitReg*/, false /*fSignExtend*/, u32Val1);
+                        nemR3DarwinSetGReg(pVCpu, Dis.aParams[1].armv8.Op.Reg.idReg, false /*f64BitReg*/, false /*fSignExtend*/, u32Val2);
+                    }
+                }
+                /* T O D O:
+                 * Recent W11:
+                 * x0=ffffb804ea3217d8 x1=ffffe28437802000 x2=0000000000000424 x3=fffff802e5716030
+                 * x4=ffffe28437802424 x5=ffffb804ea321bfc x6=000000000080009c x7=000000000080009c
+                 * x8=ffff87849fefc788 x9=ffff87849fefc788 x10=000000000000001c x11=ffffb804ea32909c
+                 * x12=000000000000001c x13=000000000000009c x14=ffffb804ea3290a8 x15=ffffd580b2b1f7d8
+                 * x16=0000f6999080cdbe x17=0000f6999080cdbe x18=ffffd08158fbf000 x19=ffffb804ea3217d0
+                 * x20=0000000000000001 x21=0000000000000004 x22=ffffb804ea321660 x23=000047fb15cdefd8
+                 * x24=0000000000000000 x25=ffffb804ea2f1080 x26=0000000000000000 x27=0000000000000380
+                 * x28=0000000000000000 x29=ffff87849fefc7e0 x30=fffff802e57120b0
+                 * pc=fffff802e5713c20 pstate=00000000a0001344
+                 * sp_el0=ffff87849fefc7e0 sp_el1=ffff87849e462400 elr_el1=fffff802e98889c8
+                 * pl061gpio!start_seg1_.text+0x2c20:
+                 * %fffff802e5713c20 23 00 c0 3d             ldr q3, [x1]
+                 * VBoxDbg> format %%(%@x1)
+                 * Guest physical address: %%ffddd000
+                 * VBoxDbg> info mmio
+                 * MMIO registrations: 12 (186 allocated)
+                 *  ## Ctx    Size Mapping   PCI    Description
+                 *   0 R3     00000000000c0000  0000000004000000-00000000040bffff        Flash Memory
+                 * [snip]
+                 *  11 R3     0000000000001000  00000000ffddd000-00000000ffdddfff        PL061
+                 */
+                else
+                    AssertLogRelMsgFailedReturn(("pc=%#RX64: %#x opcode=%d\n",
+                                                 pVCpu->cpum.GstCtx.Pc.u64, Dis.Instr.au32[0], Dis.pCurInstr->uOpcode),
+                                                VERR_NEM_IPE_2);
+            }
+        }
     }
 
     if (rcStrict == VINF_SUCCESS)
@@ -1788,7 +2179,7 @@ static VBOXSTRICTRC nemR3DarwinHandleExitExceptionTrappedHvcInsn(PVM pVM, PVMCPU
     {
         /** @todo Raise exception to EL1 if PSCI not configured. */
         /** @todo Need a generic mechanism here to pass this to, GIM maybe?. */
-        uint32_t uFunId = pVCpu->cpum.GstCtx.aGRegs[ARMV8_AARCH64_REG_X0].w;
+        uint32_t uFunId = pVCpu->cpum.GstCtx.aGRegs[ARMV8_A64_REG_X0].w;
         bool fHvc64 = RT_BOOL(uFunId & ARM_SMCCC_FUNC_ID_64BIT); RT_NOREF(fHvc64);
         uint32_t uEntity = ARM_SMCCC_FUNC_ID_ENTITY_GET(uFunId);
         uint32_t uFunNum = ARM_SMCCC_FUNC_ID_NUM_GET(uFunId);
@@ -1797,7 +2188,7 @@ static VBOXSTRICTRC nemR3DarwinHandleExitExceptionTrappedHvcInsn(PVM pVM, PVMCPU
             switch (uFunNum)
             {
                 case ARM_PSCI_FUNC_ID_PSCI_VERSION:
-                    nemR3DarwinSetGReg(pVCpu, ARMV8_AARCH64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, ARM_PSCI_FUNC_ID_PSCI_VERSION_SET(1, 2));
+                    nemR3DarwinSetGReg(pVCpu, ARMV8_A64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, ARM_PSCI_FUNC_ID_PSCI_VERSION_SET(1, 2));
                     break;
                 case ARM_PSCI_FUNC_ID_SYSTEM_OFF:
                     rcStrict = VMR3PowerOff(pVM->pUVM);
@@ -1810,28 +2201,28 @@ static VBOXSTRICTRC nemR3DarwinHandleExitExceptionTrappedHvcInsn(PVM pVM, PVMCPU
                     if (RT_SUCCESS(rc) && fHaltOnReset)
                     {
                         Log(("nemR3DarwinHandleExitExceptionTrappedHvcInsn: Halt On Reset!\n"));
-                        rc = VINF_EM_HALT;
+                        rcStrict = VINF_EM_HALT;
                     }
                     else
                     {
                         /** @todo pVM->pdm.s.fResetFlags = fFlags; */
                         VM_FF_SET(pVM, VM_FF_RESET);
-                        rc = VINF_EM_RESET;
+                        rcStrict = VINF_EM_RESET;
                     }
                     break;
                 }
                 case ARM_PSCI_FUNC_ID_CPU_ON:
                 {
-                    uint64_t u64TgtCpu      = nemR3DarwinGetGReg(pVCpu, ARMV8_AARCH64_REG_X1);
-                    RTGCPHYS GCPhysExecAddr = nemR3DarwinGetGReg(pVCpu, ARMV8_AARCH64_REG_X2);
-                    uint64_t u64CtxId       = nemR3DarwinGetGReg(pVCpu, ARMV8_AARCH64_REG_X3);
+                    uint64_t u64TgtCpu      = nemR3DarwinGetGReg(pVCpu, ARMV8_A64_REG_X1);
+                    RTGCPHYS GCPhysExecAddr = nemR3DarwinGetGReg(pVCpu, ARMV8_A64_REG_X2);
+                    uint64_t u64CtxId       = nemR3DarwinGetGReg(pVCpu, ARMV8_A64_REG_X3);
                     VMMR3CpuOn(pVM, u64TgtCpu & 0xff, GCPhysExecAddr, u64CtxId);
-                    nemR3DarwinSetGReg(pVCpu, ARMV8_AARCH64_REG_X0, true /*f64BitReg*/, false /*fSignExtend*/, ARM_PSCI_STS_SUCCESS);
+                    nemR3DarwinSetGReg(pVCpu, ARMV8_A64_REG_X0, true /*f64BitReg*/, false /*fSignExtend*/, ARM_PSCI_STS_SUCCESS);
                     break;
                 }
                 case ARM_PSCI_FUNC_ID_PSCI_FEATURES:
                 {
-                    uint32_t u32FunNum = (uint32_t)nemR3DarwinGetGReg(pVCpu, ARMV8_AARCH64_REG_X1);
+                    uint32_t u32FunNum = (uint32_t)nemR3DarwinGetGReg(pVCpu, ARMV8_A64_REG_X1);
                     switch (u32FunNum)
                     {
                         case ARM_PSCI_FUNC_ID_PSCI_VERSION:
@@ -1840,27 +2231,28 @@ static VBOXSTRICTRC nemR3DarwinHandleExitExceptionTrappedHvcInsn(PVM pVM, PVMCPU
                         case ARM_PSCI_FUNC_ID_SYSTEM_RESET2:
                         case ARM_PSCI_FUNC_ID_CPU_ON:
                         case ARM_PSCI_FUNC_ID_MIGRATE_INFO_TYPE:
-                            nemR3DarwinSetGReg(pVCpu, ARMV8_AARCH64_REG_X0,
+                            nemR3DarwinSetGReg(pVCpu, ARMV8_A64_REG_X0,
                                                false /*f64BitReg*/, false /*fSignExtend*/,
                                                (uint64_t)ARM_PSCI_STS_SUCCESS);
                             break;
                         default:
-                            nemR3DarwinSetGReg(pVCpu, ARMV8_AARCH64_REG_X0,
+                            nemR3DarwinSetGReg(pVCpu, ARMV8_A64_REG_X0,
                                                false /*f64BitReg*/, false /*fSignExtend*/,
                                                (uint64_t)ARM_PSCI_STS_NOT_SUPPORTED);
                     }
                     break;
                 }
                 case ARM_PSCI_FUNC_ID_MIGRATE_INFO_TYPE:
-                    nemR3DarwinSetGReg(pVCpu, ARMV8_AARCH64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, ARM_PSCI_MIGRATE_INFO_TYPE_TOS_NOT_PRESENT);
+                    nemR3DarwinSetGReg(pVCpu, ARMV8_A64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, ARM_PSCI_MIGRATE_INFO_TYPE_TOS_NOT_PRESENT);
                     break;
                 default:
-                    nemR3DarwinSetGReg(pVCpu, ARMV8_AARCH64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, (uint64_t)ARM_PSCI_STS_NOT_SUPPORTED);
+                    nemR3DarwinSetGReg(pVCpu, ARMV8_A64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, (uint64_t)ARM_PSCI_STS_NOT_SUPPORTED);
             }
         }
         else
-            nemR3DarwinSetGReg(pVCpu, ARMV8_AARCH64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, (uint64_t)ARM_PSCI_STS_NOT_SUPPORTED);
+            nemR3DarwinSetGReg(pVCpu, ARMV8_A64_REG_X0, false /*f64BitReg*/, false /*fSignExtend*/, (uint64_t)ARM_PSCI_STS_NOT_SUPPORTED);
     }
+
     /** @todo What to do if immediate is != 0? */
 
     if (   rcStrict == VINF_SUCCESS
@@ -1952,6 +2344,16 @@ static VBOXSTRICTRC nemR3DarwinHandleExitException(PVM pVM, PVMCPU pVCpu, const 
             pVCpu->cpum.GstCtx.Pc.u64 += fInsn32Bit ? sizeof(uint32_t) : sizeof(uint16_t);
             return VINF_EM_HALT;
         }
+        case ARMV8_ESR_EL2_EC_AARCH64_BRK_INSN:
+        {
+            VBOXSTRICTRC rcStrict = DBGFTrap03Handler(pVCpu->CTX_SUFF(pVM), pVCpu, &pVCpu->cpum.GstCtx);
+            /** @todo Forward genuine guest traps to the guest by either single stepping instruction with debug exception trapping turned off
+             * or create instruction interpreter and inject exception ourselves. */
+            Assert(rcStrict == VINF_EM_DBG_BREAKPOINT);
+            return rcStrict;
+        }
+        case ARMV8_ESR_EL2_SS_EXCEPTION_FROM_LOWER_EL:
+            return VINF_EM_DBG_STEPPED;
         case ARMV8_ESR_EL2_EC_UNKNOWN:
         default:
             LogRel(("NEM/Darwin: Unknown Exception Class in syndrome: uEc=%u{%s} uIss=%#RX32 fInsn32Bit=%RTbool\n",
@@ -1983,6 +2385,8 @@ static VBOXSTRICTRC nemR3DarwinHandleExit(PVM pVM, PVMCPU pVCpu)
         nemR3DarwinLogState(pVM, pVCpu);
 #endif
 
+    STAM_REL_COUNTER_INC(&pVCpu->nem.s.StatExitAll);
+
     hv_vcpu_exit_t *pExit = pVCpu->nem.s.pHvExit;
     switch (pExit->reason)
     {
@@ -1995,7 +2399,7 @@ static VBOXSTRICTRC nemR3DarwinHandleExit(PVM pVM, PVMCPU pVCpu)
             LogFlowFunc(("vTimer got activated\n"));
             TMCpuSetVTimerNextActivation(pVCpu, UINT64_MAX);
             pVCpu->nem.s.fVTimerActivated = true;
-            return GICPpiSet(pVCpu, pVM->nem.s.u32GicPpiVTimer, true /*fAsserted*/);
+            return PDMGicSetPpi(pVCpu, pVM->nem.s.u32GicPpiVTimer, true /*fAsserted*/);
         }
         default:
             AssertReleaseFailed();
@@ -2043,9 +2447,29 @@ static VBOXSTRICTRC nemR3DarwinPreRunGuest(PVM pVM, PVMCPU pVCpu, bool fSingleSt
         nemR3DarwinLogState(pVM, pVCpu);
 #endif
 
-    /** @todo */ RT_NOREF(fSingleStepping);
     int rc = nemR3DarwinExportGuestState(pVM, pVCpu);
     AssertRCReturn(rc, rc);
+
+    /* In single stepping mode we will re-read SPSR and MDSCR and enable the software step bits. */
+    if (fSingleStepping)
+    {
+        uint64_t u64Tmp;
+        hv_return_t hrc = hv_vcpu_get_reg(pVCpu->nem.s.hVCpu, HV_REG_CPSR, &u64Tmp);
+        if (hrc == HV_SUCCESS)
+        {
+            u64Tmp |= ARMV8_SPSR_EL2_AARCH64_SS;
+            hrc = hv_vcpu_set_reg(pVCpu->nem.s.hVCpu, HV_REG_CPSR, u64Tmp);
+        }
+
+        hrc |= hv_vcpu_get_sys_reg(pVCpu->nem.s.hVCpu, HV_SYS_REG_MDSCR_EL1, &u64Tmp);
+        if (hrc == HV_SUCCESS)
+        {
+            u64Tmp |= ARMV8_MDSCR_EL1_AARCH64_SS;
+            hrc = hv_vcpu_set_sys_reg(pVCpu->nem.s.hVCpu, HV_SYS_REG_MDSCR_EL1, u64Tmp);
+        }
+
+        AssertReturn(hrc == HV_SUCCESS, VERR_NEM_IPE_9);
+    }
 
     /* Check whether the vTimer interrupt was handled by the guest and we can unmask the vTimer. */
     if (pVCpu->nem.s.fVTimerActivated)
@@ -2060,7 +2484,7 @@ static VBOXSTRICTRC nemR3DarwinPreRunGuest(PVM pVM, PVMCPU pVCpu, bool fSingleSt
             != (ARMV8_CNTV_CTL_EL0_AARCH64_ENABLE | ARMV8_CNTV_CTL_EL0_AARCH64_ISTATUS))
         {
             /* Clear the interrupt. */
-            GICPpiSet(pVCpu, pVM->nem.s.u32GicPpiVTimer, false /*fAsserted*/);
+            PDMGicSetPpi(pVCpu, pVM->nem.s.u32GicPpiVTimer, false /*fAsserted*/);
 
             pVCpu->nem.s.fVTimerActivated = false;
             hrc = hv_vcpu_set_vtimer_mask(pVCpu->nem.s.hVCpu, false /*vtimer_is_masked*/);
@@ -2143,7 +2567,7 @@ static VBOXSTRICTRC nemR3DarwinRunGuestNormal(PVM pVM, PVMCPU pVCpu)
      *        the whole polling job when timers have changed... */
     uint64_t       offDeltaIgnored;
     uint64_t const nsNextTimerEvt = TMTimerPollGIP(pVM, pVCpu, &offDeltaIgnored); NOREF(nsNextTimerEvt);
-    VBOXSTRICTRC    rcStrict        = VINF_SUCCESS;
+    VBOXSTRICTRC   rcStrict       = VINF_SUCCESS;
     for (unsigned iLoop = 0;; iLoop++)
     {
         rcStrict = nemR3DarwinPreRunGuest(pVM, pVCpu, false /* fSingleStepping */);
@@ -2177,57 +2601,124 @@ static VBOXSTRICTRC nemR3DarwinRunGuestNormal(PVM pVM, PVMCPU pVCpu)
 }
 
 
-VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
+/**
+ * The debug runloop.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+static VBOXSTRICTRC nemR3DarwinRunGuestDebug(PVM pVM, PVMCPU pVCpu)
 {
+    /*
+     * The run loop.
+     *
+     * Current approach to state updating to use the sledgehammer and sync
+     * everything every time.  This will be optimized later.
+     */
+
+    bool const fSavedSingleInstruction = pVCpu->nem.s.fSingleInstruction;
+    pVCpu->nem.s.fSingleInstruction    = pVCpu->nem.s.fSingleInstruction || DBGFIsStepping(pVCpu);
+    pVCpu->nem.s.fUsingDebugLoop       = true;
+
+    /* Trap any debug exceptions. */
+    hv_return_t hrc = hv_vcpu_set_trap_debug_exceptions(pVCpu->nem.s.hVCpu, true);
+    if (hrc != HV_SUCCESS)
+        return VMSetError(pVM, VERR_NEM_SET_REGISTERS_FAILED, RT_SRC_POS,
+                          "Trapping debug exceptions on vCPU %u failed: %#x (%Rrc)", pVCpu->idCpu, hrc, nemR3DarwinHvSts2Rc(hrc));
+
+    /* Update the vTimer offset after resuming if instructed. */
+    if (pVCpu->nem.s.fVTimerOffUpdate)
+    {
+        hrc = hv_vcpu_set_vtimer_offset(pVCpu->nem.s.hVCpu, pVM->nem.s.u64VTimerOff);
+        if (hrc != HV_SUCCESS)
+            return nemR3DarwinHvSts2Rc(hrc);
+
+        pVCpu->nem.s.fVTimerOffUpdate = false;
+
+        hrc = hv_vcpu_set_sys_reg(pVCpu->nem.s.hVCpu, HV_SYS_REG_CNTV_CTL_EL0, pVCpu->cpum.GstCtx.CntvCtlEl0);
+        if (hrc == HV_SUCCESS)
+            hrc = hv_vcpu_set_sys_reg(pVCpu->nem.s.hVCpu, HV_SYS_REG_CNTV_CVAL_EL0, pVCpu->cpum.GstCtx.CntvCValEl0);
+        if (hrc != HV_SUCCESS)
+            return nemR3DarwinHvSts2Rc(hrc);
+    }
+
+    /* Save the guest MDSCR_EL1 */
+    CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_SYSREG_DEBUG | CPUMCTX_EXTRN_PSTATE);
+    uint64_t u64RegMdscrEl1 = pVCpu->cpum.GstCtx.Mdscr.u64;
+
+    /*
+     * Poll timers and run for a bit.
+     */
+    /** @todo See if we cannot optimize this TMTimerPollGIP by only redoing
+     *        the whole polling job when timers have changed... */
+    uint64_t       offDeltaIgnored;
+    uint64_t const nsNextTimerEvt = TMTimerPollGIP(pVM, pVCpu, &offDeltaIgnored); NOREF(nsNextTimerEvt);
+    VBOXSTRICTRC    rcStrict        = VINF_SUCCESS;
+    for (unsigned iLoop = 0;; iLoop++)
+    {
+        bool const fStepping = pVCpu->nem.s.fSingleInstruction;
+
+        rcStrict = nemR3DarwinPreRunGuest(pVM, pVCpu, fStepping);
+        if (rcStrict != VINF_SUCCESS)
+            break;
+
+        hrc = nemR3DarwinRunGuest(pVM, pVCpu);
+        if (hrc == HV_SUCCESS)
+        {
+            /*
+             * Deal with the message.
+             */
+            rcStrict = nemR3DarwinHandleExit(pVM, pVCpu);
+            if (rcStrict == VINF_SUCCESS)
+            { /* hopefully likely */ }
+            else
+            {
+                LogFlow(("NEM/%u: breaking: nemR3DarwinHandleExit -> %Rrc\n", pVCpu->idCpu, VBOXSTRICTRC_VAL(rcStrict) ));
+                STAM_REL_COUNTER_INC(&pVCpu->nem.s.StatBreakOnStatus);
+                break;
+            }
+        }
+        else
+        {
+            AssertLogRelMsgFailedReturn(("hv_vcpu_run()) failed for CPU #%u: %#x \n",
+                                        pVCpu->idCpu, hrc), VERR_NEM_IPE_0);
+        }
+    } /* the run loop */
+
+    /* Restore single stepping state. */
+    if (pVCpu->nem.s.fSingleInstruction)
+    {
+        /** @todo This ASSUMES that guest code being single stepped is not modifying the MDSCR_EL1 register. */
+        CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_SYSREG_DEBUG | CPUMCTX_EXTRN_PSTATE);
+        Assert(pVCpu->cpum.GstCtx.Mdscr.u64 & ARMV8_MDSCR_EL1_AARCH64_SS);
+
+        pVCpu->cpum.GstCtx.Mdscr.u64 = u64RegMdscrEl1;
+    }
+
+    /* Restore debug exceptions trapping. */
+    hrc |= hv_vcpu_set_trap_debug_exceptions(pVCpu->nem.s.hVCpu, false);
+    if (hrc != HV_SUCCESS)
+        return VMSetError(pVM, VERR_NEM_SET_REGISTERS_FAILED, RT_SRC_POS,
+                          "Clearing trapping of debug exceptions on vCPU %u failed: %#x (%Rrc)", pVCpu->idCpu, hrc, nemR3DarwinHvSts2Rc(hrc));
+
+    pVCpu->nem.s.fUsingDebugLoop     = false;
+    pVCpu->nem.s.fSingleInstruction  = fSavedSingleInstruction;
+
+    return rcStrict;
+
+}
+
+
+VMMR3_INT_DECL(VBOXSTRICTRC) NEMR3RunGC(PVM pVM, PVMCPU pVCpu)
+{
+    Assert(VM_IS_NEM_ENABLED(pVM));
 #ifdef LOG_ENABLED
     if (LogIs3Enabled())
         nemR3DarwinLogState(pVM, pVCpu);
 #endif
 
     AssertReturn(NEMR3CanExecuteGuest(pVM, pVCpu), VERR_NEM_IPE_9);
-
-    if (RT_UNLIKELY(!pVCpu->nem.s.fIdRegsSynced))
-    {
-        /*
-         * Sync the guest ID registers which are per VM once (they are readonly and stay constant during VM lifetime).
-         * Need to do it here and not during the init because loading a saved state might change the ID registers from what
-         * done in the call to CPUMR3PopulateFeaturesByIdRegisters().
-         */
-        static const struct
-        {
-            const char       *pszIdReg;
-            hv_sys_reg_t     enmHvReg;
-            uint32_t         offIdStruct;
-        } s_aSysIdRegs[] =
-        {
-#define ID_SYS_REG_CREATE(a_IdReg, a_CpumIdReg) { #a_IdReg, HV_SYS_REG_##a_IdReg,     RT_UOFFSETOF(CPUMIDREGS, a_CpumIdReg) }
-            ID_SYS_REG_CREATE(ID_AA64DFR0_EL1,  u64RegIdAa64Dfr0El1),
-            ID_SYS_REG_CREATE(ID_AA64DFR1_EL1,  u64RegIdAa64Dfr1El1),
-            ID_SYS_REG_CREATE(ID_AA64ISAR0_EL1, u64RegIdAa64Isar0El1),
-            ID_SYS_REG_CREATE(ID_AA64ISAR1_EL1, u64RegIdAa64Isar1El1),
-            ID_SYS_REG_CREATE(ID_AA64MMFR0_EL1, u64RegIdAa64Mmfr0El1),
-            ID_SYS_REG_CREATE(ID_AA64MMFR1_EL1, u64RegIdAa64Mmfr1El1),
-            ID_SYS_REG_CREATE(ID_AA64MMFR2_EL1, u64RegIdAa64Mmfr2El1),
-            ID_SYS_REG_CREATE(ID_AA64PFR0_EL1,  u64RegIdAa64Pfr0El1),
-            ID_SYS_REG_CREATE(ID_AA64PFR1_EL1,  u64RegIdAa64Pfr1El1),
-#undef ID_SYS_REG_CREATE
-        };
-
-        PCCPUMIDREGS pIdRegsGst = NULL;
-        int rc = CPUMR3QueryGuestIdRegs(pVM, &pIdRegsGst);
-        AssertRCReturn(rc, rc);
-
-        for (uint32_t i = 0; i < RT_ELEMENTS(s_aSysIdRegs); i++)
-        {
-            uint64_t *pu64 = (uint64_t *)((uint8_t *)pIdRegsGst + s_aSysIdRegs[i].offIdStruct);
-            hv_return_t hrc = hv_vcpu_set_sys_reg(pVCpu->nem.s.hVCpu, s_aSysIdRegs[i].enmHvReg, *pu64);
-            if (hrc != HV_SUCCESS)
-                return VMSetError(pVM, VERR_NEM_SET_REGISTERS_FAILED, RT_SRC_POS,
-                                  "Setting %s failed on vCPU %u: %#x (%Rrc)", s_aSysIdRegs[i].pszIdReg, pVCpu->idCpu, hrc, nemR3DarwinHvSts2Rc(hrc));
-        }
-
-        pVCpu->nem.s.fIdRegsSynced = true;
-    }
 
     /*
      * Try switch to NEM runloop state.
@@ -2242,17 +2733,13 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
     }
 
     VBOXSTRICTRC rcStrict;
-#if 0
     if (   !pVCpu->nem.s.fUseDebugLoop
-        && !nemR3DarwinAnyExpensiveProbesEnabled()
+        /*&& !nemR3DarwinAnyExpensiveProbesEnabled()*/
         && !DBGFIsStepping(pVCpu)
-        && !pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledInt3Breakpoints)
-#endif
+        && !pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledSwBreakpoints)
         rcStrict = nemR3DarwinRunGuestNormal(pVM, pVCpu);
-#if 0
     else
         rcStrict = nemR3DarwinRunGuestDebug(pVM, pVCpu);
-#endif
 
     if (rcStrict == VINF_EM_RAW_TO_R3)
         rcStrict = VINF_SUCCESS;
@@ -2315,7 +2802,7 @@ VMMR3_INT_DECL(bool) NEMR3CanExecuteGuest(PVM pVM, PVMCPU pVCpu)
 }
 
 
-bool nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
+DECLHIDDEN(bool) nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 {
     VMCPU_ASSERT_EMT(pVCpu);
     bool fOld = pVCpu->nem.s.fSingleInstruction;
@@ -2325,10 +2812,9 @@ bool nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 }
 
 
-void nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
+DECLHIDDEN(void) nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
 {
     LogFlowFunc(("pVM=%p pVCpu=%p fFlags=%#x\n", pVM, pVCpu, fFlags));
-
     RT_NOREF(pVM, fFlags);
 
     hv_return_t hrc = hv_vcpus_exit(&pVCpu->nem.s.hVCpu, 1);
@@ -2645,15 +3131,15 @@ VMMR3_INT_DECL(void) NEMR3NotifySetA20(PVMCPU pVCpu, bool fEnabled)
 }
 
 
-void nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb)
+DECLHIDDEN(void) nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb)
 {
     Log5(("nemHCNativeNotifyHandlerPhysicalRegister: %RGp LB %RGp enmKind=%d\n", GCPhys, cb, enmKind));
     NOREF(pVM); NOREF(enmKind); NOREF(GCPhys); NOREF(cb);
 }
 
 
-void nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
-                                            RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM)
+DECLHIDDEN(void) nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
+                                                        RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM)
 {
     Log5(("nemHCNativeNotifyHandlerPhysicalModify: %RGp LB %RGp -> %RGp enmKind=%d fRestoreAsRAM=%d\n",
           GCPhysOld, cb, GCPhysNew, enmKind, fRestoreAsRAM));
@@ -2661,8 +3147,8 @@ void nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKin
 }
 
 
-int nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
-                                       PGMPAGETYPE enmType, uint8_t *pu2State)
+DECLHIDDEN(int) nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+                                                   PGMPAGETYPE enmType, uint8_t *pu2State)
 {
     Log5(("nemHCNativeNotifyPhysPageAllocated: %RGp HCPhys=%RHp fPageProt=%#x enmType=%d *pu2State=%d\n",
           GCPhys, HCPhys, fPageProt, enmType, *pu2State));

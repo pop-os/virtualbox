@@ -10,10 +10,7 @@
       one end to the other. For example, from the host to the guest or from the guest to the host. You then can perform
       drag and drop operations between the host and a VM, as it would be a native drag and drop operation on the host
       OS. </p>
-    <p>At the moment drag and drop is implemented for Windows-based and X-Windows-based systems, both on the host and
-      guest side. As X-Windows supports many different drag and drop protocols only the most common one, XDND, is
-      supported for now. Applications using other protocols, such as Motif or OffiX, will not be recognized by <ph
-        conkeyref="vbox-conkeyref-phrases/product-name"/>. </p>
+    <p>At the moment drag and drop is implemented for Windows-based and X Window-based systems, both on the host and guest side. As X Window supports many different drag and drop protocols only the most common one, XDND, is supported for now. Applications using other protocols, such as Motif or OffiX, will not be recognized by <ph conkeyref="vbox-conkeyref-phrases/product-name"/>. </p>
     <p>In the context of using drag and drop, the origin of the data is called the <i>source</i>. That is, where the
       actual data comes from and is specified. The <i>destination</i> specifies where the data from the source should go
       to. Transferring data from the source to the destination can be done in various ways, such as copying, moving, or
@@ -27,6 +24,7 @@
     <p>For security reasons drag and drop can be configured at runtime on a per-VM basis either using the <b
         outputclass="bold">Drag and Drop</b> menu item in the <b outputclass="bold">Devices</b> menu of the virtual
       machine, or the <userinput>VBoxManage</userinput> command. </p>
+    <p>On Windows hosts, dragging content between UAC-elevated (User Account Control) programs and non UAC-elevated programs isn't allowed. For example, if you start <ph conkeyref="vbox-conkeyref-phrases/product-name"/> with Administrator privileges then dragging to or from Windows Explorer, which runs with regular user privileges by default, is not possible.</p>
     <p>The following drag and drop modes are available: </p>
     <ul>
       <li>

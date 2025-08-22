@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -845,20 +845,19 @@ static bool autostartSvcWinSetServiceStatus(DWORD dwStatus, int iWaitHint, DWORD
             SvcStatus.dwControlsAccepted = 0;
             break;
         default:
-            SvcStatus.dwControlsAccepted
-                = SERVICE_ACCEPT_STOP
-                | SERVICE_ACCEPT_SHUTDOWN;
+            SvcStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
             break;
     }
 
-    static DWORD dwCheckPoint = 0;
+    static DWORD s_dwCheckPoint = 0;
     switch (dwStatus)
     {
         case SERVICE_RUNNING:
         case SERVICE_STOPPED:
-            SvcStatus.dwCheckPoint       = 0;
+            SvcStatus.dwCheckPoint = 0;
+            break;
         default:
-            SvcStatus.dwCheckPoint       = ++dwCheckPoint;
+            SvcStatus.dwCheckPoint = ++s_dwCheckPoint;
             break;
     }
     return SetServiceStatus(g_hSupSvcWinCtrlHandler, &SvcStatus) != FALSE;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -93,6 +93,7 @@ typedef struct DRVMAINVMMDEV
 //
 VMMDev::VMMDev(Console *console)
     : mpDrv(NULL)
+    , fSharedFolderActive(false)
     , mParent(console)
 {
     int vrc = RTSemEventCreate(&mCredentialsEvent);
@@ -569,6 +570,58 @@ static DECLCALLBACK(int) vmmdevIsPageFusionEnabled(PPDMIVMMDEVCONNECTOR pInterfa
 
     *pfPageFusionEnabled = !!guest->i_isPageFusionEnabled();
     return VINF_SUCCESS;
+}
+
+/**
+ * Query a virtual graphics device capability
+ *
+ * @returns VBox status code.
+ * @param   pInterface          Pointer to this interface.
+ * @param   capIndex            Index of a capabiltity VBOX_GRAPHICS_DEVCAP_*
+ * @param   pCapValue           Where to store the capability value
+ * @thread  The emulation thread.
+ */
+static DECLCALLBACK(int) vmmdevGetHostGraphicsCapability(PPDMIVMMDEVCONNECTOR pInterface, uint32_t capIndex, uint32_t *pCapValue)
+{
+    PDRVMAINVMMDEV pDrv = RT_FROM_MEMBER(pInterface, DRVMAINVMMDEV, Connector);
+    Console *pConsole = pDrv->pVMMDev->getParent();
+
+    if (!pCapValue)
+        return VERR_INVALID_PARAMETER;
+
+    if (capIndex == VBOX_GRAPHICS_DEVCAP_MAX_INDEX)
+    {
+        *pCapValue = VBOX_GRAPHICS_DEVCAP_MAX;
+        return VINF_SUCCESS;
+    }
+
+    ComPtr<IGraphicsAdapter> pGraphicsAdapter;
+    HRESULT hrc = pConsole->i_machine()->COMGETTER(GraphicsAdapter)(pGraphicsAdapter.asOutParam());
+    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+    AssertReturn(!pGraphicsAdapter.isNull(), VERR_INTERNAL_ERROR);
+
+    int vrc = VINF_SUCCESS;
+
+    switch (capIndex)
+    {
+        case VBOX_GRAPHICS_DEVCAP_3D:
+        {
+            BOOL f3DEnabled = FALSE;
+            pGraphicsAdapter->IsFeatureEnabled(GraphicsFeature_Acceleration3D, &f3DEnabled);
+            *pCapValue = (uint32_t)f3DEnabled;
+        } break;
+        case VBOX_GRAPHICS_DEVCAP_NUM_DISPLAYS:
+        {
+            ULONG cMonitorCount = 1;
+            pGraphicsAdapter->COMGETTER(MonitorCount)(&cMonitorCount);
+            *pCapValue = (uint32_t)cMonitorCount;
+        } break;
+        default:
+            vrc = VERR_NOT_SUPPORTED;
+            break;
+    }
+
+    return vrc;
 }
 
 /**
@@ -1104,6 +1157,7 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint3
     pThis->Connector.pfnQueryStatisticsInterval       = vmmdevQueryStatisticsInterval;
     pThis->Connector.pfnQueryBalloonSize              = vmmdevQueryBalloonSize;
     pThis->Connector.pfnIsPageFusionEnabled           = vmmdevIsPageFusionEnabled;
+    pThis->Connector.pfnGetHostGraphicsCapability     = vmmdevGetHostGraphicsCapability;
 
 #ifdef VBOX_WITH_HGCM
     pThis->HGCMConnector.pfnConnect                   = iface_hgcmConnect;
@@ -1160,12 +1214,14 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint3
             parm.u.pointer.size = sizeof(*pLed);
 
             vrc = HGCMHostCall("VBoxSharedFolders", SHFL_FN_SET_STATUS_LED, 1, &parm);
+            if (RT_FAILURE(vrc))
+                LogRel(("Warning: Cannot set Shared Folders status LED! vrc=%Rrc\n", vrc));
         }
         else
             AssertMsgFailed(("pfnQueryStatusLed failed with %Rrc (pLed=%x)\n", vrc, pLed));
     }
     else
-        LogRel(("Failed to load Shared Folders service %Rrc\n", vrc));
+        LogRel(("Failed to load Shared Folders service! vrc=%Rrc\n", vrc));
 
 
     /*
@@ -1184,7 +1240,7 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint3
             LogRel(("Warning: Cannot register VBoxGuestControlSvc extension! vrc=%Rrc\n", vrc));
     }
     else
-        LogRel(("Warning!: Failed to load the Guest Control Service! %Rrc\n", vrc));
+        LogRel(("Warning!: Failed to load the Guest Control Service! vrc=%Rrc\n", vrc));
 # endif /* VBOX_WITH_GUEST_CONTROL */
 
 
@@ -1221,7 +1277,7 @@ const PDMDRVREG VMMDev::DrvReg =
     /* u32Version */
     PDM_DRVREG_VERSION,
     /* szName */
-    "HGCM",
+    "HGCM", /** @todo r=andy Shouldn't we rename this to "MainVMMDev" like the rest? */
     /* szRCMod */
     "",
     /* szR0Mod */

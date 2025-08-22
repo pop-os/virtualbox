@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -80,7 +80,7 @@ void UIGraphicsControllerEditor::setMinimumLayoutIndent(int iIndent)
 void UIGraphicsControllerEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("&Graphics Controller:"));
+        m_pLabel->setText(tr("&Graphics Controller"));
     if (m_pCombo)
     {
         for (int i = 0; i < m_pCombo->count(); ++i)
@@ -88,7 +88,7 @@ void UIGraphicsControllerEditor::sltRetranslateUI()
             const KGraphicsControllerType enmType = m_pCombo->itemData(i).value<KGraphicsControllerType>();
             m_pCombo->setItemText(i, gpConverter->toString(enmType));
         }
-        m_pCombo->setToolTip(tr("Selects the graphics adapter type the virtual machine will use."));
+        m_pCombo->setToolTip(tr("Graphics controller type the virtual machine will use"));
     }
 }
 

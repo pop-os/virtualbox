@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -53,6 +53,19 @@ RTCRestOutputBase::RTCRestOutputBase() RT_NOEXCEPT
 
 RTCRestOutputBase::~RTCRestOutputBase()
 {
+}
+
+
+RTCRestOutputBase::RTCRestOutputBase(RTCRestOutputBase const &a_rThat) RT_NOEXCEPT
+    : m_uState(a_rThat.m_uState)
+{
+}
+
+
+RTCRestOutputBase &RTCRestOutputBase::operator=(RTCRestOutputBase const &a_rThat) RT_NOEXCEPT
+{
+    m_uState = a_rThat.m_uState;
+    return *this;
 }
 
 

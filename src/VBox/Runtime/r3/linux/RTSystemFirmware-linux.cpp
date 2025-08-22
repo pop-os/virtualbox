@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -87,7 +87,6 @@ RTDECL(int) RTSystemQueryFirmwareBoolean(RTSYSFWBOOL enmBoolean, bool *pfValue)
         default:
             AssertReturn(enmBoolean > RTSYSFWBOOL_INVALID && enmBoolean < RTSYSFWBOOL_END, VERR_INVALID_PARAMETER);
             return VERR_SYS_UNSUPPORTED_FIRMWARE_PROPERTY;
-
     }
 
     /*
@@ -106,8 +105,6 @@ RTDECL(int) RTSystemQueryFirmwareBoolean(RTSYSFWBOOL enmBoolean, bool *pfValue)
     }
     else if (rc == VERR_FILE_NOT_FOUND || rc == VERR_PATH_NOT_FOUND)
         rc = VINF_SUCCESS;
-    else if (rc == VERR_PERMISSION_DENIED)
-        rc = VERR_NOT_SUPPORTED;
 
     return rc;
 }

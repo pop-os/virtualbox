@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -216,12 +216,14 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case ERROR_INVALID_IMAGE_HASH:      return VERR_LDR_IMAGE_HASH;
         case ERROR_UNRECOGNIZED_VOLUME:     return VERR_MEDIA_NOT_RECOGNIZED;
         case ERROR_ELEVATION_REQUIRED:      return VERR_PROC_ELEVATION_REQUIRED;
+        case ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION:   return VERR_SYSTEM_INTEGRITY_POLICY_VIOLATION;
 
         case ERROR_ENVVAR_NOT_FOUND:        return VERR_ENV_VAR_NOT_FOUND;
 
 
         case ERROR_SERVICE_ALREADY_RUNNING: return VERR_ALREADY_LOADED; /* Not the best match, but seen it with VBoxSup.sys. */
         case ERROR_NOT_FOUND:               return VERR_NOT_FOUND;
+        case ERROR_INTERNAL_ERROR:          return VERR_INTERNAL_ERROR;
 
 
         /*

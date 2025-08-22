@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2017-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2120,14 +2120,12 @@ static int rtFsIsoMakerCmdAddSomething(PRTFSISOMAKERCMDOPTS pOpts, const char *p
     if (   Parsed.enmSrcType == RTFSISOMKCMDPARSEDNAMES::kSrcType_Remove
         || Parsed.enmSrcType == RTFSISOMKCMDPARSEDNAMES::kSrcType_MustRemove)
     {
-        const char *pszFirstNm = NULL;
-        uint32_t    cRemoved   = 0;
+        uint32_t cRemoved = 0;
         for (uint32_t i = 0; i < pOpts->cNameSpecifiers; i++)
             if (   Parsed.aNames[i].cchPath > 0
                 && (Parsed.aNames[i].fNameSpecifiers & RTFSISOMAKERCMDNAME_MAJOR_MASK))
             {
                 /* Make sure we remove all objects by this name. */
-                pszFirstNm = Parsed.aNames[i].szPath;
                 for (;;)
                 {
                     uint32_t idxObj = RTFsIsoMakerGetObjIdxForPath(pOpts->hIsoMaker,

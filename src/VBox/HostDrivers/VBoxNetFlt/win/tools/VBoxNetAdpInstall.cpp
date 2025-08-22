@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -54,11 +54,7 @@
 #define VBOX_NETADP_APP_NAME L"NetAdpInstall"
 
 #define VBOX_NETADP_HWID L"sun_VBoxNetAdp"
-#ifdef NDIS60
-# define VBOX_NETADP_INF L"VBoxNetAdp6.inf"
-#else
-# define VBOX_NETADP_INF L"VBoxNetAdp.inf"
-#endif
+#define VBOX_NETADP_INF  L"VBoxNetAdp6.inf"
 
 
 static DECLCALLBACK(void) winNetCfgLogger(const char *pszString)

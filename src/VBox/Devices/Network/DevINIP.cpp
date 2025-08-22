@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -44,9 +44,8 @@ RT_C_DECLS_BEGIN
 #include "lwip/pbuf.h"
 #include "lwip/netif.h"
 #include "lwip/api.h"
-#include "lwip/tcp_impl.h"
 # if LWIP_IPV6
-#  include "ipv6/lwip/ethip6.h"
+#  include "lwip/ethip6.h"
 # endif
 #include "lwip/udp.h"
 #include "lwip/tcp.h"
@@ -271,7 +270,7 @@ static err_t devINIPInterface(struct netif *netif) RT_NOTHROW_DEF
     netif_ip6_addr_set_state(netif, 0, IP6_ADDR_VALID);
     netif->output_ip6 = ethip6_output;
     netif->ip6_autoconfig_enabled=1;
-    LogFunc(("netif: ipv6:%RTnaipv6\n", &netif->ip6_addr[0].addr[0]));
+    LogFunc(("netif: ipv6:%RTnaipv6\n", &netif->ip6_addr[0].u_addr.ip6.addr[0]));
 #endif
 
     netif->output = lwip_etharp_output;
@@ -334,7 +333,6 @@ static DECLCALLBACK(int) devINIPNetworkDown_Input(PPDMINETWORKDOWN pInterface, c
     RT_NOREF(pInterface);
     const uint8_t *pbBuf = (const uint8_t *)pvBuf;
     size_t len = cb;
-    const struct eth_hdr *ethhdr;
     struct pbuf *p, *q;
 
     LogFlow(("%s: pInterface=%p pvBuf=%p cb=%lu\n", __FUNCTION__, pInterface, pvBuf, cb));
@@ -371,12 +369,11 @@ static DECLCALLBACK(int) devINIPNetworkDown_Input(PPDMINETWORKDOWN pInterface, c
             cb -= RT_MIN(cb, q->len);
         }
 
-        ethhdr = (const struct eth_hdr *)p->payload;
         struct netif *iface = &g_pDevINIPData->IntNetIF;
 
         /* We've setup flags NETIF_FLAG_ETHARP and NETIF_FLAG_ETHERNET
           so this should be thread-safe. */
-        tcpip_input(p,iface);
+        iface->input(p, iface);
     }
 
     LogFlow(("%s: return %Rrc\n", __FUNCTION__, VINF_SUCCESS));
@@ -411,8 +408,8 @@ static DECLCALLBACK(void) devINIPTcpipInitDone(void *arg)
         PDMDEV_SET_ERROR(pThis->pDevIns, pThis->rcInitialization, N_("Configuration error: Invalid \"IP\" value"));
         return;
     }
-    struct ip_addr ipaddr;
-    memcpy(&ipaddr, &ip, sizeof(ipaddr));
+    struct ip4_addr ipaddr;
+    inet_addr_to_ip4addr(&ipaddr, &ip);
 
     if (!inet_aton(pThis->pszNetmask, &ip))
     {
@@ -420,8 +417,8 @@ static DECLCALLBACK(void) devINIPTcpipInitDone(void *arg)
         PDMDEV_SET_ERROR(pThis->pDevIns, pThis->rcInitialization, N_("Configuration error: Invalid \"Netmask\" value"));
         return;
     }
-    struct ip_addr netmask;
-    memcpy(&netmask, &ip, sizeof(netmask));
+    struct ip4_addr netmask;
+    inet_addr_to_ip4addr(&netmask, &ip);
 
     if (pThis->pszGateway)
     {
@@ -434,8 +431,8 @@ static DECLCALLBACK(void) devINIPTcpipInitDone(void *arg)
     }
     else
         inet_aton(pThis->pszIP, &ip);
-    struct ip_addr gw;
-    memcpy(&gw, &ip, sizeof(gw));
+    struct ip4_addr gw;
+    inet_addr_to_ip4addr(&gw, &ip);
 
     pThis->IntNetIF.name[0] = 'I';
     pThis->IntNetIF.name[1] = 'N';
@@ -451,6 +448,7 @@ static DECLCALLBACK(void) devINIPTcpipInitDone(void *arg)
 
     lwip_netif_set_default(&pThis->IntNetIF);
     lwip_netif_set_up(&pThis->IntNetIF);
+    netif_set_link_up(&pThis->IntNetIF);
 }
 
 

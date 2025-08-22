@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2018-2024 Oracle and/or its affiliates.
+# Copyright (C) 2018-2025 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -108,6 +108,7 @@ endif
 #
 VBoxGL-x86_EXTENDS      = VBoxGL
 VBoxGL-x86_BLD_TRG_ARCH = x86
+VBoxGL-x86_DEFS         = $(VBoxGL_DEFS) VBOX_WOW64
 VBoxGL-x86_LIBS         = \
 	$(VBOX_PATH_ADDITIONS_LIB)/VBoxWddmUmHlp-x86$(VBOX_SUFF_LIB) \
 	$(VBOX_PATH_ADDITIONS_LIB)/VBoxMesaGalliumAuxLib-x86$(VBOX_SUFF_LIB) \
@@ -119,7 +120,6 @@ if $(VBOX_MESA_V_MAJOR) >= 24
  	$(VBOX_PATH_ADDITIONS_LIB)/VBoxMesaSVGAWinsysLib-x86$(VBOX_SUFF_LIB) \
  	$(VBOX_PATH_ADDITIONS_LIB)/VBoxMesaSVGALib-x86$(VBOX_SUFF_LIB)
 endif
-VBoxGL-x86_DEFS         = $(VBoxGL_DEFS) VBOX_WOW64
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

@@ -1033,6 +1033,20 @@ InitializeCpu (
                   );
   ASSERT_EFI_ERROR (Status);
 
+#ifdef VBOX
+  /** @todo r=aeichner
+   *      Exposing the EFI_MEMORY_ATTRIBUTE protocol (added with commit efaa102) breaks Fedora Rawhide guests at least.
+   *      They use a buggy grub which gets the NX things wrong and causes a pagefault in the Linux kernel EFI stub later on,
+   *      see github.com/tianocore/edk2/pull/10667 . This is similar to what we already do in the UEFI for ARM package in
+   *      ArmPkg/Drivers/CpuDxe/CpuDxe.c
+   */
+#else
+  //
+  // Install EFI memory attribute Protocol
+  //
+  InstallEfiMemoryAttributeProtocol (mCpuHandle);
+#endif
+
   //
   // Refresh GCD memory space map according to MTRR value.
   //

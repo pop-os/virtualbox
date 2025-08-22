@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -64,7 +64,7 @@ struct USBFilterData
  * Initialize data members.
  */
 USBProxyService::USBProxyService(Host *aHost)
-    : mHost(aHost), mDevices(), mBackends()
+    : mHost(aHost), mDevices(), mBackends(), mLastError(VINF_SUCCESS)
 {
     LogFlowThisFunc(("aHost=%p\n", aHost));
 }

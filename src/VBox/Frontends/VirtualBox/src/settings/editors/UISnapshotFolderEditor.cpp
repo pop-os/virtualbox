@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -90,10 +90,9 @@ void UISnapshotFolderEditor::setMinimumLayoutIndent(int iIndent)
 void UISnapshotFolderEditor::sltRetranslateUI()
 {
     if (m_pLabel)
-        m_pLabel->setText(tr("S&napshot Folder:"));
+        m_pLabel->setText(tr("S&napshot Folder"));
     if (m_pSelector)
-        m_pSelector->setToolTip(tr("Holds the path where snapshots of this virtual machine will be stored. "
-                                   "Be aware that snapshots can take quite a lot of storage space."));
+        m_pSelector->setToolTip(tr("Folder where snapshots of this VM are saved"));
 }
 
 void UISnapshotFolderEditor::prepare()

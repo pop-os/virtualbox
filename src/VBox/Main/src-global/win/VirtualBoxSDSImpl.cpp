@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2015-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -86,11 +86,14 @@ public:
     RTPROCESS                       m_pidTheChosenOne;
     /** The tick count when the process in Windows session 0 started */
     uint32_t                        m_tickTheChosenOne;
+#ifdef WITH_WATCHER
     /** The current watcher thread index, UINT32_MAX if not watched. */
     uint32_t                        m_iWatcher;
     /** The chosen one revision number.
      * This is used to detect races while waiting for a full watcher queue.  */
     uint32_t volatile               m_iTheChosenOneRevision;
+#endif
+
 private:
     /** Reference count to make destruction safe wrt hung callers.
      * (References are retain while holding the map lock in some form, but

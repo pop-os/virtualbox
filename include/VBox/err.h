@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -59,6 +59,8 @@
 #define VERR_DONT_PANIC                     (-1001)
 /** Unsupported CPU. */
 #define VERR_UNSUPPORTED_CPU                (-1002)
+/** Unsupported CPU. */
+#define VWRN_UNSUPPORTED_CPU                (1002)
 /** Unsupported CPU mode. */
 #define VERR_UNSUPPORTED_CPU_MODE           (-1003)
 /** Page not present. */
@@ -728,6 +730,12 @@
 #define VERR_CPUM_INVALID_HWVIRT_CONFIG         (-1767)
 /** Invalid nested hardware virtualization feature combination. */
 #define VERR_CPUM_INVALID_HWVIRT_FEAT_COMBO     (-1768)
+/** CPU microarch lookup matched by name. */
+#define VINF_CPUM_MATCHED_BY_NAME               (1769)
+/** Unsupported CPU ID register. */
+#define VERR_CPUM_UNSUPPORTED_ID_REGISTER       (-1770)
+/** Unsupported CPU ID register value. */
+#define VERR_CPUM_UNSUPPORTED_ID_REG_VALUE      (-1771)
 /** @} */
 
 
@@ -1293,6 +1301,8 @@
 #define VERR_VMM_CONTEXT_HOOK_STILL_ENABLED (-2719)
 /** Cannot block in ring-0. */
 #define VERR_VMM_CANNOT_BLOCK               (-2720)
+/** The ring-0 function is not supported for this VM target.   */
+#define VERR_VMM_FN_NOT_SUPPORTED_FOR_VMTARGET      (-2721)
 /** @} */
 
 
@@ -2134,6 +2144,14 @@
 #define VINF_GVM_NOT_BUSY_IN_GC                     3902
 /** RTThreadYield was called during a GVMMR0SchedPoll call. */
 #define VINF_GVM_YIELDED                            3903
+/** Mismatching VM structure size between VMMR0 and VBoxVMM. */
+#define VERR_GVM_MISMATCH_VM_SIZE                   (-3904)
+/** Mismatching VMCPU structure size between VMMR0 and VBoxVMM. */
+#define VERR_GVM_MISMATCH_VMCPU_SIZE                (-3905)
+/** Mismatching VM structure version between VMMR0 and VBoxVMM. */
+#define VERR_GVM_MISMATCH_VM_STRUCT_VER             (-3906)
+/** Mismatching SVN revision number between VMMR0 and VBoxVMM. */
+#define VERR_GVM_MISMATCH_SVN_REV                   (-3907)
 /** @} */
 
 

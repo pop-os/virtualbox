@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2018-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -38,10 +38,10 @@
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/vmapi.h>
 #ifdef RT_OS_WINDOWS
-#include <iprt/nt/hyperv.h>
-#include <iprt/critsect.h>
-#elif defined(RT_OS_DARWIN)
-# if defined(VBOX_VMM_TARGET_ARMV8)
+# include <iprt/nt/hyperv.h>
+# include <iprt/critsect.h>
+#elif defined(RT_OS_DARWIN) && defined(VBOX_WITH_NATIVE_NEM)
+# ifdef VBOX_VMM_TARGET_ARMV8
 #  include <Hypervisor/Hypervisor.h>
 # else
 #  include "VMXInternal.h"
@@ -110,8 +110,8 @@ typedef struct NEMWINIOCTL
 #endif /* RT_OS_WINDOWS */
 
 
-#ifdef RT_OS_DARWIN
-# if !defined(VBOX_VMM_TARGET_ARMV8)
+#if defined(RT_OS_DARWIN) && defined(VBOX_WITH_NATIVE_NEM)
+# ifndef VBOX_VMM_TARGET_ARMV8
 /** vCPU ID declaration to avoid dragging in HV headers here. */
 typedef unsigned hv_vcpuid_t;
 /** The HV VM memory space ID (ASID). */
@@ -127,20 +127,19 @@ typedef unsigned hv_vm_space_t;
 # define NEM_DARWIN_PAGE_STATE_RWX         3
 /** @} */
 
-# if defined(VBOX_VMM_TARGET_ARMV8)
 /** The CPUMCTX_EXTRN_XXX mask for IEM. */
-#  define NEM_DARWIN_CPUMCTX_EXTRN_MASK_FOR_IEM      (  IEM_CPUMCTX_EXTRN_MUST_MASK )
+# ifdef VBOX_VMM_TARGET_ARMV8
+#  define NEM_DARWIN_CPUMCTX_EXTRN_MASK_FOR_IEM     (  IEM_CPUMCTX_EXTRN_MUST_MASK )
 # else
-/** The CPUMCTX_EXTRN_XXX mask for IEM. */
-#  define NEM_DARWIN_CPUMCTX_EXTRN_MASK_FOR_IEM      (  IEM_CPUMCTX_EXTRN_MUST_MASK | CPUMCTX_EXTRN_INHIBIT_INT \
-                                                      | CPUMCTX_EXTRN_INHIBIT_NMI )
-#endif
+#  define NEM_DARWIN_CPUMCTX_EXTRN_MASK_FOR_IEM     (  IEM_CPUMCTX_EXTRN_MUST_MASK \
+                                                     | CPUMCTX_EXTRN_INHIBIT_INT | CPUMCTX_EXTRN_INHIBIT_NMI )
+# endif
 
 /** The CPUMCTX_EXTRN_XXX mask for IEM when raising exceptions. */
 # define NEM_DARWIN_CPUMCTX_EXTRN_MASK_FOR_IEM_XCPT (IEM_CPUMCTX_EXTRN_XCPT_MASK | NEM_DARWIN_CPUMCTX_EXTRN_MASK_FOR_IEM)
 
 
-# if defined(VBOX_VMM_TARGET_ARMV8)
+# ifdef VBOX_VMM_TARGET_ARMV8
 /**
  * MMIO2 tracking region.
  */
@@ -220,7 +219,7 @@ typedef struct NEM
      *  us to use the debug execution loop. */
     bool                        fUseDebugLoop;
 
-#if defined(VBOX_VMM_TARGET_ARMV8)
+#ifdef VBOX_VMM_TARGET_ARMV8
     /** The PPI interrupt number of the vTimer. */
     uint32_t                    u32GicPpiVTimer;
 #endif
@@ -251,12 +250,12 @@ typedef struct NEM
 #elif defined(RT_OS_WINDOWS)
     /** Set if we've created the EMTs. */
     bool                        fCreatedEmts : 1;
-# if defined(VBOX_VMM_TARGET_ARMV8)
+# ifdef VBOX_VMM_TARGET_ARMV8
     bool                        fHypercallExit : 1;
     bool                        fGpaAccessFaultExit : 1;
     /** Cache line flush size as a power of two. */
     uint8_t                     cPhysicalAddressWidth;
-# else
+# elif defined(VBOX_VMM_TARGET_X86)
     /** WHvRunVpExitReasonX64Cpuid is supported. */
     bool                        fExtendedMsrExit : 1;
     /** WHvRunVpExitReasonX64MsrAccess is supported. */
@@ -267,6 +266,8 @@ typedef struct NEM
     bool                        fSpeculationControl : 1;
     /** Whether to export/import IA32_SPEC_CTRL. */
     bool                        fDoIa32SpecCtrl : 1;
+    /** WHvX64LocalApicEmulationModeXApic is used. */
+    bool                        fLocalApicEmulation : 1;
     /** Flag whether XSAVE/XRSTOR are supported. */
     bool                        fXsaveSupported: 1;
     /** Flag whether the compacting form of XSAVE is used. */
@@ -290,7 +291,7 @@ typedef struct NEM
         /** 64-bit view. */
         uint64_t                u64;
 # ifdef _WINHVAPIDEFS_H_
-        /** Interpreed features. */
+        /** Interpreted features. */
         WHV_PROCESSOR_FEATURES  u;
 # endif
     } uCpuFeatures;
@@ -325,26 +326,37 @@ typedef struct NEM
         uint64_t                cPagesInUse;
     } R0Stats;
 
-#elif defined(RT_OS_DARWIN)
+# ifdef VBOX_VMM_TARGET_ARMV8
+    /** Re-distributor memory region for all vCPUs. */
+    RTGCPHYS                    GCPhysMmioBaseReDist;
+    /** Number of breakpoints supported (for syncing registers). */
+    uint32_t                    cBreakpoints;
+    /** Number of watchpoints supported (for syncing registers). */
+    uint32_t                    cWatchpoints;
+# endif
+
+#elif defined(RT_OS_DARWIN) && defined(VBOX_WITH_NATIVE_NEM)
     /** Set if we've created the EMTs. */
     bool                        fCreatedEmts : 1;
     /** Set if hv_vm_create() was called successfully. */
     bool                        fCreatedVm   : 1;
     /** Set if EL2 is enabled. */
     bool                        fEl2Enabled  : 1;
-# if defined(VBOX_VMM_TARGET_ARMV8)
+    /** Set if we are running at least on macOS Sequioa 15.0. */
+    bool                        fMacOsSequia : 1;
+# ifdef VBOX_VMM_TARGET_ARMV8
     /** @name vTimer related state.
      * @{ */
     /** The counter frequency in Hz as obtained from CNTFRQ_EL0. */
     uint64_t                    u64CntFrqHz;
     /** The vTimer offset programmed. */
     uint64_t                    u64VTimerOff;
+    /** @} */
     /** Dirty tracking slots. */
     NEMHVMMIO2REGION            aMmio2DirtyTracking[8];
     /** The vCPU config. */
     hv_vcpu_config_t            hVCpuCfg;
-    /** @} */
-# else
+# elif defined(VBOX_VMM_TARGET_X86)
     /** Set if hv_vm_space_create() was called successfully. */
     bool                        fCreatedAsid : 1;
     /** Set if Last Branch Record (LBR) is enabled. */
@@ -381,13 +393,13 @@ typedef struct NEM
     uint32_t                    idLbrInfoMsrFirst;
     /** The last valid host LBR info stack range. */
     uint32_t                    idLbrInfoMsrLast;
-# endif
+# endif /* VBOX_VMM_TARGET_X86 */
 
     STAMCOUNTER                 StatMapPage;
     STAMCOUNTER                 StatUnmapPage;
     STAMCOUNTER                 StatMapPageFailed;
     STAMCOUNTER                 StatUnmapPageFailed;
-#endif /* RT_OS_WINDOWS */
+#endif /* RT_OS_DARWIN && VBOX_WITH_NATIVE_NEM */
 } NEM;
 /** Pointer to NEM VM instance data. */
 typedef NEM *PNEM;
@@ -446,17 +458,17 @@ typedef struct NEMCPU
     int32_t                     fdVCpu;
     /** Pointer to the KVM_RUN data exchange region. */
     R3PTRTYPE(struct kvm_run *) pRun;
-# if defined(VBOX_VMM_TARGET_ARMV8)
+# ifdef VBOX_VMM_TARGET_ARMV8
     /** The IRQ device levels from device_irq_level. */
     uint64_t                    fIrqDeviceLvls;
     /** Status of the IRQ line when last seen. */
     bool                        fIrqLastSeen;
     /** Status of the FIQ line when last seen. */
     bool                        fFiqLastSeen;
-# else
+# elif defined(VBOX_VMM_TARGET_X86)
     /** The MSR_IA32_APICBASE value known to KVM. */
     uint64_t                    uKvmApicBase;
-#endif
+# endif
 
     /** @name Statistics
      * @{ */
@@ -505,17 +517,19 @@ typedef struct NEMCPU
 
 
 #elif defined(RT_OS_WINDOWS)
-# ifdef VBOX_VMM_TARGET_ARMV8
-    /** Flag whether the ID registers were synced to the guest context
-     * (for first guest exec call on the EMT after loading the saved state). */
-    bool                        fIdRegsSynced;
-# else
+# ifdef VBOX_VMM_TARGET_X86
     /** The current state of the interrupt windows (NEM_WIN_INTW_F_XXX). */
     uint8_t                     fCurrentInterruptWindows;
     /** The desired state of the interrupt windows (NEM_WIN_INTW_F_XXX). */
     uint8_t                     fDesiredInterruptWindows;
+    /** Cached TPR value. */
+    uint8_t                     bTpr;
     /** Last copy of HV_X64_VP_EXECUTION_STATE::InterruptShadow. */
     bool                        fLastInterruptShadow : 1;
+    /** Flag whether the IRQ window notification was registered (for injecting PIC interrupts). */
+    bool                        fIrqWindowRegistered: 1;
+    /** Flag whether it is possible inject a PIC interrupt. */
+    bool                        fPicReadyForInterrupt: 1;
     uint32_t                    uPadding;
     /** The VID_MSHAGN_F_XXX flags.
      * Either VID_MSHAGN_F_HANDLE_MESSAGE | VID_MSHAGN_F_GET_NEXT_MESSAGE or zero. */
@@ -524,6 +538,9 @@ typedef struct NEMCPU
     RTR3PTR                     pvMsgSlotMapping;
     /** The windows thread handle. */
     RTR3PTR                     hNativeThreadHandle;
+# elif defined(VBOX_VMM_TARGET_ARMV8)
+    /** Flag whether syncing the CNTV_CTL_EL0/CNTV_CVAL_EL0 registers to Hyper-V is required. */
+    bool                        fSyncCntvRegs;
 # endif
 
     /** @name Statistics
@@ -560,22 +577,20 @@ typedef struct NEMCPU
     STAMCOUNTER                 StatQueryCpuTick;
     /** @} */
 
-#elif defined(RT_OS_DARWIN)
-# if defined(VBOX_VMM_TARGET_ARMV8)
+#elif defined(RT_OS_DARWIN) && defined(VBOX_WITH_NATIVE_NEM)
+# ifdef VBOX_VMM_TARGET_ARMV8
     /** The vCPU handle associated with the EMT executing this vCPU. */
     hv_vcpu_t                   hVCpu;
     /** Pointer to the exit information structure. */
-    hv_vcpu_exit_t              *pHvExit;
+    hv_vcpu_exit_t             *pHvExit;
     /** Flag whether an event is pending. */
     bool                        fEventPending;
     /** Flag whether the vTimer got activated and is masked. */
     bool                        fVTimerActivated;
     /** Flag whether to update the vTimer offset. */
     bool                        fVTimerOffUpdate;
-    /** Flag whether the ID registers were synced to the guest context
-     * (for first guest exec call on the EMT after loading the saved state). */
-    bool                        fIdRegsSynced;
-# else
+
+# elif defined(VBOX_VMM_TARGET_X86)
     /** The vCPU handle associated with the EMT executing this vCPU. */
     hv_vcpuid_t                 hVCpuId;
 
@@ -646,7 +661,7 @@ typedef struct NEMCPU
     X86PDPE                     aPdpes[4];
     /** Pointer to the VMX statistics. */
     PVMXSTATISTICS              pVmxStats;
-# endif
+# endif /* VBOX_VMM_TARGET_X86 */
 
     /** @name Statistics
      * @{ */
@@ -659,14 +674,14 @@ typedef struct NEMCPU
     STAMCOUNTER                 StatImportOnReturn;
     STAMCOUNTER                 StatImportOnReturnSkipped;
     STAMCOUNTER                 StatQueryCpuTick;
-#ifdef VBOX_WITH_STATISTICS
+# ifdef VBOX_WITH_STATISTICS
     STAMPROFILEADV              StatProfGstStateImport;
     STAMPROFILEADV              StatProfGstStateExport;
-#endif
+# endif
     /** @} */
 
     /** @} */
-#endif /* RT_OS_DARWIN */
+#endif /* RT_OS_DARWIN && VBOX_WITH_NATIVE_NEM */
 } NEMCPU;
 /** Pointer to NEM VMCPU instance data. */
 typedef NEMCPU *PNEMCPU;
@@ -718,15 +733,62 @@ typedef struct NEMR0PERVM
 
 int     nemR3DisableCpuIsaExt(PVM pVM, const char *pszIsaExt);
 
-int     nemR3NativeInit(PVM pVM, bool fFallback, bool fForced);
-int     nemR3NativeInitAfterCPUM(PVM pVM);
-int     nemR3NativeInitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
-int     nemR3NativeTerm(PVM pVM);
-void    nemR3NativeReset(PVM pVM);
-void    nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi);
-VBOXSTRICTRC    nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu);
-bool            nemR3NativeCanExecuteGuest(PVM pVM, PVMCPU pVCpu);
-bool            nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable);
+/**
+ * Try initialize the native API.
+ *
+ * This may only do part of the job, more can be done in
+ * nemR3NativeInitAfterCPUM() and nemR3NativeInitCompleted().
+ *
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
+ * @param   fFallback       Whether we're in fallback mode or use-NEM mode. In
+ *                          the latter we'll fail if we cannot initialize.
+ * @param   fForced         Whether the HMForced flag is set and we should
+ *                          fail if we cannot initialize.
+ */
+DECLHIDDEN(int)     nemR3NativeInit(PVM pVM, bool fFallback, bool fForced);
+
+/**
+ * This is called after CPUMR3Init is done.
+ *
+ * @returns VBox status code.
+ * @param   pVM                 The VM handle..
+ */
+DECLHIDDEN(int)     nemR3NativeInitAfterCPUM(PVM pVM);
+
+/*
+ * Called at ring-3 init phase compltion when NEM is the main execution engine.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The cross context VM structure.
+ */
+DECLHIDDEN(int)     nemR3NativeInitCompletedRing3(PVM pVM);
+
+/**
+ * Called to clean up the native NEM state on VM termination when NEM is the
+ * main execution engine.
+ */
+DECLHIDDEN(int)     nemR3NativeTerm(PVM pVM);
+
+/**
+ * VM reset notification (when NEM is the main execution engine).
+ */
+DECLHIDDEN(void)    nemR3NativeReset(PVM pVM);
+
+/**
+ * Reset CPU due to INIT IPI or hot (un)plugging (when NEM is the main execution
+ * engine).
+ *
+ * @param   pVCpu       The cross context virtual CPU structure of the CPU being
+ *                      reset.
+ * @param   fInitIpi    Whether this is the INIT IPI or hot (un)plugging case.
+ */
+DECLHIDDEN(void)    nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi);
+
+/**
+ * Called by NEMR3SetSingleInstruction to do the work.
+ */
+DECLHIDDEN(bool)    nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable);
 
 /**
  * Forced flag notification call from VMEmt.h.
@@ -738,7 +800,7 @@ bool            nemR3NativeSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEna
  *                          to be notified.
  * @param   fFlags          Notification flags, VMNOTIFYFF_FLAGS_XXX.
  */
-void            nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags);
+DECLHIDDEN(void)    nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags);
 
 /**
  * Called by NEMR3NotifyDebugEventChanged() to let the native backend take the final decision
@@ -749,7 +811,7 @@ void            nemR3NativeNotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags);
  * @param   fUseDebugLoop   The current value determined by NEMR3NotifyDebugEventChanged().
  * @thread  EMT(0)
  */
-DECLHIDDEN(bool) nemR3NativeNotifyDebugEventChanged(PVM pVM, bool fUseDebugLoop);
+DECLHIDDEN(bool)    nemR3NativeNotifyDebugEventChanged(PVM pVM, bool fUseDebugLoop);
 
 
 /**
@@ -761,15 +823,18 @@ DECLHIDDEN(bool) nemR3NativeNotifyDebugEventChanged(PVM pVM, bool fUseDebugLoop)
  * @param   pVCpu           The cross context virtual CPU structure of the calling EMT.
  * @param   fUseDebugLoop   The current value determined by NEMR3NotifyDebugEventChangedPerCpu().
  */
-DECLHIDDEN(bool) nemR3NativeNotifyDebugEventChangedPerCpu(PVM pVM, PVMCPU pVCpu, bool fUseDebugLoop);
+DECLHIDDEN(bool)    nemR3NativeNotifyDebugEventChangedPerCpu(PVM pVM, PVMCPU pVCpu, bool fUseDebugLoop);
 
 #endif /* IN_RING3 */
 
-void    nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb);
-void    nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
-                                               RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM);
-int     nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
-                                           PGMPAGETYPE enmType, uint8_t *pu2State);
+/** All stubs. */
+DECLHIDDEN(void)    nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb);
+/** All stubs. */
+DECLHIDDEN(void)    nemHCNativeNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
+                                                           RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM);
+/** All but darwin.amd64 are stubs. */
+DECLHIDDEN(int)     nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+                                                       PGMPAGETYPE enmType, uint8_t *pu2State);
 
 
 #ifdef RT_OS_WINDOWS

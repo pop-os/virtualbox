@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -64,20 +64,9 @@ RT_C_DECLS_BEGIN
 # define IEM_STATIC static
 #endif
 
-/** @def IEM_WITH_SETJMP
- * Enables alternative status code handling using setjmps.
- *
- * This adds a bit of expense via the setjmp() call since it saves all the
- * non-volatile registers.  However, it eliminates return code checks and allows
- * for more optimal return value passing (return regs instead of stack buffer).
- */
-#if defined(DOXYGEN_RUNNING) || defined(RT_OS_WINDOWS) || 1
-# define IEM_WITH_SETJMP
-#endif
-
 /** @def IEM_WITH_THROW_CATCH
  * Enables using C++ throw/catch as an alternative to setjmp/longjmp in user
- * mode code when IEM_WITH_SETJMP is in effect.
+ * mode code.
  *
  * With GCC 11.3.1 and code TLB on linux, using throw/catch instead of
  * setjmp/long resulted in bs2-test-1 running 3.00% faster and all but on test
@@ -88,7 +77,7 @@ RT_C_DECLS_BEGIN
  * the MMIO and CPUID tests ran noticeably faster. Variation is greater than on
  * Linux, but it should be quite a bit faster for normal code.
  */
-#if defined(__cplusplus) && defined(IEM_WITH_SETJMP) && defined(IN_RING3) && (defined(__GNUC__) || defined(_MSC_VER)) /* ASM-NOINC-START */
+#if defined(__cplusplus) && defined(IN_RING3) && (defined(__GNUC__) || defined(_MSC_VER)) /* ASM-NOINC-START */
 # define IEM_WITH_THROW_CATCH
 #endif /*ASM-NOINC-END*/
 
@@ -182,20 +171,18 @@ RT_C_DECLS_BEGIN
  * @param   a_pVCpu     The CPU handle.
  * @param   a_rc        The status code jump back with / throw.
  */
-#if defined(IEM_WITH_SETJMP) || defined(DOXYGEN_RUNNING)
-# ifdef IEM_WITH_THROW_CATCH
-#  ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER_LONGJMP
-#   define IEM_DO_LONGJMP(a_pVCpu, a_rc) do { \
+#ifdef IEM_WITH_THROW_CATCH
+# ifdef VBOX_WITH_IEM_NATIVE_RECOMPILER_LONGJMP
+#  define IEM_DO_LONGJMP(a_pVCpu, a_rc) do { \
             if ((a_pVCpu)->iem.s.pvTbFramePointerR3) \
                 iemNativeTbLongJmp((a_pVCpu)->iem.s.pvTbFramePointerR3, (a_rc)); \
             throw int(a_rc); \
         } while (0)
-#  else
-#   define IEM_DO_LONGJMP(a_pVCpu, a_rc) throw int(a_rc)
-#  endif
 # else
-#  define IEM_DO_LONGJMP(a_pVCpu, a_rc)  longjmp(*(a_pVCpu)->iem.s.CTX_SUFF(pJmpBuf), (a_rc))
+#  define IEM_DO_LONGJMP(a_pVCpu, a_rc) throw int(a_rc)
 # endif
+#else
+# define IEM_DO_LONGJMP(a_pVCpu, a_rc)  longjmp(*(a_pVCpu)->iem.s.CTX_SUFF(pJmpBuf), (a_rc))
 #endif
 
 /** For use with IEM function that may do a longjmp (when enabled).
@@ -228,12 +215,53 @@ RT_C_DECLS_BEGIN
  *
  * @see https://developercommunity.visualstudio.com/t/fragile-behavior-of-longjmp-called-from-noexcept-f/1532859
  */
-#if defined(IEM_WITH_SETJMP) && (defined(_MSC_VER) || defined(IEM_WITH_THROW_CATCH))
-# define IEM_NOEXCEPT_MAY_LONGJMP   RT_NOEXCEPT_EX(false)
+#if defined(_MSC_VER) || defined(IEM_WITH_THROW_CATCH)
+# define IEM_NOEXCEPT_MAY_LONGJMP           RT_NOEXCEPT_EX(false)
+# if RT_CPLUSPLUS_PREREQ(201700)
+#  define IEM_NOEXCEPT_MAY_LONGJMP_TYPEDEF  RT_NOEXCEPT_EX(false)
+# else
+#  define IEM_NOEXCEPT_MAY_LONGJMP_TYPEDEF
+# endif
 #else
-# define IEM_NOEXCEPT_MAY_LONGJMP   RT_NOEXCEPT
+# define IEM_NOEXCEPT_MAY_LONGJMP           RT_NOEXCEPT
+# if RT_CPLUSPLUS_PREREQ(201700)
+#  define IEM_NOEXCEPT_MAY_LONGJMP_TYPEDEF  RT_NOEXCEPT
+# else
+#  define IEM_NOEXCEPT_MAY_LONGJMP_TYPEDEF
+# endif
 #endif
 /* ASM-NOINC-END */
+
+
+//#define IEM_WITH_CODE_TLB // - work in progress
+//#define IEM_WITH_DATA_TLB // - work in progress
+
+
+/** @def IEM_USE_UNALIGNED_DATA_ACCESS
+ * Use unaligned accesses instead of elaborate byte assembly. */
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(DOXYGEN_RUNNING)  /*ASM-NOINC*/
+# define IEM_USE_UNALIGNED_DATA_ACCESS
+#endif                                                                          /*ASM-NOINC*/
+
+//#define IEM_LOG_MEMORY_WRITES
+
+
+/** @def IEM_CFG_TARGET_CPU
+ * The minimum target CPU for the IEM emulation (IEMTARGETCPU_XXX value).
+ *
+ * By default we allow this to be configured by the user via the
+ * CPUM/GuestCpuName config string, but this comes at a slight cost during
+ * decoding.  So, for applications of this code where there is no need to
+ * be dynamic wrt target CPU, just modify this define.
+ */
+#if !defined(IEM_CFG_TARGET_CPU) || defined(DOXYGEN_RUNNING)
+# define IEM_CFG_TARGET_CPU     IEMTARGETCPU_DYNAMIC
+#endif
+
+
+/*
+ * X86 config.
+ */
 
 #define IEM_IMPLEMENTS_TASKSWITCH
 
@@ -268,31 +296,6 @@ RT_C_DECLS_BEGIN
 #  define IEM_WITH_VEX
 # endif
 #endif
-
-/** @def IEM_CFG_TARGET_CPU
- * The minimum target CPU for the IEM emulation (IEMTARGETCPU_XXX value).
- *
- * By default we allow this to be configured by the user via the
- * CPUM/GuestCpuName config string, but this comes at a slight cost during
- * decoding.  So, for applications of this code where there is no need to
- * be dynamic wrt target CPU, just modify this define.
- */
-#if !defined(IEM_CFG_TARGET_CPU) || defined(DOXYGEN_RUNNING)
-# define IEM_CFG_TARGET_CPU     IEMTARGETCPU_DYNAMIC
-#endif
-
-//#define IEM_WITH_CODE_TLB // - work in progress
-//#define IEM_WITH_DATA_TLB // - work in progress
-
-
-/** @def IEM_USE_UNALIGNED_DATA_ACCESS
- * Use unaligned accesses instead of elaborate byte assembly. */
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(DOXYGEN_RUNNING)  /*ASM-NOINC*/
-# define IEM_USE_UNALIGNED_DATA_ACCESS
-#endif                                                                          /*ASM-NOINC*/
-
-//#define IEM_LOG_MEMORY_WRITES
-
 
 
 #ifndef RT_IN_ASSEMBLER /* ASM-NOINC-START - the rest of the file */
@@ -368,74 +371,6 @@ typedef IEMINSTRSTATS *PIEMINSTRSTATS;
 
 
 /**
- * Branch types.
- */
-typedef enum IEMBRANCH
-{
-    IEMBRANCH_JUMP = 1,
-    IEMBRANCH_CALL,
-    IEMBRANCH_TRAP,
-    IEMBRANCH_SOFTWARE_INT,
-    IEMBRANCH_HARDWARE_INT
-} IEMBRANCH;
-AssertCompileSize(IEMBRANCH, 4);
-
-
-/**
- * INT instruction types.
- */
-typedef enum IEMINT
-{
-    /** INT n instruction (opcode 0xcd imm). */
-    IEMINT_INTN  = 0,
-    /** Single byte INT3 instruction (opcode 0xcc). */
-    IEMINT_INT3  = IEM_XCPT_FLAGS_BP_INSTR,
-    /** Single byte INTO instruction (opcode 0xce). */
-    IEMINT_INTO  = IEM_XCPT_FLAGS_OF_INSTR,
-    /** Single byte INT1 (ICEBP) instruction (opcode 0xf1). */
-    IEMINT_INT1 = IEM_XCPT_FLAGS_ICEBP_INSTR
-} IEMINT;
-AssertCompileSize(IEMINT, 4);
-
-
-/**
- * A FPU result.
- */
-typedef struct IEMFPURESULT
-{
-    /** The output value. */
-    RTFLOAT80U      r80Result;
-    /** The output status. */
-    uint16_t        FSW;
-} IEMFPURESULT;
-AssertCompileMemberOffset(IEMFPURESULT, FSW, 10);
-/** Pointer to a FPU result. */
-typedef IEMFPURESULT *PIEMFPURESULT;
-/** Pointer to a const FPU result. */
-typedef IEMFPURESULT const *PCIEMFPURESULT;
-
-
-/**
- * A FPU result consisting of two output values and FSW.
- */
-typedef struct IEMFPURESULTTWO
-{
-    /** The first output value. */
-    RTFLOAT80U      r80Result1;
-    /** The output status. */
-    uint16_t        FSW;
-    /** The second output value. */
-    RTFLOAT80U      r80Result2;
-} IEMFPURESULTTWO;
-AssertCompileMemberOffset(IEMFPURESULTTWO, FSW, 10);
-AssertCompileMemberOffset(IEMFPURESULTTWO, r80Result2, 12);
-/** Pointer to a FPU result consisting of two output values and FSW. */
-typedef IEMFPURESULTTWO *PIEMFPURESULTTWO;
-/** Pointer to a const FPU result consisting of two output values and FSW. */
-typedef IEMFPURESULTTWO const *PCIEMFPURESULTTWO;
-
-
-/**
  * IEM TLB entry.
  *
  * Lookup assembly:
@@ -500,10 +435,14 @@ typedef struct IEMTLBENTRY
      *          fFlagsAndPhysRev member then, 57 bit wide VAs means we'll only have
      *          19 bits left (64 - 57 + 12 = 19) and they'll almost entire be
      *          consumed by PCID and ASID (12 + 6 = 18).
+     *          Update: Put the PCID + ASID in fFlagsAndPhysRev; that doesn't solve
+     *          the 57-bit problem, though.
      */
     uint64_t                uTag;
     /** Access flags and physical TLB revision.
      *
+     * @x86
+     * @parblock
      * - Bit  0 - page tables   - not executable (X86_PTE_PAE_NX).
      * - Bit  1 - page tables   - not writable (complemented X86_PTE_RW).
      * - Bit  2 - page tables   - not user (complemented X86_PTE_US).
@@ -511,8 +450,11 @@ typedef struct IEMTLBENTRY
      * - Bit  4 - pgm phys page - not directly readable.
      * - Bit  5 - page tables   - not accessed (complemented X86_PTE_A).
      * - Bit  6 - page tables   - not dirty (complemented X86_PTE_D).
-     * - Bit  7 - tlb entry     - pMappingR3 member not valid.
-     * - Bits 63 thru 8 are used for the physical TLB revision number.
+     * - Bit  7 - page tables   - large page.
+     * - Bit  8 - tlb entry     - pMappingR3 member not valid.
+     * - Bit  9 - phys          - Unassigned memory.
+     * - Bit 10 - phys          - Code page.
+     * - Bits 63:11 - phys      - Physical TLB revision number.
      *
      * We're using complemented bit meanings here because it makes it easy to check
      * whether special action is required.  For instance a user mode write access
@@ -521,9 +463,59 @@ typedef struct IEMTLBENTRY
      * writable, or it wasn't user, or the page wasn't dirty.  A user mode read
      * access would do "TEST fFlags, X86_PTE_US"; and a kernel mode read wouldn't
      * need to check any PTE flag.
+     * @endparblock
+     *
+     * @arm
+     * @parblock
+     * update this:
+     * - Bit  0 - stage 1+2       - not unprivileged read accessible.
+     * - Bit  1 - stage 1+2       - not unprivileged write accessible.
+     * - Bit  2 - stage 1+2       - not unprivileged execute accessible.
+     * - Bit  3 - stage 1+2       - not unprivileged guarded control stack accessible.
+     * - Bit  4 - stage 1+2       - not privileged readable accessible.
+     * - Bit  5 - stage 1+2       - not privileged writable accessible.
+     * - Bit  6 - stage 1+2       - not privileged executable accessible.
+     * - Bit  7 - stage 1+2       - not privileged guarded control stack accessible.
+     * - Bit  8 - stage 2         - no limited write access (?).
+     * - Bit  9 - stage 2         - TopLevel0 (?)
+     * - Bit 10 - stage 2         - TopLevel1 (?)
+     * - Bit 11 - stage 1+2 leaf  - not dirty.
+     * - Bit 12 - stage 1+2 leaf  - alternate MECID (AMEC).
+     * - Bit 13 - pgm phys page   - not directly readable.
+     * - Bit 14 - pgm phys/virt   - not directly writable.
+     * - Bit 15 - tlb entry       - pMappingR3 member not valid.
+     * - Bit 16 - phys            - Unassigned memory.
+     * - Bit 17 - phys            - Code page.
+     * - Bit 18 - stage 1 leaf    - NS (not-secure).
+     * - Bit 19 - stage 1 leaf    - NSE (root).
+     * - Bit 20 - stage 1+2       - Device memory.
+     * - Bit 21 - stage 1         - Guarded page (FEAT_BTI).
+     * - Bit 22 - stage 1+2       - TODO: Page size (?).
+     * - Bits 37:22 - stage 1 reg - Address space ID (ASID).
+     * - Bits 53:38 - stage 2 reg - Virtual Machine ID (VMID).
+     * - Bits 63:54 - tlb entry   - physical TLB revision number.
+     *
+     * The ASIDs and VMIDs are kept with the physical TLB revision number, so
+     * there is no extra overhead there.  How the NSE:NS stuff will be handled
+     * is a question for later.
+     *
+     * The above is a preliminary sketch...
+     * @endparblock
+     *
+     * @todo arm64: Not sure if we can combine the stage 1 and 2 AMEC bits,
+     *       but hope so... Doubt we'll be needing this any time soon.
      */
     uint64_t                fFlagsAndPhysRev;
-    /** The guest physical page address. */
+    /** The guest physical page address.
+     * @todo ARM: We'll have to put more stuff here on ARM.  Anything that is
+     *       specific to TLB invalidation, like TTL, page size, etc.  The lower 12
+     *       bits are certainly unused.  Max address space size defined by the
+     *       current specification is 56 bits (AMD64: 52 bits IIRC), though I expect
+     *       implementations with this limit won't be seen for a long long time,
+     *       given that the M2&M3 only did 42 bits, Snapdragon X 44 bits and
+     *       Neoverse V3 is 48 bits.  So, assuming that we had 52 bits like on
+     *       AMD64, probably wouldn't cause trouble for a long while.  That would
+     *       yield us 24 bits in total if we need then.  */
     uint64_t                GCPhys;
     /** Pointer to the ring-3 mapping. */
     R3PTRTYPE(uint8_t *)    pbMappingR3;
@@ -539,25 +531,104 @@ typedef IEMTLBENTRY const *PCIEMTLBENTRY;
 
 /** @name IEMTLBE_F_XXX - TLB entry flags (IEMTLBENTRY::fFlagsAndPhysRev)
  * @{  */
-#define IEMTLBE_F_PT_NO_EXEC        RT_BIT_64(0)  /**< Page tables: Not executable. */
-#define IEMTLBE_F_PT_NO_WRITE       RT_BIT_64(1)  /**< Page tables: Not writable. */
-#define IEMTLBE_F_PT_NO_USER        RT_BIT_64(2)  /**< Page tables: Not user accessible (supervisor only). */
-#define IEMTLBE_F_PG_NO_WRITE       RT_BIT_64(3)  /**< Phys page:   Not writable (access handler, ROM, whatever). */
-#define IEMTLBE_F_PG_NO_READ        RT_BIT_64(4)  /**< Phys page:   Not readable (MMIO / access handler, ROM) */
-#define IEMTLBE_F_PT_NO_ACCESSED    RT_BIT_64(5)  /**< Phys tables: Not accessed (need to be marked accessed). */
-#define IEMTLBE_F_PT_NO_DIRTY       RT_BIT_64(6)  /**< Page tables: Not dirty (needs to be made dirty on write). */
-#define IEMTLBE_F_PT_LARGE_PAGE     RT_BIT_64(7)  /**< Page tables: Large 2 or 4 MiB page (for flushing). */
-#define IEMTLBE_F_NO_MAPPINGR3      RT_BIT_64(8)  /**< TLB entry:   The IEMTLBENTRY::pMappingR3 member is invalid. */
-#define IEMTLBE_F_PG_UNASSIGNED     RT_BIT_64(9)  /**< Phys page:   Unassigned memory (not RAM, ROM, MMIO2 or MMIO). */
-#define IEMTLBE_F_PG_CODE_PAGE      RT_BIT_64(10) /**< Phys page:   Code page. */
-#define IEMTLBE_F_PHYS_REV          UINT64_C(0xfffffffffffff800) /**< Physical revision mask. @sa IEMTLB_PHYS_REV_INCR */
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define IEMTLBE_F_PT_NO_EXEC       RT_BIT_64(0)  /**< Page tables: Not executable. */
+# define IEMTLBE_F_PT_NO_WRITE      RT_BIT_64(1)  /**< Page tables: Not writable. */
+# define IEMTLBE_F_PT_NO_USER       RT_BIT_64(2)  /**< Page tables: Not user accessible (supervisor only). */
+# define IEMTLBE_F_PG_NO_WRITE      RT_BIT_64(3)  /**< Phys page:   Not writable (access handler, ROM, whatever). */
+# define IEMTLBE_F_PG_NO_READ       RT_BIT_64(4)  /**< Phys page:   Not readable (MMIO / access handler, ROM) */
+# define IEMTLBE_F_PT_NO_ACCESSED   RT_BIT_64(5)  /**< Phys tables: Not accessed (need to be marked accessed). */
+# define IEMTLBE_F_PT_NO_DIRTY      RT_BIT_64(6)  /**< Page tables: Not dirty (needs to be made dirty on write). */
+# define IEMTLBE_F_PT_LARGE_PAGE    RT_BIT_64(7)  /**< Page tables: Large 2 or 4 MiB page (for flushing). */
+# define IEMTLBE_F_NO_MAPPINGR3     RT_BIT_64(8)  /**< TLB entry:   The IEMTLBENTRY::pMappingR3 member is invalid. */
+# define IEMTLBE_F_PG_UNASSIGNED    RT_BIT_64(9)  /**< Phys page:   Unassigned memory (not RAM, ROM, MMIO2 or MMIO). */
+# define IEMTLBE_F_PG_CODE_PAGE     RT_BIT_64(10) /**< Phys page:   Code page. */
+# define IEMTLBE_F_PHYS_REV         UINT64_C(0xfffffffffffff800) /**< Physical revision mask. @sa IEMTLB_PHYS_REV_INCR */
+#endif
+#if defined(VBOX_VMM_TARGET_ARMV8) || defined(DOXYGEN_RUNNING)
+/** Stage 1+2: No unprivileged read access. */
+# define IEMTLBE_F_EFF_P_NO_READ_BIT        0
+# define IEMTLBE_F_EFF_P_NO_READ            RT_BIT_64(IEMTLBE_F_EFF_P_NO_READ_BIT)
+/** Stage 1+2: No privileged write access. */
+# define IEMTLBE_F_EFF_P_NO_WRITE_BIT       1
+# define IEMTLBE_F_EFF_P_NO_WRITE           RT_BIT_64(IEMTLBE_F_EFF_P_NO_WRITE_BIT)
+/** Stage 1+2: No privileged execute access. */
+# define IEMTLBE_F_EFF_P_NO_EXEC_BIT        2
+# define IEMTLBE_F_EFF_P_NO_EXEC            RT_BIT_64(IEMTLBE_F_EFF_P_NO_EXEC_BIT)
+/** Stage 1+2: No privileged guard control stack access. */
+# define IEMTLBE_F_EFF_P_NO_GCS_BIT         3
+# define IEMTLBE_F_EFF_P_NO_GCS             RT_BIT_64(IEMTLBE_F_EFF_P_NO_GCS_BIT)
+/** Stage 1+2: No unprivileged read access. */
+# define IEMTLBE_F_EFF_U_NO_READ_BIT        4
+# define IEMTLBE_F_EFF_U_NO_READ            RT_BIT_64(IEMTLBE_F_EFF_U_NO_READ_BIT)
+/** Stage 1+2: No unprivileged write access. */
+# define IEMTLBE_F_EFF_U_NO_WRITE_BIT       5
+# define IEMTLBE_F_EFF_U_NO_WRITE           RT_BIT_64(IEMTLBE_F_EFF_U_NO_WRITE_BIT)
+/** Stage 1+2: No unprivileged execute access. */
+# define IEMTLBE_F_EFF_U_NO_EXEC_BIT        6
+# define IEMTLBE_F_EFF_U_NO_EXEC            RT_BIT_64(IEMTLBE_F_EFF_U_NO_EXEC_BIT)
+/** Stage 1+2: No unprivileged guard control stack access. */
+# define IEMTLBE_F_EFF_U_NO_GCS_BIT         7
+# define IEMTLBE_F_EFF_U_NO_GCS             RT_BIT_64(IEMTLBE_F_EFF_U_NO_GCS_BIT)
+/** Stage 1+2: Translation regime (IEM_ARM_REGIME_XXX). */
+# define IEMTLBE_F_REGIME_MASK              UINT64_C(0xf00)
+# define IEMTLBE_F_REGIME_SHIFT             8
+/** Stage 1+2: Not dirty. */
+# define IEMTLBE_F_EFF_NO_DIRTY_BIT         12
+# define IEMTLBE_F_EFF_NO_DIRTY             RT_BIT_64(IEMTLBE_F_EFF_NO_DIRTY_BIT)
+/** Stage 1+2: Alternative MECID. */
+# define IEMTLBE_F_EFF_AMEC_BIT             13
+# define IEMTLBE_F_EFF_AMEC                 RT_BIT_64(IEMTLBE_F_EFF_AMEC_BIT)
+/** Stage 1+2: Device memory type (clear if normal memory type). */
+# define IEMTLBE_F_EFF_DEVICE_BIT           14
+# define IEMTLBE_F_EFF_DEVICE               RT_BIT_64(IEMTLBE_F_EFF_DEVICE_BIT)
+/** Phys page: Not readable (MMIO / access handler, ROM) */
+# define IEMTLBE_F_PG_NO_READ_BIT           15
+# define IEMTLBE_F_PG_NO_READ               RT_BIT_64(IEMTLBE_F_PG_NO_READ_BIT)
+/** Phys page: Not writable (access handler, ROM, whatever). */
+# define IEMTLBE_F_PG_NO_WRITE_BIT          16
+# define IEMTLBE_F_PG_NO_WRITE              RT_BIT_64(IEMTLBE_F_PG_NO_WRITE_BIT)
+/** TLB entry: The IEMTLBENTRY::pMappingR3 member is invalid. */
+# define IEMTLBE_F_NO_MAPPINGR3_BIT         17
+# define IEMTLBE_F_NO_MAPPINGR3             RT_BIT_64(IEMTLBE_F_NO_MAPPINGR3_BIT)
+/** Phys page: Unassigned memory (not RAM, ROM, MMIO2 or MMIO). */
+# define IEMTLBE_F_PG_UNASSIGNED_BIT        18
+# define IEMTLBE_F_PG_UNASSIGNED            RT_BIT_64(IEMTLBE_F_PG_UNASSIGNED_BIT)
+/** Phys page: Code page. */
+# define IEMTLBE_F_PG_CODE_PAGE_BIT         19
+# define IEMTLBE_F_PG_CODE_PAGE             RT_BIT_64(IEMTLBE_F_PG_CODE_PAGE_BIT)
+/** Stage 1:   Guarded page - branch target identification (FEAT_BTI) related. */
+# define IEMTLBE_F_GP_BIT                   20
+# define IEMTLBE_F_GP                       RT_BIT_64(IEMTLBE_F_GP_BIT)
+/** Stage 1:   Not-global page - ignore ASID if clear. */
+# define IEMTLBE_F_NG_BIT                   21
+# define IEMTLBE_F_NG                       RT_BIT_64(IEMTLBE_F_NG_BIT)
+/** Stage 1:   Address space ID (from stage 1 root register). */
+# define IEMTLBE_F_S1_ASID                  (UINT64_C(0xffff) << IEMTLBE_F_S1_ASID_SHIFT)
+/** @see IEMTLBE_F_S1_ASID */
+# define IEMTLBE_F_S1_ASID_SHIFT            22
+/** Stage 2:   Virtual machine ID (from stage 2 root register). */
+# define IEMTLBE_F_S2_VMID                  (UINT64_C(0xffff) << IEMTLBE_F_S2_VMID_SHIFT)
+/** @see IEMTLBE_F_S2_VMID */
+# define IEMTLBE_F_S2_VMID_SHIFT            38
+# ifndef DOXYGEN_RUNNING
+/** Physical revision mask. @sa IEMTLB_PHYS_REV_INCR */
+#  define IEMTLBE_F_PHYS_REV                UINT64_C(0xffc0000000000000)
+# endif
+
+# if 0 /* We probably won't need these. Or if we do, put them in GCPhys? */
+/** Stage 2:   No limited write access. */
+# define IEMTLBE_F_S2_NO_LIM_WRITE_BIT      8
+# define IEMTLBE_F_S2_NO_LIM_WRITE          RT_BIT_64(IEMTLBE_F_S2_NO_LIM_WRITE_BIT)
+/** Stage 2:   TopLevel0. */
+# define IEMTLBE_F_S2_TL0_BIT               9
+# define IEMTLBE_F_S2_TL0                   RT_BIT_64(IEMTLBE_F_S2_TL0_BIT)
+/** Stage 2:   TopLevel1. */
+# define IEMTLBE_F_S2_TL1_BIT               10
+# define IEMTLBE_F_S2_TL1                   RT_BIT_64(IEMTLBE_F_S2_TL1_BIT)
+# endif
+#endif
 /** @} */
-AssertCompile(PGMIEMGCPHYS2PTR_F_NO_WRITE     == IEMTLBE_F_PG_NO_WRITE);
-AssertCompile(PGMIEMGCPHYS2PTR_F_NO_READ      == IEMTLBE_F_PG_NO_READ);
-AssertCompile(PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3 == IEMTLBE_F_NO_MAPPINGR3);
-AssertCompile(PGMIEMGCPHYS2PTR_F_UNASSIGNED   == IEMTLBE_F_PG_UNASSIGNED);
-AssertCompile(PGMIEMGCPHYS2PTR_F_CODE_PAGE    == IEMTLBE_F_PG_CODE_PAGE);
-AssertCompile(PGM_WALKINFO_BIG_PAGE           == IEMTLBE_F_PT_LARGE_PAGE);
 /** The bits set by PGMPhysIemGCPhys2PtrNoLock. */
 #define IEMTLBE_GCPHYS2PTR_MASK     (  PGMIEMGCPHYS2PTR_F_NO_WRITE \
                                      | PGMIEMGCPHYS2PTR_F_NO_READ \
@@ -565,27 +636,76 @@ AssertCompile(PGM_WALKINFO_BIG_PAGE           == IEMTLBE_F_PT_LARGE_PAGE);
                                      | PGMIEMGCPHYS2PTR_F_UNASSIGNED \
                                      | PGMIEMGCPHYS2PTR_F_CODE_PAGE \
                                      | IEMTLBE_F_PHYS_REV )
+#if defined(VBOX_VMM_TARGET_X86) || defined(VBOX_VMM_TARGET_ARMV8)
+AssertCompile(PGMIEMGCPHYS2PTR_F_NO_WRITE     == IEMTLBE_F_PG_NO_WRITE);
+AssertCompile(PGMIEMGCPHYS2PTR_F_NO_READ      == IEMTLBE_F_PG_NO_READ);
+AssertCompile(PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3 == IEMTLBE_F_NO_MAPPINGR3);
+AssertCompile(PGMIEMGCPHYS2PTR_F_UNASSIGNED   == IEMTLBE_F_PG_UNASSIGNED);
+AssertCompile(PGMIEMGCPHYS2PTR_F_CODE_PAGE    == IEMTLBE_F_PG_CODE_PAGE);
+# ifdef VBOX_VMM_TARGET_X86
+AssertCompile(PGM_WALKINFO_BIG_PAGE           == IEMTLBE_F_PT_LARGE_PAGE);
+# endif
+#endif
 
+/** @name IEMTLBE_GCPHYS_F_XXX - TLB entry GCPhys flags (IEMTLBENTRY::GCPhys)
+ * @{ */
+/** The physical address mask. */
+#define IEMTLBE_GCPHYS_F_PHYS_MASK          UINT64_C(0x000ffffffffff000)
+AssertCompile(((RT_BIT_64(52) - 1) & ~(uint64_t)GUEST_MIN_PAGE_OFFSET_MASK) == IEMTLBE_GCPHYS_F_PHYS_MASK);
+#if defined(VBOX_VMM_TARGET_ARMV8) || defined(DOXYGEN_RUNNING)
+/** ARM: The translation level (TTL).
+ * Required for abort codes and TLBI filtering (follows TLBI TTL[1:0] encoding). */
+# define IEMTLBE_GCPHYS_F_TTL_MASK          UINT64_C(0x0000000000000003)
+# define IEMTLBE_GCPHYS_F_TTL_SHIFT         UINT64_C(0x0000000000000000)
+# define IEMTLBE_GCPHYS_F_TTL_LEVEL1        UINT64_C(0x0000000000000001)
+# define IEMTLBE_GCPHYS_F_TTL_LEVEL2        UINT64_C(0x0000000000000002)
+# define IEMTLBE_GCPHYS_F_TTL_LEVEL3        UINT64_C(0x0000000000000003)
+/** ARM: The granule size.
+ * This is required for TLBI filter (follows TLBI TTL[3:2]/TG encoding). */
+# define IEMTLBE_GCPHYS_F_GRANULE_MASK      UINT64_C(0x000000000000000c)
+# define IEMTLBE_GCPHYS_F_GRANULE_SHIFT     2
+# define IEMTLBE_GCPHYS_F_GRANULE_4K        UINT64_C(0x0000000000000004)
+# define IEMTLBE_GCPHYS_F_GRANULE_16K       UINT64_C(0x0000000000000008)
+# define IEMTLBE_GCPHYS_F_GRANULE_64K       UINT64_C(0x000000000000000c)
+/** ARM: The NS bit (stage 1).
+ * This is for filtering purposes for TLBI instruction with an NS field. */
+# define IEMTLBE_GCPHYS_F_NS                UINT64_C(0x0000000000000010)
+# define IEMTLBE_GCPHYS_F_NS_BIT            4
+/** ARM: The NSE bit (stage 1).
+ * This is for filtering purposes for TLBI instruction with an NS field. */
+# define IEMTLBE_GCPHYS_F_NSE               UINT64_C(0x0000000000000020)
+# define IEMTLBE_GCPHYS_F_NSE_BIT           5
+#endif
+/** @} */
 
 /** The TLB size (power of two).
  * We initially chose 256 because that way we can obtain the result directly
  * from a 8-bit register without an additional AND instruction.
  * See also @bugref{10687}. */
 #if defined(RT_ARCH_AMD64)
-# define IEMTLB_ENTRY_COUNT                      256
-# define IEMTLB_ENTRY_COUNT_AS_POWER_OF_TWO      8
+# define IEMTLB_ENTRY_COUNT                     256
+# define IEMTLB_ENTRY_COUNT_AS_POWER_OF_TWO     8
 #else
-# define IEMTLB_ENTRY_COUNT                      8192
-# define IEMTLB_ENTRY_COUNT_AS_POWER_OF_TWO      13
+# define IEMTLB_ENTRY_COUNT                     8192
+# define IEMTLB_ENTRY_COUNT_AS_POWER_OF_TWO     13
 #endif
 AssertCompile(RT_BIT_32(IEMTLB_ENTRY_COUNT_AS_POWER_OF_TWO) == IEMTLB_ENTRY_COUNT);
 
+/** The TLB size factor.
+ * This is two if we use the even/odd approach to non-global/global entries,
+ * otherwise it'll be one. */
+#ifdef VBOX_VMM_TARGET_X86
+# define IEMTLB_ENTRY_COUNT_FACTOR              2
+#else
+# define IEMTLB_ENTRY_COUNT_FACTOR              1
+#endif
+
 /** TLB slot format spec (assumes uint32_t or unsigned value). */
-#if IEMTLB_ENTRY_COUNT <= 0x100 / 2
+#if IEMTLB_ENTRY_COUNT * IEMTLB_ENTRY_COUNT_FACTOR <= 0x100
 # define IEMTLB_SLOT_FMT    "%02x"
-#elif IEMTLB_ENTRY_COUNT <= 0x1000 / 2
+#elif IEMTLB_ENTRY_COUNT * IEMTLB_ENTRY_COUNT_FACTOR <= 0x1000
 # define IEMTLB_SLOT_FMT    "%03x"
-#elif IEMTLB_ENTRY_COUNT <= 0x10000 / 2
+#elif IEMTLB_ENTRY_COUNT * IEMTLB_ENTRY_COUNT_FACTOR <= 0x10000
 # define IEMTLB_SLOT_FMT    "%04x"
 #else
 # define IEMTLB_SLOT_FMT    "%05x"
@@ -603,7 +723,24 @@ AssertCompile(RT_BIT_32(IEMTLB_ENTRY_COUNT_AS_POWER_OF_TWO) == IEMTLB_ENTRY_COUN
  * the bitmap when flushing the TLB, but it should help reduce the workload when
  * the large pages aren't fully loaded into the TLB in their entirity...
  */
-#define IEMTLB_WITH_LARGE_PAGE_BITMAP
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define IEMTLB_WITH_LARGE_PAGE_BITMAP
+#endif
+
+#if (IEMTLB_ENTRY_COUNT > 1 && defined(VBOX_VMM_TARGET_X86)) || defined(DOXYGEN_RUNNING)
+/** Tests if the TLB entry is global (odd). */
+# define IEMTLBE_IS_GLOBAL(a_pTlbe)      (((uintptr_t)(a_pTlbe) / sizeof(IEMTLBENTRY)) & 1)
+#endif
+
+#if defined(VBOX_VMM_TARGET_ARMV8) || defined(DOXYGEN_RUNNING)
+/** The 'stuff' bits in uTlbPhysRevAndStuff0 and uTlbPhysRevAndStuff1.
+ *
+ * These are copies of translation regime, ASID and VMID as well as a
+ * permantently set IEMTLBE_F_NG bit.  This reduces the fetches and compares
+ * necessary to check whether a TLB entry matches or not. */
+# define IEMTLB_STUFF_BITS  (IEMTLBE_F_REGIME_MASK | IEMTLBE_F_NG | IEMTLBE_F_S2_VMID | IEMTLBE_F_S1_ASID)
+#endif
+
 
 /**
  * An IEM TLB.
@@ -612,6 +749,13 @@ AssertCompile(RT_BIT_32(IEMTLB_ENTRY_COUNT_AS_POWER_OF_TWO) == IEMTLB_ENTRY_COUN
  */
 typedef struct IEMTLB
 {
+#ifdef VBOX_VMM_TARGET_ARMV8
+    /** Same as uTlbPhysRevAndStuff1, but with the ASID for the 2nd translation root
+     *  (i.e. negative addresses).
+     * @note This is placed before uTlbRevision, so we can use a load pair on
+     *       ARM. */
+    uint64_t            uTlbPhysRevAndStuff0;
+#endif
     /** The non-global TLB revision.
      * This is actually only 28 bits wide (see IEMTLBENTRY::uTag) and is incremented
      * by adding RT_BIT_64(36) to it.  When it wraps around and becomes zero, all
@@ -622,19 +766,32 @@ typedef struct IEMTLB
     uint64_t            uTlbRevision;
     /** The TLB physical address revision - shadow of PGM variable.
      *
-     * This is actually only 56 bits wide (see IEMTLBENTRY::fFlagsAndPhysRev) and is
-     * incremented by adding RT_BIT_64(8).  When it wraps around and becomes zero,
-     * a rendezvous is called and each CPU wipe the IEMTLBENTRY::pMappingR3 as well
-     * as IEMTLBENTRY::fFlagsAndPhysRev bits 63 thru 8, 4, and 3.
+     * The revision number is the top x bits (target dependent, see
+     * IEMTLBENTRY::fFlagsAndPhysRev) and is incremented by adding RT_BIT_64(x).
+     * When it wraps around and becomes zero, a rendezvous is called and each CPU
+     * wipe the IEMTLBENTRY::pMappingR3 as well as many of the
+     * IEMTLBENTRY::fFlagsAndPhysRev bits.
      *
      * The initial value is choosen to cause an early wraparound.
      *
-     * @note This is placed between the two TLB revisions because we
-     *       load it in pair with one or the other on arm64. */
+     * @arm  This includes the current translation regime value, IEMTLBE_F_NG, ASID,
+     *       and VMID. The ASID is for the first translation root (i.e.
+     *       positive addresses).
+     *
+     * @note This is placed between the two TLB revisions when targeting x86 because
+     *       we load it in pair with one or the other on arm64.  While for arm
+     *       targets, we put uTlbRevision in the middle since we may have two
+     *       different ASID values there (soon).
+     * @todo Why is this volatile again?
+     */
+#ifdef VBOX_VMM_TARGET_ARMV8
+    uint64_t            uTlbPhysRevAndStuff1;
+#else
     uint64_t volatile   uTlbPhysRev;
     /** The global TLB revision.
      * Same as uTlbRevision, but only increased for global flushes. */
     uint64_t            uTlbRevisionGlobal;
+#endif
 
     /** Large page tag range.
      *
@@ -650,14 +807,25 @@ typedef struct IEMTLB
         /** The highest large page address tag (with offset mask part set), 0 if none. */
         uint64_t        uLastTag;
     }
+#ifdef VBOX_VMM_TARGET_X86
     /** Large page range for non-global pages. */
                         NonGlobalLargePageRange,
     /** Large page range for global pages. */
                         GlobalLargePageRange;
+#else
+    /** Large page range. */
+                        LargePageRange;
+#endif
+#ifdef VBOX_VMM_TARGET_X86
     /** Number of non-global entries for large pages loaded since last TLB flush. */
     uint32_t            cTlbNonGlobalLargePageCurLoads;
     /** Number of global entries for large pages loaded since last TLB flush. */
     uint32_t            cTlbGlobalLargePageCurLoads;
+#else
+    /** Number of entries for large pages loaded since last TLB flush. */
+    uint32_t            cTlbLargePageCurLoads;
+    uint32_t            uPadding;
+#endif
 
     /* Statistics: */
 
@@ -677,12 +845,16 @@ typedef struct IEMTLB
      *       for the data TLB this more like 'other misses', while for the code
      *       TLB is all misses. */
     uint64_t            cTlbCoreMisses;
+#ifdef VBOX_VMM_TARGET_X86
     /** Subset of cTlbCoreMisses that results in PTE.G=1 loads (odd entries). */
     uint64_t            cTlbCoreGlobalLoads;
+#endif
     /** Safe read/write TLB misses in iemMemMapJmp (so data only). */
     uint64_t            cTlbSafeMisses;
+#ifdef VBOX_VMM_TARGET_X86
     /** Subset of cTlbSafeMisses that results in PTE.G=1 loads (odd entries). */
     uint64_t            cTlbSafeGlobalLoads;
+#endif
     /** Safe read path taken (data only).  */
     uint64_t            cTlbSafeReadPath;
     /** Safe write path taken (data only).  */
@@ -725,21 +897,26 @@ typedef struct IEMTLB
     /** Subset of cTlbInvlPg that involved global large pages. */
     uint32_t            cTlbInvlPgLargeGlobal;
 
+#ifdef VBOX_VMM_TARGET_X86
     uint32_t            au32Padding[13];
+#else
+    uint32_t            au32Padding[13 + 8];
+#endif
 
     /** The TLB entries.
-     * Even entries are for PTE.G=0 and uses uTlbRevision.
-     * Odd  entries are for PTE.G=1 and uses uTlbRevisionGlobal. */
-    IEMTLBENTRY         aEntries[IEMTLB_ENTRY_COUNT * 2];
+     * @x86 Even entries are for PTE.G=0 and uses uTlbRevision.
+     *      Odd  entries are for PTE.G=1 and uses uTlbRevisionGlobal. */
+    IEMTLBENTRY         aEntries[IEMTLB_ENTRY_COUNT * IEMTLB_ENTRY_COUNT_FACTOR];
 #ifdef IEMTLB_WITH_LARGE_PAGE_BITMAP
     /** Bitmap tracking TLB entries for large pages.
      * This duplicates IEMTLBE_F_PT_LARGE_PAGE for each TLB entry. */
-    uint64_t            bmLargePage[IEMTLB_ENTRY_COUNT * 2 / 64];
+    uint64_t            bmLargePage[IEMTLB_ENTRY_COUNT * IEMTLB_ENTRY_COUNT_FACTOR / 64];
 #endif
 } IEMTLB;
+AssertCompileMemberAlignment(IEMTLB, aEntries, 64);
 AssertCompileSizeAlignment(IEMTLB, 64);
 #ifdef IEMTLB_WITH_LARGE_PAGE_BITMAP
-AssertCompile(IEMTLB_ENTRY_COUNT >= 32 /* bmLargePage ASSUMPTION */);
+AssertCompile(IEMTLB_ENTRY_COUNT * IEMTLB_ENTRY_COUNT_FACTOR >= 64 /* bmLargePage ASSUMPTION */);
 #endif
 /** The width (in bits) of the address portion of the TLB tag.   */
 #define IEMTLB_TAG_ADDR_WIDTH   36
@@ -750,39 +927,101 @@ AssertCompile(IEMTLB_ENTRY_COUNT >= 32 /* bmLargePage ASSUMPTION */);
 
 /** IEMTLB::uTlbPhysRev increment.
  * @sa IEMTLBE_F_PHYS_REV */
-#define IEMTLB_PHYS_REV_INCR    RT_BIT_64(11)
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define IEMTLB_PHYS_REV_INCR   RT_BIT_64(11)
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+# define IEMTLB_PHYS_REV_INCR   RT_BIT_64(54)
+#endif
+#ifdef IEMTLBE_F_PHYS_REV
 AssertCompile(IEMTLBE_F_PHYS_REV == ~(IEMTLB_PHYS_REV_INCR - 1U));
+#endif
 
 /**
  * Calculates the TLB tag for a virtual address but without TLB revision.
  * @returns Tag value for indexing and comparing with IEMTLB::uTag.
+ * @param   a_pVCpu     The CPU handle (for ARM targets to deal with
+ *                      configurable page size).
  * @param   a_GCPtr     The virtual address.  Must be RTGCPTR or same size or
  *                      the clearing of the top 16 bits won't work (if 32-bit
  *                      we'll end up with mostly zeros).
- */
-#define IEMTLB_CALC_TAG_NO_REV(a_GCPtr)     ( (((a_GCPtr) << 16) >> (GUEST_PAGE_SHIFT + 16)) )
-/**
- * Converts a TLB tag value into a even TLB index.
- * @returns Index into IEMTLB::aEntries.
- * @param   a_uTag      Value returned by IEMTLB_CALC_TAG.
- */
-#if IEMTLB_ENTRY_COUNT == 256
-# define IEMTLB_TAG_TO_EVEN_INDEX(a_uTag)   ( (uint8_t)(a_uTag) * 2U )
+ * @todo ARM: Support 52-bit and 56-bit address space size (FEAT_LVA,
+ *       FEAT_LVA3) when we see hardware supporting such.  */
+#ifdef VBOX_VMM_TARGET_ARMV8
+# if 0 /** @todo ARMv8: page size and TLB */
+# define IEMTLB_CALC_TAG_NO_REV(a_pVCpu, a_GCPtr)   ( (((a_GCPtr) << 16) >> (IEM_F_ARM_GET_TLB_PAGE_SHIFT(pVCpu->iem.s.fExec) + 16)) )
+# else
+# define IEMTLB_CALC_TAG_NO_REV(a_pVCpu, a_GCPtr)   ( (((a_GCPtr) << 16) >> (GUEST_MIN_PAGE_SHIFT + 16)) )
+# endif
 #else
-# define IEMTLB_TAG_TO_EVEN_INDEX(a_uTag)   ( ((a_uTag) & (IEMTLB_ENTRY_COUNT - 1U)) * 2U )
-AssertCompile(RT_IS_POWER_OF_TWO(IEMTLB_ENTRY_COUNT));
+# define IEMTLB_CALC_TAG_NO_REV(a_pVCpu, a_GCPtr)   ( (((a_GCPtr) << 16) >> (GUEST_PAGE_SHIFT + 16)) )
 #endif
+
+#if IEMTLB_ENTRY_COUNT_FACTOR == 2
 /**
  * Converts a TLB tag value into an even TLB index.
- * @returns Pointer into IEMTLB::aEntries corresponding to .
+ * @returns Index into IEMTLB::aEntries.
+ * @param   a_uTag      Value returned by IEMTLB_CALC_TAG.
+ * @deprecated
+ */
+# if IEMTLB_ENTRY_COUNT == 256
+#  define IEMTLB_TAG_TO_EVEN_INDEX(a_uTag)          ( (uint8_t)(a_uTag) * (unsigned)(IEMTLB_ENTRY_COUNT_FACTOR) )
+# else
+#  define IEMTLB_TAG_TO_EVEN_INDEX(a_uTag)          ( ((a_uTag) & (IEMTLB_ENTRY_COUNT - 1U)) * (unsigned)(IEMTLB_ENTRY_COUNT_FACTOR) )
+AssertCompile(RT_IS_POWER_OF_TWO(IEMTLB_ENTRY_COUNT));
+# endif
+
+/**
+ * Converts a TLB tag value into an even TLB entry pointer.
+ * @returns Pointer into IEMTLB::aEntries corresponding to @a a_uTag.
  * @param   a_pTlb      The TLB.
  * @param   a_uTag      Value returned by IEMTLB_CALC_TAG or
  *                      IEMTLB_CALC_TAG_NO_REV.
+ * @deprecated
  */
-#define IEMTLB_TAG_TO_EVEN_ENTRY(a_pTlb, a_uTag)    ( &(a_pTlb)->aEntries[IEMTLB_TAG_TO_EVEN_INDEX(a_uTag)] )
+# define IEMTLB_TAG_TO_EVEN_ENTRY(a_pTlb, a_uTag)    ( &(a_pTlb)->aEntries[IEMTLB_TAG_TO_EVEN_INDEX(a_uTag)] )
 
-/** Converts a GC address to an even TLB index. */
-#define IEMTLB_ADDR_TO_EVEN_INDEX(a_GCPtr)  IEMTLB_TAG_TO_EVEN_INDEX(IEMTLB_CALC_TAG_NO_REV(a_GCPtr))
+#endif /* IEMTLB_ENTRY_COUNT_FACTOR == 2 */
+
+/**
+ * Converts a TLB tag value into a (base) TLB index.
+ * @returns Index into IEMTLB::aEntries.
+ * @param   a_uTag      Value returned by IEMTLB_CALC_TAG.
+ * @note    The index is multiplied by IEMTLB_ENTRY_COUNT_FACTOR, so for factors
+ *          other than 1 this will be the base (even) entry for a set of variations.
+ */
+#if IEMTLB_ENTRY_COUNT == 256
+# if IEMTLB_ENTRY_COUNT_FACTOR == 1
+#  define IEMTLB_TAG_TO_INDEX(a_uTag)           ( (unsigned)(uint8_t)(a_uTag) )
+# else
+#  define IEMTLB_TAG_TO_INDEX(a_uTag)           ( (uint8_t)(a_uTag) * (unsigned)IEMTLB_ENTRY_COUNT_FACTOR )
+# endif
+#else
+# if IEMTLB_ENTRY_COUNT_FACTOR == 1
+#  define IEMTLB_TAG_TO_INDEX(a_uTag)           ( (unsigned)((a_uTag) & (IEMTLB_ENTRY_COUNT - 1U)) )
+# else
+#  define IEMTLB_TAG_TO_INDEX(a_uTag)           (   (unsigned)((a_uTag) & (IEMTLB_ENTRY_COUNT - 1U)) \
+                                                  * (unsigned)IEMTLB_ENTRY_COUNT_FACTOR )
+# endif
+AssertCompile(RT_IS_POWER_OF_TWO(IEMTLB_ENTRY_COUNT));
+#endif
+
+/**
+ * Converts a TLB tag value into a (base) TLB entry pointer.
+ * @returns Pointer into IEMTLB::aEntries corresponding to @a a_uTag.
+ * @param   a_pTlb      The TLB.
+ * @param   a_uTag      Value returned by IEMTLB_CALC_TAG or
+ *                      IEMTLB_CALC_TAG_NO_REV.
+ * @note    The index is multiplied by IEMTLB_ENTRY_COUNT_FACTOR, so for factors
+ *          other than 1 this will be the base (even) entry for a set of variations.
+ */
+#define IEMTLB_TAG_TO_ENTRY(a_pTlb, a_uTag)     ( &(a_pTlb)->aEntries[IEMTLB_TAG_TO_INDEX(a_uTag)] )
+
+/** Converts a GC address to an even TLB index.
+ * @note    The index is multiplied by IEMTLB_ENTRY_COUNT_FACTOR, so for factors
+ *          other than 1 this will be the base (even) entry for a set of variations.
+ */
+#define IEMTLB_ADDR_TO_INDEX(a_pVCpu, a_GCPtr)  IEMTLB_TAG_TO_INDEX(IEMTLB_CALC_TAG_NO_REV(a_pVCpu, a_GCPtr))
+
 
 
 /** @def IEM_WITH_TLB_TRACE
@@ -803,16 +1042,20 @@ typedef enum : uint8_t
     kIemTlbTraceType_LargeEvictSlot,
     kIemTlbTraceType_LargeScan,
     kIemTlbTraceType_Flush,
-    kIemTlbTraceType_FlushGlobal,
+# if IEMTLB_ENTRY_COUNT_FACTOR > 1
+    kIemTlbTraceType_FlushGlobal,   /**< x86 specific */
+# endif
     kIemTlbTraceType_Load,
-    kIemTlbTraceType_LoadGlobal,
-    kIemTlbTraceType_Load_Cr0,
-    kIemTlbTraceType_Load_Cr3,
-    kIemTlbTraceType_Load_Cr4,
-    kIemTlbTraceType_Load_Efer,
+# if IEMTLB_ENTRY_COUNT_FACTOR > 1
+    kIemTlbTraceType_LoadGlobal,    /**< x86 specific */
+# endif
+    kIemTlbTraceType_Load_Cr0,      /**< x86 specific */
+    kIemTlbTraceType_Load_Cr3,      /**< x86 specific */
+    kIemTlbTraceType_Load_Cr4,      /**< x86 specific */
+    kIemTlbTraceType_Load_Efer,     /**< x86 specific */
     kIemTlbTraceType_Irq,
     kIemTlbTraceType_Xcpt,
-    kIemTlbTraceType_IRet,
+    kIemTlbTraceType_IRet,          /**< x86 specific */
     kIemTlbTraceType_Tb_Compile,
     kIemTlbTraceType_Tb_Exec_Threaded,
     kIemTlbTraceType_Tb_Exec_Native,
@@ -931,6 +1174,7 @@ typedef IEMTLBTRACEENTRY const *PCIEMTLBTRACEENTRY;
 
 
 /** @name IEM_MC_F_XXX - MC block flags/clues.
+ * @note x86 specific
  * @todo Merge with IEM_CIMPL_F_XXX
  * @{ */
 #define IEM_MC_F_ONLY_8086          RT_BIT_32(0)
@@ -976,18 +1220,22 @@ typedef IEMTLBTRACEENTRY const *PCIEMTLBTRACEENTRY;
 #define IEM_CIMPL_F_BRANCH_RELATIVE      RT_BIT_32(2)
 /** Flag set if conditional branch, clear if unconditional. */
 #define IEM_CIMPL_F_BRANCH_CONDITIONAL   RT_BIT_32(3)
-/** Flag set if it's a far branch (changes CS). */
+/** Flag set if it's a far branch (changes CS).
+ * @note x86 specific */
 #define IEM_CIMPL_F_BRANCH_FAR           RT_BIT_32(4)
 /** Convenience: Testing any kind of branch. */
 #define IEM_CIMPL_F_BRANCH_ANY          (IEM_CIMPL_F_BRANCH_DIRECT | IEM_CIMPL_F_BRANCH_INDIRECT | IEM_CIMPL_F_BRANCH_RELATIVE)
 
 /** Execution flags may change (IEMCPU::fExec). */
 #define IEM_CIMPL_F_MODE                RT_BIT_32(5)
-/** May change significant portions of RFLAGS. */
+/** May change significant portions of RFLAGS.
+ * @note x86 specific */
 #define IEM_CIMPL_F_RFLAGS              RT_BIT_32(6)
-/** May change the status bits (X86_EFL_STATUS_BITS) in RFLAGS. */
+/** May change the status bits (X86_EFL_STATUS_BITS) in RFLAGS.
+ * @note x86 specific */
 #define IEM_CIMPL_F_STATUS_FLAGS        RT_BIT_32(7)
-/** May trigger interrupt shadowing. */
+/** May trigger interrupt shadowing.
+ * @note x86 specific */
 #define IEM_CIMPL_F_INHIBIT_SHADOW      RT_BIT_32(8)
 /** May enable interrupts, so recheck IRQ immediately afterwards executing
  *  the instruction. */
@@ -1004,22 +1252,27 @@ typedef IEMTLBTRACEENTRY const *PCIEMTLBTRACEENTRY;
 #define IEM_CIMPL_F_FPU                 RT_BIT_32(12)
 /** REP prefixed instruction which may yield before updating PC.
  * @todo Not sure if this is useful, REP functions now return non-zero
- *       status if they don't update the PC. */
+ *       status if they don't update the PC.
+ * @note x86 specific */
 #define IEM_CIMPL_F_REP                 RT_BIT_32(13)
 /** I/O instruction.
- * @todo Not sure if this is useful yet.  */
+ * @todo Not sure if this is useful yet.
+ * @note x86 specific */
 #define IEM_CIMPL_F_IO                  RT_BIT_32(14)
 /** Force end of TB after the instruction. */
 #define IEM_CIMPL_F_END_TB              RT_BIT_32(15)
 /** Flag set if a branch may also modify the stack (push/pop return address). */
 #define IEM_CIMPL_F_BRANCH_STACK        RT_BIT_32(16)
 /** Flag set if a branch may also modify the stack (push/pop return address)
- *  and switch it (load/restore SS:RSP). */
+ *  and switch it (load/restore SS:RSP).
+ * @note x86 specific */
 #define IEM_CIMPL_F_BRANCH_STACK_FAR    RT_BIT_32(17)
 /** Convenience: Raise exception (technically unnecessary, since it shouldn't return VINF_SUCCESS). */
 #define IEM_CIMPL_F_XCPT \
     (IEM_CIMPL_F_BRANCH_INDIRECT | IEM_CIMPL_F_BRANCH_FAR | IEM_CIMPL_F_BRANCH_STACK_FAR \
      | IEM_CIMPL_F_MODE | IEM_CIMPL_F_RFLAGS | IEM_CIMPL_F_VMEXIT)
+/** Convenience: Memory access (arm). */
+#define IEM_CIMPL_F_MEM                 IEM_CIMPL_F_XCPT
 
 /** The block calls a C-implementation instruction function with two implicit arguments.
  * Mutually exclusive with IEM_CIMPL_F_CALLS_AIMPL and
@@ -1035,14 +1288,16 @@ typedef IEMTLBTRACEENTRY const *PCIEMTLBTRACEENTRY;
  * X86FXSTATE pointer argument.
  * Mutually exclusive with IEM_CIMPL_F_CALLS_CIMPL, IEM_CIMPL_F_CALLS_AIMPL and
  * IEM_CIMPL_F_CALLS_AIMPL_WITH_XSTATE.
- * @note The python scripts will add this if missing.  */
+ * @note The python scripts will add this if missing.
+ * @note x86 specific */
 #define IEM_CIMPL_F_CALLS_AIMPL_WITH_FXSTATE    RT_BIT_32(20)
 /** The block calls an ASM-implementation instruction function with an implicit
  * X86XSAVEAREA pointer argument.
  * Mutually exclusive with IEM_CIMPL_F_CALLS_CIMPL, IEM_CIMPL_F_CALLS_AIMPL and
  * IEM_CIMPL_F_CALLS_AIMPL_WITH_FXSTATE.
  * @note No different from IEM_CIMPL_F_CALLS_AIMPL_WITH_FXSTATE, so same value.
- * @note The python scripts will add this if missing.  */
+ * @note The python scripts will add this if missing.
+ * @note x86 specific */
 #define IEM_CIMPL_F_CALLS_AIMPL_WITH_XSTATE     IEM_CIMPL_F_CALLS_AIMPL_WITH_FXSTATE
 /** @} */
 
@@ -1059,46 +1314,168 @@ typedef IEMTLBTRACEENTRY const *PCIEMTLBTRACEENTRY;
  * in IEMCPU::fExec.
  *
  * @{ */
-/** Mode: The block target mode mask. */
-#define IEM_F_MODE_MASK                     UINT32_C(0x0000001f)
-/** Mode: The IEMMODE part of the IEMTB_F_MODE_MASK value. */
-#define IEM_F_MODE_CPUMODE_MASK             UINT32_C(0x00000003)
+/** Mode: The block target mode mask.
+ * X86: CPUMODE plus protected, v86 and pre-386 indicators.
+ * ARM: PSTATE.nRW | PSTATE.T | PSTATE.EL.
+ *      This doesn't quite overlap with SPSR_ELx when in AARCH32 mode,
+ *      but that's life. */
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define IEM_F_MODE_MASK                    UINT32_C(0x0000001f)
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+# define IEM_F_MODE_MASK                    UINT32_C(0x0000003c)
+#endif
+
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+/** X86 Mode: The IEMMODE part of the IEMTB_F_MODE_MASK value. */
+# define IEM_F_MODE_X86_CPUMODE_MASK        UINT32_C(0x00000003)
 /** X86 Mode: Bit used to indicating pre-386 CPU in 16-bit mode (for eliminating
  * conditional in EIP/IP updating), and flat wide open CS, SS, DS, and ES in
  * 32-bit mode (for simplifying most memory accesses). */
-#define IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK UINT32_C(0x00000004)
+# define IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK UINT32_C(0x00000004)
 /** X86 Mode: Bit indicating protected mode, real mode (or SMM) when not set. */
-#define IEM_F_MODE_X86_PROT_MASK            UINT32_C(0x00000008)
+# define IEM_F_MODE_X86_PROT_MASK           UINT32_C(0x00000008)
 /** X86 Mode: Bit used to indicate virtual 8086 mode (only 16-bit). */
-#define IEM_F_MODE_X86_V86_MASK             UINT32_C(0x00000010)
+# define IEM_F_MODE_X86_V86_MASK            UINT32_C(0x00000010)
 
 /** X86 Mode: 16-bit on 386 or later. */
-#define IEM_F_MODE_X86_16BIT                UINT32_C(0x00000000)
+# define IEM_F_MODE_X86_16BIT               UINT32_C(0x00000000)
 /** X86 Mode: 80286, 80186 and 8086/88 targetting blocks (EIP update opt). */
-#define IEM_F_MODE_X86_16BIT_PRE_386        UINT32_C(0x00000004)
+# define IEM_F_MODE_X86_16BIT_PRE_386       UINT32_C(0x00000004)
 /** X86 Mode: 16-bit protected mode on 386 or later. */
-#define IEM_F_MODE_X86_16BIT_PROT           UINT32_C(0x00000008)
+# define IEM_F_MODE_X86_16BIT_PROT          UINT32_C(0x00000008)
 /** X86 Mode: 16-bit protected mode on 386 or later. */
-#define IEM_F_MODE_X86_16BIT_PROT_PRE_386   UINT32_C(0x0000000c)
+# define IEM_F_MODE_X86_16BIT_PROT_PRE_386  UINT32_C(0x0000000c)
 /** X86 Mode: 16-bit virtual 8086 protected mode (on 386 or later). */
-#define IEM_F_MODE_X86_16BIT_PROT_V86       UINT32_C(0x00000018)
+# define IEM_F_MODE_X86_16BIT_PROT_V86      UINT32_C(0x00000018)
 
 /** X86 Mode: 32-bit on 386 or later. */
-#define IEM_F_MODE_X86_32BIT                UINT32_C(0x00000001)
+# define IEM_F_MODE_X86_32BIT               UINT32_C(0x00000001)
 /** X86 Mode: 32-bit mode with wide open flat CS, SS, DS and ES. */
-#define IEM_F_MODE_X86_32BIT_FLAT           UINT32_C(0x00000005)
+# define IEM_F_MODE_X86_32BIT_FLAT          UINT32_C(0x00000005)
 /** X86 Mode: 32-bit protected mode. */
-#define IEM_F_MODE_X86_32BIT_PROT           UINT32_C(0x00000009)
+# define IEM_F_MODE_X86_32BIT_PROT          UINT32_C(0x00000009)
 /** X86 Mode: 32-bit protected mode with wide open flat CS, SS, DS and ES. */
-#define IEM_F_MODE_X86_32BIT_PROT_FLAT      UINT32_C(0x0000000d)
+# define IEM_F_MODE_X86_32BIT_PROT_FLAT     UINT32_C(0x0000000d)
 
 /** X86 Mode: 64-bit (includes protected, but not the flat bit). */
-#define IEM_F_MODE_X86_64BIT                UINT32_C(0x0000000a)
+# define IEM_F_MODE_X86_64BIT               UINT32_C(0x0000000a)
 
 /** X86 Mode: Checks if @a a_fExec represent a FLAT mode. */
-#define IEM_F_MODE_X86_IS_FLAT(a_fExec)     (   ((a_fExec) & IEM_F_MODE_MASK) == IEM_F_MODE_X86_64BIT \
+# define IEM_F_MODE_X86_IS_FLAT(a_fExec)    (   ((a_fExec) & IEM_F_MODE_MASK) == IEM_F_MODE_X86_64BIT \
                                              || ((a_fExec) & IEM_F_MODE_MASK) == IEM_F_MODE_X86_32BIT_PROT_FLAT \
                                              || ((a_fExec) & IEM_F_MODE_MASK) == IEM_F_MODE_X86_32BIT_FLAT)
+
+/** X86: The current protection level (CPL) shift factor.   */
+# define IEM_F_X86_CPL_SHIFT                 8
+/** X86: The current protection level (CPL) mask. */
+# define IEM_F_X86_CPL_MASK                  UINT32_C(0x00000300)
+/** X86: The current protection level (CPL) shifted mask. */
+# define IEM_F_X86_CPL_SMASK                 UINT32_C(0x00000003)
+
+/** X86: Alignment checks enabled (CR0.AM=1 & EFLAGS.AC=1). */
+# define IEM_F_X86_AC                        UINT32_C(0x00080000)
+
+/** X86 execution context.
+ * The IEM_F_X86_CTX_XXX values are individual flags that can be combined (with
+ * the exception of IEM_F_X86_CTX_NORMAL).  This allows running VMs from SMM
+ * mode. */
+# define IEM_F_X86_CTX_MASK                  UINT32_C(0x0000f000)
+/** X86 context: Plain regular execution context. */
+# define IEM_F_X86_CTX_NORMAL                UINT32_C(0x00000000)
+/** X86 context: VT-x enabled. */
+# define IEM_F_X86_CTX_VMX                   UINT32_C(0x00001000)
+/** X86 context: AMD-V enabled. */
+# define IEM_F_X86_CTX_SVM                   UINT32_C(0x00002000)
+/** X86 context: In AMD-V or VT-x guest mode. */
+# define IEM_F_X86_CTX_IN_GUEST              UINT32_C(0x00004000)
+/** X86 context: System management mode (SMM). */
+# define IEM_F_X86_CTX_SMM                   UINT32_C(0x00008000)
+
+/** @todo Add TF+RF+INHIBIT indicator(s), so we can eliminate the conditional in
+ * iemRegFinishClearingRF() most for most situations (CPUMCTX_DBG_HIT_DRX_MASK
+ * and CPUMCTX_DBG_DBGF_MASK are covered by the IEM_F_PENDING_BRK_XXX bits
+ * alread). */
+
+/** @todo Add TF+RF+INHIBIT indicator(s), so we can eliminate the conditional in
+ *        iemRegFinishClearingRF() most for most situations
+ *        (CPUMCTX_DBG_HIT_DRX_MASK and CPUMCTX_DBG_DBGF_MASK are covered by
+ *        the IEM_F_PENDING_BRK_XXX bits alread). */
+
+#endif /* X86 || doxygen  */
+
+#if defined(VBOX_VMM_TARGET_ARMV8) || defined(DOXYGEN_RUNNING)
+/** ARM: The stack pointer index - not part of mode */
+# define IEM_F_ARM_SP_IDX                   UINT32_C(0x00000003)
+/** ARM: Get the SP register index. */
+# define IEM_F_ARM_GET_SP_IDX(a_fExec)      ((a_fExec) & IEM_F_ARM_SP_IDX)
+
+/** ARM Mode: Exception (privilege) level shift count. */
+# define IEM_F_MODE_ARM_EL_SHIFT            2
+/** ARM Mode: Exception (privilege) level mask. */
+# define IEM_F_MODE_ARM_EL_MASK             UINT32_C(0x0000000c)
+/** ARM Mode: Exception (privilege) level shifted down mask. */
+# define IEM_F_MODE_ARM_EL_SMASK            UINT32_C(0x00000003)
+/** ARM Mode: 32-bit (set) or 64-bit (clear) indicator (SPSR_ELx.M[4]). */
+# define IEM_F_MODE_ARM_32BIT               UINT32_C(0x00000010)
+/** ARM Mode: Thumb mode indicator (SPSR_ELx.T).  */
+# define IEM_F_MODE_ARM_T32                 UINT32_C(0x00000020)
+/** ARM Mode: Get the exception (privilege) level. */
+# define IEM_F_MODE_ARM_GET_EL(a_fExec)     (((a_fExec) >> IEM_F_MODE_ARM_EL_SHIFT) & IEM_F_MODE_ARM_EL_SMASK)
+
+/** ARM: Normal alignment checks enabled (SCTRL_ELx.A). */
+# define IEM_F_ARM_A                        UINT32_C(0x00000040)
+/** ARM: LSE2 alignment checks enabled (~SCTRL_ELx.nAA). */
+# define IEM_F_ARM_AA                       UINT32_C(0x00000080)
+/** ARM: SP alignment checks enabled for current EL (SCTRL_ELx.SA/SA0). */
+# define IEM_F_ARM_SA                       UINT32_C(0x00000100)
+
+#if 0 /* revisit when needed */
+/** ARM: 4K minium page (granule) size (stage 1+2). */
+# define IEM_F_ARM_MIN_PAGE_4K              UINT32_C(0x00000000)
+/** ARM: 16K minium page (granule) size (stage 1+2). */
+# define IEM_F_ARM_MIN_PAGE_16K             UINT32_C(0x00000200)
+/** ARM: 64K minium page (granule) size (stage 1+2). */
+# define IEM_F_ARM_MIN_PAGE_64K             UINT32_C(0x00000400)
+/** ARM: Mask for the mimum page (granule) size encoding (stage 1+2).
+ * This is the shift count - 12. */
+# define IEM_F_ARM_MIN_PAGE_MASK            UINT32_C(0x00000700)
+/** ARM: The shift count for the tage 1 page (granule) size encoding value.
+ * @note Don't confuse with IEM_F_ARM_GET_MIN_PAGE_SHIFT! */
+# define IEM_F_ARM_MIN_PAGE_SHIFT           8
+/** ARM: Get the current minium page (granule) shift count. */
+# define IEM_F_ARM_GET_MIN_PAGE_SHIFT(a_fExec)          (12 + (((a_fExec) & IEM_F_ARM_MIN_PAGE_MASK) >> IEM_F_ARM_MIN_PAGE_SHIFT))
+/** ARM: Get the current minium page (granule) size. */
+# define IEM_F_ARM_GET_MIN_PAGE_SIZE(a_fExec)           (1 << IEM_F_ARM_GET_MIN_PAGE_SHIFT(a_fExec))
+/** ARM: Get the current minium page (granule) offset mask. */
+# define IEM_F_ARM_GET_MIN_PAGE_OFFSET_MASK(a_fExec)    (IEM_F_ARM_GET_MIN_PAGE_SHIFT(a_fExec) - 1)
+
+/** ARM: Get the current TLB page (granule) shift count.
+ * Same as IEM_F_ARM_GET_MIN_PAGE_SHIFT */
+# define IEM_F_ARM_GET_TLB_PAGE_SHIFT(a_fExec)          IEM_F_ARM_GET_MIN_PAGE_SHIFT(a_fExec)
+/** ARM: Get the current TLB page (granule) size.
+ * Same as IEM_F_ARM_GET_MIN_PAGE_SIZE. */
+# define IEM_F_ARM_GET_TLB_PAGE_SIZE(a_fExec)           IEM_F_ARM_GET_MIN_PAGE_SIZE(a_fExec)
+/** ARM: Get the current TLB page (granule) offset mask.
+ * Same as IEM_F_ARM_GET_MIN_PAGE_OFFSET_MASK. */
+# define IEM_F_ARM_GET_TLB_PAGE_OFFSET_MASK(a_fExec)    IEM_F_ARM_GET_MIN_PAGE_OFFSET_MASK(a_fExec)
+#else
+/** ARM: Get the current TLB page (granule) shift count.
+ * Same as IEM_F_ARM_GET_MIN_PAGE_SHIFT */
+# define IEM_F_ARM_GET_TLB_PAGE_SHIFT(a_fExec)          GUEST_MIN_PAGE_SHIFT
+/** ARM: Get the current TLB page (granule) size.
+ * Same as IEM_F_ARM_GET_MIN_PAGE_SIZE. */
+# define IEM_F_ARM_GET_TLB_PAGE_SIZE(a_fExec)           GUEST_MIN_PAGE_SIZE
+/** ARM: Get the current TLB page (granule) offset mask.
+ * Same as IEM_F_ARM_GET_MIN_PAGE_OFFSET_MASK. */
+# define IEM_F_ARM_GET_TLB_PAGE_OFFSET_MASK(a_fExec)    GUEST_MIN_PAGE_OFFSET_MASK
+#endif
+
+/** ARM: The translation regime mask (see IEM_ARM_REGIME_XXX). */
+# define IEM_F_ARM_REGIME_MASK              UINT32_C(0x0000f000)
+/** ARM: The translation regime mask (see IEM_ARM_REGIME_XXX). */
+# define IEM_F_ARM_REGIME_SHIFT             12
+
+#endif /* ARM || doxygen  */
 
 /** Bypass access handlers when set. */
 #define IEM_F_BYPASS_HANDLERS               UINT32_C(0x00010000)
@@ -1112,48 +1489,23 @@ typedef IEMTLBTRACEENTRY const *PCIEMTLBTRACEENTRY;
 /** X86: Disregard the lock prefix (implied or not) when set. */
 #define IEM_F_X86_DISREGARD_LOCK            UINT32_C(0x00000800)
 
+/** ARM: Software step (single step).
+ * @todo make generic? */
+#define IEM_F_ARM_SOFTWARE_STEP             UINT32_C(0x00000800)
+
 /** Pending breakpoint mask (what iemCalcExecDbgFlags works out). */
-#define IEM_F_PENDING_BRK_MASK              (IEM_F_PENDING_BRK_INSTR | IEM_F_PENDING_BRK_DATA | IEM_F_PENDING_BRK_X86_IO)
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define IEM_F_PENDING_BRK_MASK             (IEM_F_PENDING_BRK_INSTR | IEM_F_PENDING_BRK_DATA | IEM_F_PENDING_BRK_X86_IO)
+#else
+# define IEM_F_PENDING_BRK_MASK             (IEM_F_PENDING_BRK_INSTR | IEM_F_PENDING_BRK_DATA)
+#endif
 
 /** Caller configurable options. */
-#define IEM_F_USER_OPTS                     (IEM_F_BYPASS_HANDLERS | IEM_F_X86_DISREGARD_LOCK)
-
-/** X86: The current protection level (CPL) shift factor.   */
-#define IEM_F_X86_CPL_SHIFT                 8
-/** X86: The current protection level (CPL) mask. */
-#define IEM_F_X86_CPL_MASK                  UINT32_C(0x00000300)
-/** X86: The current protection level (CPL) shifted mask. */
-#define IEM_F_X86_CPL_SMASK                 UINT32_C(0x00000003)
-
-/** X86: Alignment checks enabled (CR0.AM=1 & EFLAGS.AC=1). */
-#define IEM_F_X86_AC                        UINT32_C(0x00080000)
-
-/** X86 execution context.
- * The IEM_F_X86_CTX_XXX values are individual flags that can be combined (with
- * the exception of IEM_F_X86_CTX_NORMAL).  This allows running VMs from SMM
- * mode. */
-#define IEM_F_X86_CTX_MASK                  UINT32_C(0x0000f000)
-/** X86 context: Plain regular execution context. */
-#define IEM_F_X86_CTX_NORMAL                UINT32_C(0x00000000)
-/** X86 context: VT-x enabled. */
-#define IEM_F_X86_CTX_VMX                   UINT32_C(0x00001000)
-/** X86 context: AMD-V enabled. */
-#define IEM_F_X86_CTX_SVM                   UINT32_C(0x00002000)
-/** X86 context: In AMD-V or VT-x guest mode. */
-#define IEM_F_X86_CTX_IN_GUEST              UINT32_C(0x00004000)
-/** X86 context: System management mode (SMM). */
-#define IEM_F_X86_CTX_SMM                   UINT32_C(0x00008000)
-
-/** @todo Add TF+RF+INHIBIT indicator(s), so we can eliminate the conditional in
- * iemRegFinishClearingRF() most for most situations (CPUMCTX_DBG_HIT_DRX_MASK
- * and CPUMCTX_DBG_DBGF_MASK are covered by the IEM_F_PENDING_BRK_XXX bits
- * alread). */
-
-/** @todo Add TF+RF+INHIBIT indicator(s), so we can eliminate the conditional in
- *        iemRegFinishClearingRF() most for most situations
- *        (CPUMCTX_DBG_HIT_DRX_MASK and CPUMCTX_DBG_DBGF_MASK are covered by
- *        the IEM_F_PENDING_BRK_XXX bits alread). */
-
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define IEM_F_USER_OPTS                    (IEM_F_BYPASS_HANDLERS | IEM_F_X86_DISREGARD_LOCK)
+#else
+# define IEM_F_USER_OPTS                    (IEM_F_BYPASS_HANDLERS)
+#endif
 /** @} */
 
 
@@ -1176,16 +1528,16 @@ typedef IEMTLBTRACEENTRY const *PCIEMTLBTRACEENTRY;
 
 /** Set when we're starting the block in an "interrupt shadow".
  * We don't need to distingish between the two types of this mask, thus the one.
- * @see CPUMCTX_INHIBIT_SHADOW, CPUMIsInInterruptShadow() */
-#define IEMTB_F_INHIBIT_SHADOW          UINT32_C(0x04000000)
+ * @see CPUMCTX_INHIBIT_SHADOW, CPUMIsInInterruptShadow()  */
+#define IEMTB_F_X86_INHIBIT_SHADOW      UINT32_C(0x04000000)
 /** Set when we're currently inhibiting NMIs
  * @see CPUMCTX_INHIBIT_NMI, CPUMAreInterruptsInhibitedByNmi() */
-#define IEMTB_F_INHIBIT_NMI             UINT32_C(0x08000000)
+#define IEMTB_F_X86_INHIBIT_NMI         UINT32_C(0x08000000)
 
 /** Checks that EIP/IP is wihin CS.LIM before each instruction.  Used when
  * we're close the limit before starting a TB, as determined by
  * iemGetTbFlagsForCurrentPc(). */
-#define IEMTB_F_CS_LIM_CHECKS           UINT32_C(0x10000000)
+#define IEMTB_F_X86_CS_LIM_CHECKS       UINT32_C(0x10000000)
 
 /** Mask of the IEMTB_F_XXX flags that are part of the TB lookup key.
  *
@@ -1199,22 +1551,27 @@ typedef IEMTLBTRACEENTRY const *PCIEMTLBTRACEENTRY;
  *       Since most OSes will not share code between rings, this shouldn't
  *       have any real effect on TB/memory/recompiling load.
  */
-#define IEMTB_F_KEY_MASK                ((UINT32_MAX & ~(IEM_F_X86_CTX_MASK | IEMTB_F_TYPE_MASK)) | IEM_F_X86_CTX_SMM)
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+# define IEMTB_F_KEY_MASK               ((UINT32_MAX & ~(IEM_F_X86_CTX_MASK | IEMTB_F_TYPE_MASK)) | IEM_F_X86_CTX_SMM)
+#else
+# define IEMTB_F_KEY_MASK               (UINT32_MAX)
+#endif
 /** @} */
 
-AssertCompile( (IEM_F_MODE_X86_16BIT              & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_16BIT);
+#ifdef VBOX_VMM_TARGET_X86
+AssertCompile( (IEM_F_MODE_X86_16BIT              & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_16BIT);
 AssertCompile(!(IEM_F_MODE_X86_16BIT              & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK));
 AssertCompile(!(IEM_F_MODE_X86_16BIT              & IEM_F_MODE_X86_PROT_MASK));
 AssertCompile(!(IEM_F_MODE_X86_16BIT              & IEM_F_MODE_X86_V86_MASK));
-AssertCompile( (IEM_F_MODE_X86_16BIT_PRE_386      & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_16BIT);
+AssertCompile( (IEM_F_MODE_X86_16BIT_PRE_386      & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_16BIT);
 AssertCompile(  IEM_F_MODE_X86_16BIT_PRE_386      & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK);
 AssertCompile(!(IEM_F_MODE_X86_16BIT_PRE_386      & IEM_F_MODE_X86_PROT_MASK));
 AssertCompile(!(IEM_F_MODE_X86_16BIT_PRE_386      & IEM_F_MODE_X86_V86_MASK));
-AssertCompile( (IEM_F_MODE_X86_16BIT_PROT         & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_16BIT);
+AssertCompile( (IEM_F_MODE_X86_16BIT_PROT         & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_16BIT);
 AssertCompile(!(IEM_F_MODE_X86_16BIT_PROT         & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK));
 AssertCompile(  IEM_F_MODE_X86_16BIT_PROT         & IEM_F_MODE_X86_PROT_MASK);
 AssertCompile(!(IEM_F_MODE_X86_16BIT_PROT         & IEM_F_MODE_X86_V86_MASK));
-AssertCompile( (IEM_F_MODE_X86_16BIT_PROT_PRE_386 & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_16BIT);
+AssertCompile( (IEM_F_MODE_X86_16BIT_PROT_PRE_386 & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_16BIT);
 AssertCompile(  IEM_F_MODE_X86_16BIT_PROT_PRE_386 & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK);
 AssertCompile(  IEM_F_MODE_X86_16BIT_PROT_PRE_386 & IEM_F_MODE_X86_PROT_MASK);
 AssertCompile(!(IEM_F_MODE_X86_16BIT_PROT_PRE_386 & IEM_F_MODE_X86_V86_MASK));
@@ -1222,22 +1579,30 @@ AssertCompile(  IEM_F_MODE_X86_16BIT_PROT_V86     & IEM_F_MODE_X86_PROT_MASK);
 AssertCompile(!(IEM_F_MODE_X86_16BIT_PROT_V86     & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK));
 AssertCompile(  IEM_F_MODE_X86_16BIT_PROT_V86     & IEM_F_MODE_X86_V86_MASK);
 
-AssertCompile( (IEM_F_MODE_X86_32BIT              & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_32BIT);
+AssertCompile( (IEM_F_MODE_X86_32BIT              & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_32BIT);
 AssertCompile(!(IEM_F_MODE_X86_32BIT              & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK));
 AssertCompile(!(IEM_F_MODE_X86_32BIT              & IEM_F_MODE_X86_PROT_MASK));
-AssertCompile( (IEM_F_MODE_X86_32BIT_FLAT         & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_32BIT);
+AssertCompile( (IEM_F_MODE_X86_32BIT_FLAT         & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_32BIT);
 AssertCompile(  IEM_F_MODE_X86_32BIT_FLAT         & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK);
 AssertCompile(!(IEM_F_MODE_X86_32BIT_FLAT         & IEM_F_MODE_X86_PROT_MASK));
-AssertCompile( (IEM_F_MODE_X86_32BIT_PROT         & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_32BIT);
+AssertCompile( (IEM_F_MODE_X86_32BIT_PROT         & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_32BIT);
 AssertCompile(!(IEM_F_MODE_X86_32BIT_PROT         & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK));
 AssertCompile(  IEM_F_MODE_X86_32BIT_PROT         & IEM_F_MODE_X86_PROT_MASK);
-AssertCompile( (IEM_F_MODE_X86_32BIT_PROT_FLAT    & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_32BIT);
+AssertCompile( (IEM_F_MODE_X86_32BIT_PROT_FLAT    & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_32BIT);
 AssertCompile(  IEM_F_MODE_X86_32BIT_PROT_FLAT    & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK);
 AssertCompile(  IEM_F_MODE_X86_32BIT_PROT_FLAT    & IEM_F_MODE_X86_PROT_MASK);
 
-AssertCompile( (IEM_F_MODE_X86_64BIT              & IEM_F_MODE_CPUMODE_MASK) == IEMMODE_64BIT);
+AssertCompile( (IEM_F_MODE_X86_64BIT              & IEM_F_MODE_X86_CPUMODE_MASK) == IEMMODE_64BIT);
 AssertCompile(  IEM_F_MODE_X86_64BIT              & IEM_F_MODE_X86_PROT_MASK);
 AssertCompile(!(IEM_F_MODE_X86_64BIT              & IEM_F_MODE_X86_FLAT_OR_PRE_386_MASK));
+#endif /* VBOX_VMM_TARGET_X86 */
+
+#ifdef VBOX_VMM_TARGET_ARMV8
+AssertCompile(IEM_F_MODE_ARM_EL_SHIFT == ARMV8_SPSR_EL2_AARCH64_EL_SHIFT);
+AssertCompile(IEM_F_MODE_ARM_EL_MASK  == ARMV8_SPSR_EL2_AARCH64_EL);
+AssertCompile(IEM_F_MODE_ARM_32BIT    == ARMV8_SPSR_EL2_AARCH64_M4);
+AssertCompile(IEM_F_MODE_ARM_T32      == ARMV8_SPSR_EL2_AARCH64_T);
+#endif
 
 /** Native instruction type for use with the native code generator.
  * This is a byte (uint8_t) for x86 and amd64 and uint32_t for the other(s). */
@@ -1284,7 +1649,8 @@ typedef struct IEMTHRDEDCALLENTRY
     /** Flags - IEMTHREADEDCALLENTRY_F_XXX. */
     uint8_t     fFlags;
 
-    /** Generic parameters. */
+    /** Generic parameters.
+     * @todo ARM: Hope we can get away with one param here... */
     uint64_t    auParams[3];
 } IEMTHRDEDCALLENTRY;
 AssertCompileSize(IEMTHRDEDCALLENTRY, sizeof(uint64_t) * 4);
@@ -1300,9 +1666,9 @@ typedef IEMTHRDEDCALLENTRY const *PCIEMTHRDEDCALLENTRY;
 #define IEM_TB_LOOKUP_TAB_GET_SIZE(a_uTbLookup)         (!((a_uTbLookup) & 0x80) ? 1 : IEM_TB_LOOKUP_TAB_LARGE_SIZE)
 /** Get the first lookup table index from IEMTHRDEDCALLENTRY::uTbLookup. */
 #define IEM_TB_LOOKUP_TAB_GET_IDX(a_uTbLookup)          ((a_uTbLookup) & 0x7f)
-/** Get the lookup table index from IEMTHRDEDCALLENTRY::uTbLookup and RIP. */
-#define IEM_TB_LOOKUP_TAB_GET_IDX_WITH_RIP(a_uTbLookup, a_Rip) \
-    (!((a_uTbLookup) & 0x80) ? (a_uTbLookup) & 0x7f : ((a_uTbLookup) & 0x7f) + ((a_Rip) & (IEM_TB_LOOKUP_TAB_LARGE_SIZE - 1)) )
+/** Get the lookup table index from IEMTHRDEDCALLENTRY::uTbLookup and PC. */
+#define IEM_TB_LOOKUP_TAB_GET_IDX_WITH_PC(a_uTbLookup, a_Pc) \
+    (!((a_uTbLookup) & 0x80) ? (a_uTbLookup) & 0x7f : ((a_uTbLookup) & 0x7f) + ((a_Pc) & (IEM_TB_LOOKUP_TAB_LARGE_SIZE - 1)) )
 
 /** Make a IEMTHRDEDCALLENTRY::uTbLookup value. */
 #define IEM_TB_LOOKUP_TAB_MAKE(a_idxTable, a_fLarge)    ((a_idxTable) | ((a_fLarge) ? 0x80 : 0))
@@ -1643,7 +2009,7 @@ typedef struct IEMTBCACHE
     RT_FLEXIBLE_ARRAY_EXTENSION
     PIEMTB          apHash[RT_FLEXIBLE_ARRAY];
 } IEMTBCACHE;
-/** Pointer to a per-CPU translation block cahce. */
+/** Pointer to a per-CPU translation block cache. */
 typedef IEMTBCACHE *PIEMTBCACHE;
 
 /** Magic value for IEMTBCACHE (Johnny O'Neal). */
@@ -1692,15 +2058,47 @@ typedef IEMTBCACHE *PIEMTBCACHE;
 #define IEMBRANCHED_F_RELATIVE      UINT8_C(0x04)
 /** Flag set if conditional branch, clear if unconditional. */
 #define IEMBRANCHED_F_CONDITIONAL   UINT8_C(0x08)
-/** Flag set if it's a far branch. */
+/** Flag set if it's a far branch.
+ * @note x86 specific */
 #define IEMBRANCHED_F_FAR           UINT8_C(0x10)
 /** Flag set if the stack pointer is modified. */
 #define IEMBRANCHED_F_STACK         UINT8_C(0x20)
-/** Flag set if the stack pointer and (maybe) the stack segment are modified. */
+/** Flag set if the stack pointer and (maybe) the stack segment are modified.
+ * @note x86 specific */
 #define IEMBRANCHED_F_STACK_FAR     UINT8_C(0x40)
 /** Flag set (by IEM_MC_REL_JMP_XXX) if it's a zero bytes relative jump. */
 #define IEMBRANCHED_F_ZERO          UINT8_C(0x80)
 /** @} */
+
+
+/** @def IEM_MAX_MEM_MAPPINGS
+ * Maximum number of concurrent memory needed by the target architecture.
+ * @x86     There are a few instructions with two memory operands (push/pop [mem],
+ *          string instructions).  We add another entry for safety.
+ * @arm     Except for the recently specified memcpy/move instructions,
+ *          ARM instruction takes at most one memory operand.  We use 1 and add
+ *          another entry for safety, ignoring the memcpy instructions for now. */
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING) /* for now: */ || defined(VBOX_VMM_TARGET_AGNOSTIC)
+# define IEM_MAX_MEM_MAPPINGS       3
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+# define IEM_MAX_MEM_MAPPINGS       2
+#else
+# error "port me"
+#endif
+
+/** @def IEM_BOUNCE_BUFFER_SIZE
+ * The size of the bounce buffers.  This is dictated by the largest memory
+ * operand of the target architecture.
+ * @x86     fxsave/fxrstor takes a 512 byte operand. Whether we actually need a
+ *          512 byte bounce buffer for it is questionable...
+ * @arm     Currently we shouldn't need more than 64 bytes here (ld64b, ld4). */
+#if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING) /* for now: */ || defined(VBOX_VMM_TARGET_AGNOSTIC)
+# define IEM_BOUNCE_BUFFER_SIZE     512
+#elif defined(VBOX_VMM_TARGET_ARMV8)
+# define IEM_BOUNCE_BUFFER_SIZE     64
+#else
+# error "port me"
+#endif
 
 
 /**
@@ -1722,11 +2120,17 @@ typedef struct IEMCPU
 #ifdef IEM_WITH_CODE_TLB
     /** The offset of the next instruction byte. */
     uint32_t                offInstrNextByte;                                                               /* 0x08 */
-    /** The number of bytes available at pbInstrBuf for the current instruction.
-     * This takes the max opcode length into account so that doesn't need to be
-     * checked separately. */
-    uint32_t                cbInstrBuf;                                                                     /* 0x0c */
-    /** Pointer to the page containing RIP, user specified buffer or abOpcode.
+# if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+    /** X86: The number of bytes available at pbInstrBuf for the current
+     * instruction. This takes the max opcode length into account so that doesn't
+     * need to be checked separately. */
+    uint32_t                cbInstrBuf;                                                                /* x86: 0x0c */
+# else
+    /** The number of bytes available at pbInstrBuf in total (for IEMExecLots).
+     * @note Set to zero when the code TLB is flushed to trigger TLB reload. */
+    uint32_t                cbInstrBufTotal;                                                          /* !x86: 0x0c */
+# endif
+    /** Pointer to the page containing PC, user specified buffer or abOpcode.
      * This can be NULL if the page isn't mappable for some reason, in which
      * case we'll do fallback stuff.
      *
@@ -1734,8 +2138,8 @@ typedef struct IEMCPU
      * IEMExecOneWithPrefetchedByPC and friends, this is not necessarily a page
      * aligned pointer but pointer to the user data.
      *
-     * For instructions crossing pages, this will start on the first page and be
-     * advanced to the next page by the time we've decoded the instruction.  This
+     * @x86 For instructions crossing pages, this will start on the first page and
+     * be advanced to the next page by the time we've decoded the instruction.  This
      * therefore precludes stuff like <tt>pbInstrBuf[offInstrNextByte + cbInstrBuf - cbCurInstr]</tt>
      */
     uint8_t const          *pbInstrBuf;                                                                     /* 0x10 */
@@ -1747,40 +2151,44 @@ typedef struct IEMCPU
     uint64_t                uInstrBufPc;                                                                    /* 0x18 */
     /** The guest physical address corresponding to pbInstrBuf. */
     RTGCPHYS                GCPhysInstrBuf;                                                                 /* 0x20 */
-    /** The number of bytes available at pbInstrBuf in total (for IEMExecLots).
+# if defined(VBOX_VMM_TARGET_X86) || defined(DOXYGEN_RUNNING)
+    /** X86: The number of bytes available at pbInstrBuf in total (for IEMExecLots).
      * This takes the CS segment limit into account.
      * @note Set to zero when the code TLB is flushed to trigger TLB reload. */
-    uint16_t                cbInstrBufTotal;                                                                /* 0x28 */
-    /** Offset into pbInstrBuf of the first byte of the current instruction.
+    uint16_t                cbInstrBufTotal;                                                           /* x86: 0x28 */
+    /** X86: Offset into pbInstrBuf of the first byte of the current instruction.
      * Can be negative to efficiently handle cross page instructions. */
-    int16_t                 offCurInstrStart;                                                               /* 0x2a */
+    int16_t                 offCurInstrStart;                                                          /* x86: 0x2a */
+# endif
 
-# ifndef IEM_WITH_OPAQUE_DECODER_STATE
-    /** The prefix mask (IEM_OP_PRF_XXX). */
-    uint32_t                fPrefixes;                                                                      /* 0x2c */
-    /** The extra REX ModR/M register field bit (REX.R << 3). */
-    uint8_t                 uRexReg;                                                                        /* 0x30 */
-    /** The extra REX ModR/M r/m field, SIB base and opcode reg bit
+# if (!defined(IEM_WITH_OPAQUE_DECODER_STATE) && defined(VBOX_VMM_TARGET_X86)) || defined(DOXYGEN_RUNNING)
+    /** X86: The prefix mask (IEM_OP_PRF_XXX). */
+    uint32_t                fPrefixes;                                                                 /* x86: 0x2c */
+    /** X86: The extra REX ModR/M register field bit (REX.R << 3). */
+    uint8_t                 uRexReg;                                                                   /* x86: 0x30 */
+    /** X86: The extra REX ModR/M r/m field, SIB base and opcode reg bit
      * (REX.B << 3). */
-    uint8_t                 uRexB;                                                                          /* 0x31 */
-    /** The extra REX SIB index field bit (REX.X << 3). */
-    uint8_t                 uRexIndex;                                                                      /* 0x32 */
+    uint8_t                 uRexB;                                                                     /* x86: 0x31 */
+    /** X86: The extra REX SIB index field bit (REX.X << 3). */
+    uint8_t                 uRexIndex;                                                                 /* x86: 0x32 */
 
-    /** The effective segment register (X86_SREG_XXX). */
-    uint8_t                 iEffSeg;                                                                        /* 0x33 */
+    /** X86: The effective segment register (X86_SREG_XXX). */
+    uint8_t                 iEffSeg;                                                                   /* x86: 0x33 */
 
-    /** The offset of the ModR/M byte relative to the start of the instruction. */
-    uint8_t                 offModRm;                                                                       /* 0x34 */
+    /** X86: The offset of the ModR/M byte relative to the start of the instruction. */
+    uint8_t                 offModRm;                                                                  /* x86: 0x34 */
 
 #  ifdef IEM_WITH_CODE_TLB_AND_OPCODE_BUF
-    /** The current offset into abOpcode. */
-    uint8_t                 offOpcode;                                                                      /* 0x35 */
+    /** X86: The current offset into abOpcode. */
+    uint8_t                 offOpcode;                                                                 /* x86: 0x35 */
 #  else
-    uint8_t                 bUnused;                                                                        /* 0x35 */
+    uint8_t                 bUnused;                                                                   /* x86: 0x35 */
 #  endif
-# else  /* IEM_WITH_OPAQUE_DECODER_STATE */
+# else  /* IEM_WITH_OPAQUE_DECODER_STATE || !X86 */
+#  ifdef VBOX_VMM_TARGET_X86
     uint8_t                 abOpaqueDecoderPart1[0x36 - 0x2c];
-# endif /* IEM_WITH_OPAQUE_DECODER_STATE */
+#  endif
+# endif /* IEM_WITH_OPAQUE_DECODER_STATE || !X86 */
 
 #else  /* !IEM_WITH_CODE_TLB */
 #  ifndef IEM_WITH_OPAQUE_DECODER_STATE
@@ -1788,76 +2196,117 @@ typedef struct IEMCPU
     uint8_t                 cbOpcode;                                                                       /*       0x08 */
     /** The current offset into abOpcode. */
     uint8_t                 offOpcode;                                                                      /*       0x09 */
-    /** The offset of the ModR/M byte relative to the start of the instruction. */
-    uint8_t                 offModRm;                                                                       /*       0x0a */
 
-    /** The effective segment register (X86_SREG_XXX). */
-    uint8_t                 iEffSeg;                                                                        /*       0x0b */
+#   ifdef VBOX_VMM_TARGET_X86
+    /** X86: The offset of the ModR/M byte relative to the start of the
+     *  instruction. */
+    uint8_t                 offModRm;                                                                  /* x86:       0x0a */
 
-    /** The prefix mask (IEM_OP_PRF_XXX). */
-    uint32_t                fPrefixes;                                                                      /*       0x0c */
-    /** The extra REX ModR/M register field bit (REX.R << 3). */
-    uint8_t                 uRexReg;                                                                        /*       0x10 */
-    /** The extra REX ModR/M r/m field, SIB base and opcode reg bit
+    /** X86: The effective segment register (X86_SREG_XXX). */
+    uint8_t                 iEffSeg;                                                                   /* x86:       0x0b */
+
+    /** X86: The prefix mask (IEM_OP_PRF_XXX). */
+    uint32_t                fPrefixes;                                                                 /* x86:       0x0c */
+    /** X86: The extra REX ModR/M register field bit (REX.R << 3). */
+    uint8_t                 uRexReg;                                                                   /* x86:       0x10 */
+    /** X86: The extra REX ModR/M r/m field, SIB base and opcode reg bit
      * (REX.B << 3). */
-    uint8_t                 uRexB;                                                                          /*       0x11 */
-    /** The extra REX SIB index field bit (REX.X << 3). */
-    uint8_t                 uRexIndex;                                                                      /*       0x12 */
-
+    uint8_t                 uRexB;                                                                     /* x86:       0x11 */
+    /** X86: The extra REX SIB index field bit (REX.X << 3). */
+    uint8_t                 uRexIndex;                                                                 /* x86:       0x12 */
+#   endif
 # else  /* IEM_WITH_OPAQUE_DECODER_STATE */
+#   ifdef VBOX_VMM_TARGET_X86
     uint8_t                 abOpaqueDecoderPart1[0x13 - 0x08];
+#   else
+    uint8_t                 abOpaqueDecoderPart1[2];
+#   endif
 # endif /* IEM_WITH_OPAQUE_DECODER_STATE */
 #endif /* !IEM_WITH_CODE_TLB */
 
-#ifndef IEM_WITH_OPAQUE_DECODER_STATE
-    /** The effective operand mode. */
-    IEMMODE                 enmEffOpSize;                                                                   /* 0x36, 0x13 */
-    /** The default addressing mode. */
-    IEMMODE                 enmDefAddrMode;                                                                 /* 0x37, 0x14 */
-    /** The effective addressing mode. */
-    IEMMODE                 enmEffAddrMode;                                                                 /* 0x38, 0x15 */
-    /** The default operand mode. */
-    IEMMODE                 enmDefOpSize;                                                                   /* 0x39, 0x16 */
+#if  (!defined(IEM_WITH_OPAQUE_DECODER_STATE) && (defined(VBOX_VMM_TARGET_X86) || !defined(IEM_WITH_CODE_TLB))) \
+  || defined(DOXGYEN_RUNNING)
+# ifdef VBOX_VMM_TARGET_X86
+    /** X86: The effective operand mode. */
+    IEMMODE                 enmEffOpSize;                                                              /* x86: 0x36, 0x13 */
+    /** X86: The default addressing mode. */
+    IEMMODE                 enmDefAddrMode;                                                            /* x86: 0x37, 0x14 */
+    /** X86: The effective addressing mode. */
+    IEMMODE                 enmEffAddrMode;                                                            /* x86: 0x38, 0x15 */
+    /** X86: The default operand mode. */
+    IEMMODE                 enmDefOpSize;                                                              /* x86: 0x39, 0x16 */
 
-    /** Prefix index (VEX.pp) for two byte and three byte tables. */
-    uint8_t                 idxPrefix;                                                                      /* 0x3a, 0x17 */
-    /** 3rd VEX/EVEX/XOP register.
+    /** X86: Prefix index (VEX.pp) for two byte and three byte tables. */
+    uint8_t                 idxPrefix;                                                                 /* x86: 0x3a, 0x17 */
+    /** X86: 3rd VEX/EVEX/XOP register.
      * Please use IEM_GET_EFFECTIVE_VVVV to access.  */
-    uint8_t                 uVex3rdReg;                                                                     /* 0x3b, 0x18 */
-    /** The VEX/EVEX/XOP length field. */
-    uint8_t                 uVexLength;                                                                     /* 0x3c, 0x19 */
-    /** Additional EVEX stuff. */
-    uint8_t                 fEvexStuff;                                                                     /* 0x3d, 0x1a */
+    uint8_t                 uVex3rdReg;                                                                /* x86: 0x3b, 0x18 */
+    /** X86: The VEX/EVEX/XOP length field. */
+    uint8_t                 uVexLength;                                                                /* x86: 0x3c, 0x19 */
+    /** X86: Additional EVEX stuff. */
+    uint8_t                 fEvexStuff;                                                                /* x86: 0x3d, 0x1a */
 
-# ifndef IEM_WITH_CODE_TLB
+#  ifndef IEM_WITH_CODE_TLB
     /** Explicit alignment padding. */
-    uint8_t                 abAlignment2a[1];                                                               /*       0x1b */
-# endif
-    /** The FPU opcode (FOP). */
-    uint16_t                uFpuOpcode;                                                                     /* 0x3e, 0x1c */
-# ifndef IEM_WITH_CODE_TLB
-    /** Explicit alignment padding. */
-    uint8_t                 abAlignment2b[2];                                                               /*       0x1e */
-# endif
+    uint8_t                 abAlignment2a[1];                                                          /* x86:       0x1b */
+#  endif
+    /** X86: The FPU opcode (FOP). */
+    uint16_t                uFpuOpcode;                                                                /* x86: 0x3e, 0x1c */
+#  ifndef IEM_WITH_CODE_TLB
+    /** Opcode buffer alignment padding. */
+    uint8_t                 abAlignment2b[2];                                                          /* x86:       0x1e */
+#  endif
+# else  /* !VBOX_VMM_TARGET_X86 */
+    /** Opcode buffer alignment padding. */
+    uint8_t                 abAlignment2b[2];                                                         /* !x86:       0x0a */
+# endif /* !VBOX_VMM_TARGET_X86 */
 
     /** The opcode bytes. */
-    uint8_t                 abOpcode[15];                                                                   /* 0x40, 0x20 */
-    /** Explicit alignment padding. */
-# ifdef IEM_WITH_CODE_TLB
-    //uint8_t                 abAlignment2c[0x4f - 0x4f];                                                     /* 0x4f */
+# ifdef VBOX_VMM_TARGET_X86
+    uint8_t                 abOpcode[15];                                                              /* x86: 0x40, 0x20 */
 # else
-    uint8_t                 abAlignment2c[0x4f - 0x2f];                                                     /*       0x2f */
+    union
+    {
+        uint8_t             abOpcode[  28];                                                           /* !x86:       0x0c(..0x28) */
+        uint16_t            au16Opcode[14];
+        uint32_t            au32Opcode[ 7];
+    };
+# endif
+# ifdef VBOX_VMM_TARGET_X86
+    /** X86: Explicit alignment padding. */
+#  ifdef IEM_WITH_CODE_TLB
+    //uint8_t                 abAlignment2c[0x4f - 0x4f];                                              /* x86: 0x4f */
+#  else
+    uint8_t                 abAlignment2c[0x4f - 0x2f];                                                /* x86:       0x2f */
+#  endif
+# elif !defined(VBOX_VMM_TARGET_ARMV8)
+    uint8_t                 abAlignment2c[0x4f - 0x28];                                         /* !x86: !arm:       0x28 */
 # endif
 
-#else  /* IEM_WITH_OPAQUE_DECODER_STATE */
+#else  /* IEM_WITH_OPAQUE_DECODER_STATE || (!x86 && TLB) */
 # ifdef IEM_WITH_CODE_TLB
+#  ifdef VBOX_VMM_TARGET_X86
     uint8_t                 abOpaqueDecoderPart2[0x4f - 0x36];
+#  elif !defined(VBOX_VMM_TARGET_ARMV8)
+    uint8_t                 abOpaqueDecoderPart2[0x4f - 0x28];
+#  endif
 # else
+#  ifdef VBOX_VMM_TARGET_X86
     uint8_t                 abOpaqueDecoderPart2[0x4f - 0x13];
+#  elif defined(VBOX_VMM_TARGET_ARMV8)
+    uint8_t                 abOpaqueDecoderPart2[0x28 - 0x0a];
+#  else
+    uint8_t                 abOpaqueDecoderPart2[0x4f - 0x09];
+#  endif
 # endif
 #endif /* IEM_WITH_OPAQUE_DECODER_STATE */
     /** @} */
 
+#  ifdef VBOX_VMM_TARGET_ARMV8
+    RTGCPTR                 GCPtrEffT0SzAndMask;                                                       /* arm: 0x28 */
+    RTGCPTR                 GCPtrEffT1SzOrMask;                                                        /* arm: 0x30 */
+    uint8_t                 abPadding3[0x4f - 0x38];                                                   /* arm: 0x38 */
+#  endif
 
     /** The number of active guest memory mappings. */
     uint8_t                 cActiveMappings;                                                                /* 0x4f, 0x4f */
@@ -1873,14 +2322,14 @@ typedef struct IEMCPU
 #if HC_ARCH_BITS == 64
         uint32_t            u32Alignment4; /**< Alignment padding. */
 #endif
-    } aMemMappings[3];                                                                                      /* 0x50 LB 0x30 */
+    } aMemMappings[IEM_MAX_MEM_MAPPINGS];                                           /* arm: 0x50 LB 0x20  x86: 0x50 LB 0x30 */
 
     /** Locking records for the mapped memory. */
     union
     {
         PGMPAGEMAPLOCK      Lock;
         uint64_t            au64Padding[2];
-    } aMemMappingLocks[3];                                                                                  /* 0x80 LB 0x30 */
+    } aMemMappingLocks[IEM_MAX_MEM_MAPPINGS];                                       /* arm: 0x70 LB 0x20  x86: 0x80 LB 0x30 */
 
     /** Bounce buffer info.
      * This runs in parallel to aMemMappings. */
@@ -1898,26 +2347,29 @@ typedef struct IEMCPU
         bool                fUnassigned;
         /** Explicit alignment padding. */
         bool                afAlignment5[3];
-    } aMemBbMappings[3];                                                                                    /* 0xb0 LB 0x48 */
+    } aMemBbMappings[IEM_MAX_MEM_MAPPINGS];                                         /* arm: 0x90 LB 0x30  x86: 0xb0 LB 0x48 */
 
-    /** The flags of the current exception / interrupt. */
-    uint32_t                fCurXcpt;                                                                       /* 0xf8 */
-    /** The current exception / interrupt. */
-    uint8_t                 uCurXcpt;                                                                       /* 0xfc */
-    /** Exception / interrupt recursion depth. */
-    int8_t                  cXcptRecursions;                                                                /* 0xfb */
+    /** The flags of the current exception / interrupt.
+     * @note X86 specific? */
+    uint32_t                fCurXcpt;                                               /* arm: 0xc0          x86: 0xf8 */
+    /** The current exception / interrupt.
+     *@note X86 specific? */
+    uint8_t                 uCurXcpt;                                               /* arm: 0xc4          x86: 0xfc */
+    /** Exception / interrupt recursion depth.
+     *@note X86 specific? */
+    int8_t                  cXcptRecursions;                                        /* arm: 0xc5          x86: 0xfb */
 
     /** The next unused mapping index.
      * @todo try find room for this up with cActiveMappings. */
-    uint8_t                 iNextMapping;                                                                   /* 0xfd */
-    uint8_t                 abAlignment7[1];
+    uint8_t                 iNextMapping;                                           /* arm: 0xc6          x86: 0xfd */
+    uint8_t                 abAlignment7[IEM_MAX_MEM_MAPPINGS == 3 ? 1 : 0x39];
 
     /** Bounce buffer storage.
      * This runs in parallel to aMemMappings and aMemBbMappings. */
     struct
     {
-        uint8_t             ab[512];
-    } aBounceBuffers[3];                                                                                    /* 0x100 LB 0x600 */
+        uint8_t             ab[IEM_BOUNCE_BUFFER_SIZE];
+    } aBounceBuffers[IEM_MAX_MEM_MAPPINGS];                                        /* arm: 0x100 LB 0x80  x86: 0x100 LB 0x600 */
 
 
     /** Pointer set jump buffer - ring-3 context. */
@@ -1937,9 +2389,6 @@ typedef struct IEMCPU
     uint32_t                cInstructions;
     /** The number of potential exits. */
     uint32_t                cPotentialExits;
-    /** The number of bytes data or stack written (mostly for IEMExecOneEx).
-     * This may contain uncommitted writes.  */
-    uint32_t                cbWritten;
     /** Counts the VERR_IEM_INSTR_NOT_IMPLEMENTED returns. */
     uint32_t                cRetInstrNotImplemented;
     /** Counts the VERR_IEM_ASPECT_NOT_IMPLEMENTED returns. */
@@ -1980,18 +2429,12 @@ typedef struct IEMCPU
     CPUMCPUVENDOR           enmCpuVendor;
     /** @} */
 
-    /** @name Host CPU information.
-     * @{ */
-    /** The CPU vendor. */
-    CPUMCPUVENDOR           enmHostCpuVendor;
-    /** @} */
-
     /** Counts RDMSR \#GP(0) LogRel(). */
     uint8_t                 cLogRelRdMsr;
     /** Counts WRMSR \#GP(0) LogRel(). */
     uint8_t                 cLogRelWrMsr;
     /** Alignment padding. */
-    uint8_t                 abAlignment9[42];
+    uint8_t                 abAlignment9[50];
 
 
     /** @name Recompiled Exection
@@ -2091,10 +2534,6 @@ typedef struct IEMCPU
     /** Strict: Tracking skipped EFLAGS calculations.  Any bits set here are
      *  currently not up to date in EFLAGS. */
     uint32_t                fSkippingEFlags;
-#if 0  /* unused */
-    /** Previous GCPhysInstrBuf value - only valid if fTbCrossedPage is set.   */
-    RTGCPHYS                GCPhysInstrBufPrev;
-#endif
 
     /** Fixed TB used for threaded recompilation.
      * This is allocated once with maxed-out sizes and re-used afterwards. */
@@ -2436,6 +2875,24 @@ typedef struct IEMCPU
 # endif
 #endif
 } IEMCPU;
+#ifdef IEM_WITH_CODE_TLB
+AssertCompileMemberOffset(IEMCPU, GCPhysInstrBuf, 0x20);
+#endif
+#if !defined(IEM_WITH_OPAQUE_DECODER_STATE) && defined(VBOX_VMM_TARGET_X86)
+# ifdef IEM_WITH_CODE_TLB
+AssertCompileMemberOffset(IEMCPU, enmEffOpSize, 0x36);
+AssertCompileMemberOffset(IEMCPU, abOpcode, 0x40);
+# else
+AssertCompileMemberOffset(IEMCPU, enmEffOpSize, 0x13);
+AssertCompileMemberOffset(IEMCPU, abOpcode, 0x20);
+# endif
+#elif defined(IEM_WITH_OPAQUE_DECODER_STATE) && defined(VBOX_VMM_TARGET_X86)
+# ifdef IEM_WITH_CODE_TLB
+AssertCompileMemberOffset(IEMCPU, abOpaqueDecoderPart2, 0x36);
+# else
+AssertCompileMemberOffset(IEMCPU, abOpaqueDecoderPart2, 0x13);
+# endif
+#endif
 AssertCompileMemberOffset(IEMCPU, cActiveMappings, 0x4f);
 AssertCompileMemberAlignment(IEMCPU, aMemMappings, 16);
 AssertCompileMemberAlignment(IEMCPU, aMemMappingLocks, 16);
@@ -2476,9 +2933,9 @@ typedef IEMCPU const *PCIEMCPU;
  * @param   a_fExtrnMbz     The mask of CPUMCTX_EXTRN_XXX flags that must be zero.
  */
 #define IEM_CTX_ASSERT(a_pVCpu, a_fExtrnMbz) \
-   AssertMsg(!((a_pVCpu)->cpum.GstCtx.fExtrn & (a_fExtrnMbz)), \
-             ("fExtrn=%#RX64 & fExtrnMbz=%#RX64 -> %#RX64\n", \
-             (a_pVCpu)->cpum.GstCtx.fExtrn, (a_fExtrnMbz), (a_pVCpu)->cpum.GstCtx.fExtrn & (a_fExtrnMbz) ))
+    AssertMsg(!((a_pVCpu)->cpum.GstCtx.fExtrn & (a_fExtrnMbz)), \
+              ("fExtrn=%#RX64 & fExtrnMbz=%#RX64 -> %#RX64\n", \
+              (a_pVCpu)->cpum.GstCtx.fExtrn, (a_fExtrnMbz), (a_pVCpu)->cpum.GstCtx.fExtrn & (a_fExtrnMbz) ))
 
 /** @def IEM_CTX_IMPORT_RET
  * Makes sure the CPU context bits given by @a a_fExtrnImport are imported.
@@ -2554,13 +3011,6 @@ typedef IEMCPU const *PCIEMCPU;
 # define IEM_GET_TARGET_CPU(a_pVCpu)    ((a_pVCpu)->iem.s.uTargetCpu)
 #endif
 
-/** @def IEM_GET_INSTR_LEN
- * Gets the instruction length. */
-#ifdef IEM_WITH_CODE_TLB
-# define IEM_GET_INSTR_LEN(a_pVCpu)     ((a_pVCpu)->iem.s.offInstrNextByte - (uint32_t)(int32_t)(a_pVCpu)->iem.s.offCurInstrStart)
-#else
-# define IEM_GET_INSTR_LEN(a_pVCpu)     ((a_pVCpu)->iem.s.offOpcode)
-#endif
 
 /** @def IEM_TRY_SETJMP
  * Wrapper around setjmp / try, hiding all the ugly differences.
@@ -2593,39 +3043,37 @@ typedef IEMCPU const *PCIEMCPU;
  * @note Use with extreme care as this is a fragile macro.
  * @param   a_pVCpu     The cross context virtual CPU structure of the calling EMT.
  */
-#if defined(IEM_WITH_SETJMP) || defined(DOXYGEN_RUNNING)
-# ifdef IEM_WITH_THROW_CATCH
-#  define IEM_TRY_SETJMP(a_pVCpu, a_rcTarget) \
+#ifdef IEM_WITH_THROW_CATCH
+# define IEM_TRY_SETJMP(a_pVCpu, a_rcTarget) \
         a_rcTarget = VINF_SUCCESS; \
         try
-#  define IEM_TRY_SETJMP_AGAIN(a_pVCpu, a_rcTarget) \
+# define IEM_TRY_SETJMP_AGAIN(a_pVCpu, a_rcTarget) \
         IEM_TRY_SETJMP(a_pVCpu, a_rcTarget)
-#  define IEM_CATCH_LONGJMP_BEGIN(a_pVCpu, a_rcTarget) \
+# define IEM_CATCH_LONGJMP_BEGIN(a_pVCpu, a_rcTarget) \
         catch (int rcThrown) \
         { \
             a_rcTarget = rcThrown
-#  define IEM_CATCH_LONGJMP_END(a_pVCpu) \
+# define IEM_CATCH_LONGJMP_END(a_pVCpu) \
         } \
         ((void)0)
-# else  /* !IEM_WITH_THROW_CATCH */
-#  define IEM_TRY_SETJMP(a_pVCpu, a_rcTarget) \
+#else  /* !IEM_WITH_THROW_CATCH */
+# define IEM_TRY_SETJMP(a_pVCpu, a_rcTarget) \
         jmp_buf  JmpBuf; \
         jmp_buf * volatile pSavedJmpBuf = (a_pVCpu)->iem.s.CTX_SUFF(pJmpBuf); \
         (a_pVCpu)->iem.s.CTX_SUFF(pJmpBuf) = &JmpBuf; \
         if ((rcStrict = setjmp(JmpBuf)) == 0)
-#  define IEM_TRY_SETJMP_AGAIN(a_pVCpu, a_rcTarget) \
+# define IEM_TRY_SETJMP_AGAIN(a_pVCpu, a_rcTarget) \
         pSavedJmpBuf = (a_pVCpu)->iem.s.CTX_SUFF(pJmpBuf); \
         (a_pVCpu)->iem.s.CTX_SUFF(pJmpBuf) = &JmpBuf; \
         if ((rcStrict = setjmp(JmpBuf)) == 0)
-#  define IEM_CATCH_LONGJMP_BEGIN(a_pVCpu, a_rcTarget) \
+# define IEM_CATCH_LONGJMP_BEGIN(a_pVCpu, a_rcTarget) \
         else \
         { \
             ((void)0)
-#  define IEM_CATCH_LONGJMP_END(a_pVCpu) \
+# define IEM_CATCH_LONGJMP_END(a_pVCpu) \
         } \
         (a_pVCpu)->iem.s.CTX_SUFF(pJmpBuf) = pSavedJmpBuf
-# endif /* !IEM_WITH_THROW_CATCH */
-#endif  /* IEM_WITH_SETJMP */
+#endif /* !IEM_WITH_THROW_CATCH */
 
 
 /**
@@ -2668,7 +3116,8 @@ typedef struct IEM
 #define IEM_ACCESS_NOT_LOCKED           UINT32_C(0x00001000)
 /** Atomic access.
  * This enables special alignment checks and the VINF_EM_EMULATE_SPLIT_LOCK
- * fallback for misaligned stuff. See @bugref{10547}. */
+ * fallback for misaligned stuff. See @bugref{10547}.
+ * @arm This means FEAT_LSA2 alignment checks according to SCTLR_ELx.nAA. */
 #define IEM_ACCESS_ATOMIC               UINT32_C(0x00002000)
 /** Valid bit mask. */
 #define IEM_ACCESS_VALID_MASK           UINT32_C(0x00003fff)
@@ -2696,281 +3145,6 @@ typedef struct IEM
 /** Read+write system table alias. */
 #define IEM_ACCESS_SYS_RW               (IEM_ACCESS_TYPE_READ  | IEM_ACCESS_TYPE_WRITE | IEM_ACCESS_WHAT_SYS)
 /** @} */
-
-/** @name Prefix constants (IEMCPU::fPrefixes)
- * @{ */
-#define IEM_OP_PRF_SEG_CS               RT_BIT_32(0)  /**< CS segment prefix (0x2e). */
-#define IEM_OP_PRF_SEG_SS               RT_BIT_32(1)  /**< SS segment prefix (0x36). */
-#define IEM_OP_PRF_SEG_DS               RT_BIT_32(2)  /**< DS segment prefix (0x3e). */
-#define IEM_OP_PRF_SEG_ES               RT_BIT_32(3)  /**< ES segment prefix (0x26). */
-#define IEM_OP_PRF_SEG_FS               RT_BIT_32(4)  /**< FS segment prefix (0x64). */
-#define IEM_OP_PRF_SEG_GS               RT_BIT_32(5)  /**< GS segment prefix (0x65). */
-#define IEM_OP_PRF_SEG_MASK             UINT32_C(0x3f)
-
-#define IEM_OP_PRF_SIZE_OP              RT_BIT_32(8)  /**< Operand size prefix (0x66). */
-#define IEM_OP_PRF_SIZE_REX_W           RT_BIT_32(9)  /**< REX.W prefix (0x48-0x4f). */
-#define IEM_OP_PRF_SIZE_ADDR            RT_BIT_32(10) /**< Address size prefix (0x67). */
-
-#define IEM_OP_PRF_LOCK                 RT_BIT_32(16) /**< Lock prefix (0xf0). */
-#define IEM_OP_PRF_REPNZ                RT_BIT_32(17) /**< Repeat-not-zero prefix (0xf2). */
-#define IEM_OP_PRF_REPZ                 RT_BIT_32(18) /**< Repeat-if-zero prefix (0xf3). */
-
-#define IEM_OP_PRF_REX                  RT_BIT_32(24) /**< Any REX prefix (0x40-0x4f). */
-#define IEM_OP_PRF_REX_B                RT_BIT_32(25) /**< REX.B prefix (0x41,0x43,0x45,0x47,0x49,0x4b,0x4d,0x4f). */
-#define IEM_OP_PRF_REX_X                RT_BIT_32(26) /**< REX.X prefix (0x42,0x43,0x46,0x47,0x4a,0x4b,0x4e,0x4f). */
-#define IEM_OP_PRF_REX_R                RT_BIT_32(27) /**< REX.R prefix (0x44,0x45,0x46,0x47,0x4c,0x4d,0x4e,0x4f). */
-/** Mask with all the REX prefix flags.
- * This is generally for use when needing to undo the REX prefixes when they
- * are followed legacy prefixes and therefore does not immediately preceed
- * the first opcode byte.
- * For testing whether any REX prefix is present, use  IEM_OP_PRF_REX instead. */
-#define IEM_OP_PRF_REX_MASK  (IEM_OP_PRF_REX | IEM_OP_PRF_REX_R | IEM_OP_PRF_REX_B | IEM_OP_PRF_REX_X | IEM_OP_PRF_SIZE_REX_W )
-
-#define IEM_OP_PRF_VEX                  RT_BIT_32(28) /**< Indiciates VEX prefix. */
-#define IEM_OP_PRF_EVEX                 RT_BIT_32(29) /**< Indiciates EVEX prefix. */
-#define IEM_OP_PRF_XOP                  RT_BIT_32(30) /**< Indiciates XOP prefix. */
-/** @} */
-
-/** @name IEMOPFORM_XXX - Opcode forms
- * @note These are ORed together with IEMOPHINT_XXX.
- * @{ */
-/** ModR/M: reg, r/m */
-#define IEMOPFORM_RM            0
-/** ModR/M: reg, r/m (register) */
-#define IEMOPFORM_RM_REG        (IEMOPFORM_RM | IEMOPFORM_MOD3)
-/** ModR/M: reg, r/m (memory)   */
-#define IEMOPFORM_RM_MEM        (IEMOPFORM_RM | IEMOPFORM_NOT_MOD3)
-/** ModR/M: reg, r/m, imm */
-#define IEMOPFORM_RMI           1
-/** ModR/M: reg, r/m (register), imm */
-#define IEMOPFORM_RMI_REG       (IEMOPFORM_RMI | IEMOPFORM_MOD3)
-/** ModR/M: reg, r/m (memory), imm   */
-#define IEMOPFORM_RMI_MEM       (IEMOPFORM_RMI | IEMOPFORM_NOT_MOD3)
-/** ModR/M: reg, r/m, xmm0 */
-#define IEMOPFORM_RM0           2
-/** ModR/M: reg, r/m (register), xmm0 */
-#define IEMOPFORM_RM0_REG       (IEMOPFORM_RM0 | IEMOPFORM_MOD3)
-/** ModR/M: reg, r/m (memory), xmm0   */
-#define IEMOPFORM_RM0_MEM       (IEMOPFORM_RM0 | IEMOPFORM_NOT_MOD3)
-/** ModR/M: r/m, reg */
-#define IEMOPFORM_MR            3
-/** ModR/M: r/m (register), reg */
-#define IEMOPFORM_MR_REG        (IEMOPFORM_MR | IEMOPFORM_MOD3)
-/** ModR/M: r/m (memory), reg */
-#define IEMOPFORM_MR_MEM        (IEMOPFORM_MR | IEMOPFORM_NOT_MOD3)
-/** ModR/M: r/m, reg, imm */
-#define IEMOPFORM_MRI           4
-/** ModR/M: r/m (register), reg, imm */
-#define IEMOPFORM_MRI_REG       (IEMOPFORM_MRI | IEMOPFORM_MOD3)
-/** ModR/M: r/m (memory), reg, imm */
-#define IEMOPFORM_MRI_MEM       (IEMOPFORM_MRI | IEMOPFORM_NOT_MOD3)
-/** ModR/M: r/m only */
-#define IEMOPFORM_M             5
-/** ModR/M: r/m only (register). */
-#define IEMOPFORM_M_REG         (IEMOPFORM_M | IEMOPFORM_MOD3)
-/** ModR/M: r/m only (memory). */
-#define IEMOPFORM_M_MEM         (IEMOPFORM_M | IEMOPFORM_NOT_MOD3)
-/** ModR/M: r/m, imm */
-#define IEMOPFORM_MI            6
-/** ModR/M: r/m (register), imm */
-#define IEMOPFORM_MI_REG        (IEMOPFORM_MI | IEMOPFORM_MOD3)
-/** ModR/M: r/m (memory), imm */
-#define IEMOPFORM_MI_MEM        (IEMOPFORM_MI | IEMOPFORM_NOT_MOD3)
-/** ModR/M: r/m, 1  (shift and rotate instructions) */
-#define IEMOPFORM_M1            7
-/** ModR/M: r/m (register), 1. */
-#define IEMOPFORM_M1_REG        (IEMOPFORM_M1 | IEMOPFORM_MOD3)
-/** ModR/M: r/m (memory), 1. */
-#define IEMOPFORM_M1_MEM        (IEMOPFORM_M1 | IEMOPFORM_NOT_MOD3)
-/** ModR/M: r/m, CL  (shift and rotate instructions)
- * @todo This should just've been a generic fixed register. But the python
- *       code doesn't needs more convincing. */
-#define IEMOPFORM_M_CL          8
-/** ModR/M: r/m (register), CL. */
-#define IEMOPFORM_M_CL_REG      (IEMOPFORM_M_CL | IEMOPFORM_MOD3)
-/** ModR/M: r/m (memory), CL. */
-#define IEMOPFORM_M_CL_MEM      (IEMOPFORM_M_CL | IEMOPFORM_NOT_MOD3)
-/** ModR/M: reg only */
-#define IEMOPFORM_R             9
-
-/** VEX+ModR/M: reg, r/m */
-#define IEMOPFORM_VEX_RM        16
-/** VEX+ModR/M: reg, r/m (register) */
-#define IEMOPFORM_VEX_RM_REG    (IEMOPFORM_VEX_RM | IEMOPFORM_MOD3)
-/** VEX+ModR/M: reg, r/m (memory)   */
-#define IEMOPFORM_VEX_RM_MEM    (IEMOPFORM_VEX_RM | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M: r/m, reg */
-#define IEMOPFORM_VEX_MR        17
-/** VEX+ModR/M: r/m (register), reg */
-#define IEMOPFORM_VEX_MR_REG    (IEMOPFORM_VEX_MR | IEMOPFORM_MOD3)
-/** VEX+ModR/M: r/m (memory), reg */
-#define IEMOPFORM_VEX_MR_MEM    (IEMOPFORM_VEX_MR | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M: r/m, reg, imm8 */
-#define IEMOPFORM_VEX_MRI       18
-/** VEX+ModR/M: r/m (register), reg, imm8 */
-#define IEMOPFORM_VEX_MRI_REG   (IEMOPFORM_VEX_MRI | IEMOPFORM_MOD3)
-/** VEX+ModR/M: r/m (memory), reg, imm8 */
-#define IEMOPFORM_VEX_MRI_MEM   (IEMOPFORM_VEX_MRI | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M: r/m only */
-#define IEMOPFORM_VEX_M         19
-/** VEX+ModR/M: r/m only (register). */
-#define IEMOPFORM_VEX_M_REG     (IEMOPFORM_VEX_M | IEMOPFORM_MOD3)
-/** VEX+ModR/M: r/m only (memory). */
-#define IEMOPFORM_VEX_M_MEM     (IEMOPFORM_VEX_M | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M: reg only */
-#define IEMOPFORM_VEX_R         20
-/** VEX+ModR/M: reg, vvvv, r/m */
-#define IEMOPFORM_VEX_RVM       21
-/** VEX+ModR/M: reg, vvvv, r/m (register). */
-#define IEMOPFORM_VEX_RVM_REG   (IEMOPFORM_VEX_RVM | IEMOPFORM_MOD3)
-/** VEX+ModR/M: reg, vvvv, r/m (memory). */
-#define IEMOPFORM_VEX_RVM_MEM   (IEMOPFORM_VEX_RVM | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M: reg, vvvv, r/m, imm */
-#define IEMOPFORM_VEX_RVMI      22
-/** VEX+ModR/M: reg, vvvv, r/m (register), imm. */
-#define IEMOPFORM_VEX_RVMI_REG  (IEMOPFORM_VEX_RVMI | IEMOPFORM_MOD3)
-/** VEX+ModR/M: reg, vvvv, r/m (memory), imm. */
-#define IEMOPFORM_VEX_RVMI_MEM  (IEMOPFORM_VEX_RVMI | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M: reg, vvvv, r/m, imm(reg) */
-#define IEMOPFORM_VEX_RVMR      23
-/** VEX+ModR/M: reg, vvvv, r/m (register), imm(reg). */
-#define IEMOPFORM_VEX_RVMR_REG  (IEMOPFORM_VEX_RVMI | IEMOPFORM_MOD3)
-/** VEX+ModR/M: reg, vvvv, r/m (memory), imm(reg). */
-#define IEMOPFORM_VEX_RVMR_MEM  (IEMOPFORM_VEX_RVMI | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M: reg, r/m, vvvv */
-#define IEMOPFORM_VEX_RMV       24
-/** VEX+ModR/M: reg, r/m, vvvv (register). */
-#define IEMOPFORM_VEX_RMV_REG   (IEMOPFORM_VEX_RMV | IEMOPFORM_MOD3)
-/** VEX+ModR/M: reg, r/m, vvvv (memory). */
-#define IEMOPFORM_VEX_RMV_MEM   (IEMOPFORM_VEX_RMV | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M: reg, r/m, imm8 */
-#define IEMOPFORM_VEX_RMI       25
-/** VEX+ModR/M: reg, r/m, imm8 (register). */
-#define IEMOPFORM_VEX_RMI_REG   (IEMOPFORM_VEX_RMI | IEMOPFORM_MOD3)
-/** VEX+ModR/M: reg, r/m, imm8 (memory). */
-#define IEMOPFORM_VEX_RMI_MEM   (IEMOPFORM_VEX_RMI | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M: r/m, vvvv, reg */
-#define IEMOPFORM_VEX_MVR       26
-/** VEX+ModR/M: r/m, vvvv, reg (register) */
-#define IEMOPFORM_VEX_MVR_REG   (IEMOPFORM_VEX_MVR | IEMOPFORM_MOD3)
-/** VEX+ModR/M: r/m, vvvv, reg (memory) */
-#define IEMOPFORM_VEX_MVR_MEM   (IEMOPFORM_VEX_MVR | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M+/n: vvvv, r/m */
-#define IEMOPFORM_VEX_VM        27
-/** VEX+ModR/M+/n: vvvv, r/m (register) */
-#define IEMOPFORM_VEX_VM_REG    (IEMOPFORM_VEX_VM | IEMOPFORM_MOD3)
-/** VEX+ModR/M+/n: vvvv, r/m (memory) */
-#define IEMOPFORM_VEX_VM_MEM    (IEMOPFORM_VEX_VM | IEMOPFORM_NOT_MOD3)
-/** VEX+ModR/M+/n: vvvv, r/m, imm8 */
-#define IEMOPFORM_VEX_VMI       28
-/** VEX+ModR/M+/n: vvvv, r/m, imm8 (register) */
-#define IEMOPFORM_VEX_VMI_REG   (IEMOPFORM_VEX_VMI | IEMOPFORM_MOD3)
-/** VEX+ModR/M+/n: vvvv, r/m, imm8 (memory) */
-#define IEMOPFORM_VEX_VMI_MEM   (IEMOPFORM_VEX_VMI | IEMOPFORM_NOT_MOD3)
-
-/** Fixed register instruction, no R/M. */
-#define IEMOPFORM_FIXED         32
-
-/** The r/m is a register. */
-#define IEMOPFORM_MOD3          RT_BIT_32(8)
-/** The r/m is a memory access. */
-#define IEMOPFORM_NOT_MOD3      RT_BIT_32(9)
-/** @} */
-
-/** @name IEMOPHINT_XXX - Additional Opcode Hints
- * @note These are ORed together with IEMOPFORM_XXX.
- * @{ */
-/** Ignores the operand size prefix (66h). */
-#define IEMOPHINT_IGNORES_OZ_PFX    RT_BIT_32(10)
-/** Ignores REX.W (aka WIG). */
-#define IEMOPHINT_IGNORES_REXW      RT_BIT_32(11)
-/** Both the operand size prefixes (66h + REX.W) are ignored. */
-#define IEMOPHINT_IGNORES_OP_SIZES  (IEMOPHINT_IGNORES_OZ_PFX | IEMOPHINT_IGNORES_REXW)
-/** Allowed with the lock prefix. */
-#define IEMOPHINT_LOCK_ALLOWED      RT_BIT_32(11)
-/** The VEX.L value is ignored (aka LIG). */
-#define IEMOPHINT_VEX_L_IGNORED     RT_BIT_32(12)
-/** The VEX.L value must be zero (i.e. 128-bit width only). */
-#define IEMOPHINT_VEX_L_ZERO        RT_BIT_32(13)
-/** The VEX.L value must be one (i.e. 256-bit width only). */
-#define IEMOPHINT_VEX_L_ONE         RT_BIT_32(14)
-/** The VEX.V value must be zero. */
-#define IEMOPHINT_VEX_V_ZERO        RT_BIT_32(15)
-/** The REX.W/VEX.V value must be zero. */
-#define IEMOPHINT_REX_W_ZERO        RT_BIT_32(16)
-#define IEMOPHINT_VEX_W_ZERO        IEMOPHINT_REX_W_ZERO
-/** The REX.W/VEX.V value must be one. */
-#define IEMOPHINT_REX_W_ONE         RT_BIT_32(17)
-#define IEMOPHINT_VEX_W_ONE         IEMOPHINT_REX_W_ONE
-
-/** Hint to IEMAllInstructionPython.py that this macro should be skipped.  */
-#define IEMOPHINT_SKIP_PYTHON       RT_BIT_32(31)
-/** @} */
-
-/**
- * Possible hardware task switch sources.
- */
-typedef enum IEMTASKSWITCH
-{
-    /** Task switch caused by an interrupt/exception. */
-    IEMTASKSWITCH_INT_XCPT = 1,
-    /** Task switch caused by a far CALL. */
-    IEMTASKSWITCH_CALL,
-    /** Task switch caused by a far JMP. */
-    IEMTASKSWITCH_JUMP,
-    /** Task switch caused by an IRET. */
-    IEMTASKSWITCH_IRET
-} IEMTASKSWITCH;
-AssertCompileSize(IEMTASKSWITCH, 4);
-
-/**
- * Possible CrX load (write) sources.
- */
-typedef enum IEMACCESSCRX
-{
-    /** CrX access caused by 'mov crX' instruction. */
-    IEMACCESSCRX_MOV_CRX,
-    /** CrX (CR0) write caused by 'lmsw' instruction. */
-    IEMACCESSCRX_LMSW,
-    /** CrX (CR0) write caused by 'clts' instruction. */
-    IEMACCESSCRX_CLTS,
-    /** CrX (CR0) read caused by 'smsw' instruction. */
-    IEMACCESSCRX_SMSW
-} IEMACCESSCRX;
-
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-/** @name IEM_SLAT_FAIL_XXX - Second-level address translation failure information.
- *
- * These flags provide further context to SLAT page-walk failures that could not be
- * determined by PGM (e.g, PGM is not privy to memory access permissions).
- *
- * @{
- */
-/** Translating a nested-guest linear address failed accessing a nested-guest
- *  physical address. */
-# define IEM_SLAT_FAIL_LINEAR_TO_PHYS_ADDR          RT_BIT_32(0)
-/** Translating a nested-guest linear address failed accessing a
- *  paging-structure entry or updating accessed/dirty bits. */
-# define IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE         RT_BIT_32(1)
-/** @} */
-
-DECLCALLBACK(FNPGMPHYSHANDLER)      iemVmxApicAccessPageHandler;
-# ifndef IN_RING3
-DECLCALLBACK(FNPGMRZPHYSPFHANDLER)  iemVmxApicAccessPagePfHandler;
-# endif
-#endif
-
-/**
- * Indicates to the verifier that the given flag set is undefined.
- *
- * Can be invoked again to add more flags.
- *
- * This is a NOOP if the verifier isn't compiled in.
- *
- * @note We're temporarily keeping this until code is converted to new
- *       disassembler style opcode handling.
- */
-#define IEMOP_VERIFICATION_UNDEFINED_EFLAGS(a_fEfl) do { } while (0)
 
 
 /** @def IEM_DECL_MSC_GUARD_IGNORE
@@ -3042,2024 +3216,20 @@ DECLCALLBACK(FNPGMRZPHYSPFHANDLER)  iemVmxApicAccessPagePfHandler;
 
 #endif
 
-/** Defined in IEMAllAImplC.cpp but also used by IEMAllAImplA.asm. */
-RT_C_DECLS_BEGIN
-extern uint8_t const g_afParity[256];
-RT_C_DECLS_END
-
-
-/** @name Arithmetic assignment operations on bytes (binary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLBINU8, (uint32_t fEFlagsIn, uint8_t  *pu8Dst,  uint8_t  u8Src));
-typedef FNIEMAIMPLBINU8  *PFNIEMAIMPLBINU8;
-FNIEMAIMPLBINU8 iemAImpl_add_u8, iemAImpl_add_u8_locked;
-FNIEMAIMPLBINU8 iemAImpl_adc_u8, iemAImpl_adc_u8_locked;
-FNIEMAIMPLBINU8 iemAImpl_sub_u8, iemAImpl_sub_u8_locked;
-FNIEMAIMPLBINU8 iemAImpl_sbb_u8, iemAImpl_sbb_u8_locked;
-FNIEMAIMPLBINU8  iemAImpl_or_u8,  iemAImpl_or_u8_locked;
-FNIEMAIMPLBINU8 iemAImpl_xor_u8, iemAImpl_xor_u8_locked;
-FNIEMAIMPLBINU8 iemAImpl_and_u8, iemAImpl_and_u8_locked;
-/** @} */
-
-/** @name Arithmetic assignment operations on words (binary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLBINU16, (uint32_t fEFlagsIn, uint16_t *pu16Dst, uint16_t u16Src));
-typedef FNIEMAIMPLBINU16  *PFNIEMAIMPLBINU16;
-FNIEMAIMPLBINU16 iemAImpl_add_u16, iemAImpl_add_u16_locked;
-FNIEMAIMPLBINU16 iemAImpl_adc_u16, iemAImpl_adc_u16_locked;
-FNIEMAIMPLBINU16 iemAImpl_sub_u16, iemAImpl_sub_u16_locked;
-FNIEMAIMPLBINU16 iemAImpl_sbb_u16, iemAImpl_sbb_u16_locked;
-FNIEMAIMPLBINU16  iemAImpl_or_u16,  iemAImpl_or_u16_locked;
-FNIEMAIMPLBINU16 iemAImpl_xor_u16, iemAImpl_xor_u16_locked;
-FNIEMAIMPLBINU16 iemAImpl_and_u16, iemAImpl_and_u16_locked;
-/** @}  */
-
-
-/** @name Arithmetic assignment operations on double words (binary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLBINU32, (uint32_t fEFlagsIn, uint32_t *pu32Dst, uint32_t u32Src));
-typedef FNIEMAIMPLBINU32 *PFNIEMAIMPLBINU32;
-FNIEMAIMPLBINU32 iemAImpl_add_u32, iemAImpl_add_u32_locked;
-FNIEMAIMPLBINU32 iemAImpl_adc_u32, iemAImpl_adc_u32_locked;
-FNIEMAIMPLBINU32 iemAImpl_sub_u32, iemAImpl_sub_u32_locked;
-FNIEMAIMPLBINU32 iemAImpl_sbb_u32, iemAImpl_sbb_u32_locked;
-FNIEMAIMPLBINU32  iemAImpl_or_u32,  iemAImpl_or_u32_locked;
-FNIEMAIMPLBINU32 iemAImpl_xor_u32, iemAImpl_xor_u32_locked;
-FNIEMAIMPLBINU32 iemAImpl_and_u32, iemAImpl_and_u32_locked;
-FNIEMAIMPLBINU32 iemAImpl_blsi_u32, iemAImpl_blsi_u32_fallback;
-FNIEMAIMPLBINU32 iemAImpl_blsr_u32, iemAImpl_blsr_u32_fallback;
-FNIEMAIMPLBINU32 iemAImpl_blsmsk_u32, iemAImpl_blsmsk_u32_fallback;
-/** @}  */
-
-/** @name Arithmetic assignment operations on quad words (binary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLBINU64, (uint32_t fEFlagsIn, uint64_t *pu64Dst, uint64_t u64Src));
-typedef FNIEMAIMPLBINU64 *PFNIEMAIMPLBINU64;
-FNIEMAIMPLBINU64 iemAImpl_add_u64, iemAImpl_add_u64_locked;
-FNIEMAIMPLBINU64 iemAImpl_adc_u64, iemAImpl_adc_u64_locked;
-FNIEMAIMPLBINU64 iemAImpl_sub_u64, iemAImpl_sub_u64_locked;
-FNIEMAIMPLBINU64 iemAImpl_sbb_u64, iemAImpl_sbb_u64_locked;
-FNIEMAIMPLBINU64  iemAImpl_or_u64,  iemAImpl_or_u64_locked;
-FNIEMAIMPLBINU64 iemAImpl_xor_u64, iemAImpl_xor_u64_locked;
-FNIEMAIMPLBINU64 iemAImpl_and_u64, iemAImpl_and_u64_locked;
-FNIEMAIMPLBINU64 iemAImpl_blsi_u64, iemAImpl_blsi_u64_fallback;
-FNIEMAIMPLBINU64 iemAImpl_blsr_u64, iemAImpl_blsr_u64_fallback;
-FNIEMAIMPLBINU64 iemAImpl_blsmsk_u64, iemAImpl_blsmsk_u64_fallback;
-/** @}  */
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLBINROU8, (uint32_t fEFlagsIn, uint8_t const *pu8Dst, uint8_t u8Src));
-typedef FNIEMAIMPLBINROU8 *PFNIEMAIMPLBINROU8;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLBINROU16,(uint32_t fEFlagsIn, uint16_t const *pu16Dst, uint16_t u16Src));
-typedef FNIEMAIMPLBINROU16 *PFNIEMAIMPLBINROU16;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLBINROU32,(uint32_t fEFlagsIn, uint32_t const *pu32Dst, uint32_t u32Src));
-typedef FNIEMAIMPLBINROU32 *PFNIEMAIMPLBINROU32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLBINROU64,(uint32_t fEFlagsIn, uint64_t const *pu64Dst, uint64_t u64Src));
-typedef FNIEMAIMPLBINROU64 *PFNIEMAIMPLBINROU64;
-
-/** @name Compare operations (thrown in with the binary ops).
- * @{ */
-FNIEMAIMPLBINROU8  iemAImpl_cmp_u8;
-FNIEMAIMPLBINROU16 iemAImpl_cmp_u16;
-FNIEMAIMPLBINROU32 iemAImpl_cmp_u32;
-FNIEMAIMPLBINROU64 iemAImpl_cmp_u64;
-/** @}  */
-
-/** @name Test operations (thrown in with the binary ops).
- * @{ */
-FNIEMAIMPLBINROU8  iemAImpl_test_u8;
-FNIEMAIMPLBINROU16 iemAImpl_test_u16;
-FNIEMAIMPLBINROU32 iemAImpl_test_u32;
-FNIEMAIMPLBINROU64 iemAImpl_test_u64;
-/** @}  */
-
-/** @name Bit operations operations (thrown in with the binary ops).
- * @{ */
-FNIEMAIMPLBINROU16 iemAImpl_bt_u16;
-FNIEMAIMPLBINROU32 iemAImpl_bt_u32;
-FNIEMAIMPLBINROU64 iemAImpl_bt_u64;
-FNIEMAIMPLBINU16 iemAImpl_btc_u16, iemAImpl_btc_u16_locked;
-FNIEMAIMPLBINU32 iemAImpl_btc_u32, iemAImpl_btc_u32_locked;
-FNIEMAIMPLBINU64 iemAImpl_btc_u64, iemAImpl_btc_u64_locked;
-FNIEMAIMPLBINU16 iemAImpl_btr_u16, iemAImpl_btr_u16_locked;
-FNIEMAIMPLBINU32 iemAImpl_btr_u32, iemAImpl_btr_u32_locked;
-FNIEMAIMPLBINU64 iemAImpl_btr_u64, iemAImpl_btr_u64_locked;
-FNIEMAIMPLBINU16 iemAImpl_bts_u16, iemAImpl_bts_u16_locked;
-FNIEMAIMPLBINU32 iemAImpl_bts_u32, iemAImpl_bts_u32_locked;
-FNIEMAIMPLBINU64 iemAImpl_bts_u64, iemAImpl_bts_u64_locked;
-/** @}  */
-
-/** @name Arithmetic three operand operations on double words (binary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLBINVEXU32, (uint32_t *pu32Dst, uint32_t u32Src1, uint32_t u32Src2, uint32_t *pEFlags));
-typedef FNIEMAIMPLBINVEXU32 *PFNIEMAIMPLBINVEXU32;
-FNIEMAIMPLBINVEXU32 iemAImpl_andn_u32, iemAImpl_andn_u32_fallback;
-FNIEMAIMPLBINVEXU32 iemAImpl_bextr_u32, iemAImpl_bextr_u32_fallback;
-FNIEMAIMPLBINVEXU32 iemAImpl_bzhi_u32, iemAImpl_bzhi_u32_fallback;
-/** @}  */
-
-/** @name Arithmetic three operand operations on quad words (binary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLBINVEXU64, (uint64_t *pu64Dst, uint64_t u64Src1, uint64_t u64Src2, uint32_t *pEFlags));
-typedef FNIEMAIMPLBINVEXU64 *PFNIEMAIMPLBINVEXU64;
-FNIEMAIMPLBINVEXU64 iemAImpl_andn_u64, iemAImpl_andn_u64_fallback;
-FNIEMAIMPLBINVEXU64 iemAImpl_bextr_u64, iemAImpl_bextr_u64_fallback;
-FNIEMAIMPLBINVEXU64 iemAImpl_bzhi_u64, iemAImpl_bzhi_u64_fallback;
-/** @}  */
-
-/** @name Arithmetic three operand operations on double words w/o EFLAGS (binary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLBINVEXU32NOEFL, (uint32_t *pu32Dst, uint32_t u32Src1, uint32_t u32Src2));
-typedef FNIEMAIMPLBINVEXU32NOEFL *PFNIEMAIMPLBINVEXU32NOEFL;
-FNIEMAIMPLBINVEXU32NOEFL iemAImpl_pdep_u32, iemAImpl_pdep_u32_fallback;
-FNIEMAIMPLBINVEXU32NOEFL iemAImpl_pext_u32, iemAImpl_pext_u32_fallback;
-FNIEMAIMPLBINVEXU32NOEFL iemAImpl_sarx_u32, iemAImpl_sarx_u32_fallback;
-FNIEMAIMPLBINVEXU32NOEFL iemAImpl_shlx_u32, iemAImpl_shlx_u32_fallback;
-FNIEMAIMPLBINVEXU32NOEFL iemAImpl_shrx_u32, iemAImpl_shrx_u32_fallback;
-FNIEMAIMPLBINVEXU32NOEFL iemAImpl_rorx_u32;
-/** @}  */
-
-/** @name Arithmetic three operand operations on quad words w/o EFLAGS (binary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLBINVEXU64NOEFL, (uint64_t *pu64Dst, uint64_t u64Src1, uint64_t u64Src2));
-typedef FNIEMAIMPLBINVEXU64NOEFL *PFNIEMAIMPLBINVEXU64NOEFL;
-FNIEMAIMPLBINVEXU64NOEFL iemAImpl_pdep_u64, iemAImpl_pdep_u64_fallback;
-FNIEMAIMPLBINVEXU64NOEFL iemAImpl_pext_u64, iemAImpl_pext_u64_fallback;
-FNIEMAIMPLBINVEXU64NOEFL iemAImpl_sarx_u64, iemAImpl_sarx_u64_fallback;
-FNIEMAIMPLBINVEXU64NOEFL iemAImpl_shlx_u64, iemAImpl_shlx_u64_fallback;
-FNIEMAIMPLBINVEXU64NOEFL iemAImpl_shrx_u64, iemAImpl_shrx_u64_fallback;
-FNIEMAIMPLBINVEXU64NOEFL iemAImpl_rorx_u64;
-/** @}  */
-
-/** @name MULX 32-bit and 64-bit.
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMULXVEXU32, (uint32_t *puDst1, uint32_t *puDst2, uint32_t uSrc1, uint32_t uSrc2));
-typedef FNIEMAIMPLMULXVEXU32 *PFNIEMAIMPLMULXVEXU32;
-FNIEMAIMPLMULXVEXU32 iemAImpl_mulx_u32, iemAImpl_mulx_u32_fallback;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMULXVEXU64, (uint64_t *puDst1, uint64_t *puDst2, uint64_t uSrc1, uint64_t uSrc2));
-typedef FNIEMAIMPLMULXVEXU64 *PFNIEMAIMPLMULXVEXU64;
-FNIEMAIMPLMULXVEXU64 iemAImpl_mulx_u64, iemAImpl_mulx_u64_fallback;
-/** @}  */
-
-
-/** @name Exchange memory with register operations.
- * @{ */
-IEM_DECL_IMPL_DEF(void, iemAImpl_xchg_u8_locked, (uint8_t  *pu8Mem,  uint8_t  *pu8Reg));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xchg_u16_locked,(uint16_t *pu16Mem, uint16_t *pu16Reg));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xchg_u32_locked,(uint32_t *pu32Mem, uint32_t *pu32Reg));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xchg_u64_locked,(uint64_t *pu64Mem, uint64_t *pu64Reg));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xchg_u8_unlocked, (uint8_t  *pu8Mem,  uint8_t  *pu8Reg));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xchg_u16_unlocked,(uint16_t *pu16Mem, uint16_t *pu16Reg));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xchg_u32_unlocked,(uint32_t *pu32Mem, uint32_t *pu32Reg));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xchg_u64_unlocked,(uint64_t *pu64Mem, uint64_t *pu64Reg));
-/** @}  */
-
-/** @name Exchange and add operations.
- * @{ */
-IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u8, (uint8_t  *pu8Dst,  uint8_t  *pu8Reg,  uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u16,(uint16_t *pu16Dst, uint16_t *pu16Reg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u32,(uint32_t *pu32Dst, uint32_t *pu32Reg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u64,(uint64_t *pu64Dst, uint64_t *pu64Reg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u8_locked, (uint8_t  *pu8Dst,  uint8_t  *pu8Reg,  uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u16_locked,(uint16_t *pu16Dst, uint16_t *pu16Reg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u32_locked,(uint32_t *pu32Dst, uint32_t *pu32Reg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u64_locked,(uint64_t *pu64Dst, uint64_t *pu64Reg, uint32_t *pEFlags));
-/** @}  */
-
-/** @name Compare and exchange.
- * @{ */
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u8,        (uint8_t  *pu8Dst,  uint8_t  *puAl,  uint8_t  uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u8_locked, (uint8_t  *pu8Dst,  uint8_t  *puAl,  uint8_t  uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u16,       (uint16_t *pu16Dst, uint16_t *puAx,  uint16_t uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u16_locked,(uint16_t *pu16Dst, uint16_t *puAx,  uint16_t uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u32,       (uint32_t *pu32Dst, uint32_t *puEax, uint32_t uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u32_locked,(uint32_t *pu32Dst, uint32_t *puEax, uint32_t uSrcReg, uint32_t *pEFlags));
-#if ARCH_BITS == 32
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u64,       (uint64_t *pu64Dst, uint64_t *puRax, uint64_t *puSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u64_locked,(uint64_t *pu64Dst, uint64_t *puRax, uint64_t *puSrcReg, uint32_t *pEFlags));
-#else
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u64,       (uint64_t *pu64Dst, uint64_t *puRax, uint64_t uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u64_locked,(uint64_t *pu64Dst, uint64_t *puRax, uint64_t uSrcReg, uint32_t *pEFlags));
-#endif
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg8b,(uint64_t *pu64Dst, PRTUINT64U pu64EaxEdx, PRTUINT64U pu64EbxEcx,
-                                            uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg8b_locked,(uint64_t *pu64Dst, PRTUINT64U pu64EaxEdx, PRTUINT64U pu64EbxEcx,
-                                                   uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg16b,(PRTUINT128U pu128Dst, PRTUINT128U pu128RaxRdx, PRTUINT128U pu128RbxRcx,
-                                             uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg16b_locked,(PRTUINT128U pu128Dst, PRTUINT128U pu128RaxRdx, PRTUINT128U pu128RbxRcx,
-                                                    uint32_t *pEFlags));
-#ifndef RT_ARCH_ARM64
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg16b_fallback,(PRTUINT128U pu128Dst, PRTUINT128U pu128RaxRdx,
-                                                      PRTUINT128U pu128RbxRcx, uint32_t *pEFlags));
-#endif
-/** @} */
-
-/** @name Memory ordering
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEMFENCE,(void));
-typedef FNIEMAIMPLMEMFENCE *PFNIEMAIMPLMEMFENCE;
-IEM_DECL_IMPL_DEF(void, iemAImpl_mfence,(void));
-IEM_DECL_IMPL_DEF(void, iemAImpl_sfence,(void));
-IEM_DECL_IMPL_DEF(void, iemAImpl_lfence,(void));
-#ifndef RT_ARCH_ARM64
-IEM_DECL_IMPL_DEF(void, iemAImpl_alt_mem_fence,(void));
-#endif
-/** @} */
-
-/** @name Double precision shifts
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLSHIFTDBLU16,(uint16_t *pu16Dst, uint16_t u16Src, uint8_t cShift, uint32_t *pEFlags));
-typedef FNIEMAIMPLSHIFTDBLU16  *PFNIEMAIMPLSHIFTDBLU16;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLSHIFTDBLU32,(uint32_t *pu32Dst, uint32_t u32Src, uint8_t cShift, uint32_t *pEFlags));
-typedef FNIEMAIMPLSHIFTDBLU32  *PFNIEMAIMPLSHIFTDBLU32;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLSHIFTDBLU64,(uint64_t *pu64Dst, uint64_t u64Src, uint8_t cShift, uint32_t *pEFlags));
-typedef FNIEMAIMPLSHIFTDBLU64  *PFNIEMAIMPLSHIFTDBLU64;
-FNIEMAIMPLSHIFTDBLU16 iemAImpl_shld_u16, iemAImpl_shld_u16_amd, iemAImpl_shld_u16_intel;
-FNIEMAIMPLSHIFTDBLU32 iemAImpl_shld_u32, iemAImpl_shld_u32_amd, iemAImpl_shld_u32_intel;
-FNIEMAIMPLSHIFTDBLU64 iemAImpl_shld_u64, iemAImpl_shld_u64_amd, iemAImpl_shld_u64_intel;
-FNIEMAIMPLSHIFTDBLU16 iemAImpl_shrd_u16, iemAImpl_shrd_u16_amd, iemAImpl_shrd_u16_intel;
-FNIEMAIMPLSHIFTDBLU32 iemAImpl_shrd_u32, iemAImpl_shrd_u32_amd, iemAImpl_shrd_u32_intel;
-FNIEMAIMPLSHIFTDBLU64 iemAImpl_shrd_u64, iemAImpl_shrd_u64_amd, iemAImpl_shrd_u64_intel;
-/** @}  */
-
-
-/** @name Bit search operations (thrown in with the binary ops).
- * @{ */
-FNIEMAIMPLBINU16 iemAImpl_bsf_u16, iemAImpl_bsf_u16_amd, iemAImpl_bsf_u16_intel;
-FNIEMAIMPLBINU32 iemAImpl_bsf_u32, iemAImpl_bsf_u32_amd, iemAImpl_bsf_u32_intel;
-FNIEMAIMPLBINU64 iemAImpl_bsf_u64, iemAImpl_bsf_u64_amd, iemAImpl_bsf_u64_intel;
-FNIEMAIMPLBINU16 iemAImpl_bsr_u16, iemAImpl_bsr_u16_amd, iemAImpl_bsr_u16_intel;
-FNIEMAIMPLBINU32 iemAImpl_bsr_u32, iemAImpl_bsr_u32_amd, iemAImpl_bsr_u32_intel;
-FNIEMAIMPLBINU64 iemAImpl_bsr_u64, iemAImpl_bsr_u64_amd, iemAImpl_bsr_u64_intel;
-FNIEMAIMPLBINU16 iemAImpl_lzcnt_u16, iemAImpl_lzcnt_u16_amd, iemAImpl_lzcnt_u16_intel;
-FNIEMAIMPLBINU32 iemAImpl_lzcnt_u32, iemAImpl_lzcnt_u32_amd, iemAImpl_lzcnt_u32_intel;
-FNIEMAIMPLBINU64 iemAImpl_lzcnt_u64, iemAImpl_lzcnt_u64_amd, iemAImpl_lzcnt_u64_intel;
-FNIEMAIMPLBINU16 iemAImpl_tzcnt_u16, iemAImpl_tzcnt_u16_amd, iemAImpl_tzcnt_u16_intel;
-FNIEMAIMPLBINU32 iemAImpl_tzcnt_u32, iemAImpl_tzcnt_u32_amd, iemAImpl_tzcnt_u32_intel;
-FNIEMAIMPLBINU64 iemAImpl_tzcnt_u64, iemAImpl_tzcnt_u64_amd, iemAImpl_tzcnt_u64_intel;
-FNIEMAIMPLBINU16 iemAImpl_popcnt_u16, iemAImpl_popcnt_u16_fallback;
-FNIEMAIMPLBINU32 iemAImpl_popcnt_u32, iemAImpl_popcnt_u32_fallback;
-FNIEMAIMPLBINU64 iemAImpl_popcnt_u64, iemAImpl_popcnt_u64_fallback;
-/** @}  */
-
-/** @name Signed multiplication operations (thrown in with the binary ops).
- * @{ */
-FNIEMAIMPLBINU16 iemAImpl_imul_two_u16, iemAImpl_imul_two_u16_amd, iemAImpl_imul_two_u16_intel;
-FNIEMAIMPLBINU32 iemAImpl_imul_two_u32, iemAImpl_imul_two_u32_amd, iemAImpl_imul_two_u32_intel;
-FNIEMAIMPLBINU64 iemAImpl_imul_two_u64, iemAImpl_imul_two_u64_amd, iemAImpl_imul_two_u64_intel;
-/** @}  */
-
-/** @name Arithmetic assignment operations on bytes (unary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLUNARYU8,  (uint8_t  *pu8Dst,  uint32_t *pEFlags));
-typedef FNIEMAIMPLUNARYU8  *PFNIEMAIMPLUNARYU8;
-FNIEMAIMPLUNARYU8 iemAImpl_inc_u8, iemAImpl_inc_u8_locked;
-FNIEMAIMPLUNARYU8 iemAImpl_dec_u8, iemAImpl_dec_u8_locked;
-FNIEMAIMPLUNARYU8 iemAImpl_not_u8, iemAImpl_not_u8_locked;
-FNIEMAIMPLUNARYU8 iemAImpl_neg_u8, iemAImpl_neg_u8_locked;
-/** @} */
-
-/** @name Arithmetic assignment operations on words (unary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLUNARYU16,  (uint16_t  *pu16Dst,  uint32_t *pEFlags));
-typedef FNIEMAIMPLUNARYU16  *PFNIEMAIMPLUNARYU16;
-FNIEMAIMPLUNARYU16 iemAImpl_inc_u16, iemAImpl_inc_u16_locked;
-FNIEMAIMPLUNARYU16 iemAImpl_dec_u16, iemAImpl_dec_u16_locked;
-FNIEMAIMPLUNARYU16 iemAImpl_not_u16, iemAImpl_not_u16_locked;
-FNIEMAIMPLUNARYU16 iemAImpl_neg_u16, iemAImpl_neg_u16_locked;
-/** @} */
-
-/** @name Arithmetic assignment operations on double words (unary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLUNARYU32,  (uint32_t  *pu32Dst,  uint32_t *pEFlags));
-typedef FNIEMAIMPLUNARYU32  *PFNIEMAIMPLUNARYU32;
-FNIEMAIMPLUNARYU32 iemAImpl_inc_u32, iemAImpl_inc_u32_locked;
-FNIEMAIMPLUNARYU32 iemAImpl_dec_u32, iemAImpl_dec_u32_locked;
-FNIEMAIMPLUNARYU32 iemAImpl_not_u32, iemAImpl_not_u32_locked;
-FNIEMAIMPLUNARYU32 iemAImpl_neg_u32, iemAImpl_neg_u32_locked;
-/** @} */
-
-/** @name Arithmetic assignment operations on quad words (unary).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLUNARYU64,  (uint64_t  *pu64Dst,  uint32_t *pEFlags));
-typedef FNIEMAIMPLUNARYU64  *PFNIEMAIMPLUNARYU64;
-FNIEMAIMPLUNARYU64 iemAImpl_inc_u64, iemAImpl_inc_u64_locked;
-FNIEMAIMPLUNARYU64 iemAImpl_dec_u64, iemAImpl_dec_u64_locked;
-FNIEMAIMPLUNARYU64 iemAImpl_not_u64, iemAImpl_not_u64_locked;
-FNIEMAIMPLUNARYU64 iemAImpl_neg_u64, iemAImpl_neg_u64_locked;
-/** @} */
-
-
-/** @name Shift operations on bytes (Group 2).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSHIFTU8,(uint32_t fEFlagsIn, uint8_t *pu8Dst, uint8_t cShift));
-typedef FNIEMAIMPLSHIFTU8  *PFNIEMAIMPLSHIFTU8;
-FNIEMAIMPLSHIFTU8 iemAImpl_rol_u8, iemAImpl_rol_u8_amd, iemAImpl_rol_u8_intel;
-FNIEMAIMPLSHIFTU8 iemAImpl_ror_u8, iemAImpl_ror_u8_amd, iemAImpl_ror_u8_intel;
-FNIEMAIMPLSHIFTU8 iemAImpl_rcl_u8, iemAImpl_rcl_u8_amd, iemAImpl_rcl_u8_intel;
-FNIEMAIMPLSHIFTU8 iemAImpl_rcr_u8, iemAImpl_rcr_u8_amd, iemAImpl_rcr_u8_intel;
-FNIEMAIMPLSHIFTU8 iemAImpl_shl_u8, iemAImpl_shl_u8_amd, iemAImpl_shl_u8_intel;
-FNIEMAIMPLSHIFTU8 iemAImpl_shr_u8, iemAImpl_shr_u8_amd, iemAImpl_shr_u8_intel;
-FNIEMAIMPLSHIFTU8 iemAImpl_sar_u8, iemAImpl_sar_u8_amd, iemAImpl_sar_u8_intel;
-/** @} */
-
-/** @name Shift operations on words (Group 2).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSHIFTU16,(uint32_t fEFlagsIn, uint16_t *pu16Dst, uint8_t cShift));
-typedef FNIEMAIMPLSHIFTU16  *PFNIEMAIMPLSHIFTU16;
-FNIEMAIMPLSHIFTU16 iemAImpl_rol_u16, iemAImpl_rol_u16_amd, iemAImpl_rol_u16_intel;
-FNIEMAIMPLSHIFTU16 iemAImpl_ror_u16, iemAImpl_ror_u16_amd, iemAImpl_ror_u16_intel;
-FNIEMAIMPLSHIFTU16 iemAImpl_rcl_u16, iemAImpl_rcl_u16_amd, iemAImpl_rcl_u16_intel;
-FNIEMAIMPLSHIFTU16 iemAImpl_rcr_u16, iemAImpl_rcr_u16_amd, iemAImpl_rcr_u16_intel;
-FNIEMAIMPLSHIFTU16 iemAImpl_shl_u16, iemAImpl_shl_u16_amd, iemAImpl_shl_u16_intel;
-FNIEMAIMPLSHIFTU16 iemAImpl_shr_u16, iemAImpl_shr_u16_amd, iemAImpl_shr_u16_intel;
-FNIEMAIMPLSHIFTU16 iemAImpl_sar_u16, iemAImpl_sar_u16_amd, iemAImpl_sar_u16_intel;
-/** @} */
-
-/** @name Shift operations on double words (Group 2).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSHIFTU32,(uint32_t fEFlagsIn, uint32_t *pu32Dst, uint8_t cShift));
-typedef FNIEMAIMPLSHIFTU32  *PFNIEMAIMPLSHIFTU32;
-FNIEMAIMPLSHIFTU32 iemAImpl_rol_u32, iemAImpl_rol_u32_amd, iemAImpl_rol_u32_intel;
-FNIEMAIMPLSHIFTU32 iemAImpl_ror_u32, iemAImpl_ror_u32_amd, iemAImpl_ror_u32_intel;
-FNIEMAIMPLSHIFTU32 iemAImpl_rcl_u32, iemAImpl_rcl_u32_amd, iemAImpl_rcl_u32_intel;
-FNIEMAIMPLSHIFTU32 iemAImpl_rcr_u32, iemAImpl_rcr_u32_amd, iemAImpl_rcr_u32_intel;
-FNIEMAIMPLSHIFTU32 iemAImpl_shl_u32, iemAImpl_shl_u32_amd, iemAImpl_shl_u32_intel;
-FNIEMAIMPLSHIFTU32 iemAImpl_shr_u32, iemAImpl_shr_u32_amd, iemAImpl_shr_u32_intel;
-FNIEMAIMPLSHIFTU32 iemAImpl_sar_u32, iemAImpl_sar_u32_amd, iemAImpl_sar_u32_intel;
-/** @} */
-
-/** @name Shift operations on words (Group 2).
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSHIFTU64,(uint32_t fEFlagsIn, uint64_t *pu64Dst, uint8_t cShift));
-typedef FNIEMAIMPLSHIFTU64  *PFNIEMAIMPLSHIFTU64;
-FNIEMAIMPLSHIFTU64 iemAImpl_rol_u64, iemAImpl_rol_u64_amd, iemAImpl_rol_u64_intel;
-FNIEMAIMPLSHIFTU64 iemAImpl_ror_u64, iemAImpl_ror_u64_amd, iemAImpl_ror_u64_intel;
-FNIEMAIMPLSHIFTU64 iemAImpl_rcl_u64, iemAImpl_rcl_u64_amd, iemAImpl_rcl_u64_intel;
-FNIEMAIMPLSHIFTU64 iemAImpl_rcr_u64, iemAImpl_rcr_u64_amd, iemAImpl_rcr_u64_intel;
-FNIEMAIMPLSHIFTU64 iemAImpl_shl_u64, iemAImpl_shl_u64_amd, iemAImpl_shl_u64_intel;
-FNIEMAIMPLSHIFTU64 iemAImpl_shr_u64, iemAImpl_shr_u64_amd, iemAImpl_shr_u64_intel;
-FNIEMAIMPLSHIFTU64 iemAImpl_sar_u64, iemAImpl_sar_u64_amd, iemAImpl_sar_u64_intel;
-/** @} */
-
-/** @name Multiplication and division operations.
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMULDIVU8,(uint16_t *pu16AX, uint8_t u8FactorDivisor, uint32_t fEFlags));
-typedef FNIEMAIMPLMULDIVU8  *PFNIEMAIMPLMULDIVU8;
-FNIEMAIMPLMULDIVU8 iemAImpl_mul_u8,  iemAImpl_mul_u8_amd,  iemAImpl_mul_u8_intel;
-FNIEMAIMPLMULDIVU8 iemAImpl_imul_u8, iemAImpl_imul_u8_amd, iemAImpl_imul_u8_intel;
-FNIEMAIMPLMULDIVU8 iemAImpl_div_u8,  iemAImpl_div_u8_amd,  iemAImpl_div_u8_intel;
-FNIEMAIMPLMULDIVU8 iemAImpl_idiv_u8, iemAImpl_idiv_u8_amd, iemAImpl_idiv_u8_intel;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMULDIVU16,(uint16_t *pu16AX, uint16_t *pu16DX, uint16_t u16FactorDivisor, uint32_t fEFlags));
-typedef FNIEMAIMPLMULDIVU16  *PFNIEMAIMPLMULDIVU16;
-FNIEMAIMPLMULDIVU16 iemAImpl_mul_u16,  iemAImpl_mul_u16_amd,  iemAImpl_mul_u16_intel;
-FNIEMAIMPLMULDIVU16 iemAImpl_imul_u16, iemAImpl_imul_u16_amd, iemAImpl_imul_u16_intel;
-FNIEMAIMPLMULDIVU16 iemAImpl_div_u16,  iemAImpl_div_u16_amd,  iemAImpl_div_u16_intel;
-FNIEMAIMPLMULDIVU16 iemAImpl_idiv_u16, iemAImpl_idiv_u16_amd, iemAImpl_idiv_u16_intel;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMULDIVU32,(uint32_t *pu32EAX, uint32_t *pu32EDX, uint32_t u32FactorDivisor, uint32_t fEFlags));
-typedef FNIEMAIMPLMULDIVU32  *PFNIEMAIMPLMULDIVU32;
-FNIEMAIMPLMULDIVU32 iemAImpl_mul_u32,  iemAImpl_mul_u32_amd,  iemAImpl_mul_u32_intel;
-FNIEMAIMPLMULDIVU32 iemAImpl_imul_u32, iemAImpl_imul_u32_amd, iemAImpl_imul_u32_intel;
-FNIEMAIMPLMULDIVU32 iemAImpl_div_u32,  iemAImpl_div_u32_amd,  iemAImpl_div_u32_intel;
-FNIEMAIMPLMULDIVU32 iemAImpl_idiv_u32, iemAImpl_idiv_u32_amd, iemAImpl_idiv_u32_intel;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMULDIVU64,(uint64_t *pu64RAX, uint64_t *pu64RDX, uint64_t u64FactorDivisor, uint32_t fEFlags));
-typedef FNIEMAIMPLMULDIVU64  *PFNIEMAIMPLMULDIVU64;
-FNIEMAIMPLMULDIVU64 iemAImpl_mul_u64,  iemAImpl_mul_u64_amd,  iemAImpl_mul_u64_intel;
-FNIEMAIMPLMULDIVU64 iemAImpl_imul_u64, iemAImpl_imul_u64_amd, iemAImpl_imul_u64_intel;
-FNIEMAIMPLMULDIVU64 iemAImpl_div_u64,  iemAImpl_div_u64_amd,  iemAImpl_div_u64_intel;
-FNIEMAIMPLMULDIVU64 iemAImpl_idiv_u64, iemAImpl_idiv_u64_amd, iemAImpl_idiv_u64_intel;
-/** @} */
-
-/** @name Byte Swap.
- * @{  */
-IEM_DECL_IMPL_TYPE(void, iemAImpl_bswap_u16,(uint32_t *pu32Dst)); /* Yes, 32-bit register access. */
-IEM_DECL_IMPL_TYPE(void, iemAImpl_bswap_u32,(uint32_t *pu32Dst));
-IEM_DECL_IMPL_TYPE(void, iemAImpl_bswap_u64,(uint64_t *pu64Dst));
-/** @}  */
-
-/** @name Misc.
- * @{ */
-FNIEMAIMPLBINU16 iemAImpl_arpl;
-/** @} */
-
-/** @name RDRAND and RDSEED
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLRDRANDSEEDU16,(uint16_t *puDst, uint32_t *pEFlags));
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLRDRANDSEEDU32,(uint32_t *puDst, uint32_t *pEFlags));
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLRDRANDSEEDU64,(uint64_t *puDst, uint32_t *pEFlags));
-typedef FNIEMAIMPLRDRANDSEEDU16  *PFNIEMAIMPLRDRANDSEEDU16;
-typedef FNIEMAIMPLRDRANDSEEDU32  *PFNIEMAIMPLRDRANDSEEDU32;
-typedef FNIEMAIMPLRDRANDSEEDU64  *PFNIEMAIMPLRDRANDSEEDU64;
-
-FNIEMAIMPLRDRANDSEEDU16 iemAImpl_rdrand_u16, iemAImpl_rdrand_u16_fallback;
-FNIEMAIMPLRDRANDSEEDU32 iemAImpl_rdrand_u32, iemAImpl_rdrand_u32_fallback;
-FNIEMAIMPLRDRANDSEEDU64 iemAImpl_rdrand_u64, iemAImpl_rdrand_u64_fallback;
-FNIEMAIMPLRDRANDSEEDU16 iemAImpl_rdseed_u16, iemAImpl_rdseed_u16_fallback;
-FNIEMAIMPLRDRANDSEEDU32 iemAImpl_rdseed_u32, iemAImpl_rdseed_u32_fallback;
-FNIEMAIMPLRDRANDSEEDU64 iemAImpl_rdseed_u64, iemAImpl_rdseed_u64_fallback;
-/** @} */
-
-/** @name ADOX and ADCX
- * @{ */
-FNIEMAIMPLBINU32 iemAImpl_adcx_u32, iemAImpl_adcx_u32_fallback;
-FNIEMAIMPLBINU64 iemAImpl_adcx_u64, iemAImpl_adcx_u64_fallback;
-FNIEMAIMPLBINU32 iemAImpl_adox_u32, iemAImpl_adox_u32_fallback;
-FNIEMAIMPLBINU64 iemAImpl_adox_u64, iemAImpl_adox_u64_fallback;
-/** @} */
-
-/** @name FPU operations taking a 32-bit float argument
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR32FSW,(PCX86FXSTATE pFpuState, uint16_t *pFSW,
-                                                      PCRTFLOAT80U pr80Val1, PCRTFLOAT32U pr32Val2));
-typedef FNIEMAIMPLFPUR32FSW *PFNIEMAIMPLFPUR32FSW;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR32,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, PCRTFLOAT32U pr32Val2));
-typedef FNIEMAIMPLFPUR32    *PFNIEMAIMPLFPUR32;
-
-FNIEMAIMPLFPUR32FSW iemAImpl_fcom_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fadd_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fmul_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fsub_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fsubr_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fdiv_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fdivr_r80_by_r32;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fld_r80_from_r32,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, PCRTFLOAT32U pr32Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fst_r80_to_r32,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                 PRTFLOAT32U pr32Val, PCRTFLOAT80U pr80Val));
-/** @} */
-
-/** @name FPU operations taking a 64-bit float argument
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR64FSW,(PCX86FXSTATE pFpuState, uint16_t *pFSW,
-                                                      PCRTFLOAT80U pr80Val1, PCRTFLOAT64U pr64Val2));
-typedef FNIEMAIMPLFPUR64FSW *PFNIEMAIMPLFPUR64FSW;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR64,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, PCRTFLOAT64U pr64Val2));
-typedef FNIEMAIMPLFPUR64   *PFNIEMAIMPLFPUR64;
-
-FNIEMAIMPLFPUR64FSW iemAImpl_fcom_r80_by_r64;
-FNIEMAIMPLFPUR64    iemAImpl_fadd_r80_by_r64;
-FNIEMAIMPLFPUR64    iemAImpl_fmul_r80_by_r64;
-FNIEMAIMPLFPUR64    iemAImpl_fsub_r80_by_r64;
-FNIEMAIMPLFPUR64    iemAImpl_fsubr_r80_by_r64;
-FNIEMAIMPLFPUR64    iemAImpl_fdiv_r80_by_r64;
-FNIEMAIMPLFPUR64    iemAImpl_fdivr_r80_by_r64;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fld_r80_from_r64,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, PCRTFLOAT64U pr64Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fst_r80_to_r64,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                 PRTFLOAT64U pr32Val, PCRTFLOAT80U pr80Val));
-/** @} */
-
-/** @name FPU operations taking a 80-bit float argument
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, PCRTFLOAT80U pr80Val2));
-typedef FNIEMAIMPLFPUR80    *PFNIEMAIMPLFPUR80;
-FNIEMAIMPLFPUR80            iemAImpl_fadd_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fmul_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fsub_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fsubr_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fdiv_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fdivr_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fprem_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fprem1_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fscale_r80_by_r80;
-
-FNIEMAIMPLFPUR80            iemAImpl_fpatan_r80_by_r80,  iemAImpl_fpatan_r80_by_r80_amd,  iemAImpl_fpatan_r80_by_r80_intel;
-FNIEMAIMPLFPUR80            iemAImpl_fyl2x_r80_by_r80,   iemAImpl_fyl2x_r80_by_r80_amd,   iemAImpl_fyl2x_r80_by_r80_intel;
-FNIEMAIMPLFPUR80            iemAImpl_fyl2xp1_r80_by_r80, iemAImpl_fyl2xp1_r80_by_r80_amd, iemAImpl_fyl2xp1_r80_by_r80_intel;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80FSW,(PCX86FXSTATE pFpuState, uint16_t *pFSW,
-                                                      PCRTFLOAT80U pr80Val1, PCRTFLOAT80U pr80Val2));
-typedef FNIEMAIMPLFPUR80FSW *PFNIEMAIMPLFPUR80FSW;
-FNIEMAIMPLFPUR80FSW         iemAImpl_fcom_r80_by_r80;
-FNIEMAIMPLFPUR80FSW         iemAImpl_fucom_r80_by_r80;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLFPUR80EFL,(PCX86FXSTATE pFpuState, uint16_t *pu16Fsw,
-                                                          PCRTFLOAT80U pr80Val1, PCRTFLOAT80U pr80Val2));
-typedef FNIEMAIMPLFPUR80EFL *PFNIEMAIMPLFPUR80EFL;
-FNIEMAIMPLFPUR80EFL         iemAImpl_fcomi_r80_by_r80;
-FNIEMAIMPLFPUR80EFL         iemAImpl_fucomi_r80_by_r80;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80UNARY,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, PCRTFLOAT80U pr80Val));
-typedef FNIEMAIMPLFPUR80UNARY *PFNIEMAIMPLFPUR80UNARY;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fabs_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fchs_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_f2xm1_r80, iemAImpl_f2xm1_r80_amd, iemAImpl_f2xm1_r80_intel;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fsqrt_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_frndint_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fsin_r80, iemAImpl_fsin_r80_amd, iemAImpl_fsin_r80_intel;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fcos_r80, iemAImpl_fcos_r80_amd, iemAImpl_fcos_r80_intel;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80UNARYFSW,(PCX86FXSTATE pFpuState, uint16_t *pu16Fsw, PCRTFLOAT80U pr80Val));
-typedef FNIEMAIMPLFPUR80UNARYFSW *PFNIEMAIMPLFPUR80UNARYFSW;
-FNIEMAIMPLFPUR80UNARYFSW    iemAImpl_ftst_r80;
-FNIEMAIMPLFPUR80UNARYFSW    iemAImpl_fxam_r80;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80LDCONST,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes));
-typedef FNIEMAIMPLFPUR80LDCONST *PFNIEMAIMPLFPUR80LDCONST;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fld1;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldl2t;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldl2e;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldpi;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldlg2;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldln2;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldz;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80UNARYTWO,(PCX86FXSTATE pFpuState, PIEMFPURESULTTWO pFpuResTwo,
-                                                           PCRTFLOAT80U pr80Val));
-typedef FNIEMAIMPLFPUR80UNARYTWO *PFNIEMAIMPLFPUR80UNARYTWO;
-FNIEMAIMPLFPUR80UNARYTWO    iemAImpl_fptan_r80_r80, iemAImpl_fptan_r80_r80_amd, iemAImpl_fptan_r80_r80_intel;
-FNIEMAIMPLFPUR80UNARYTWO    iemAImpl_fxtract_r80_r80;
-FNIEMAIMPLFPUR80UNARYTWO    iemAImpl_fsincos_r80_r80, iemAImpl_fsincos_r80_r80_amd, iemAImpl_fsincos_r80_r80_intel;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fld_r80_from_r80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, PCRTFLOAT80U pr80Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fst_r80_to_r80,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                 PRTFLOAT80U pr80Dst, PCRTFLOAT80U pr80Src));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fld_r80_from_d80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, PCRTPBCD80U pd80Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fst_r80_to_d80,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                 PRTPBCD80U pd80Dst, PCRTFLOAT80U pr80Src));
-
-/** @} */
-
-/** @name FPU operations taking a 16-bit signed integer argument
- * @{  */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUI16,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, int16_t const *pi16Val2));
-typedef FNIEMAIMPLFPUI16 *PFNIEMAIMPLFPUI16;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUSTR80TOI16,(PCX86FXSTATE pFpuState, uint16_t *pFpuRes,
-                                                          int16_t *pi16Dst, PCRTFLOAT80U pr80Src));
-typedef FNIEMAIMPLFPUSTR80TOI16 *PFNIEMAIMPLFPUSTR80TOI16;
-
-FNIEMAIMPLFPUI16    iemAImpl_fiadd_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fimul_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fisub_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fisubr_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fidiv_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fidivr_r80_by_i16;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUI16FSW,(PCX86FXSTATE pFpuState, uint16_t *pFSW,
-                                                      PCRTFLOAT80U pr80Val1, int16_t const *pi16Val2));
-typedef FNIEMAIMPLFPUI16FSW *PFNIEMAIMPLFPUI16FSW;
-FNIEMAIMPLFPUI16FSW     iemAImpl_ficom_r80_by_i16;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fild_r80_from_i16,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, int16_t const *pi16Val));
-FNIEMAIMPLFPUSTR80TOI16 iemAImpl_fist_r80_to_i16;
-FNIEMAIMPLFPUSTR80TOI16 iemAImpl_fistt_r80_to_i16, iemAImpl_fistt_r80_to_i16_amd, iemAImpl_fistt_r80_to_i16_intel;
-/** @}  */
-
-/** @name FPU operations taking a 32-bit signed integer argument
- * @{  */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUI32,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, int32_t const *pi32Val2));
-typedef FNIEMAIMPLFPUI32 *PFNIEMAIMPLFPUI32;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUSTR80TOI32,(PCX86FXSTATE pFpuState, uint16_t *pFpuRes,
-                                                          int32_t *pi32Dst, PCRTFLOAT80U pr80Src));
-typedef FNIEMAIMPLFPUSTR80TOI32 *PFNIEMAIMPLFPUSTR80TOI32;
-
-FNIEMAIMPLFPUI32    iemAImpl_fiadd_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fimul_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fisub_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fisubr_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fidiv_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fidivr_r80_by_i32;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUI32FSW,(PCX86FXSTATE pFpuState, uint16_t *pFSW,
-                                                      PCRTFLOAT80U pr80Val1, int32_t const *pi32Val2));
-typedef FNIEMAIMPLFPUI32FSW *PFNIEMAIMPLFPUI32FSW;
-FNIEMAIMPLFPUI32FSW     iemAImpl_ficom_r80_by_i32;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fild_r80_from_i32,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, int32_t const *pi32Val));
-FNIEMAIMPLFPUSTR80TOI32 iemAImpl_fist_r80_to_i32;
-FNIEMAIMPLFPUSTR80TOI32 iemAImpl_fistt_r80_to_i32;
-/** @}  */
-
-/** @name FPU operations taking a 64-bit signed integer argument
- * @{  */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUSTR80TOI64,(PCX86FXSTATE pFpuState, uint16_t *pFpuRes,
-                                                          int64_t *pi64Dst, PCRTFLOAT80U pr80Src));
-typedef FNIEMAIMPLFPUSTR80TOI64 *PFNIEMAIMPLFPUSTR80TOI64;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fild_r80_from_i64,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, int64_t const *pi64Val));
-FNIEMAIMPLFPUSTR80TOI64 iemAImpl_fist_r80_to_i64;
-FNIEMAIMPLFPUSTR80TOI64 iemAImpl_fistt_r80_to_i64;
-/** @} */
-
-
-/** Temporary type representing a 256-bit vector register. */
-typedef struct { uint64_t au64[4]; } IEMVMM256;
-/** Temporary type pointing to a 256-bit vector register. */
-typedef IEMVMM256 *PIEMVMM256;
-/** Temporary type pointing to a const 256-bit vector register. */
-typedef IEMVMM256 *PCIEMVMM256;
-
-
-/** @name Media (SSE/MMX/AVX) operations: full1 + full2 -> full1.
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAF2U64,(PCX86FXSTATE pFpuState, uint64_t *puDst, uint64_t const *puSrc));
-typedef FNIEMAIMPLMEDIAF2U64   *PFNIEMAIMPLMEDIAF2U64;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMEDIAF2U128,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc));
-typedef FNIEMAIMPLMEDIAF2U128  *PFNIEMAIMPLMEDIAF2U128;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMEDIAF2U256,(uint32_t uMxCsrIn, PX86YMMREG puDst, PCX86YMMREG puSrc));
-typedef FNIEMAIMPLMEDIAF2U256  *PFNIEMAIMPLMEDIAF2U256;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMEDIAF3U128,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc1, PCX86XMMREG puSrc2));
-typedef FNIEMAIMPLMEDIAF3U128  *PFNIEMAIMPLMEDIAF3U128;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMEDIAF3U256,(uint32_t uMxCsrIn, PX86YMMREG puDst, PCX86YMMREG puSrc1, PCX86YMMREG puSrc2));
-typedef FNIEMAIMPLMEDIAF3U256  *PFNIEMAIMPLMEDIAF3U256;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAOPTF2U64,(uint64_t *puDst, uint64_t const *puSrc));
-typedef FNIEMAIMPLMEDIAOPTF2U64   *PFNIEMAIMPLMEDIAOPTF2U64;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAOPTF2U128,(PRTUINT128U puDst, PCRTUINT128U puSrc));
-typedef FNIEMAIMPLMEDIAOPTF2U128  *PFNIEMAIMPLMEDIAOPTF2U128;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAOPTF3U128,(PRTUINT128U puDst, PCRTUINT128U puSrc1, PCRTUINT128U puSrc2));
-typedef FNIEMAIMPLMEDIAOPTF3U128  *PFNIEMAIMPLMEDIAOPTF3U128;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAOPTF3U256,(PRTUINT256U puDst, PCRTUINT256U puSrc1, PCRTUINT256U puSrc2));
-typedef FNIEMAIMPLMEDIAOPTF3U256  *PFNIEMAIMPLMEDIAOPTF3U256;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAOPTF2U256,(PRTUINT256U puDst, PCRTUINT256U puSrc));
-typedef FNIEMAIMPLMEDIAOPTF2U256  *PFNIEMAIMPLMEDIAOPTF2U256;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pshufb_u64, iemAImpl_pshufb_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pand_u64, iemAImpl_pandn_u64, iemAImpl_por_u64, iemAImpl_pxor_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pcmpeqb_u64,  iemAImpl_pcmpeqw_u64,  iemAImpl_pcmpeqd_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pcmpgtb_u64,  iemAImpl_pcmpgtw_u64,  iemAImpl_pcmpgtd_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_paddb_u64, iemAImpl_paddsb_u64, iemAImpl_paddusb_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_paddw_u64, iemAImpl_paddsw_u64, iemAImpl_paddusw_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_paddd_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_paddq_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psubb_u64, iemAImpl_psubsb_u64, iemAImpl_psubusb_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psubw_u64, iemAImpl_psubsw_u64, iemAImpl_psubusw_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psubd_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psubq_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pmaddwd_u64, iemAImpl_pmaddwd_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pmullw_u64, iemAImpl_pmulhw_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pminub_u64, iemAImpl_pmaxub_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pminsw_u64, iemAImpl_pmaxsw_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pabsb_u64, iemAImpl_pabsb_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pabsw_u64, iemAImpl_pabsw_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pabsd_u64, iemAImpl_pabsd_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psignb_u64, iemAImpl_psignb_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psignw_u64, iemAImpl_psignw_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psignd_u64, iemAImpl_psignd_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_phaddw_u64, iemAImpl_phaddw_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_phaddd_u64, iemAImpl_phaddd_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_phsubw_u64, iemAImpl_phsubw_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_phsubd_u64, iemAImpl_phsubd_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_phaddsw_u64, iemAImpl_phaddsw_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_phsubsw_u64, iemAImpl_phsubsw_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pmaddubsw_u64, iemAImpl_pmaddubsw_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pmulhrsw_u64, iemAImpl_pmulhrsw_u64_fallback;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pmuludq_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psllw_u64, iemAImpl_psrlw_u64, iemAImpl_psraw_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pslld_u64, iemAImpl_psrld_u64, iemAImpl_psrad_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psllq_u64, iemAImpl_psrlq_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_packsswb_u64, iemAImpl_packuswb_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_packssdw_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pmulhuw_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_pavgb_u64, iemAImpl_pavgw_u64;
-FNIEMAIMPLMEDIAOPTF2U64  iemAImpl_psadbw_u64;
-
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pshufb_u128, iemAImpl_pshufb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pand_u128, iemAImpl_pandn_u128, iemAImpl_por_u128, iemAImpl_pxor_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pcmpeqb_u128, iemAImpl_pcmpeqw_u128, iemAImpl_pcmpeqd_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pcmpeqq_u128, iemAImpl_pcmpeqq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pcmpgtb_u128, iemAImpl_pcmpgtw_u128, iemAImpl_pcmpgtd_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pcmpgtq_u128, iemAImpl_pcmpgtq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_paddb_u128, iemAImpl_paddsb_u128, iemAImpl_paddusb_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_paddw_u128, iemAImpl_paddsw_u128, iemAImpl_paddusw_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_paddd_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_paddq_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psubb_u128, iemAImpl_psubsb_u128, iemAImpl_psubusb_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psubw_u128, iemAImpl_psubsw_u128, iemAImpl_psubusw_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psubd_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psubq_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmullw_u128, iemAImpl_pmullw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmulhw_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmulld_u128, iemAImpl_pmulld_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmaddwd_u128, iemAImpl_pmaddwd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pminub_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pminud_u128, iemAImpl_pminud_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pminuw_u128, iemAImpl_pminuw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pminsb_u128, iemAImpl_pminsb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pminsd_u128, iemAImpl_pminsd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pminsw_u128, iemAImpl_pminsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmaxub_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmaxud_u128, iemAImpl_pmaxud_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmaxuw_u128, iemAImpl_pmaxuw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmaxsb_u128, iemAImpl_pmaxsb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmaxsw_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmaxsd_u128, iemAImpl_pmaxsd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pabsb_u128, iemAImpl_pabsb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pabsw_u128, iemAImpl_pabsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pabsd_u128, iemAImpl_pabsd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psignb_u128, iemAImpl_psignb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psignw_u128, iemAImpl_psignw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psignd_u128, iemAImpl_psignd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_phaddw_u128, iemAImpl_phaddw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_phaddd_u128, iemAImpl_phaddd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_phsubw_u128, iemAImpl_phsubw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_phsubd_u128, iemAImpl_phsubd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_phaddsw_u128, iemAImpl_phaddsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_phsubsw_u128, iemAImpl_phsubsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmaddubsw_u128, iemAImpl_pmaddubsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmulhrsw_u128, iemAImpl_pmulhrsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmuludq_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmaddwd_u128, iemAImpl_pmaddwd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_packsswb_u128, iemAImpl_packuswb_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_packssdw_u128, iemAImpl_packusdw_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psllw_u128, iemAImpl_psrlw_u128, iemAImpl_psraw_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pslld_u128, iemAImpl_psrld_u128, iemAImpl_psrad_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psllq_u128, iemAImpl_psrlq_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmulhuw_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pavgb_u128, iemAImpl_pavgw_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_psadbw_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_pmuldq_u128, iemAImpl_pmuldq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_unpcklps_u128, iemAImpl_unpcklpd_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_unpckhps_u128, iemAImpl_unpckhpd_u128;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_phminposuw_u128, iemAImpl_phminposuw_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpshufb_u128,    iemAImpl_vpshufb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpand_u128,      iemAImpl_vpand_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpandn_u128,     iemAImpl_vpandn_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpor_u128,       iemAImpl_vpor_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpxor_u128,      iemAImpl_vpxor_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpcmpeqb_u128,   iemAImpl_vpcmpeqb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpcmpeqw_u128,   iemAImpl_vpcmpeqw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpcmpeqd_u128,   iemAImpl_vpcmpeqd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpcmpeqq_u128,   iemAImpl_vpcmpeqq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpcmpgtb_u128,   iemAImpl_vpcmpgtb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpcmpgtw_u128,   iemAImpl_vpcmpgtw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpcmpgtd_u128,   iemAImpl_vpcmpgtd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpcmpgtq_u128,   iemAImpl_vpcmpgtq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpaddb_u128,     iemAImpl_vpaddb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpaddw_u128,     iemAImpl_vpaddw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpaddd_u128,     iemAImpl_vpaddd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpaddq_u128,     iemAImpl_vpaddq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsubb_u128,     iemAImpl_vpsubb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsubw_u128,     iemAImpl_vpsubw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsubd_u128,     iemAImpl_vpsubd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsubq_u128,     iemAImpl_vpsubq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpminub_u128,    iemAImpl_vpminub_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpminuw_u128,    iemAImpl_vpminuw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpminud_u128,    iemAImpl_vpminud_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpminsb_u128,    iemAImpl_vpminsb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpminsw_u128,    iemAImpl_vpminsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpminsd_u128,    iemAImpl_vpminsd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmaxub_u128,    iemAImpl_vpmaxub_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmaxuw_u128,    iemAImpl_vpmaxuw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmaxud_u128,    iemAImpl_vpmaxud_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmaxsb_u128,    iemAImpl_vpmaxsb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmaxsw_u128,    iemAImpl_vpmaxsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmaxsd_u128,    iemAImpl_vpmaxsd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpacksswb_u128,  iemAImpl_vpacksswb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpackssdw_u128,  iemAImpl_vpackssdw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpackuswb_u128,  iemAImpl_vpackuswb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpackusdw_u128,  iemAImpl_vpackusdw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmullw_u128,    iemAImpl_vpmullw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmulld_u128,    iemAImpl_vpmulld_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmulhw_u128,    iemAImpl_vpmulhw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmulhuw_u128,   iemAImpl_vpmulhuw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpavgb_u128,     iemAImpl_vpavgb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpavgw_u128,     iemAImpl_vpavgw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsignb_u128,    iemAImpl_vpsignb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsignw_u128,    iemAImpl_vpsignw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsignd_u128,    iemAImpl_vpsignd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vphaddw_u128,    iemAImpl_vphaddw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vphaddd_u128,    iemAImpl_vphaddd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vphsubw_u128,    iemAImpl_vphsubw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vphsubd_u128,    iemAImpl_vphsubd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vphaddsw_u128,   iemAImpl_vphaddsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vphsubsw_u128,   iemAImpl_vphsubsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmaddubsw_u128, iemAImpl_vpmaddubsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmulhrsw_u128,  iemAImpl_vpmulhrsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsadbw_u128,    iemAImpl_vpsadbw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmuldq_u128,    iemAImpl_vpmuldq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmuludq_u128,   iemAImpl_vpmuludq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsubsb_u128,    iemAImpl_vpsubsb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsubsw_u128,    iemAImpl_vpsubsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsubusb_u128,   iemAImpl_vpsubusb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsubusw_u128,   iemAImpl_vpsubusw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpaddusb_u128,   iemAImpl_vpaddusb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpaddusw_u128,   iemAImpl_vpaddusw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpaddsb_u128,    iemAImpl_vpaddsb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpaddsw_u128,    iemAImpl_vpaddsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsllw_u128,     iemAImpl_vpsllw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpslld_u128,     iemAImpl_vpslld_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsllq_u128,     iemAImpl_vpsllq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsraw_u128,     iemAImpl_vpsraw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsrad_u128,     iemAImpl_vpsrad_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsrlw_u128,     iemAImpl_vpsrlw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsrld_u128,     iemAImpl_vpsrld_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpsrlq_u128,     iemAImpl_vpsrlq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vpmaddwd_u128, iemAImpl_vpmaddwd_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_vpabsb_u128,     iemAImpl_vpabsb_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_vpabsw_u128,     iemAImpl_vpabsd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_vpabsd_u128,     iemAImpl_vpabsw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_vphminposuw_u128, iemAImpl_vphminposuw_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpshufb_u256,    iemAImpl_vpshufb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpand_u256,      iemAImpl_vpand_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpandn_u256,     iemAImpl_vpandn_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpor_u256,       iemAImpl_vpor_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpxor_u256,      iemAImpl_vpxor_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpcmpeqb_u256,   iemAImpl_vpcmpeqb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpcmpeqw_u256,   iemAImpl_vpcmpeqw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpcmpeqd_u256,   iemAImpl_vpcmpeqd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpcmpeqq_u256,   iemAImpl_vpcmpeqq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpcmpgtb_u256,   iemAImpl_vpcmpgtb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpcmpgtw_u256,   iemAImpl_vpcmpgtw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpcmpgtd_u256,   iemAImpl_vpcmpgtd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpcmpgtq_u256,   iemAImpl_vpcmpgtq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpaddb_u256,     iemAImpl_vpaddb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpaddw_u256,     iemAImpl_vpaddw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpaddd_u256,     iemAImpl_vpaddd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpaddq_u256,     iemAImpl_vpaddq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsubb_u256,     iemAImpl_vpsubb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsubw_u256,     iemAImpl_vpsubw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsubd_u256,     iemAImpl_vpsubd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsubq_u256,     iemAImpl_vpsubq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpminub_u256,    iemAImpl_vpminub_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpminuw_u256,    iemAImpl_vpminuw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpminud_u256,    iemAImpl_vpminud_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpminsb_u256,    iemAImpl_vpminsb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpminsw_u256,    iemAImpl_vpminsw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpminsd_u256,    iemAImpl_vpminsd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmaxub_u256,    iemAImpl_vpmaxub_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmaxuw_u256,    iemAImpl_vpmaxuw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmaxud_u256,    iemAImpl_vpmaxud_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmaxsb_u256,    iemAImpl_vpmaxsb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmaxsw_u256,    iemAImpl_vpmaxsw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmaxsd_u256,    iemAImpl_vpmaxsd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpacksswb_u256,  iemAImpl_vpacksswb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpackssdw_u256,  iemAImpl_vpackssdw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpackuswb_u256,  iemAImpl_vpackuswb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpackusdw_u256,  iemAImpl_vpackusdw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmullw_u256,    iemAImpl_vpmullw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmulld_u256,    iemAImpl_vpmulld_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmulhw_u256,    iemAImpl_vpmulhw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmulhuw_u256,   iemAImpl_vpmulhuw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpavgb_u256,     iemAImpl_vpavgb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpavgw_u256,     iemAImpl_vpavgw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsignb_u256,    iemAImpl_vpsignb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsignw_u256,    iemAImpl_vpsignw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsignd_u256,    iemAImpl_vpsignd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vphaddw_u256,    iemAImpl_vphaddw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vphaddd_u256,    iemAImpl_vphaddd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vphsubw_u256,    iemAImpl_vphsubw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vphsubd_u256,    iemAImpl_vphsubd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vphaddsw_u256,   iemAImpl_vphaddsw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vphsubsw_u256,   iemAImpl_vphsubsw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmaddubsw_u256, iemAImpl_vpmaddubsw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmulhrsw_u256,  iemAImpl_vpmulhrsw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsadbw_u256,    iemAImpl_vpsadbw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmuldq_u256,    iemAImpl_vpmuldq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmuludq_u256,   iemAImpl_vpmuludq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsubsb_u256,    iemAImpl_vpsubsb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsubsw_u256,    iemAImpl_vpsubsw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsubusb_u256,   iemAImpl_vpsubusb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsubusw_u256,   iemAImpl_vpsubusw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpaddusb_u256,   iemAImpl_vpaddusb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpaddusw_u256,   iemAImpl_vpaddusw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpaddsb_u256,    iemAImpl_vpaddsb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpaddsw_u256,    iemAImpl_vpaddsw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsllw_u256,     iemAImpl_vpsllw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpslld_u256,     iemAImpl_vpslld_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsllq_u256,     iemAImpl_vpsllq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsraw_u256,     iemAImpl_vpsraw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsrad_u256,     iemAImpl_vpsrad_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsrlw_u256,     iemAImpl_vpsrlw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsrld_u256,     iemAImpl_vpsrld_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpsrlq_u256,     iemAImpl_vpsrlq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpmaddwd_u256, iemAImpl_vpmaddwd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpermps_u256,    iemAImpl_vpermps_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256 iemAImpl_vpermd_u256,     iemAImpl_vpermd_u256_fallback;
-
-FNIEMAIMPLMEDIAOPTF2U256 iemAImpl_vpabsb_u256,     iemAImpl_vpabsb_u256_fallback;
-FNIEMAIMPLMEDIAOPTF2U256 iemAImpl_vpabsw_u256,     iemAImpl_vpabsw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF2U256 iemAImpl_vpabsd_u256,     iemAImpl_vpabsd_u256_fallback;
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operations: lowhalf1 + lowhalf1 -> full1.
- * @{ */
-FNIEMAIMPLMEDIAOPTF2U64   iemAImpl_punpcklbw_u64,  iemAImpl_punpcklwd_u64,  iemAImpl_punpckldq_u64;
-FNIEMAIMPLMEDIAOPTF2U128  iemAImpl_punpcklbw_u128, iemAImpl_punpcklwd_u128, iemAImpl_punpckldq_u128, iemAImpl_punpcklqdq_u128;
-FNIEMAIMPLMEDIAOPTF3U128  iemAImpl_vpunpcklbw_u128,  iemAImpl_vpunpcklbw_u128_fallback,
-                          iemAImpl_vpunpcklwd_u128,  iemAImpl_vpunpcklwd_u128_fallback,
-                          iemAImpl_vpunpckldq_u128,  iemAImpl_vpunpckldq_u128_fallback,
-                          iemAImpl_vpunpcklqdq_u128, iemAImpl_vpunpcklqdq_u128_fallback,
-                          iemAImpl_vunpcklps_u128, iemAImpl_vunpcklps_u128_fallback,
-                          iemAImpl_vunpcklpd_u128, iemAImpl_vunpcklpd_u128_fallback,
-                          iemAImpl_vunpckhps_u128, iemAImpl_vunpckhps_u128_fallback,
-                          iemAImpl_vunpckhpd_u128, iemAImpl_vunpckhpd_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF3U256  iemAImpl_vpunpcklbw_u256,  iemAImpl_vpunpcklbw_u256_fallback,
-                          iemAImpl_vpunpcklwd_u256,  iemAImpl_vpunpcklwd_u256_fallback,
-                          iemAImpl_vpunpckldq_u256,  iemAImpl_vpunpckldq_u256_fallback,
-                          iemAImpl_vpunpcklqdq_u256, iemAImpl_vpunpcklqdq_u256_fallback,
-                          iemAImpl_vunpcklps_u256, iemAImpl_vunpcklps_u256_fallback,
-                          iemAImpl_vunpcklpd_u256, iemAImpl_vunpcklpd_u256_fallback,
-                          iemAImpl_vunpckhps_u256, iemAImpl_vunpckhps_u256_fallback,
-                          iemAImpl_vunpckhpd_u256, iemAImpl_vunpckhpd_u256_fallback;
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operations: hihalf1 + hihalf2 -> full1.
- * @{ */
-FNIEMAIMPLMEDIAOPTF2U64   iemAImpl_punpckhbw_u64,  iemAImpl_punpckhwd_u64,  iemAImpl_punpckhdq_u64;
-FNIEMAIMPLMEDIAOPTF2U128  iemAImpl_punpckhbw_u128, iemAImpl_punpckhwd_u128, iemAImpl_punpckhdq_u128, iemAImpl_punpckhqdq_u128;
-FNIEMAIMPLMEDIAOPTF3U128  iemAImpl_vpunpckhbw_u128,  iemAImpl_vpunpckhbw_u128_fallback,
-                          iemAImpl_vpunpckhwd_u128,  iemAImpl_vpunpckhwd_u128_fallback,
-                          iemAImpl_vpunpckhdq_u128,  iemAImpl_vpunpckhdq_u128_fallback,
-                          iemAImpl_vpunpckhqdq_u128, iemAImpl_vpunpckhqdq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U256  iemAImpl_vpunpckhbw_u256,  iemAImpl_vpunpckhbw_u256_fallback,
-                          iemAImpl_vpunpckhwd_u256,  iemAImpl_vpunpckhwd_u256_fallback,
-                          iemAImpl_vpunpckhdq_u256,  iemAImpl_vpunpckhdq_u256_fallback,
-                          iemAImpl_vpunpckhqdq_u256, iemAImpl_vpunpckhqdq_u256_fallback;
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operation: Packed Shuffle Stuff (evil)
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAPSHUFU128,(PRTUINT128U puDst, PCRTUINT128U puSrc, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAPSHUFU128 *PFNIEMAIMPLMEDIAPSHUFU128;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAPSHUFU256,(PRTUINT256U puDst, PCRTUINT256U puSrc, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAPSHUFU256 *PFNIEMAIMPLMEDIAPSHUFU256;
-IEM_DECL_IMPL_DEF(void, iemAImpl_pshufw_u64,(uint64_t *puDst, uint64_t const *puSrc, uint8_t bEvil));
-FNIEMAIMPLMEDIAPSHUFU128 iemAImpl_pshufhw_u128, iemAImpl_pshuflw_u128, iemAImpl_pshufd_u128;
-#ifndef IEM_WITHOUT_ASSEMBLY
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpshufhw_u256, iemAImpl_vpshuflw_u256, iemAImpl_vpshufd_u256;
-#endif
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpshufhw_u256_fallback, iemAImpl_vpshuflw_u256_fallback, iemAImpl_vpshufd_u256_fallback;
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operation: Shift Immediate Stuff (evil)
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAPSHIFTU64,(uint64_t *puDst, uint8_t bShift));
-typedef FNIEMAIMPLMEDIAPSHIFTU64 *PFNIEMAIMPLMEDIAPSHIFTU64;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAPSHIFTU128,(PRTUINT128U puDst, uint8_t bShift));
-typedef FNIEMAIMPLMEDIAPSHIFTU128 *PFNIEMAIMPLMEDIAPSHIFTU128;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAPSHIFTU256,(PRTUINT256U puDst, uint8_t bShift));
-typedef FNIEMAIMPLMEDIAPSHIFTU256 *PFNIEMAIMPLMEDIAPSHIFTU256;
-FNIEMAIMPLMEDIAPSHIFTU64  iemAImpl_psllw_imm_u64,  iemAImpl_pslld_imm_u64,  iemAImpl_psllq_imm_u64;
-FNIEMAIMPLMEDIAPSHIFTU64  iemAImpl_psrlw_imm_u64,  iemAImpl_psrld_imm_u64,  iemAImpl_psrlq_imm_u64;
-FNIEMAIMPLMEDIAPSHIFTU64  iemAImpl_psraw_imm_u64,  iemAImpl_psrad_imm_u64;
-FNIEMAIMPLMEDIAPSHIFTU128 iemAImpl_psllw_imm_u128, iemAImpl_pslld_imm_u128, iemAImpl_psllq_imm_u128;
-FNIEMAIMPLMEDIAPSHIFTU128 iemAImpl_psrlw_imm_u128, iemAImpl_psrld_imm_u128, iemAImpl_psrlq_imm_u128;
-FNIEMAIMPLMEDIAPSHIFTU128 iemAImpl_psraw_imm_u128, iemAImpl_psrad_imm_u128;
-FNIEMAIMPLMEDIAPSHIFTU128 iemAImpl_pslldq_imm_u128, iemAImpl_psrldq_imm_u128;
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operation: Move Byte Mask
- * @{ */
-IEM_DECL_IMPL_DEF(void, iemAImpl_maskmovq_u64,(uint64_t *puMem, uint64_t const *puSrc, uint64_t const *puMsk));
-IEM_DECL_IMPL_DEF(void, iemAImpl_maskmovdqu_u128,(PRTUINT128U puMem, PCRTUINT128U puSrc, PCRTUINT128U puMsk));
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovmskb_u64,(uint64_t *pu64Dst, uint64_t const *puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovmskb_u128,(uint64_t *pu64Dst, PCRTUINT128U puSrc));
-#ifndef IEM_WITHOUT_ASSEMBLY
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovmskb_u256,(uint64_t *pu64Dst, PCRTUINT256U puSrc));
-#endif
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovmskb_u256_fallback,(uint64_t *pu64Dst, PCRTUINT256U puSrc));
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operations: Variable Blend Packed Bytes/R32/R64.
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLBLENDU128,(PRTUINT128U puDst, PCRTUINT128U puSrc, PCRTUINT128U puMask));
-typedef FNIEMAIMPLBLENDU128  *PFNIEMAIMPLBLENDU128;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLAVXBLENDU128,(PRTUINT128U puDst, PCRTUINT128U puSrc1, PCRTUINT128U puSrc2, PCRTUINT128U puMask));
-typedef FNIEMAIMPLAVXBLENDU128  *PFNIEMAIMPLAVXBLENDU128;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLAVXBLENDU256,(PRTUINT256U puDst, PCRTUINT256U puSrc1, PCRTUINT256U puSrc2, PCRTUINT256U puMask));
-typedef FNIEMAIMPLAVXBLENDU256  *PFNIEMAIMPLAVXBLENDU256;
-
-FNIEMAIMPLBLENDU128 iemAImpl_pblendvb_u128;
-FNIEMAIMPLBLENDU128 iemAImpl_pblendvb_u128_fallback;
-FNIEMAIMPLAVXBLENDU128 iemAImpl_vpblendvb_u128;
-FNIEMAIMPLAVXBLENDU128 iemAImpl_vpblendvb_u128_fallback;
-FNIEMAIMPLAVXBLENDU256 iemAImpl_vpblendvb_u256;
-FNIEMAIMPLAVXBLENDU256 iemAImpl_vpblendvb_u256_fallback;
-
-FNIEMAIMPLBLENDU128 iemAImpl_blendvps_u128;
-FNIEMAIMPLBLENDU128 iemAImpl_blendvps_u128_fallback;
-FNIEMAIMPLAVXBLENDU128 iemAImpl_vblendvps_u128;
-FNIEMAIMPLAVXBLENDU128 iemAImpl_vblendvps_u128_fallback;
-FNIEMAIMPLAVXBLENDU256 iemAImpl_vblendvps_u256;
-FNIEMAIMPLAVXBLENDU256 iemAImpl_vblendvps_u256_fallback;
-
-FNIEMAIMPLBLENDU128 iemAImpl_blendvpd_u128;
-FNIEMAIMPLBLENDU128 iemAImpl_blendvpd_u128_fallback;
-FNIEMAIMPLAVXBLENDU128 iemAImpl_vblendvpd_u128;
-FNIEMAIMPLAVXBLENDU128 iemAImpl_vblendvpd_u128_fallback;
-FNIEMAIMPLAVXBLENDU256 iemAImpl_vblendvpd_u256;
-FNIEMAIMPLAVXBLENDU256 iemAImpl_vblendvpd_u256_fallback;
-/** @} */
-
-
-/** @name Media (SSE/MMX/AVX) operation: Sort this later
- * @{ */
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovsxbw_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbw_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbw_u128_fallback,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbw_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbw_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovsxbd_u128,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbd_u128,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbd_u128_fallback,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbd_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbd_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovsxbq_u128,(PRTUINT128U puDst, uint16_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbq_u128,(PRTUINT128U puDst, uint16_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbq_u128_fallback,(PRTUINT128U puDst, uint16_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbq_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxbq_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovsxwd_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxwd_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxwd_u128_fallback,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxwd_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxwd_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovsxwq_u128,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxwq_u128,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxwq_u128_fallback,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxwq_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxwq_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovsxdq_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxdq_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxdq_u128_fallback,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxdq_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovsxdq_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovzxbw_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbw_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbw_u128_fallback,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbw_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbw_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovzxbd_u128,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbd_u128,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbd_u128_fallback,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbd_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbd_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovzxbq_u128,(PRTUINT128U puDst, uint16_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbq_u128,(PRTUINT128U puDst, uint16_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbq_u128_fallback,(PRTUINT128U puDst, uint16_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbq_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxbq_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovzxwd_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxwd_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxwd_u128_fallback,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxwd_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxwd_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovzxwq_u128,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxwq_u128,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxwq_u128_fallback,(PRTUINT128U puDst, uint32_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxwq_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxwq_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovzxdq_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxdq_u128,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxdq_u128_fallback,(PRTUINT128U puDst, uint64_t uSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxdq_u256,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxdq_u256_fallback,(PRTUINT256U puDst, PCRTUINT128U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_shufpd_u128,(PRTUINT128U puDst, PCRTUINT128U puSrc, uint8_t bEvil));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vshufpd_u128,(PRTUINT128U puDst, PCRTUINT128U puSrc1, PCRTUINT128U puSrc2, uint8_t bEvil));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vshufpd_u128_fallback,(PRTUINT128U puDst, PCRTUINT128U puSrc1, PCRTUINT128U puSrc2, uint8_t bEvil));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vshufpd_u256,(PRTUINT256U puDst, PCRTUINT256U puSrc1, PCRTUINT256U puSrc2, uint8_t bEvil));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vshufpd_u256_fallback,(PRTUINT256U puDst, PCRTUINT256U puSrc1, PCRTUINT256U puSrc2, uint8_t bEvil));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_shufps_u128,(PRTUINT128U puDst, PCRTUINT128U puSrc, uint8_t bEvil));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vshufps_u128,(PRTUINT128U puDst, PCRTUINT128U puSrc1, PCRTUINT128U puSrc2, uint8_t bEvil));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vshufps_u128_fallback,(PRTUINT128U puDst, PCRTUINT128U puSrc1, PCRTUINT128U puSrc2, uint8_t bEvil));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vshufps_u256,(PRTUINT256U puDst, PCRTUINT256U puSrc1, PCRTUINT256U puSrc2, uint8_t bEvil));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vshufps_u256_fallback,(PRTUINT256U puDst, PCRTUINT256U puSrc1, PCRTUINT256U puSrc2, uint8_t bEvil));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_palignr_u64,(uint64_t *pu64Dst, uint64_t u64Src, uint8_t bEvil));
-IEM_DECL_IMPL_DEF(void, iemAImpl_palignr_u64_fallback,(uint64_t *pu64Dst, uint64_t u64Src, uint8_t bEvil));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_movmskps_u128,(uint8_t *pu8Dst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vmovmskps_u128,(uint8_t *pu8Dst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vmovmskps_u128_fallback,(uint8_t *pu8Dst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vmovmskps_u256,(uint8_t *pu8Dst, PCRTUINT256U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vmovmskps_u256_fallback,(uint8_t *pu8Dst, PCRTUINT256U puSrc));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_movmskpd_u128,(uint8_t *pu8Dst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vmovmskpd_u128,(uint8_t *pu8Dst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vmovmskpd_u128_fallback,(uint8_t *pu8Dst, PCRTUINT128U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vmovmskpd_u256,(uint8_t *pu8Dst, PCRTUINT256U puSrc));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vmovmskpd_u256_fallback,(uint8_t *pu8Dst, PCRTUINT256U puSrc));
-
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAOPTF2U128IMM8,(PRTUINT128U puDst, PCRTUINT128U puSrc, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAOPTF2U128IMM8 *PFNIEMAIMPLMEDIAOPTF2U128IMM8;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAOPTF2U256IMM8,(PRTUINT256U puDst, PCRTUINT256U puSrc, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAOPTF2U256IMM8 *PFNIEMAIMPLMEDIAOPTF2U256IMM8;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAOPTF3U128IMM8,(PRTUINT128U puDst, PCRTUINT128U puSrc1, PCRTUINT128U puSrc2, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAOPTF3U128IMM8 *PFNIEMAIMPLMEDIAOPTF3U128IMM8;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAOPTF3U256IMM8,(PRTUINT256U puDst, PCRTUINT256U puSrc1, PCRTUINT256U puSrc2, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAOPTF3U256IMM8 *PFNIEMAIMPLMEDIAOPTF3U256IMM8;
-
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_palignr_u128, iemAImpl_palignr_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_pblendw_u128, iemAImpl_pblendw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_blendps_u128, iemAImpl_blendps_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_blendpd_u128, iemAImpl_blendpd_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF3U128IMM8 iemAImpl_vpalignr_u128, iemAImpl_vpalignr_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128IMM8 iemAImpl_vpblendw_u128, iemAImpl_vpblendw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128IMM8 iemAImpl_vpblendd_u128, iemAImpl_vpblendd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128IMM8 iemAImpl_vblendps_u128, iemAImpl_vblendps_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128IMM8 iemAImpl_vblendpd_u128, iemAImpl_vblendpd_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF3U256IMM8 iemAImpl_vpalignr_u256, iemAImpl_vpalignr_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256IMM8 iemAImpl_vpblendw_u256, iemAImpl_vpblendw_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256IMM8 iemAImpl_vpblendd_u256, iemAImpl_vpblendd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256IMM8 iemAImpl_vblendps_u256, iemAImpl_vblendps_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256IMM8 iemAImpl_vblendpd_u256, iemAImpl_vblendpd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256IMM8 iemAImpl_vperm2i128_u256, iemAImpl_vperm2i128_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U256IMM8 iemAImpl_vperm2f128_u256, iemAImpl_vperm2f128_u256_fallback;
-
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_aesimc_u128,     iemAImpl_aesimc_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_aesenc_u128,     iemAImpl_aesenc_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_aesenclast_u128, iemAImpl_aesenclast_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_aesdec_u128,     iemAImpl_aesdec_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_aesdeclast_u128, iemAImpl_aesdeclast_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_vaesimc_u128,     iemAImpl_vaesimc_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vaesenc_u128,     iemAImpl_vaesenc_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vaesenclast_u128, iemAImpl_vaesenclast_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vaesdec_u128,     iemAImpl_vaesdec_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128 iemAImpl_vaesdeclast_u128, iemAImpl_vaesdeclast_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_aeskeygenassist_u128, iemAImpl_aeskeygenassist_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_vaeskeygenassist_u128, iemAImpl_vaeskeygenassist_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_sha1nexte_u128,       iemAImpl_sha1nexte_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_sha1msg1_u128,        iemAImpl_sha1msg1_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_sha1msg2_u128,        iemAImpl_sha1msg2_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_sha256msg1_u128,      iemAImpl_sha256msg1_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128 iemAImpl_sha256msg2_u128,      iemAImpl_sha256msg2_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_sha1rnds4_u128,   iemAImpl_sha1rnds4_u128_fallback;
-IEM_DECL_IMPL_DEF(void, iemAImpl_sha256rnds2_u128,(PRTUINT128U puDst, PCRTUINT128U puSrc, PCRTUINT128U puXmm0Constants));
-IEM_DECL_IMPL_DEF(void, iemAImpl_sha256rnds2_u128_fallback,(PRTUINT128U puDst, PCRTUINT128U puSrc, PCRTUINT128U puXmm0Constants));
-
-FNIEMAIMPLMEDIAOPTF2U256IMM8 iemAImpl_vpermq_u256,      iemAImpl_vpermq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF2U256IMM8 iemAImpl_vpermpd_u256,     iemAImpl_vpermpd_u256_fallback;
-
-typedef struct IEMPCMPISTRXSRC
-{
-    RTUINT128U              uSrc1;
-    RTUINT128U              uSrc2;
-} IEMPCMPISTRXSRC;
-typedef IEMPCMPISTRXSRC *PIEMPCMPISTRXSRC;
-typedef const IEMPCMPISTRXSRC *PCIEMPCMPISTRXSRC;
-
-typedef struct IEMPCMPESTRXSRC
-{
-    RTUINT128U              uSrc1;
-    RTUINT128U              uSrc2;
-    uint64_t                u64Rax;
-    uint64_t                u64Rdx;
-} IEMPCMPESTRXSRC;
-typedef IEMPCMPESTRXSRC *PIEMPCMPESTRXSRC;
-typedef const IEMPCMPESTRXSRC *PCIEMPCMPESTRXSRC;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLPCMPISTRIU128IMM8,(uint32_t *pEFlags, PCRTUINT128U pSrc1, PCRTUINT128U pSrc2, uint8_t bEvil));
-typedef FNIEMAIMPLPCMPISTRIU128IMM8 *PFNIEMAIMPLPCMPISTRIU128IMM8;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLPCMPESTRIU128IMM8,(uint32_t *pu32Ecx, uint32_t *pEFlags, PCIEMPCMPESTRXSRC pSrc, uint8_t bEvil));
-typedef FNIEMAIMPLPCMPESTRIU128IMM8 *PFNIEMAIMPLPCMPESTRIU128IMM8;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLPCMPISTRMU128IMM8,(PRTUINT128U puDst, uint32_t *pEFlags, PCIEMPCMPISTRXSRC pSrc, uint8_t bEvil));
-typedef FNIEMAIMPLPCMPISTRMU128IMM8 *PFNIEMAIMPLPCMPISTRMU128IMM8;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLPCMPESTRMU128IMM8,(PRTUINT128U puDst, uint32_t *pEFlags, PCIEMPCMPESTRXSRC pSrc, uint8_t bEvil));
-typedef FNIEMAIMPLPCMPESTRMU128IMM8 *PFNIEMAIMPLPCMPESTRMU128IMM8;
-
-FNIEMAIMPLPCMPISTRIU128IMM8 iemAImpl_pcmpistri_u128,  iemAImpl_pcmpistri_u128_fallback;
-FNIEMAIMPLPCMPESTRIU128IMM8 iemAImpl_pcmpestri_u128,  iemAImpl_pcmpestri_u128_fallback;
-FNIEMAIMPLPCMPISTRMU128IMM8 iemAImpl_pcmpistrm_u128,  iemAImpl_pcmpistrm_u128_fallback;
-FNIEMAIMPLPCMPESTRMU128IMM8 iemAImpl_pcmpestrm_u128,  iemAImpl_pcmpestrm_u128_fallback;
-FNIEMAIMPLPCMPISTRIU128IMM8 iemAImpl_vpcmpistri_u128, iemAImpl_vpcmpistri_u128_fallback;
-FNIEMAIMPLPCMPESTRIU128IMM8 iemAImpl_vpcmpestri_u128, iemAImpl_vpcmpestri_u128_fallback;
-FNIEMAIMPLPCMPISTRMU128IMM8 iemAImpl_vpcmpistrm_u128, iemAImpl_vpcmpistrm_u128_fallback;
-FNIEMAIMPLPCMPESTRMU128IMM8 iemAImpl_vpcmpestrm_u128, iemAImpl_vpcmpestrm_u128_fallback;
-
-
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_pclmulqdq_u128, iemAImpl_pclmulqdq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128IMM8 iemAImpl_vpclmulqdq_u128, iemAImpl_vpclmulqdq_u128_fallback;
-
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_mpsadbw_u128, iemAImpl_mpsadbw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U128IMM8 iemAImpl_vmpsadbw_u128, iemAImpl_vmpsadbw_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U256IMM8 iemAImpl_vmpsadbw_u256, iemAImpl_vmpsadbw_u256_fallback;
-
-FNIEMAIMPLMEDIAPSHUFU128 iemAImpl_vpsllw_imm_u128, iemAImpl_vpsllw_imm_u128_fallback;
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpsllw_imm_u256, iemAImpl_vpsllw_imm_u256_fallback;
-FNIEMAIMPLMEDIAPSHUFU128 iemAImpl_vpslld_imm_u128, iemAImpl_vpslld_imm_u128_fallback;
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpslld_imm_u256, iemAImpl_vpslld_imm_u256_fallback;
-FNIEMAIMPLMEDIAPSHUFU128 iemAImpl_vpsllq_imm_u128, iemAImpl_vpsllq_imm_u128_fallback;
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpsllq_imm_u256, iemAImpl_vpsllq_imm_u256_fallback;
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpslldq_imm_u128,(PRTUINT128U puDst, PCRTUINT128U puSrc, uint8_t uShift));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpslldq_imm_u128_fallback,(PRTUINT128U puDst, PCRTUINT128U puSrc, uint8_t uShift));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpslldq_imm_u256,(PRTUINT256U puDst, PCRTUINT256U puSrc, uint8_t uShift));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpslldq_imm_u256_fallback,(PRTUINT256U puDst, PCRTUINT256U puSrc, uint8_t uShift));
-
-FNIEMAIMPLMEDIAPSHUFU128 iemAImpl_vpsraw_imm_u128, iemAImpl_vpsraw_imm_u128_fallback;
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpsraw_imm_u256, iemAImpl_vpsraw_imm_u256_fallback;
-FNIEMAIMPLMEDIAPSHUFU128 iemAImpl_vpsrad_imm_u128, iemAImpl_vpsrad_imm_u128_fallback;
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpsrad_imm_u256, iemAImpl_vpsrad_imm_u256_fallback;
-
-FNIEMAIMPLMEDIAPSHUFU128 iemAImpl_vpsrlw_imm_u128, iemAImpl_vpsrlw_imm_u128_fallback;
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpsrlw_imm_u256, iemAImpl_vpsrlw_imm_u256_fallback;
-FNIEMAIMPLMEDIAPSHUFU128 iemAImpl_vpsrld_imm_u128, iemAImpl_vpsrld_imm_u128_fallback;
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpsrld_imm_u256, iemAImpl_vpsrld_imm_u256_fallback;
-FNIEMAIMPLMEDIAPSHUFU128 iemAImpl_vpsrlq_imm_u128, iemAImpl_vpsrlq_imm_u128_fallback;
-FNIEMAIMPLMEDIAPSHUFU256 iemAImpl_vpsrlq_imm_u256, iemAImpl_vpsrlq_imm_u256_fallback;
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpsrldq_imm_u128,(PRTUINT128U puDst, PCRTUINT128U puSrc, uint8_t uShift));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpsrldq_imm_u128_fallback,(PRTUINT128U puDst, PCRTUINT128U puSrc, uint8_t uShift));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpsrldq_imm_u256,(PRTUINT256U puDst, PCRTUINT256U puSrc, uint8_t uShift));
-IEM_DECL_IMPL_DEF(void, iemAImpl_vpsrldq_imm_u256_fallback,(PRTUINT256U puDst, PCRTUINT256U puSrc, uint8_t uShift));
-
-FNIEMAIMPLMEDIAOPTF3U128     iemAImpl_vpermilps_u128,     iemAImpl_vpermilps_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_vpermilps_imm_u128, iemAImpl_vpermilps_imm_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U256     iemAImpl_vpermilps_u256,     iemAImpl_vpermilps_u256_fallback;
-FNIEMAIMPLMEDIAOPTF2U256IMM8 iemAImpl_vpermilps_imm_u256, iemAImpl_vpermilps_imm_u256_fallback;
-
-FNIEMAIMPLMEDIAOPTF3U128     iemAImpl_vpermilpd_u128,     iemAImpl_vpermilpd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF2U128IMM8 iemAImpl_vpermilpd_imm_u128, iemAImpl_vpermilpd_imm_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U256     iemAImpl_vpermilpd_u256,     iemAImpl_vpermilpd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF2U256IMM8 iemAImpl_vpermilpd_imm_u256, iemAImpl_vpermilpd_imm_u256_fallback;
-
-FNIEMAIMPLMEDIAOPTF3U128     iemAImpl_vpsllvd_u128, iemAImpl_vpsllvd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U256     iemAImpl_vpsllvd_u256, iemAImpl_vpsllvd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U128     iemAImpl_vpsllvq_u128, iemAImpl_vpsllvq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U256     iemAImpl_vpsllvq_u256, iemAImpl_vpsllvq_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U128     iemAImpl_vpsravd_u128, iemAImpl_vpsravd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U256     iemAImpl_vpsravd_u256, iemAImpl_vpsravd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U128     iemAImpl_vpsrlvd_u128, iemAImpl_vpsrlvd_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U256     iemAImpl_vpsrlvd_u256, iemAImpl_vpsrlvd_u256_fallback;
-FNIEMAIMPLMEDIAOPTF3U128     iemAImpl_vpsrlvq_u128, iemAImpl_vpsrlvq_u128_fallback;
-FNIEMAIMPLMEDIAOPTF3U256     iemAImpl_vpsrlvq_u256, iemAImpl_vpsrlvq_u256_fallback;
-/** @} */
-
-/** @name Media Odds and Ends
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLCR32U8,(uint32_t *puDst, uint8_t uSrc));
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLCR32U16,(uint32_t *puDst, uint16_t uSrc));
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLCR32U32,(uint32_t *puDst, uint32_t uSrc));
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLCR32U64,(uint32_t *puDst, uint64_t uSrc));
-FNIEMAIMPLCR32U8  iemAImpl_crc32_u8,  iemAImpl_crc32_u8_fallback;
-FNIEMAIMPLCR32U16 iemAImpl_crc32_u16, iemAImpl_crc32_u16_fallback;
-FNIEMAIMPLCR32U32 iemAImpl_crc32_u32, iemAImpl_crc32_u32_fallback;
-FNIEMAIMPLCR32U64 iemAImpl_crc32_u64, iemAImpl_crc32_u64_fallback;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLF2EFL128,(PCRTUINT128U puSrc1, PCRTUINT128U puSrc2, uint32_t *pEFlags));
-typedef FNIEMAIMPLF2EFL128 *PFNIEMAIMPLF2EFL128;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLF2EFL256,(PCRTUINT256U puSrc1, PCRTUINT256U puSrc2, uint32_t *pEFlags));
-typedef FNIEMAIMPLF2EFL256 *PFNIEMAIMPLF2EFL256;
-FNIEMAIMPLF2EFL128 iemAImpl_ptest_u128;
-FNIEMAIMPLF2EFL256 iemAImpl_vptest_u256, iemAImpl_vptest_u256_fallback;
-FNIEMAIMPLF2EFL128 iemAImpl_vtestps_u128, iemAImpl_vtestps_u128_fallback;
-FNIEMAIMPLF2EFL256 iemAImpl_vtestps_u256, iemAImpl_vtestps_u256_fallback;
-FNIEMAIMPLF2EFL128 iemAImpl_vtestpd_u128, iemAImpl_vtestpd_u128_fallback;
-FNIEMAIMPLF2EFL256 iemAImpl_vtestpd_u256, iemAImpl_vtestpd_u256_fallback;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2I32U64,(uint32_t uMxCsrIn, int32_t *pi32Dst, const uint64_t *pu64Src)); /* pu64Src is a double precision floating point. */
-typedef FNIEMAIMPLSSEF2I32U64 *PFNIEMAIMPLSSEF2I32U64;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2I64U64,(uint32_t uMxCsrIn, int64_t *pi64Dst, const uint64_t *pu64Src)); /* pu64Src is a double precision floating point. */
-typedef FNIEMAIMPLSSEF2I64U64 *PFNIEMAIMPLSSEF2I64U64;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2I32U32,(uint32_t uMxCsrIn, int32_t *pi32Dst, const uint32_t *pu32Src)); /* pu32Src is a single precision floating point. */
-typedef FNIEMAIMPLSSEF2I32U32 *PFNIEMAIMPLSSEF2I32U32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2I64U32,(uint32_t uMxCsrIn, int64_t *pi64Dst, const uint32_t *pu32Src)); /* pu32Src is a single precision floating point. */
-typedef FNIEMAIMPLSSEF2I64U32 *PFNIEMAIMPLSSEF2I64U32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2I32R32,(uint32_t uMxCsrIn, int32_t *pi32Dst, PCRTFLOAT32U pr32Src));
-typedef FNIEMAIMPLSSEF2I32R32 *PFNIEMAIMPLSSEF2I32R32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2I64R32,(uint32_t uMxCsrIn, int64_t *pi64Dst, PCRTFLOAT32U pr32Src));
-typedef FNIEMAIMPLSSEF2I64R32 *PFNIEMAIMPLSSEF2I64R32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2I32R64,(uint32_t uMxCsrIn, int32_t *pi32Dst, PCRTFLOAT64U pr64Src));
-typedef FNIEMAIMPLSSEF2I32R64 *PFNIEMAIMPLSSEF2I32R64;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2I64R64,(uint32_t uMxCsrIn, int64_t *pi64Dst, PCRTFLOAT64U pr64Src));
-typedef FNIEMAIMPLSSEF2I64R64 *PFNIEMAIMPLSSEF2I64R64;
-
-FNIEMAIMPLSSEF2I32U64 iemAImpl_cvttsd2si_i32_r64;
-FNIEMAIMPLSSEF2I32U64 iemAImpl_cvtsd2si_i32_r64;
-
-FNIEMAIMPLSSEF2I64U64 iemAImpl_cvttsd2si_i64_r64;
-FNIEMAIMPLSSEF2I64U64 iemAImpl_cvtsd2si_i64_r64;
-
-FNIEMAIMPLSSEF2I32U32 iemAImpl_cvttss2si_i32_r32;
-FNIEMAIMPLSSEF2I32U32 iemAImpl_cvtss2si_i32_r32;
-
-FNIEMAIMPLSSEF2I64U32 iemAImpl_cvttss2si_i64_r32;
-FNIEMAIMPLSSEF2I64U32 iemAImpl_cvtss2si_i64_r32;
-
-FNIEMAIMPLSSEF2I32R32 iemAImpl_vcvttss2si_i32_r32, iemAImpl_vcvttss2si_i32_r32_fallback;
-FNIEMAIMPLSSEF2I64R32 iemAImpl_vcvttss2si_i64_r32, iemAImpl_vcvttss2si_i64_r32_fallback;
-FNIEMAIMPLSSEF2I32R32 iemAImpl_vcvtss2si_i32_r32,  iemAImpl_vcvtss2si_i32_r32_fallback;
-FNIEMAIMPLSSEF2I64R32 iemAImpl_vcvtss2si_i64_r32,  iemAImpl_vcvtss2si_i64_r32_fallback;
-
-FNIEMAIMPLSSEF2I32R64 iemAImpl_vcvttss2si_i32_r64, iemAImpl_vcvttss2si_i32_r64_fallback;
-FNIEMAIMPLSSEF2I64R64 iemAImpl_vcvttss2si_i64_r64, iemAImpl_vcvttss2si_i64_r64_fallback;
-FNIEMAIMPLSSEF2I32R64 iemAImpl_vcvtss2si_i32_r64,  iemAImpl_vcvtss2si_i32_r64_fallback;
-FNIEMAIMPLSSEF2I64R64 iemAImpl_vcvtss2si_i64_r64,  iemAImpl_vcvtss2si_i64_r64_fallback;
-
-FNIEMAIMPLSSEF2I32R32 iemAImpl_vcvttsd2si_i32_r32, iemAImpl_vcvttsd2si_i32_r32_fallback;
-FNIEMAIMPLSSEF2I64R32 iemAImpl_vcvttsd2si_i64_r32, iemAImpl_vcvttsd2si_i64_r32_fallback;
-FNIEMAIMPLSSEF2I32R32 iemAImpl_vcvtsd2si_i32_r32,  iemAImpl_vcvtsd2si_i32_r32_fallback;
-FNIEMAIMPLSSEF2I64R32 iemAImpl_vcvtsd2si_i64_r32,  iemAImpl_vcvtsd2si_i64_r32_fallback;
-
-FNIEMAIMPLSSEF2I32R64 iemAImpl_vcvttsd2si_i32_r64, iemAImpl_vcvttsd2si_i32_r64_fallback;
-FNIEMAIMPLSSEF2I64R64 iemAImpl_vcvttsd2si_i64_r64, iemAImpl_vcvttsd2si_i64_r64_fallback;
-FNIEMAIMPLSSEF2I32R64 iemAImpl_vcvtsd2si_i32_r64,  iemAImpl_vcvtsd2si_i32_r64_fallback;
-FNIEMAIMPLSSEF2I64R64 iemAImpl_vcvtsd2si_i64_r64,  iemAImpl_vcvtsd2si_i64_r64_fallback;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2R32I32,(uint32_t uMxCsrIn, PRTFLOAT32U pr32Dst, const int32_t *pi32Src));
-typedef FNIEMAIMPLSSEF2R32I32 *PFNIEMAIMPLSSEF2R32I32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2R32I64,(uint32_t uMxCsrIn, PRTFLOAT32U pr32Dst, const int64_t *pi64Src));
-typedef FNIEMAIMPLSSEF2R32I64 *PFNIEMAIMPLSSEF2R32I64;
-
-FNIEMAIMPLSSEF2R32I32 iemAImpl_cvtsi2ss_r32_i32;
-FNIEMAIMPLSSEF2R32I64 iemAImpl_cvtsi2ss_r32_i64;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLAVXF3XMMI32,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc, const int32_t *pi32Src));
-typedef FNIEMAIMPLAVXF3XMMI32 *PFNIEMAIMPLAVXF3XMMI32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLAVXF3XMMI64,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc, const int64_t *pi64Src));
-typedef FNIEMAIMPLAVXF3XMMI64 *PFNIEMAIMPLAVXF3XMMI64;
-
-FNIEMAIMPLAVXF3XMMI32 iemAImpl_vcvtsi2ss_u128_i32, iemAImpl_vcvtsi2ss_u128_i32_fallback;
-FNIEMAIMPLAVXF3XMMI64 iemAImpl_vcvtsi2ss_u128_i64, iemAImpl_vcvtsi2ss_u128_i64_fallback;
-
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2R64I32,(uint32_t uMxCsrIn, PRTFLOAT64U pr64Dst, const int32_t *pi32Src));
-typedef FNIEMAIMPLSSEF2R64I32 *PFNIEMAIMPLSSEF2R64I32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLSSEF2R64I64,(uint32_t uMxCsrIn, PRTFLOAT64U pr64Dst, const int64_t *pi64Src));
-typedef FNIEMAIMPLSSEF2R64I64 *PFNIEMAIMPLSSEF2R64I64;
-
-FNIEMAIMPLSSEF2R64I32 iemAImpl_cvtsi2sd_r64_i32;
-FNIEMAIMPLSSEF2R64I64 iemAImpl_cvtsi2sd_r64_i64;
-
-FNIEMAIMPLAVXF3XMMI32 iemAImpl_vcvtsi2sd_u128_i32, iemAImpl_vcvtsi2sd_u128_i32_fallback;
-FNIEMAIMPLAVXF3XMMI64 iemAImpl_vcvtsi2sd_u128_i64, iemAImpl_vcvtsi2sd_u128_i64_fallback;
-
-IEM_DECL_IMPL_DEF(uint32_t, iemAImpl_vcvtps2pd_u128_u64,(uint32_t uMxCsrIn, PX86XMMREG puDst, const uint64_t *pu64Src)); /* Actually two single precision floating point values. */
-IEM_DECL_IMPL_DEF(uint32_t, iemAImpl_vcvtps2pd_u128_u64_fallback,(uint32_t uMxCsrIn, PX86XMMREG puDst,  const uint64_t *pu64Src)); /* Actually two single precision floating point values. */
-IEM_DECL_IMPL_DEF(uint32_t, iemAImpl_vcvtps2pd_u256_u128,(uint32_t uMxCsrIn, PX86YMMREG puDst, PCX86XMMREG puSrc));
-IEM_DECL_IMPL_DEF(uint32_t, iemAImpl_vcvtps2pd_u256_u128_fallback,(uint32_t uMxCsrIn, PX86YMMREG puDst, PCX86XMMREG puSrc));
-
-
-IEM_DECL_IMPL_DEF(uint32_t, iemAImpl_vcvtdq2pd_u128_u64,(uint32_t uMxCsrIn, PX86XMMREG puDst, const uint64_t *pu64Src)); /* Actually two single precision floating point values. */
-IEM_DECL_IMPL_DEF(uint32_t, iemAImpl_vcvtdq2pd_u128_u64_fallback,(uint32_t uMxCsrIn, PX86XMMREG puDst,  const uint64_t *pu64Src)); /* Actually two single precision floating point values. */
-IEM_DECL_IMPL_DEF(uint32_t, iemAImpl_vcvtdq2pd_u256_u128,(uint32_t uMxCsrIn, PX86YMMREG puDst, PCX86XMMREG puSrc));
-IEM_DECL_IMPL_DEF(uint32_t, iemAImpl_vcvtdq2pd_u256_u128_fallback,(uint32_t uMxCsrIn, PX86YMMREG puDst, PCX86XMMREG puSrc));
-
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLF2EFLMXCSRR32R32,(uint32_t uMxCsrIn, uint32_t *pfEFlags, RTFLOAT32U uSrc1, RTFLOAT32U uSrc2));
-typedef FNIEMAIMPLF2EFLMXCSRR32R32 *PFNIEMAIMPLF2EFLMXCSRR32R32;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLF2EFLMXCSRR64R64,(uint32_t uMxCsrIn, uint32_t *pfEFlags, RTFLOAT64U uSrc1, RTFLOAT64U uSrc2));
-typedef FNIEMAIMPLF2EFLMXCSRR64R64 *PFNIEMAIMPLF2EFLMXCSRR64R64;
-
-FNIEMAIMPLF2EFLMXCSRR32R32 iemAImpl_ucomiss_u128;
-FNIEMAIMPLF2EFLMXCSRR32R32 iemAImpl_vucomiss_u128, iemAImpl_vucomiss_u128_fallback;
-
-FNIEMAIMPLF2EFLMXCSRR64R64 iemAImpl_ucomisd_u128;
-FNIEMAIMPLF2EFLMXCSRR64R64 iemAImpl_vucomisd_u128, iemAImpl_vucomisd_u128_fallback;
-
-FNIEMAIMPLF2EFLMXCSRR32R32 iemAImpl_comiss_u128;
-FNIEMAIMPLF2EFLMXCSRR32R32 iemAImpl_vcomiss_u128, iemAImpl_vcomiss_u128_fallback;
-
-FNIEMAIMPLF2EFLMXCSRR64R64 iemAImpl_comisd_u128;
-FNIEMAIMPLF2EFLMXCSRR64R64 iemAImpl_vcomisd_u128, iemAImpl_vcomisd_u128_fallback;
-
-
-typedef struct IEMMEDIAF2XMMSRC
-{
-    X86XMMREG               uSrc1;
-    X86XMMREG               uSrc2;
-} IEMMEDIAF2XMMSRC;
-typedef IEMMEDIAF2XMMSRC *PIEMMEDIAF2XMMSRC;
-typedef const IEMMEDIAF2XMMSRC *PCIEMMEDIAF2XMMSRC;
-
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMEDIAF3XMMIMM8,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC puSrc, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAF3XMMIMM8 *PFNIEMAIMPLMEDIAF3XMMIMM8;
-
-
-typedef struct IEMMEDIAF2YMMSRC
-{
-    X86YMMREG               uSrc1;
-    X86YMMREG               uSrc2;
-} IEMMEDIAF2YMMSRC;
-typedef IEMMEDIAF2YMMSRC *PIEMMEDIAF2YMMSRC;
-typedef const IEMMEDIAF2YMMSRC *PCIEMMEDIAF2YMMSRC;
-
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMEDIAF3YMMIMM8,(uint32_t uMxCsrIn, PX86YMMREG puDst, PCIEMMEDIAF2YMMSRC puSrc, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAF3YMMIMM8 *PFNIEMAIMPLMEDIAF3YMMIMM8;
-
-
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_cmpps_u128;
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_cmppd_u128;
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_cmpss_u128;
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_cmpsd_u128;
-
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_vcmpps_u128, iemAImpl_vcmpps_u128_fallback;
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_vcmppd_u128, iemAImpl_vcmppd_u128_fallback;
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_vcmpss_u128, iemAImpl_vcmpss_u128_fallback;
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_vcmpsd_u128, iemAImpl_vcmpsd_u128_fallback;
-
-FNIEMAIMPLMEDIAF3YMMIMM8 iemAImpl_vcmpps_u256, iemAImpl_vcmpps_u256_fallback;
-FNIEMAIMPLMEDIAF3YMMIMM8 iemAImpl_vcmppd_u256, iemAImpl_vcmppd_u256_fallback;
-
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_roundss_u128;
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_roundsd_u128;
-
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_dpps_u128,     iemAImpl_dpps_u128_fallback;
-FNIEMAIMPLMEDIAF3XMMIMM8 iemAImpl_dppd_u128,     iemAImpl_dppd_u128_fallback;
-
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMEDIAF2U128IMM8,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAF2U128IMM8 *PFNIEMAIMPLMEDIAF2U128IMM8;
-
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMEDIAF2U256IMM8,(uint32_t uMxCsrIn, PX86YMMREG puDst, PCX86YMMREG puSrc, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAF2U256IMM8 *PFNIEMAIMPLMEDIAF2U256IMM8;
-
-
-FNIEMAIMPLMEDIAF2U128IMM8 iemAImpl_roundps_u128,  iemAImpl_roundps_u128_fallback;
-FNIEMAIMPLMEDIAF2U128IMM8 iemAImpl_roundpd_u128,  iemAImpl_roundpd_u128_fallback;
-
-FNIEMAIMPLMEDIAF2U128IMM8 iemAImpl_vroundps_u128, iemAImpl_vroundps_u128_fallback;
-FNIEMAIMPLMEDIAF2U128IMM8 iemAImpl_vroundpd_u128, iemAImpl_vroundpd_u128_fallback;
-
-FNIEMAIMPLMEDIAF2U256IMM8 iemAImpl_vroundps_u256, iemAImpl_vroundps_u256_fallback;
-FNIEMAIMPLMEDIAF2U256IMM8 iemAImpl_vroundpd_u256, iemAImpl_vroundpd_u256_fallback;
-
-FNIEMAIMPLMEDIAF3XMMIMM8  iemAImpl_vroundss_u128, iemAImpl_vroundss_u128_fallback;
-FNIEMAIMPLMEDIAF3XMMIMM8  iemAImpl_vroundsd_u128, iemAImpl_vroundsd_u128_fallback;
-
-FNIEMAIMPLMEDIAF3XMMIMM8  iemAImpl_vdpps_u128,     iemAImpl_vdpps_u128_fallback;
-FNIEMAIMPLMEDIAF3XMMIMM8  iemAImpl_vdppd_u128,     iemAImpl_vdppd_u128_fallback;
-
-FNIEMAIMPLMEDIAF3YMMIMM8  iemAImpl_vdpps_u256,     iemAImpl_vdpps_u256_fallback;
-
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMXCSRU64U128,(uint32_t fMxCsrIn, uint64_t *pu64Dst, PCX86XMMREG pSrc));
-typedef FNIEMAIMPLMXCSRU64U128 *PFNIEMAIMPLMXCSRU64U128;
-
-FNIEMAIMPLMXCSRU64U128 iemAImpl_cvtpd2pi_u128;
-FNIEMAIMPLMXCSRU64U128 iemAImpl_cvttpd2pi_u128;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMXCSRU128U64,(uint32_t fMxCsrIn, PX86XMMREG pDst, uint64_t u64Src));
-typedef FNIEMAIMPLMXCSRU128U64 *PFNIEMAIMPLMXCSRU128U64;
-
-FNIEMAIMPLMXCSRU128U64 iemAImpl_cvtpi2ps_u128;
-FNIEMAIMPLMXCSRU128U64 iemAImpl_cvtpi2pd_u128;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLMXCSRU64U64,(uint32_t fMxCsrIn, uint64_t *pu64Dst, uint64_t u64Src));
-typedef FNIEMAIMPLMXCSRU64U64 *PFNIEMAIMPLMXCSRU64U64;
-
-FNIEMAIMPLMXCSRU64U64 iemAImpl_cvtps2pi_u128;
-FNIEMAIMPLMXCSRU64U64 iemAImpl_cvttps2pi_u128;
-
-/** @} */
-
-
-/** @name Function tables.
- * @{
- */
-
-/**
- * Function table for a binary operator providing implementation based on
- * operand size.
- */
-typedef struct IEMOPBINSIZES
-{
-    PFNIEMAIMPLBINU8  pfnNormalU8,    pfnLockedU8;
-    PFNIEMAIMPLBINU16 pfnNormalU16,   pfnLockedU16;
-    PFNIEMAIMPLBINU32 pfnNormalU32,   pfnLockedU32;
-    PFNIEMAIMPLBINU64 pfnNormalU64,   pfnLockedU64;
-} IEMOPBINSIZES;
-/** Pointer to a binary operator function table. */
-typedef IEMOPBINSIZES const *PCIEMOPBINSIZES;
-
-
-/**
- * Function table for a unary operator providing implementation based on
- * operand size.
- */
-typedef struct IEMOPUNARYSIZES
-{
-    PFNIEMAIMPLUNARYU8  pfnNormalU8,    pfnLockedU8;
-    PFNIEMAIMPLUNARYU16 pfnNormalU16,   pfnLockedU16;
-    PFNIEMAIMPLUNARYU32 pfnNormalU32,   pfnLockedU32;
-    PFNIEMAIMPLUNARYU64 pfnNormalU64,   pfnLockedU64;
-} IEMOPUNARYSIZES;
-/** Pointer to a unary operator function table. */
-typedef IEMOPUNARYSIZES const *PCIEMOPUNARYSIZES;
-
-
-/**
- * Function table for a shift operator providing implementation based on
- * operand size.
- */
-typedef struct IEMOPSHIFTSIZES
-{
-    PFNIEMAIMPLSHIFTU8  pfnNormalU8;
-    PFNIEMAIMPLSHIFTU16 pfnNormalU16;
-    PFNIEMAIMPLSHIFTU32 pfnNormalU32;
-    PFNIEMAIMPLSHIFTU64 pfnNormalU64;
-} IEMOPSHIFTSIZES;
-/** Pointer to a shift operator function table. */
-typedef IEMOPSHIFTSIZES const *PCIEMOPSHIFTSIZES;
-
-
-/**
- * Function table for a multiplication or division operation.
- */
-typedef struct IEMOPMULDIVSIZES
-{
-    PFNIEMAIMPLMULDIVU8  pfnU8;
-    PFNIEMAIMPLMULDIVU16 pfnU16;
-    PFNIEMAIMPLMULDIVU32 pfnU32;
-    PFNIEMAIMPLMULDIVU64 pfnU64;
-} IEMOPMULDIVSIZES;
-/** Pointer to a multiplication or division operation function table. */
-typedef IEMOPMULDIVSIZES const *PCIEMOPMULDIVSIZES;
-
-
-/**
- * Function table for a double precision shift operator providing implementation
- * based on operand size.
- */
-typedef struct IEMOPSHIFTDBLSIZES
-{
-    PFNIEMAIMPLSHIFTDBLU16 pfnNormalU16;
-    PFNIEMAIMPLSHIFTDBLU32 pfnNormalU32;
-    PFNIEMAIMPLSHIFTDBLU64 pfnNormalU64;
-} IEMOPSHIFTDBLSIZES;
-/** Pointer to a double precision shift function table. */
-typedef IEMOPSHIFTDBLSIZES const *PCIEMOPSHIFTDBLSIZES;
-
-
-/**
- * Function table for media instruction taking two full sized media source
- * registers and one full sized destination register (AVX).
- */
-typedef struct IEMOPMEDIAF3
-{
-    PFNIEMAIMPLMEDIAF3U128 pfnU128;
-    PFNIEMAIMPLMEDIAF3U256 pfnU256;
-} IEMOPMEDIAF3;
-/** Pointer to a media operation function table for 3 full sized ops (AVX). */
-typedef IEMOPMEDIAF3 const *PCIEMOPMEDIAF3;
-
-/** @def IEMOPMEDIAF3_INIT_VARS_EX
- * Declares a s_Host (x86 & amd64 only) and a s_Fallback variable with the
- * given functions as initializers.  For use in AVX functions where a pair of
- * functions are only used once and the function table need not be public. */
-#ifndef TST_IEM_CHECK_MC
-# if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && !defined(IEM_WITHOUT_ASSEMBLY)
-#  define IEMOPMEDIAF3_INIT_VARS_EX(a_pfnHostU128, a_pfnHostU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAF3 const s_Host     = { a_pfnHostU128,     a_pfnHostU256 }; \
-    static IEMOPMEDIAF3 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# else
-#  define IEMOPMEDIAF3_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAF3 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# endif
-#else
-# define IEMOPMEDIAF3_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) (void)0
-#endif
-/** @def IEMOPMEDIAF3_INIT_VARS
- * Generate AVX function tables for the @a a_InstrNm instruction.
- * @sa IEMOPMEDIAF3_INIT_VARS_EX */
-#define IEMOPMEDIAF3_INIT_VARS(a_InstrNm) \
-    IEMOPMEDIAF3_INIT_VARS_EX(RT_CONCAT3(iemAImpl_,a_InstrNm,_u128),           RT_CONCAT3(iemAImpl_,a_InstrNm,_u256),\
-                              RT_CONCAT3(iemAImpl_,a_InstrNm,_u128_fallback),  RT_CONCAT3(iemAImpl_,a_InstrNm,_u256_fallback))
-
-
-/**
- * Function table for media instruction taking one full sized media source
- * registers and one full sized destination register (AVX).
- */
-typedef struct IEMOPMEDIAF2
-{
-    PFNIEMAIMPLMEDIAF2U128 pfnU128;
-    PFNIEMAIMPLMEDIAF2U256 pfnU256;
-} IEMOPMEDIAF2;
-/** Pointer to a media operation function table for 2 full sized ops (AVX). */
-typedef IEMOPMEDIAF2 const *PCIEMOPMEDIAF2;
-
-/** @def IEMOPMEDIAF2_INIT_VARS_EX
- * Declares a s_Host (x86 & amd64 only) and a s_Fallback variable with the
- * given functions as initializers.  For use in AVX functions where a pair of
- * functions are only used once and the function table need not be public. */
-#ifndef TST_IEM_CHECK_MC
-# if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && !defined(IEM_WITHOUT_ASSEMBLY)
-#  define IEMOPMEDIAF2_INIT_VARS_EX(a_pfnHostU128, a_pfnHostU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAF2 const s_Host     = { a_pfnHostU128,     a_pfnHostU256 }; \
-    static IEMOPMEDIAF2 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# else
-#  define IEMOPMEDIAF2_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAF2 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# endif
-#else
-# define IEMOPMEDIAF2_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) (void)0
-#endif
-/** @def IEMOPMEDIAF2_INIT_VARS
- * Generate AVX function tables for the @a a_InstrNm instruction.
- * @sa IEMOPMEDIAF2_INIT_VARS_EX */
-#define IEMOPMEDIAF2_INIT_VARS(a_InstrNm) \
-    IEMOPMEDIAF2_INIT_VARS_EX(RT_CONCAT3(iemAImpl_,a_InstrNm,_u128),           RT_CONCAT3(iemAImpl_,a_InstrNm,_u256),\
-                              RT_CONCAT3(iemAImpl_,a_InstrNm,_u128_fallback),  RT_CONCAT3(iemAImpl_,a_InstrNm,_u256_fallback))
-
-
-/**
- * Function table for media instruction taking two full sized media source
- * registers and one full sized destination register, but no additional state
- * (AVX).
- */
-typedef struct IEMOPMEDIAOPTF3
-{
-    PFNIEMAIMPLMEDIAOPTF3U128 pfnU128;
-    PFNIEMAIMPLMEDIAOPTF3U256 pfnU256;
-} IEMOPMEDIAOPTF3;
-/** Pointer to a media operation function table for 3 full sized ops (AVX). */
-typedef IEMOPMEDIAOPTF3 const *PCIEMOPMEDIAOPTF3;
-
-/** @def IEMOPMEDIAOPTF3_INIT_VARS_EX
- * Declares a s_Host (x86 & amd64 only) and a s_Fallback variable with the
- * given functions as initializers.  For use in AVX functions where a pair of
- * functions are only used once and the function table need not be public. */
-#ifndef TST_IEM_CHECK_MC
-# if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && !defined(IEM_WITHOUT_ASSEMBLY)
-#  define IEMOPMEDIAOPTF3_INIT_VARS_EX(a_pfnHostU128, a_pfnHostU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAOPTF3 const s_Host     = { a_pfnHostU128,     a_pfnHostU256 }; \
-    static IEMOPMEDIAOPTF3 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# else
-#  define IEMOPMEDIAOPTF3_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAOPTF3 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# endif
-#else
-# define IEMOPMEDIAOPTF3_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) (void)0
-#endif
-/** @def IEMOPMEDIAOPTF3_INIT_VARS
- * Generate AVX function tables for the @a a_InstrNm instruction.
- * @sa IEMOPMEDIAOPTF3_INIT_VARS_EX */
-#define IEMOPMEDIAOPTF3_INIT_VARS(a_InstrNm) \
-    IEMOPMEDIAOPTF3_INIT_VARS_EX(RT_CONCAT3(iemAImpl_,a_InstrNm,_u128),           RT_CONCAT3(iemAImpl_,a_InstrNm,_u256),\
-                                 RT_CONCAT3(iemAImpl_,a_InstrNm,_u128_fallback),  RT_CONCAT3(iemAImpl_,a_InstrNm,_u256_fallback))
-
-/**
- * Function table for media instruction taking one full sized media source
- * registers and one full sized destination register, but no additional state
- * (AVX).
- */
-typedef struct IEMOPMEDIAOPTF2
-{
-    PFNIEMAIMPLMEDIAOPTF2U128 pfnU128;
-    PFNIEMAIMPLMEDIAOPTF2U256 pfnU256;
-} IEMOPMEDIAOPTF2;
-/** Pointer to a media operation function table for 2 full sized ops (AVX). */
-typedef IEMOPMEDIAOPTF2 const *PCIEMOPMEDIAOPTF2;
-
-/** @def IEMOPMEDIAOPTF2_INIT_VARS_EX
- * Declares a s_Host (x86 & amd64 only) and a s_Fallback variable with the
- * given functions as initializers.  For use in AVX functions where a pair of
- * functions are only used once and the function table need not be public. */
-#ifndef TST_IEM_CHECK_MC
-# if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && !defined(IEM_WITHOUT_ASSEMBLY)
-#  define IEMOPMEDIAOPTF2_INIT_VARS_EX(a_pfnHostU128, a_pfnHostU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAOPTF2 const s_Host     = { a_pfnHostU128,     a_pfnHostU256 }; \
-    static IEMOPMEDIAOPTF2 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# else
-#  define IEMOPMEDIAOPTF2_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAOPTF2 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# endif
-#else
-# define IEMOPMEDIAOPTF2_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) (void)0
-#endif
-/** @def IEMOPMEDIAOPTF2_INIT_VARS
- * Generate AVX function tables for the @a a_InstrNm instruction.
- * @sa IEMOPMEDIAOPTF2_INIT_VARS_EX */
-#define IEMOPMEDIAOPTF2_INIT_VARS(a_InstrNm) \
-    IEMOPMEDIAOPTF2_INIT_VARS_EX(RT_CONCAT3(iemAImpl_,a_InstrNm,_u128),           RT_CONCAT3(iemAImpl_,a_InstrNm,_u256),\
-                                 RT_CONCAT3(iemAImpl_,a_InstrNm,_u128_fallback),  RT_CONCAT3(iemAImpl_,a_InstrNm,_u256_fallback))
-
-
-/**
- * Function table for media instruction taking one full sized media source
- * register and one full sized destination register and an 8-bit immediate (AVX).
- */
-typedef struct IEMOPMEDIAF2IMM8
-{
-    PFNIEMAIMPLMEDIAF2U128IMM8 pfnU128;
-    PFNIEMAIMPLMEDIAF2U256IMM8 pfnU256;
-} IEMOPMEDIAF2IMM8;
-/** Pointer to a media operation function table for 2 full sized ops (AVX). */
-typedef IEMOPMEDIAF2IMM8 const *PCIEMOPMEDIAF2IMM8;
-
-/** @def IEMOPMEDIAF2IMM8_INIT_VARS_EX
- * Declares a s_Host (x86 & amd64 only) and a s_Fallback variable with the
- * given functions as initializers.  For use in AVX functions where a pair of
- * functions are only used once and the function table need not be public. */
-#ifndef TST_IEM_CHECK_MC
-# if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && !defined(IEM_WITHOUT_ASSEMBLY)
-#  define IEMOPMEDIAF2IMM8_INIT_VARS_EX(a_pfnHostU128, a_pfnHostU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAF2IMM8 const s_Host     = { a_pfnHostU128,     a_pfnHostU256 }; \
-    static IEMOPMEDIAF2IMM8 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# else
-#  define IEMOPMEDIAF2IMM8_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAF2IMM8 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# endif
-#else
-# define IEMOPMEDIAF2IMM8_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) (void)0
-#endif
-/** @def IEMOPMEDIAF2IMM8_INIT_VARS
- * Generate AVX function tables for the @a a_InstrNm instruction.
- * @sa IEMOPMEDIAF2IMM8_INIT_VARS_EX */
-#define IEMOPMEDIAF2IMM8_INIT_VARS(a_InstrNm) \
-    IEMOPMEDIAF2IMM8_INIT_VARS_EX(RT_CONCAT3(iemAImpl_,a_InstrNm,_u128),           RT_CONCAT3(iemAImpl_,a_InstrNm,_u256),\
-                                  RT_CONCAT3(iemAImpl_,a_InstrNm,_u128_fallback),  RT_CONCAT3(iemAImpl_,a_InstrNm,_u256_fallback))
-
-
-/**
- * Function table for media instruction taking one full sized media source
- * register and one full sized destination register and an 8-bit immediate, but no additional state
- * (AVX).
- */
-typedef struct IEMOPMEDIAOPTF2IMM8
-{
-    PFNIEMAIMPLMEDIAOPTF2U128IMM8 pfnU128;
-    PFNIEMAIMPLMEDIAOPTF2U256IMM8 pfnU256;
-} IEMOPMEDIAOPTF2IMM8;
-/** Pointer to a media operation function table for 2 full sized ops (AVX). */
-typedef IEMOPMEDIAOPTF2IMM8 const *PCIEMOPMEDIAOPTF2IMM8;
-
-/** @def IEMOPMEDIAOPTF2IMM8_INIT_VARS_EX
- * Declares a s_Host (x86 & amd64 only) and a s_Fallback variable with the
- * given functions as initializers.  For use in AVX functions where a pair of
- * functions are only used once and the function table need not be public. */
-#ifndef TST_IEM_CHECK_MC
-# if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && !defined(IEM_WITHOUT_ASSEMBLY)
-#  define IEMOPMEDIAOPTF2IMM8_INIT_VARS_EX(a_pfnHostU128, a_pfnHostU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAOPTF2IMM8 const s_Host     = { a_pfnHostU128,     a_pfnHostU256 }; \
-    static IEMOPMEDIAOPTF2IMM8 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# else
-#  define IEMOPMEDIAOPTF2IMM8_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAOPTF2IMM8 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# endif
-#else
-# define IEMOPMEDIAOPTF2IMM8_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) (void)0
-#endif
-/** @def IEMOPMEDIAOPTF2IMM8_INIT_VARS
- * Generate AVX function tables for the @a a_InstrNm instruction.
- * @sa IEMOPMEDIAOPTF2IMM8_INIT_VARS_EX */
-#define IEMOPMEDIAOPTF2IMM8_INIT_VARS(a_InstrNm) \
-    IEMOPMEDIAOPTF2IMM8_INIT_VARS_EX(RT_CONCAT3(iemAImpl_,a_InstrNm,_imm_u128),           RT_CONCAT3(iemAImpl_,a_InstrNm,_imm_u256),\
-                                     RT_CONCAT3(iemAImpl_,a_InstrNm,_imm_u128_fallback),  RT_CONCAT3(iemAImpl_,a_InstrNm,_imm_u256_fallback))
-
-/**
- * Function table for media instruction taking two full sized media source
- * registers and one full sized destination register and an 8-bit immediate, but no additional state
- * (AVX).
- */
-typedef struct IEMOPMEDIAOPTF3IMM8
-{
-    PFNIEMAIMPLMEDIAOPTF3U128IMM8 pfnU128;
-    PFNIEMAIMPLMEDIAOPTF3U256IMM8 pfnU256;
-} IEMOPMEDIAOPTF3IMM8;
-/** Pointer to a media operation function table for 3 full sized ops (AVX). */
-typedef IEMOPMEDIAOPTF3IMM8 const *PCIEMOPMEDIAOPTF3IMM8;
-
-/** @def IEMOPMEDIAOPTF3IMM8_INIT_VARS_EX
- * Declares a s_Host (x86 & amd64 only) and a s_Fallback variable with the
- * given functions as initializers.  For use in AVX functions where a pair of
- * functions are only used once and the function table need not be public. */
-#ifndef TST_IEM_CHECK_MC
-# if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && !defined(IEM_WITHOUT_ASSEMBLY)
-#  define IEMOPMEDIAOPTF3IMM8_INIT_VARS_EX(a_pfnHostU128, a_pfnHostU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAOPTF3IMM8 const s_Host     = { a_pfnHostU128,     a_pfnHostU256 }; \
-    static IEMOPMEDIAOPTF3IMM8 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# else
-#  define IEMOPMEDIAOPTF3IMM8_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPMEDIAOPTF3IMM8 const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# endif
-#else
-# define IEMOPMEDIAOPTF3IMM8_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) (void)0
-#endif
-/** @def IEMOPMEDIAOPTF3IMM8_INIT_VARS
- * Generate AVX function tables for the @a a_InstrNm instruction.
- * @sa IEMOPMEDIAOPTF3IMM8_INIT_VARS_EX */
-#define IEMOPMEDIAOPTF3IMM8_INIT_VARS(a_InstrNm) \
-    IEMOPMEDIAOPTF3IMM8_INIT_VARS_EX(RT_CONCAT3(iemAImpl_,a_InstrNm,_u128),           RT_CONCAT3(iemAImpl_,a_InstrNm,_u256),\
-                                     RT_CONCAT3(iemAImpl_,a_InstrNm,_u128_fallback),  RT_CONCAT3(iemAImpl_,a_InstrNm,_u256_fallback))
-/** @} */
-
-
-/**
- * Function table for blend type instruction taking three full sized media source
- * registers and one full sized destination register, but no additional state
- * (AVX).
- */
-typedef struct IEMOPBLENDOP
-{
-    PFNIEMAIMPLAVXBLENDU128 pfnU128;
-    PFNIEMAIMPLAVXBLENDU256 pfnU256;
-} IEMOPBLENDOP;
-/** Pointer to a media operation function table for 4 full sized ops (AVX). */
-typedef IEMOPBLENDOP const *PCIEMOPBLENDOP;
-
-/** @def IEMOPBLENDOP_INIT_VARS_EX
- * Declares a s_Host (x86 & amd64 only) and a s_Fallback variable with the
- * given functions as initializers.  For use in AVX functions where a pair of
- * functions are only used once and the function table need not be public. */
-#ifndef TST_IEM_CHECK_MC
-# if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && !defined(IEM_WITHOUT_ASSEMBLY)
-#  define IEMOPBLENDOP_INIT_VARS_EX(a_pfnHostU128, a_pfnHostU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPBLENDOP const s_Host     = { a_pfnHostU128,     a_pfnHostU256 }; \
-    static IEMOPBLENDOP const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# else
-#  define IEMOPBLENDOP_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) \
-    static IEMOPBLENDOP const s_Fallback = { a_pfnFallbackU128, a_pfnFallbackU256 }
-# endif
-#else
-# define IEMOPBLENDOP_INIT_VARS_EX(a_pfnU128, a_pfnU256, a_pfnFallbackU128, a_pfnFallbackU256) (void)0
-#endif
-/** @def IEMOPBLENDOP_INIT_VARS
- * Generate AVX function tables for the @a a_InstrNm instruction.
- * @sa IEMOPBLENDOP_INIT_VARS_EX */
-#define IEMOPBLENDOP_INIT_VARS(a_InstrNm) \
-    IEMOPBLENDOP_INIT_VARS_EX(RT_CONCAT3(iemAImpl_,a_InstrNm,_u128),           RT_CONCAT3(iemAImpl_,a_InstrNm,_u256),\
-                              RT_CONCAT3(iemAImpl_,a_InstrNm,_u128_fallback),  RT_CONCAT3(iemAImpl_,a_InstrNm,_u256_fallback))
-
-
-/** @name SSE/AVX single/double precision floating point operations.
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLFPSSEF2U128,(uint32_t uMxCsrIn, PX86XMMREG pResult, PCX86XMMREG puSrc1, PCX86XMMREG puSrc2));
-typedef FNIEMAIMPLFPSSEF2U128  *PFNIEMAIMPLFPSSEF2U128;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLFPSSEF2U128R32,(uint32_t uMxCsrIn, PX86XMMREG Result, PCX86XMMREG puSrc1, PCRTFLOAT32U pr32Src2));
-typedef FNIEMAIMPLFPSSEF2U128R32  *PFNIEMAIMPLFPSSEF2U128R32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLFPSSEF2U128R64,(uint32_t uMxCsrIn, PX86XMMREG pResult, PCX86XMMREG puSrc1, PCRTFLOAT64U pr64Src2));
-typedef FNIEMAIMPLFPSSEF2U128R64  *PFNIEMAIMPLFPSSEF2U128R64;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLFPAVXF3U128,(uint32_t uMxCsrIn, PX86XMMREG pResult, PCX86XMMREG puSrc1, PCX86XMMREG puSrc2));
-typedef FNIEMAIMPLFPAVXF3U128  *PFNIEMAIMPLFPAVXF3U128;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLFPAVXF3U128R32,(uint32_t uMxCsrIn, PX86XMMREG pResult, PCX86XMMREG puSrc1, PCRTFLOAT32U pr32Src2));
-typedef FNIEMAIMPLFPAVXF3U128R32  *PFNIEMAIMPLFPAVXF3U128R32;
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLFPAVXF3U128R64,(uint32_t uMxCsrIn, PX86XMMREG pResult, PCX86XMMREG puSrc1, PCRTFLOAT64U pr64Src2));
-typedef FNIEMAIMPLFPAVXF3U128R64  *PFNIEMAIMPLFPAVXF3U128R64;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLFPAVXF3U256,(uint32_t uMxCsrIn, PX86YMMREG pResult, PCX86YMMREG puSrc1, PCX86YMMREG puSrc2));
-typedef FNIEMAIMPLFPAVXF3U256  *PFNIEMAIMPLFPAVXF3U256;
-
-FNIEMAIMPLFPSSEF2U128 iemAImpl_addps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_addpd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_mulps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_mulpd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_subps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_subpd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_minps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_minpd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_divps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_divpd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_maxps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_maxpd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_haddps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_haddpd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_hsubps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_hsubpd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_sqrtps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_rsqrtps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_sqrtpd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_rcpps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_addsubps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_addsubpd_u128;
-
-FNIEMAIMPLFPSSEF2U128 iemAImpl_cvtpd2ps_u128;
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_cvtps2pd_u128,(uint32_t uMxCsrIn, PX86XMMREG pResult, uint64_t const *pu64Src));
-
-FNIEMAIMPLFPSSEF2U128 iemAImpl_cvtdq2ps_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_cvtps2dq_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_cvttps2dq_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_cvttpd2dq_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_cvtdq2pd_u128;
-FNIEMAIMPLFPSSEF2U128 iemAImpl_cvtpd2dq_u128;
-
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_addss_u128_r32;
-FNIEMAIMPLFPSSEF2U128R64 iemAImpl_addsd_u128_r64;
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_mulss_u128_r32;
-FNIEMAIMPLFPSSEF2U128R64 iemAImpl_mulsd_u128_r64;
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_subss_u128_r32;
-FNIEMAIMPLFPSSEF2U128R64 iemAImpl_subsd_u128_r64;
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_minss_u128_r32;
-FNIEMAIMPLFPSSEF2U128R64 iemAImpl_minsd_u128_r64;
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_divss_u128_r32;
-FNIEMAIMPLFPSSEF2U128R64 iemAImpl_divsd_u128_r64;
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_maxss_u128_r32;
-FNIEMAIMPLFPSSEF2U128R64 iemAImpl_maxsd_u128_r64;
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_cvtss2sd_u128_r32;
-FNIEMAIMPLFPSSEF2U128R64 iemAImpl_cvtsd2ss_u128_r64;
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_sqrtss_u128_r32;
-FNIEMAIMPLFPSSEF2U128R64 iemAImpl_sqrtsd_u128_r64;
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_rsqrtss_u128_r32;
-FNIEMAIMPLFPSSEF2U128R32 iemAImpl_rcpss_u128_r32;
-
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vaddps_u128, iemAImpl_vaddps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vaddpd_u128, iemAImpl_vaddpd_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vmulps_u128, iemAImpl_vmulps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vmulpd_u128, iemAImpl_vmulpd_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vsubps_u128, iemAImpl_vsubps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vsubpd_u128, iemAImpl_vsubpd_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vminps_u128, iemAImpl_vminps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vminpd_u128, iemAImpl_vminpd_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vdivps_u128, iemAImpl_vdivps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vdivpd_u128, iemAImpl_vdivpd_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vmaxps_u128, iemAImpl_vmaxps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vmaxpd_u128, iemAImpl_vmaxpd_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vhaddps_u128, iemAImpl_vhaddps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vhaddpd_u128, iemAImpl_vhaddpd_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vhsubps_u128, iemAImpl_vhsubps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vhsubpd_u128, iemAImpl_vhsubpd_u128_fallback;
-FNIEMAIMPLMEDIAF2U128 iemAImpl_vsqrtps_u128, iemAImpl_vsqrtps_u128_fallback;
-FNIEMAIMPLMEDIAF2U128 iemAImpl_vsqrtpd_u128, iemAImpl_vsqrtpd_u128_fallback;
-FNIEMAIMPLMEDIAF2U128 iemAImpl_vrsqrtps_u128,  iemAImpl_vrsqrtps_u128_fallback;
-FNIEMAIMPLMEDIAF2U128 iemAImpl_vrcpps_u128,    iemAImpl_vrcpps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vaddsubps_u128, iemAImpl_vaddsubps_u128_fallback;
-FNIEMAIMPLMEDIAF3U128 iemAImpl_vaddsubpd_u128, iemAImpl_vaddsubpd_u128_fallback;
-FNIEMAIMPLMEDIAF2U128 iemAImpl_vcvtdq2ps_u128, iemAImpl_vcvtdq2ps_u128_fallback;
-FNIEMAIMPLMEDIAF2U128 iemAImpl_vcvtps2dq_u128, iemAImpl_vcvtps2dq_u128_fallback;
-FNIEMAIMPLMEDIAF2U128 iemAImpl_vcvttps2dq_u128, iemAImpl_vcvttps2dq_u128_fallback;
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2ps_u128_u128,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2ps_u128_u128_fallback,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvttpd2dq_u128_u128,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvttpd2dq_u128_u128_fallback,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2dq_u128_u128,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2dq_u128_u128_fallback,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86XMMREG puSrc));
-
-
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vaddss_u128_r32, iemAImpl_vaddss_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R64 iemAImpl_vaddsd_u128_r64, iemAImpl_vaddsd_u128_r64_fallback;
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vmulss_u128_r32, iemAImpl_vmulss_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R64 iemAImpl_vmulsd_u128_r64, iemAImpl_vmulsd_u128_r64_fallback;
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vsubss_u128_r32, iemAImpl_vsubss_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R64 iemAImpl_vsubsd_u128_r64, iemAImpl_vsubsd_u128_r64_fallback;
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vminss_u128_r32, iemAImpl_vminss_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R64 iemAImpl_vminsd_u128_r64, iemAImpl_vminsd_u128_r64_fallback;
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vdivss_u128_r32, iemAImpl_vdivss_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R64 iemAImpl_vdivsd_u128_r64, iemAImpl_vdivsd_u128_r64_fallback;
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vmaxss_u128_r32, iemAImpl_vmaxss_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R64 iemAImpl_vmaxsd_u128_r64, iemAImpl_vmaxsd_u128_r64_fallback;
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vsqrtss_u128_r32, iemAImpl_vsqrtss_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R64 iemAImpl_vsqrtsd_u128_r64, iemAImpl_vsqrtsd_u128_r64_fallback;
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vrsqrtss_u128_r32, iemAImpl_vrsqrtss_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vrcpss_u128_r32,   iemAImpl_vrcpss_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R32 iemAImpl_vcvtss2sd_u128_r32, iemAImpl_vcvtss2sd_u128_r32_fallback;
-FNIEMAIMPLFPAVXF3U128R64 iemAImpl_vcvtsd2ss_u128_r64, iemAImpl_vcvtsd2ss_u128_r64_fallback;
-
-
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vaddps_u256, iemAImpl_vaddps_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vaddpd_u256, iemAImpl_vaddpd_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vmulps_u256, iemAImpl_vmulps_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vmulpd_u256, iemAImpl_vmulpd_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vsubps_u256, iemAImpl_vsubps_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vsubpd_u256, iemAImpl_vsubpd_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vminps_u256, iemAImpl_vminps_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vminpd_u256, iemAImpl_vminpd_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vdivps_u256, iemAImpl_vdivps_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vdivpd_u256, iemAImpl_vdivpd_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vmaxps_u256, iemAImpl_vmaxps_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vmaxpd_u256, iemAImpl_vmaxpd_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vhaddps_u256, iemAImpl_vhaddps_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vhaddpd_u256, iemAImpl_vhaddpd_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vhsubps_u256, iemAImpl_vhsubps_u256_fallback;
-FNIEMAIMPLFPAVXF3U256 iemAImpl_vhsubpd_u256, iemAImpl_vhsubpd_u256_fallback;
-FNIEMAIMPLMEDIAF3U256 iemAImpl_vaddsubps_u256, iemAImpl_vaddsubps_u256_fallback;
-FNIEMAIMPLMEDIAF3U256 iemAImpl_vaddsubpd_u256, iemAImpl_vaddsubpd_u256_fallback;
-FNIEMAIMPLMEDIAF2U256 iemAImpl_vsqrtps_u256, iemAImpl_vsqrtps_u256_fallback;
-FNIEMAIMPLMEDIAF2U256 iemAImpl_vsqrtpd_u256, iemAImpl_vsqrtpd_u256_fallback;
-FNIEMAIMPLMEDIAF2U256 iemAImpl_vrsqrtps_u256,  iemAImpl_vrsqrtps_u256_fallback;
-FNIEMAIMPLMEDIAF2U256 iemAImpl_vrcpps_u256,    iemAImpl_vrcpps_u256_fallback;
-FNIEMAIMPLMEDIAF2U256 iemAImpl_vcvtdq2ps_u256,  iemAImpl_vcvtdq2ps_u256_fallback;
-FNIEMAIMPLMEDIAF2U256 iemAImpl_vcvtps2dq_u256,  iemAImpl_vcvtps2dq_u256_fallback;
-FNIEMAIMPLMEDIAF2U256 iemAImpl_vcvttps2dq_u256, iemAImpl_vcvttps2dq_u256_fallback;
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2ps_u128_u256,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86YMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2ps_u128_u256_fallback,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86YMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvttpd2dq_u128_u256,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86YMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvttpd2dq_u128_u256_fallback,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86YMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2dq_u128_u256,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86YMMREG puSrc));
-IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2dq_u128_u256_fallback,(uint32_t uMxCsrIn, PX86XMMREG puDst, PCX86YMMREG puSrc));
-/** @} */
 
 /** @name C instruction implementations for anything slightly complicated.
  * @{ */
+
+#if defined(VBOX_VMM_TARGET_X86)
+# define IEM_CIMPL_NEEDS_INSTR_LEN
+#endif
+#ifdef IEM_CIMPL_NEEDS_INSTR_LEN
+# define IEM_CIMPL_COMMA_EXTRA_ARGS_CALL    , cbInstr
+# define IEM_CIMPL_COMMA_EXTRA_ARGS         , uint8_t cbInstr
+#else
+# define IEM_CIMPL_COMMA_EXTRA_ARGS_CALL
+# define IEM_CIMPL_COMMA_EXTRA_ARGS
+#endif
 
 /**
  * For typedef'ing or declaring a C instruction implementation function taking
@@ -5067,8 +3237,9 @@ IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2dq_u128_u256_fallback,(uint32_t uM
  *
  * @param   a_Name              The name of the type.
  */
-# define IEM_CIMPL_DECL_TYPE_0(a_Name) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr))
+#define IEM_CIMPL_DECL_TYPE_0(a_Name) \
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS))
+
 /**
  * For defining a C instruction implementation function taking no extra
  * arguments.
@@ -5076,12 +3247,12 @@ IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2dq_u128_u256_fallback,(uint32_t uM
  * @param   a_Name              The name of the function
  */
 # define IEM_CIMPL_DEF_0(a_Name) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr))
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS))
 /**
  * Prototype version of IEM_CIMPL_DEF_0.
  */
-# define IEM_CIMPL_PROTO_0(a_Name) \
-    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr))
+#define IEM_CIMPL_PROTO_0(a_Name) \
+    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS))
 /**
  * For calling a C instruction implementation function taking no extra
  * arguments.
@@ -5091,7 +3262,7 @@ IEM_DECL_IMPL_PROTO(uint32_t, iemAImpl_vcvtpd2dq_u128_u256_fallback,(uint32_t uM
  *
  * @param   a_fn                The name of the function.
  */
-# define IEM_CIMPL_CALL_0(a_fn)            a_fn(pVCpu, cbInstr)
+#define IEM_CIMPL_CALL_0(a_fn)              a_fn(pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS_CALL)
 
 /** Type for a C instruction implementation function taking no extra
  *  arguments. */
@@ -5108,8 +3279,8 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type0             The argument type.
  * @param   a_Arg0              The argument name.
  */
-# define IEM_CIMPL_DECL_TYPE_1(a_Name, a_Type0, a_Arg0) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0))
+#define IEM_CIMPL_DECL_TYPE_1(a_Name, a_Type0, a_Arg0) \
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name,(PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0))
 /**
  * For defining a C instruction implementation function taking one extra
  * argument.
@@ -5118,13 +3289,13 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type0             The argument type.
  * @param   a_Arg0              The argument name.
  */
-# define IEM_CIMPL_DEF_1(a_Name, a_Type0, a_Arg0) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0))
+#define IEM_CIMPL_DEF_1(a_Name, a_Type0, a_Arg0) \
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name,(PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0))
 /**
  * Prototype version of IEM_CIMPL_DEF_1.
  */
-# define IEM_CIMPL_PROTO_1(a_Name, a_Type0, a_Arg0) \
-    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0))
+#define IEM_CIMPL_PROTO_1(a_Name, a_Type0, a_Arg0) \
+    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name,(PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0))
 /**
  * For calling a C instruction implementation function taking one extra
  * argument.
@@ -5135,7 +3306,7 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_fn                The name of the function.
  * @param   a0                  The name of the 1st argument.
  */
-# define IEM_CIMPL_CALL_1(a_fn, a0)        a_fn(pVCpu, cbInstr, (a0))
+#define IEM_CIMPL_CALL_1(a_fn, a0)      a_fn(pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS_CALL, (a0))
 
 /**
  * For typedef'ing or declaring a C instruction implementation function taking
@@ -5147,8 +3318,8 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type1             The type of the 2nd argument.
  * @param   a_Arg1              The name of the 2nd argument.
  */
-# define IEM_CIMPL_DECL_TYPE_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1))
+#define IEM_CIMPL_DECL_TYPE_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1) \
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1))
 /**
  * For defining a C instruction implementation function taking two extra
  * arguments.
@@ -5159,13 +3330,13 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type1             The type of the 2nd argument.
  * @param   a_Arg1              The name of the 2nd argument.
  */
-# define IEM_CIMPL_DEF_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1))
+#define IEM_CIMPL_DEF_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1) \
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1))
 /**
  * Prototype version of IEM_CIMPL_DEF_2.
  */
-# define IEM_CIMPL_PROTO_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1) \
-    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1))
+#define IEM_CIMPL_PROTO_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1) \
+    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1))
 /**
  * For calling a C instruction implementation function taking two extra
  * arguments.
@@ -5177,7 +3348,7 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a0                  The name of the 1st argument.
  * @param   a1                  The name of the 2nd argument.
  */
-# define IEM_CIMPL_CALL_2(a_fn, a0, a1)    a_fn(pVCpu, cbInstr, (a0), (a1))
+#define IEM_CIMPL_CALL_2(a_fn, a0, a1)  a_fn(pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS_CALL, (a0), (a1))
 
 /**
  * For typedef'ing or declaring a C instruction implementation function taking
@@ -5191,8 +3362,8 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type2             The type of the 3rd argument.
  * @param   a_Arg2              The name of the 3rd argument.
  */
-# define IEM_CIMPL_DECL_TYPE_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
+#define IEM_CIMPL_DECL_TYPE_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2) \
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
 /**
  * For defining a C instruction implementation function taking three extra
  * arguments.
@@ -5205,13 +3376,13 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type2             The type of the 3rd argument.
  * @param   a_Arg2              The name of the 3rd argument.
  */
-# define IEM_CIMPL_DEF_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
+#define IEM_CIMPL_DEF_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2) \
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
 /**
  * Prototype version of IEM_CIMPL_DEF_3.
  */
-# define IEM_CIMPL_PROTO_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2) \
-    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
+#define IEM_CIMPL_PROTO_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2) \
+    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
 /**
  * For calling a C instruction implementation function taking three extra
  * arguments.
@@ -5224,7 +3395,7 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a1                  The name of the 2nd argument.
  * @param   a2                  The name of the 3rd argument.
  */
-# define IEM_CIMPL_CALL_3(a_fn, a0, a1, a2) a_fn(pVCpu, cbInstr, (a0), (a1), (a2))
+#define IEM_CIMPL_CALL_3(a_fn, a0, a1, a2) a_fn(pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS_CALL, (a0), (a1), (a2))
 
 
 /**
@@ -5241,8 +3412,8 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type3             The type of the 4th argument.
  * @param   a_Arg3              The name of the 4th argument.
  */
-# define IEM_CIMPL_DECL_TYPE_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3))
+#define IEM_CIMPL_DECL_TYPE_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3) \
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3))
 /**
  * For defining a C instruction implementation function taking four extra
  * arguments.
@@ -5257,14 +3428,14 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type3             The type of the 4th argument.
  * @param   a_Arg3              The name of the 4th argument.
  */
-# define IEM_CIMPL_DEF_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, \
+#define IEM_CIMPL_DEF_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3) \
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1, \
                                              a_Type2 a_Arg2, a_Type3 a_Arg3))
 /**
  * Prototype version of IEM_CIMPL_DEF_4.
  */
 # define IEM_CIMPL_PROTO_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3) \
-    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, \
+    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1, \
                                                a_Type2 a_Arg2, a_Type3 a_Arg3))
 /**
  * For calling a C instruction implementation function taking four extra
@@ -5279,7 +3450,7 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a2                  The name of the 3rd argument.
  * @param   a3                  The name of the 4th argument.
  */
-# define IEM_CIMPL_CALL_4(a_fn, a0, a1, a2, a3) a_fn(pVCpu, cbInstr, (a0), (a1), (a2), (a3))
+#define IEM_CIMPL_CALL_4(a_fn, a0, a1, a2, a3) a_fn(pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS_CALL, (a0), (a1), (a2), (a3))
 
 
 /**
@@ -5298,8 +3469,8 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type4             The type of the 5th argument.
  * @param   a_Arg4              The name of the 5th argument.
  */
-# define IEM_CIMPL_DECL_TYPE_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, \
+#define IEM_CIMPL_DECL_TYPE_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4) \
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, \
                                                a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, \
                                                a_Type3 a_Arg3, a_Type4 a_Arg4))
 /**
@@ -5318,14 +3489,14 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a_Type4             The type of the 5th argument.
  * @param   a_Arg4              The name of the 5th argument.
  */
-# define IEM_CIMPL_DEF_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, \
+#define IEM_CIMPL_DEF_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4) \
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1, \
                                              a_Type2 a_Arg2, a_Type3 a_Arg3, a_Type4 a_Arg4))
 /**
  * Prototype version of IEM_CIMPL_DEF_5.
  */
-# define IEM_CIMPL_PROTO_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4) \
-    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, \
+#define IEM_CIMPL_PROTO_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4) \
+    IEM_DECL_IMPL_PROTO(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS, a_Type0 a_Arg0, a_Type1 a_Arg1, \
                                                a_Type2 a_Arg2, a_Type3 a_Arg3, a_Type4 a_Arg4))
 /**
  * For calling a C instruction implementation function taking five extra
@@ -5341,7 +3512,7 @@ typedef FNIEMCIMPL0 *PFNIEMCIMPL0;
  * @param   a3                  The name of the 4th argument.
  * @param   a4                  The name of the 5th argument.
  */
-# define IEM_CIMPL_CALL_5(a_fn, a0, a1, a2, a3, a4) a_fn(pVCpu, cbInstr, (a0), (a1), (a2), (a3), (a4))
+#define IEM_CIMPL_CALL_5(a_fn, a0, a1, a2, a3, a4) a_fn(pVCpu IEM_CIMPL_COMMA_EXTRA_ARGS_CALL, (a0), (a1), (a2), (a3), (a4))
 
 /** @}  */
 
@@ -5385,6 +3556,9 @@ typedef VBOXSTRICTRC (__attribute__((__fastcall__)) * PFNIEMOPRM)(PVMCPUCC pVCpu
 # define FNIEMOP_DEF_2(a_Name, a_Type0, a_Name0, a_Type1, a_Name1) \
     IEM_STATIC VBOXSTRICTRC __attribute__((__fastcall__, __nothrow__)) a_Name(PVMCPUCC pVCpu, a_Type0 a_Name0, a_Type1 a_Name1)
 
+# define FNIEMOP_TYPE_1(a_TypeName, a_Type0, a_Name0) \
+    typedef  VBOXSTRICTRC (__attribute__((__fastcall__, __nothrow__)) * a_TypeName)(PVMCPUCC pVCpu, a_Type0 a_Name0)
+
 #elif defined(_MSC_VER) && defined(RT_ARCH_X86)
 typedef VBOXSTRICTRC (__fastcall * PFNIEMOP)(PVMCPUCC pVCpu);
 typedef VBOXSTRICTRC (__fastcall * PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
@@ -5394,6 +3568,9 @@ typedef VBOXSTRICTRC (__fastcall * PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
     IEM_STATIC /*__declspec(naked)*/ VBOXSTRICTRC __fastcall a_Name(PVMCPUCC pVCpu, a_Type0 a_Name0) IEM_NOEXCEPT_MAY_LONGJMP
 # define FNIEMOP_DEF_2(a_Name, a_Type0, a_Name0, a_Type1, a_Name1) \
     IEM_STATIC /*__declspec(naked)*/ VBOXSTRICTRC __fastcall a_Name(PVMCPUCC pVCpu, a_Type0 a_Name0, a_Type1 a_Name1) IEM_NOEXCEPT_MAY_LONGJMP
+
+# define FNIEMOP_TYPE_1(a_TypeName, a_Type0, a_Name0) \
+    typedef VBOXSTRICTRC (__fastcall * a_TypeName)(PVMCPUCC pVCpu, a_Type0 a_Name0) IEM_NOEXCEPT_MAY_LONGJMP_TYPEDEF
 
 #elif defined(__GNUC__) && !defined(IEM_WITH_THROW_CATCH)
 typedef VBOXSTRICTRC (* PFNIEMOP)(PVMCPUCC pVCpu);
@@ -5405,6 +3582,9 @@ typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
 # define FNIEMOP_DEF_2(a_Name, a_Type0, a_Name0, a_Type1, a_Name1) \
     IEM_STATIC VBOXSTRICTRC __attribute__((__nothrow__)) a_Name(PVMCPUCC pVCpu, a_Type0 a_Name0, a_Type1 a_Name1)
 
+# define FNIEMOP_TYPE_1(a_TypeName, a_Type0, a_Name0) \
+    typedef VBOXSTRICTRC (* a_TypeName)(PVMCPUCC pVCpu, a_Type0 a_Name0)
+
 #else
 typedef VBOXSTRICTRC (* PFNIEMOP)(PVMCPUCC pVCpu);
 typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
@@ -5415,7 +3595,13 @@ typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
 # define FNIEMOP_DEF_2(a_Name, a_Type0, a_Name0, a_Type1, a_Name1) \
     IEM_STATIC IEM_DECL_MSC_GUARD_IGNORE VBOXSTRICTRC a_Name(PVMCPUCC pVCpu, a_Type0 a_Name0, a_Type1 a_Name1) IEM_NOEXCEPT_MAY_LONGJMP
 
+# define FNIEMOP_TYPE_1(a_TypeName, a_Type0, a_Name0) \
+    typedef VBOXSTRICTRC (* a_TypeName)(PVMCPUCC pVCpu, a_Type0 a_Name0) IEM_NOEXCEPT_MAY_LONGJMP_TYPEDEF
+
 #endif
+
+FNIEMOP_TYPE_1(PFIEMOPU32, uint32_t, u32);
+
 #define FNIEMOPRM_DEF(a_Name) FNIEMOP_DEF_1(a_Name, uint8_t, bRm)
 
 /**
@@ -5496,87 +3682,6 @@ typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
 #endif
 
 /**
- * Gets the CPU mode (from fExec) as a IEMMODE value.
- *
- * @returns IEMMODE
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_GET_CPU_MODE(a_pVCpu)           ((a_pVCpu)->iem.s.fExec & IEM_F_MODE_CPUMODE_MASK)
-
-/**
- * Check if we're currently executing in real or virtual 8086 mode.
- *
- * @returns @c true if it is, @c false if not.
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_IS_REAL_OR_V86_MODE(a_pVCpu)    ((  ((a_pVCpu)->iem.s.fExec  ^ IEM_F_MODE_X86_PROT_MASK) \
-                                              & (IEM_F_MODE_X86_V86_MASK | IEM_F_MODE_X86_PROT_MASK)) != 0)
-
-/**
- * Check if we're currently executing in virtual 8086 mode.
- *
- * @returns @c true if it is, @c false if not.
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_IS_V86_MODE(a_pVCpu)            (((a_pVCpu)->iem.s.fExec & IEM_F_MODE_X86_V86_MASK) != 0)
-
-/**
- * Check if we're currently executing in long mode.
- *
- * @returns @c true if it is, @c false if not.
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_IS_LONG_MODE(a_pVCpu)           (CPUMIsGuestInLongModeEx(IEM_GET_CTX(a_pVCpu)))
-
-/**
- * Check if we're currently executing in a 16-bit code segment.
- *
- * @returns @c true if it is, @c false if not.
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_IS_16BIT_CODE(a_pVCpu)          (IEM_GET_CPU_MODE(a_pVCpu) == IEMMODE_16BIT)
-
-/**
- * Check if we're currently executing in a 32-bit code segment.
- *
- * @returns @c true if it is, @c false if not.
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_IS_32BIT_CODE(a_pVCpu)          (IEM_GET_CPU_MODE(a_pVCpu) == IEMMODE_32BIT)
-
-/**
- * Check if we're currently executing in a 64-bit code segment.
- *
- * @returns @c true if it is, @c false if not.
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_IS_64BIT_CODE(a_pVCpu)          (IEM_GET_CPU_MODE(a_pVCpu) == IEMMODE_64BIT)
-
-/**
- * Check if we're currently executing in real mode.
- *
- * @returns @c true if it is, @c false if not.
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_IS_REAL_MODE(a_pVCpu)           (!((a_pVCpu)->iem.s.fExec & IEM_F_MODE_X86_PROT_MASK))
-
-/**
- * Gets the current protection level (CPL).
- *
- * @returns 0..3
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_GET_CPL(a_pVCpu)                (((a_pVCpu)->iem.s.fExec >> IEM_F_X86_CPL_SHIFT) & IEM_F_X86_CPL_SMASK)
-
-/**
- * Sets the current protection level (CPL).
- *
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_SET_CPL(a_pVCpu, a_uCpl) \
-    do { (a_pVCpu)->iem.s.fExec = ((a_pVCpu)->iem.s.fExec & ~IEM_F_X86_CPL_MASK) | ((a_uCpl) << IEM_F_X86_CPL_SHIFT); } while (0)
-
-/**
  * Returns a (const) pointer to the CPUMFEATURES for the guest CPU.
  * @returns PCCPUMFEATURES
  * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
@@ -5590,705 +3695,28 @@ typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
  */
 #define IEM_GET_HOST_CPU_FEATURES(a_pVCpu)  (&g_CpumHostFeatures.s)
 
-/**
- * Evaluates to true if we're presenting an Intel CPU to the guest.
- */
-#define IEM_IS_GUEST_CPU_INTEL(a_pVCpu)     ( (a_pVCpu)->iem.s.enmCpuVendor == CPUMCPUVENDOR_INTEL )
 
-/**
- * Evaluates to true if we're presenting an AMD CPU to the guest.
- */
-#define IEM_IS_GUEST_CPU_AMD(a_pVCpu)       ( (a_pVCpu)->iem.s.enmCpuVendor == CPUMCPUVENDOR_AMD || (a_pVCpu)->iem.s.enmCpuVendor == CPUMCPUVENDOR_HYGON )
-
-/**
- * Check if the address is canonical.
- */
-#define IEM_IS_CANONICAL(a_u64Addr)         X86_IS_CANONICAL(a_u64Addr)
-
-/** Checks if the ModR/M byte is in register mode or not.  */
-#define IEM_IS_MODRM_REG_MODE(a_bRm)        ( ((a_bRm) & X86_MODRM_MOD_MASK) == (3 << X86_MODRM_MOD_SHIFT) )
-/** Checks if the ModR/M byte is in memory mode or not.  */
-#define IEM_IS_MODRM_MEM_MODE(a_bRm)        ( ((a_bRm) & X86_MODRM_MOD_MASK) != (3 << X86_MODRM_MOD_SHIFT) )
-
-/**
- * Gets the register (reg) part of a ModR/M encoding, with REX.R added in.
- *
- * For use during decoding.
- */
-#define IEM_GET_MODRM_REG(a_pVCpu, a_bRm)   ( (((a_bRm) >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | (a_pVCpu)->iem.s.uRexReg )
-/**
- * Gets the r/m part of a ModR/M encoding as a register index, with REX.B added in.
- *
- * For use during decoding.
- */
-#define IEM_GET_MODRM_RM(a_pVCpu, a_bRm)    ( ((a_bRm) & X86_MODRM_RM_MASK) | (a_pVCpu)->iem.s.uRexB )
-
-/**
- * Gets the register (reg) part of a ModR/M encoding, without REX.R.
- *
- * For use during decoding.
- */
-#define IEM_GET_MODRM_REG_8(a_bRm)          ( (((a_bRm) >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) )
-/**
- * Gets the r/m part of a ModR/M encoding as a register index, without REX.B.
- *
- * For use during decoding.
- */
-#define IEM_GET_MODRM_RM_8(a_bRm)           ( ((a_bRm) & X86_MODRM_RM_MASK) )
-
-/**
- * Gets the register (reg) part of a ModR/M encoding as an extended 8-bit
- * register index, with REX.R added in.
- *
- * For use during decoding.
- *
- * @see iemGRegRefU8Ex, iemGRegFetchU8Ex, iemGRegStoreU8Ex
- */
-#define IEM_GET_MODRM_REG_EX8(a_pVCpu, a_bRm) \
-    (   (pVCpu->iem.s.fPrefixes & IEM_OP_PRF_REX) \
-     || !((a_bRm) & (4 << X86_MODRM_REG_SHIFT)) /* IEM_GET_MODRM_REG(pVCpu, a_bRm) < 4 */ \
-     ? IEM_GET_MODRM_REG(pVCpu, a_bRm) : (((a_bRm) >> X86_MODRM_REG_SHIFT) & 3) | 16)
-/**
- * Gets the r/m part of a ModR/M encoding as an extended 8-bit register index,
- * with REX.B added in.
- *
- * For use during decoding.
- *
- * @see iemGRegRefU8Ex, iemGRegFetchU8Ex, iemGRegStoreU8Ex
- */
-#define IEM_GET_MODRM_RM_EX8(a_pVCpu, a_bRm) \
-    (   (pVCpu->iem.s.fPrefixes & IEM_OP_PRF_REX) \
-     || !((a_bRm) & 4) /* IEM_GET_MODRM_RM(pVCpu, a_bRm) < 4 */ \
-     ? IEM_GET_MODRM_RM(pVCpu, a_bRm) : ((a_bRm) & 3) | 16)
-
-/**
- * Combines the prefix REX and ModR/M byte for passing to
- * iemOpHlpCalcRmEffAddrThreadedAddr64().
- *
- * @returns The ModRM byte but with bit 3 set to REX.B and bit 4 to REX.X.
- *          The two bits are part of the REG sub-field, which isn't needed in
- *          iemOpHlpCalcRmEffAddrThreadedAddr64().
- *
- * For use during decoding/recompiling.
- */
-#define IEM_GET_MODRM_EX(a_pVCpu, a_bRm) \
-    (  ((a_bRm) & ~X86_MODRM_REG_MASK) \
-     | (uint8_t)( (pVCpu->iem.s.fPrefixes & (IEM_OP_PRF_REX_B | IEM_OP_PRF_REX_X)) >> (25 - 3) ) )
-AssertCompile(IEM_OP_PRF_REX_B == RT_BIT_32(25));
-AssertCompile(IEM_OP_PRF_REX_X == RT_BIT_32(26));
-
-/**
- * Gets the effective VEX.VVVV value.
- *
- * The 4th bit is ignored if not 64-bit code.
- * @returns effective V-register value.
- * @param   a_pVCpu         The cross context virtual CPU structure of the calling thread.
- */
-#define IEM_GET_EFFECTIVE_VVVV(a_pVCpu) \
-    (IEM_IS_64BIT_CODE(a_pVCpu) ? (a_pVCpu)->iem.s.uVex3rdReg : (a_pVCpu)->iem.s.uVex3rdReg & 7)
-
-
-/**
- * Gets the register (reg) part of a the special 4th register byte used by
- * vblendvps and vblendvpd.
- *
- * For use during decoding.
- */
-#define IEM_GET_IMM8_REG(a_pVCpu, a_bRegImm8) \
-    (IEM_IS_64BIT_CODE(a_pVCpu) ? (a_bRegImm8) >> 4 : ((a_bRegImm8) >> 4) & 7)
-
-
-/**
- * Checks if we're executing inside an AMD-V or VT-x guest.
- */
-#if defined(VBOX_WITH_NESTED_HWVIRT_VMX) || defined(VBOX_WITH_NESTED_HWVIRT_SVM)
-# define IEM_IS_IN_GUEST(a_pVCpu)       RT_BOOL((a_pVCpu)->iem.s.fExec & IEM_F_X86_CTX_IN_GUEST)
-#else
-# define IEM_IS_IN_GUEST(a_pVCpu)       false
-#endif
-
-
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-
-/**
- * Check if the guest has entered VMX root operation.
- */
-# define IEM_VMX_IS_ROOT_MODE(a_pVCpu)      (CPUMIsGuestInVmxRootMode(IEM_GET_CTX(a_pVCpu)))
-
-/**
- * Check if the guest has entered VMX non-root operation.
- */
-# define IEM_VMX_IS_NON_ROOT_MODE(a_pVCpu)  (   ((a_pVCpu)->iem.s.fExec & (IEM_F_X86_CTX_VMX | IEM_F_X86_CTX_IN_GUEST)) \
-                                             ==                           (IEM_F_X86_CTX_VMX | IEM_F_X86_CTX_IN_GUEST) )
-
-/**
- * Check if the nested-guest has the given Pin-based VM-execution control set.
- */
-# define IEM_VMX_IS_PINCTLS_SET(a_pVCpu, a_PinCtl)  (CPUMIsGuestVmxPinCtlsSet(IEM_GET_CTX(a_pVCpu), (a_PinCtl)))
-
-/**
- * Check if the nested-guest has the given Processor-based VM-execution control set.
- */
-# define IEM_VMX_IS_PROCCTLS_SET(a_pVCpu, a_ProcCtl) (CPUMIsGuestVmxProcCtlsSet(IEM_GET_CTX(a_pVCpu), (a_ProcCtl)))
-
-/**
- * Check if the nested-guest has the given Secondary Processor-based VM-execution
- * control set.
- */
-# define IEM_VMX_IS_PROCCTLS2_SET(a_pVCpu, a_ProcCtl2) (CPUMIsGuestVmxProcCtls2Set(IEM_GET_CTX(a_pVCpu), (a_ProcCtl2)))
-
-/** Gets the guest-physical address of the shadows VMCS for the given VCPU. */
-# define IEM_VMX_GET_SHADOW_VMCS(a_pVCpu)           ((a_pVCpu)->cpum.GstCtx.hwvirt.vmx.GCPhysShadowVmcs)
-
-/** Whether a shadow VMCS is present for the given VCPU. */
-# define IEM_VMX_HAS_SHADOW_VMCS(a_pVCpu)           RT_BOOL(IEM_VMX_GET_SHADOW_VMCS(a_pVCpu) != NIL_RTGCPHYS)
-
-/** Gets the VMXON region pointer. */
-# define IEM_VMX_GET_VMXON_PTR(a_pVCpu)             ((a_pVCpu)->cpum.GstCtx.hwvirt.vmx.GCPhysVmxon)
-
-/** Gets the guest-physical address of the current VMCS for the given VCPU. */
-# define IEM_VMX_GET_CURRENT_VMCS(a_pVCpu)          ((a_pVCpu)->cpum.GstCtx.hwvirt.vmx.GCPhysVmcs)
-
-/** Whether a current VMCS is present for the given VCPU. */
-# define IEM_VMX_HAS_CURRENT_VMCS(a_pVCpu)          RT_BOOL(IEM_VMX_GET_CURRENT_VMCS(a_pVCpu) != NIL_RTGCPHYS)
-
-/** Assigns the guest-physical address of the current VMCS for the given VCPU. */
-# define IEM_VMX_SET_CURRENT_VMCS(a_pVCpu, a_GCPhysVmcs) \
-    do \
-    { \
-        Assert((a_GCPhysVmcs) != NIL_RTGCPHYS); \
-        (a_pVCpu)->cpum.GstCtx.hwvirt.vmx.GCPhysVmcs = (a_GCPhysVmcs); \
-    } while (0)
-
-/** Clears any current VMCS for the given VCPU. */
-# define IEM_VMX_CLEAR_CURRENT_VMCS(a_pVCpu) \
-    do \
-    { \
-        (a_pVCpu)->cpum.GstCtx.hwvirt.vmx.GCPhysVmcs = NIL_RTGCPHYS; \
-    } while (0)
-
-/**
- * Invokes the VMX VM-exit handler for an instruction intercept.
- */
-# define IEM_VMX_VMEXIT_INSTR_RET(a_pVCpu, a_uExitReason, a_cbInstr) \
-    do { return iemVmxVmexitInstr((a_pVCpu), (a_uExitReason), (a_cbInstr)); } while (0)
-
-/**
- * Invokes the VMX VM-exit handler for an instruction intercept where the
- * instruction provides additional VM-exit information.
- */
-# define IEM_VMX_VMEXIT_INSTR_NEEDS_INFO_RET(a_pVCpu, a_uExitReason, a_uInstrId, a_cbInstr) \
-    do { return iemVmxVmexitInstrNeedsInfo((a_pVCpu), (a_uExitReason), (a_uInstrId), (a_cbInstr)); } while (0)
-
-/**
- * Invokes the VMX VM-exit handler for a task switch.
- */
-# define IEM_VMX_VMEXIT_TASK_SWITCH_RET(a_pVCpu, a_enmTaskSwitch, a_SelNewTss, a_cbInstr) \
-    do { return iemVmxVmexitTaskSwitch((a_pVCpu), (a_enmTaskSwitch), (a_SelNewTss), (a_cbInstr)); } while (0)
-
-/**
- * Invokes the VMX VM-exit handler for MWAIT.
- */
-# define IEM_VMX_VMEXIT_MWAIT_RET(a_pVCpu, a_fMonitorArmed, a_cbInstr) \
-    do { return iemVmxVmexitInstrMwait((a_pVCpu), (a_fMonitorArmed), (a_cbInstr)); } while (0)
-
-/**
- * Invokes the VMX VM-exit handler for EPT faults.
- */
-# define IEM_VMX_VMEXIT_EPT_RET(a_pVCpu, a_pPtWalk, a_fAccess, a_fSlatFail, a_cbInstr) \
-    do { return iemVmxVmexitEpt(a_pVCpu, a_pPtWalk, a_fAccess, a_fSlatFail, a_cbInstr); } while (0)
-
-/**
- * Invokes the VMX VM-exit handler.
- */
-# define IEM_VMX_VMEXIT_TRIPLE_FAULT_RET(a_pVCpu, a_uExitReason, a_uExitQual) \
-    do { return iemVmxVmexit((a_pVCpu), (a_uExitReason), (a_uExitQual)); } while (0)
-
-#else
-# define IEM_VMX_IS_ROOT_MODE(a_pVCpu)                                          (false)
-# define IEM_VMX_IS_NON_ROOT_MODE(a_pVCpu)                                      (false)
-# define IEM_VMX_IS_PINCTLS_SET(a_pVCpu, a_cbInstr)                             (false)
-# define IEM_VMX_IS_PROCCTLS_SET(a_pVCpu, a_cbInstr)                            (false)
-# define IEM_VMX_IS_PROCCTLS2_SET(a_pVCpu, a_cbInstr)                           (false)
-# define IEM_VMX_VMEXIT_INSTR_RET(a_pVCpu, a_uExitReason, a_cbInstr)            do { return VERR_VMX_IPE_1; } while (0)
-# define IEM_VMX_VMEXIT_INSTR_NEEDS_INFO_RET(a_pVCpu, a_uExitReason, a_uInstrId, a_cbInstr)  do { return VERR_VMX_IPE_1; } while (0)
-# define IEM_VMX_VMEXIT_TASK_SWITCH_RET(a_pVCpu, a_enmTaskSwitch, a_SelNewTss, a_cbInstr)    do { return VERR_VMX_IPE_1; } while (0)
-# define IEM_VMX_VMEXIT_MWAIT_RET(a_pVCpu, a_fMonitorArmed, a_cbInstr)          do { return VERR_VMX_IPE_1; } while (0)
-# define IEM_VMX_VMEXIT_EPT_RET(a_pVCpu, a_pPtWalk, a_fAccess, a_fSlatFail, a_cbInstr)       do { return VERR_VMX_IPE_1; } while (0)
-# define IEM_VMX_VMEXIT_TRIPLE_FAULT_RET(a_pVCpu, a_uExitReason, a_uExitQual)   do { return VERR_VMX_IPE_1; } while (0)
-
-#endif
-
-#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
-/**
- * Checks if we're executing a guest using AMD-V.
- */
-# define IEM_SVM_IS_IN_GUEST(a_pVCpu) (   (a_pVCpu->iem.s.fExec & (IEM_F_X86_CTX_SVM | IEM_F_X86_CTX_IN_GUEST)) \
-                                       ==                         (IEM_F_X86_CTX_SVM | IEM_F_X86_CTX_IN_GUEST))
-/**
- * Check if an SVM control/instruction intercept is set.
- */
-# define IEM_SVM_IS_CTRL_INTERCEPT_SET(a_pVCpu, a_Intercept) \
-    (IEM_SVM_IS_IN_GUEST(a_pVCpu) && CPUMIsGuestSvmCtrlInterceptSet(a_pVCpu, IEM_GET_CTX(a_pVCpu), (a_Intercept)))
-
-/**
- * Check if an SVM read CRx intercept is set.
- */
-# define IEM_SVM_IS_READ_CR_INTERCEPT_SET(a_pVCpu, a_uCr) \
-    (IEM_SVM_IS_IN_GUEST(a_pVCpu) && CPUMIsGuestSvmReadCRxInterceptSet(a_pVCpu, IEM_GET_CTX(a_pVCpu), (a_uCr)))
-
-/**
- * Check if an SVM write CRx intercept is set.
- */
-# define IEM_SVM_IS_WRITE_CR_INTERCEPT_SET(a_pVCpu, a_uCr) \
-    (IEM_SVM_IS_IN_GUEST(a_pVCpu) && CPUMIsGuestSvmWriteCRxInterceptSet(a_pVCpu, IEM_GET_CTX(a_pVCpu), (a_uCr)))
-
-/**
- * Check if an SVM read DRx intercept is set.
- */
-# define IEM_SVM_IS_READ_DR_INTERCEPT_SET(a_pVCpu, a_uDr) \
-    (IEM_SVM_IS_IN_GUEST(a_pVCpu) && CPUMIsGuestSvmReadDRxInterceptSet(a_pVCpu, IEM_GET_CTX(a_pVCpu), (a_uDr)))
-
-/**
- * Check if an SVM write DRx intercept is set.
- */
-# define IEM_SVM_IS_WRITE_DR_INTERCEPT_SET(a_pVCpu, a_uDr) \
-    (IEM_SVM_IS_IN_GUEST(a_pVCpu) && CPUMIsGuestSvmWriteDRxInterceptSet(a_pVCpu, IEM_GET_CTX(a_pVCpu), (a_uDr)))
-
-/**
- * Check if an SVM exception intercept is set.
- */
-# define IEM_SVM_IS_XCPT_INTERCEPT_SET(a_pVCpu, a_uVector) \
-    (IEM_SVM_IS_IN_GUEST(a_pVCpu) && CPUMIsGuestSvmXcptInterceptSet(a_pVCpu, IEM_GET_CTX(a_pVCpu), (a_uVector)))
-
-/**
- * Invokes the SVM \#VMEXIT handler for the nested-guest.
- */
-# define IEM_SVM_VMEXIT_RET(a_pVCpu, a_uExitCode, a_uExitInfo1, a_uExitInfo2) \
-    do { return iemSvmVmexit((a_pVCpu), (a_uExitCode), (a_uExitInfo1), (a_uExitInfo2)); } while (0)
-
-/**
- * Invokes the 'MOV CRx' SVM \#VMEXIT handler after constructing the
- * corresponding decode assist information.
- */
-# define IEM_SVM_CRX_VMEXIT_RET(a_pVCpu, a_uExitCode, a_enmAccessCrX, a_iGReg) \
-    do \
-    { \
-        uint64_t uExitInfo1; \
-        if (   IEM_GET_GUEST_CPU_FEATURES(a_pVCpu)->fSvmDecodeAssists \
-            && (a_enmAccessCrX) == IEMACCESSCRX_MOV_CRX) \
-            uExitInfo1 = SVM_EXIT1_MOV_CRX_MASK | ((a_iGReg) & 7); \
-        else \
-            uExitInfo1 = 0; \
-        IEM_SVM_VMEXIT_RET(a_pVCpu, a_uExitCode, uExitInfo1, 0); \
-    } while (0)
-
-/** Check and handles SVM nested-guest instruction intercept and updates
- *  NRIP if needed.
- */
-# define IEM_SVM_CHECK_INSTR_INTERCEPT(a_pVCpu, a_Intercept, a_uExitCode, a_uExitInfo1, a_uExitInfo2, a_cbInstr) \
-    do \
-    { \
-        if (IEM_SVM_IS_CTRL_INTERCEPT_SET(a_pVCpu, a_Intercept)) \
-        { \
-            IEM_SVM_UPDATE_NRIP(a_pVCpu, a_cbInstr); \
-            IEM_SVM_VMEXIT_RET(a_pVCpu, a_uExitCode, a_uExitInfo1, a_uExitInfo2); \
-        } \
-    } while (0)
-
-/** Checks and handles SVM nested-guest CR0 read intercept. */
-# define IEM_SVM_CHECK_READ_CR0_INTERCEPT(a_pVCpu, a_uExitInfo1, a_uExitInfo2, a_cbInstr) \
-    do \
-    { \
-        if (!IEM_SVM_IS_READ_CR_INTERCEPT_SET(a_pVCpu, 0)) \
-        { /* probably likely */ } \
-        else \
-        { \
-            IEM_SVM_UPDATE_NRIP(a_pVCpu, a_cbInstr); \
-            IEM_SVM_VMEXIT_RET(a_pVCpu, SVM_EXIT_READ_CR0, a_uExitInfo1, a_uExitInfo2); \
-        } \
-    } while (0)
-
-/**
- * Updates the NextRIP (NRI) field in the nested-guest VMCB.
- */
-# define IEM_SVM_UPDATE_NRIP(a_pVCpu, a_cbInstr) \
-    do { \
-        if (IEM_GET_GUEST_CPU_FEATURES(a_pVCpu)->fSvmNextRipSave) \
-            CPUMGuestSvmUpdateNRip(a_pVCpu, IEM_GET_CTX(a_pVCpu), (a_cbInstr)); \
-    } while (0)
-
-#else
-# define IEM_SVM_IS_CTRL_INTERCEPT_SET(a_pVCpu, a_Intercept)                                (false)
-# define IEM_SVM_IS_READ_CR_INTERCEPT_SET(a_pVCpu, a_uCr)                                   (false)
-# define IEM_SVM_IS_WRITE_CR_INTERCEPT_SET(a_pVCpu, a_uCr)                                  (false)
-# define IEM_SVM_IS_READ_DR_INTERCEPT_SET(a_pVCpu, a_uDr)                                   (false)
-# define IEM_SVM_IS_WRITE_DR_INTERCEPT_SET(a_pVCpu, a_uDr)                                  (false)
-# define IEM_SVM_IS_XCPT_INTERCEPT_SET(a_pVCpu, a_uVector)                                  (false)
-# define IEM_SVM_VMEXIT_RET(a_pVCpu, a_uExitCode, a_uExitInfo1, a_uExitInfo2)               do { return VERR_SVM_IPE_1; } while (0)
-# define IEM_SVM_CRX_VMEXIT_RET(a_pVCpu, a_uExitCode, a_enmAccessCrX, a_iGReg)              do { return VERR_SVM_IPE_1; } while (0)
-# define IEM_SVM_CHECK_INSTR_INTERCEPT(a_pVCpu, a_Intercept, a_uExitCode, \
-                                       a_uExitInfo1, a_uExitInfo2, a_cbInstr)               do { } while (0)
-# define IEM_SVM_CHECK_READ_CR0_INTERCEPT(a_pVCpu, a_uExitInfo1, a_uExitInfo2, a_cbInstr)   do { } while (0)
-# define IEM_SVM_UPDATE_NRIP(a_pVCpu, a_cbInstr)                                            do { } while (0)
-
-#endif
 
 /** @} */
 
 uint32_t                iemCalcExecDbgFlagsSlow(PVMCPUCC pVCpu);
 VBOXSTRICTRC            iemExecInjectPendingTrap(PVMCPUCC pVCpu);
 
-
-/**
- * Selector descriptor table entry as fetched by iemMemFetchSelDesc.
- */
-typedef union IEMSELDESC
-{
-    /** The legacy view. */
-    X86DESC     Legacy;
-    /** The long mode view. */
-    X86DESC64   Long;
-} IEMSELDESC;
-/** Pointer to a selector descriptor table entry. */
-typedef IEMSELDESC *PIEMSELDESC;
-
-/** @name  Raising Exceptions.
- * @{ */
-VBOXSTRICTRC            iemTaskSwitch(PVMCPUCC pVCpu, IEMTASKSWITCH enmTaskSwitch, uint32_t uNextEip, uint32_t fFlags,
-                                      uint16_t uErr, uint64_t uCr2, RTSEL SelTSS, PIEMSELDESC pNewDescTSS) RT_NOEXCEPT;
-
-VBOXSTRICTRC            iemRaiseXcptOrInt(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t u8Vector, uint32_t fFlags,
-                                          uint16_t uErr, uint64_t uCr2) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseXcptOrIntJmp(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t u8Vector,
-                                             uint32_t fFlags, uint16_t uErr, uint64_t uCr2) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseDivideError(PVMCPUCC pVCpu) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseDivideErrorJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseDebugException(PVMCPUCC pVCpu) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseBoundRangeExceeded(PVMCPUCC pVCpu) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseUndefinedOpcode(PVMCPUCC pVCpu) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseUndefinedOpcodeJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseDeviceNotAvailable(PVMCPUCC pVCpu) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseDeviceNotAvailableJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseTaskSwitchFaultWithErr(PVMCPUCC pVCpu, uint16_t uErr) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseTaskSwitchFaultCurrentTSS(PVMCPUCC pVCpu) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseTaskSwitchFault0(PVMCPUCC pVCpu) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseTaskSwitchFaultBySelector(PVMCPUCC pVCpu, uint16_t uSel) RT_NOEXCEPT;
-/*VBOXSTRICTRC            iemRaiseSelectorNotPresent(PVMCPUCC pVCpu, uint32_t iSegReg, uint32_t fAccess) RT_NOEXCEPT;*/
-VBOXSTRICTRC            iemRaiseSelectorNotPresentWithErr(PVMCPUCC pVCpu, uint16_t uErr) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseSelectorNotPresentBySelector(PVMCPUCC pVCpu, uint16_t uSel) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseStackSelectorNotPresentBySelector(PVMCPUCC pVCpu, uint16_t uSel) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseStackSelectorNotPresentWithErr(PVMCPUCC pVCpu, uint16_t uErr) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseGeneralProtectionFault(PVMCPUCC pVCpu, uint16_t uErr) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseGeneralProtectionFault0(PVMCPUCC pVCpu) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseGeneralProtectionFault0Jmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseGeneralProtectionFaultBySelector(PVMCPUCC pVCpu, RTSEL Sel) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseNotCanonical(PVMCPUCC pVCpu) RT_NOEXCEPT;
-VBOXSTRICTRC            iemRaiseSelectorBounds(PVMCPUCC pVCpu, uint32_t iSegReg, uint32_t fAccess) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseSelectorBoundsJmp(PVMCPUCC pVCpu, uint32_t iSegReg, uint32_t fAccess) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseSelectorBoundsBySelector(PVMCPUCC pVCpu, RTSEL Sel) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseSelectorBoundsBySelectorJmp(PVMCPUCC pVCpu, RTSEL Sel) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseSelectorInvalidAccess(PVMCPUCC pVCpu, uint32_t iSegReg, uint32_t fAccess) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseSelectorInvalidAccessJmp(PVMCPUCC pVCpu, uint32_t iSegReg, uint32_t fAccess) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaisePageFault(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t cbAccess, uint32_t fAccess, int rc) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaisePageFaultJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t cbAccess, uint32_t fAccess, int rc) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseMathFault(PVMCPUCC pVCpu) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseMathFaultJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseAlignmentCheckException(PVMCPUCC pVCpu) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseAlignmentCheckExceptionJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-VBOXSTRICTRC            iemRaiseSimdFpException(PVMCPUCC pVCpu) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaiseSimdFpExceptionJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-
-void                    iemLogSyscallRealModeInt(PVMCPUCC pVCpu, uint8_t u8Vector, uint8_t cbInstr);
-void                    iemLogSyscallProtModeInt(PVMCPUCC pVCpu, uint8_t u8Vector, uint8_t cbInstr);
-
-IEM_CIMPL_DEF_0(iemCImplRaiseDivideError);
-IEM_CIMPL_DEF_0(iemCImplRaiseInvalidLockPrefix);
-IEM_CIMPL_DEF_0(iemCImplRaiseInvalidOpcode);
-
-/**
- * Macro for calling iemCImplRaiseDivideError().
- *
- * This is for things that will _always_ decode to an \#DE, taking the
- * recompiler into consideration and everything.
- *
- * @return  Strict VBox status code.
- */
-#define IEMOP_RAISE_DIVIDE_ERROR_RET()          IEM_MC_DEFER_TO_CIMPL_0_RET(IEM_CIMPL_F_XCPT, 0, iemCImplRaiseDivideError)
-
-/**
- * Macro for calling iemCImplRaiseInvalidLockPrefix().
- *
- * This is for things that will _always_ decode to an \#UD, taking the
- * recompiler into consideration and everything.
- *
- * @return  Strict VBox status code.
- */
-#define IEMOP_RAISE_INVALID_LOCK_PREFIX_RET()   IEM_MC_DEFER_TO_CIMPL_0_RET(IEM_CIMPL_F_XCPT, 0, iemCImplRaiseInvalidLockPrefix)
-
-/**
- * Macro for calling iemCImplRaiseInvalidOpcode() for decode/static \#UDs.
- *
- * This is for things that will _always_ decode to an \#UD, taking the
- * recompiler into consideration and everything.
- *
- * @return  Strict VBox status code.
- */
-#define IEMOP_RAISE_INVALID_OPCODE_RET()        IEM_MC_DEFER_TO_CIMPL_0_RET(IEM_CIMPL_F_XCPT, 0, iemCImplRaiseInvalidOpcode)
-
-/**
- * Macro for calling iemCImplRaiseInvalidOpcode() for runtime-style \#UDs.
- *
- * Using this macro means you've got _buggy_ _code_ and are doing things that
- * belongs exclusively in IEMAllCImpl.cpp during decoding.
- *
- * @return  Strict VBox status code.
- * @see     IEMOP_RAISE_INVALID_OPCODE_RET
- */
-#define IEMOP_RAISE_INVALID_OPCODE_RUNTIME_RET() IEM_MC_DEFER_TO_CIMPL_0_RET(IEM_CIMPL_F_XCPT, 0, iemCImplRaiseInvalidOpcode)
-
 /** @} */
 
-/** @name Register Access.
- * @{ */
-VBOXSTRICTRC    iemRegRipRelativeJumpS8AndFinishClearingRF(PVMCPUCC pVCpu, uint8_t cbInstr, int8_t offNextInstr,
-                                                           IEMMODE enmEffOpSize) RT_NOEXCEPT;
-VBOXSTRICTRC    iemRegRipRelativeJumpS16AndFinishClearingRF(PVMCPUCC pVCpu, uint8_t cbInstr, int16_t offNextInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemRegRipRelativeJumpS32AndFinishClearingRF(PVMCPUCC pVCpu, uint8_t cbInstr, int32_t offNextInstr,
-                                                            IEMMODE enmEffOpSize) RT_NOEXCEPT;
-/** @} */
-
-/** @name FPU access and helpers.
- * @{ */
-void            iemFpuPushResult(PVMCPUCC pVCpu, PIEMFPURESULT pResult, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuPushResultWithMemOp(PVMCPUCC pVCpu, PIEMFPURESULT pResult, uint8_t iEffSeg, RTGCPTR GCPtrEff, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuPushResultTwo(PVMCPUCC pVCpu, PIEMFPURESULTTWO pResult, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStoreResult(PVMCPUCC pVCpu, PIEMFPURESULT pResult, uint8_t iStReg, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStoreResultThenPop(PVMCPUCC pVCpu, PIEMFPURESULT pResult, uint8_t iStReg, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStoreResultWithMemOp(PVMCPUCC pVCpu, PIEMFPURESULT pResult, uint8_t iStReg,
-                                           uint8_t iEffSeg, RTGCPTR GCPtrEff, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStoreResultWithMemOpThenPop(PVMCPUCC pVCpu, PIEMFPURESULT pResult, uint8_t iStReg,
-                                                  uint8_t iEffSeg, RTGCPTR GCPtrEff, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuUpdateOpcodeAndIp(PVMCPUCC pVCpu, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuUpdateFSW(PVMCPUCC pVCpu, uint16_t u16FSW, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuUpdateFSWThenPop(PVMCPUCC pVCpu, uint16_t u16FSW, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuUpdateFSWWithMemOp(PVMCPUCC pVCpu, uint16_t u16FSW, uint8_t iEffSeg, RTGCPTR GCPtrEff, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuUpdateFSWThenPopPop(PVMCPUCC pVCpu, uint16_t u16FSW, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuUpdateFSWWithMemOpThenPop(PVMCPUCC pVCpu, uint16_t u16FSW, uint8_t iEffSeg, RTGCPTR GCPtrEff, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStackUnderflow(PVMCPUCC pVCpu, uint8_t iStReg, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStackUnderflowWithMemOp(PVMCPUCC pVCpu, uint8_t iStReg, uint8_t iEffSeg, RTGCPTR GCPtrEff, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStackUnderflowThenPop(PVMCPUCC pVCpu, uint8_t iStReg, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStackUnderflowWithMemOpThenPop(PVMCPUCC pVCpu, uint8_t iStReg, uint8_t iEffSeg, RTGCPTR GCPtrEff, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStackUnderflowThenPopPop(PVMCPUCC pVCpu, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStackPushUnderflow(PVMCPUCC pVCpu, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStackPushUnderflowTwo(PVMCPUCC pVCpu, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStackPushOverflow(PVMCPUCC pVCpu, uint16_t uFpuOpcode) RT_NOEXCEPT;
-void            iemFpuStackPushOverflowWithMemOp(PVMCPUCC pVCpu, uint8_t iEffSeg, RTGCPTR GCPtrEff, uint16_t uFpuOpcode) RT_NOEXCEPT;
-/** @} */
-
-/** @name SSE+AVX SIMD access and helpers.
- * @{ */
-void            iemSseUpdateMxcsr(PVMCPUCC pVCpu, uint32_t fMxcsr) RT_NOEXCEPT;
-/** @} */
 
 /** @name   Memory access.
  * @{ */
-
-/** Report a \#GP instead of \#AC and do not restrict to ring-3 */
-#define IEM_MEMMAP_F_ALIGN_GP       RT_BIT_32(16)
-/** SSE access that should report a \#GP instead of \#AC, unless MXCSR.MM=1
- *  when it works like normal \#AC. Always used with IEM_MEMMAP_F_ALIGN_GP. */
-#define IEM_MEMMAP_F_ALIGN_SSE      RT_BIT_32(17)
-/** If \#AC is applicable, raise it. Always used with IEM_MEMMAP_F_ALIGN_GP.
- * Users include FXSAVE & FXRSTOR. */
-#define IEM_MEMMAP_F_ALIGN_GP_OR_AC RT_BIT_32(18)
-
-VBOXSTRICTRC    iemMemMap(PVMCPUCC pVCpu, void **ppvMem, uint8_t *pbUnmapInfo, size_t cbMem, uint8_t iSegReg, RTGCPTR GCPtrMem,
-                          uint32_t fAccess, uint32_t uAlignCtl) RT_NOEXCEPT;
+VBOXSTRICTRC    iemMemBounceBufferMapCrossPage(PVMCPUCC pVCpu, int iMemMap, void **ppvMem, uint8_t *pbUnmapInfo,
+                                               size_t cbMem, RTGCPTR GCPtrFirst, uint32_t fAccess) RT_NOEXCEPT;
+VBOXSTRICTRC    iemMemBounceBufferMapPhys(PVMCPUCC pVCpu, unsigned iMemMap, void **ppvMem, uint8_t *pbUnmapInfo, size_t cbMem,
+                                          RTGCPHYS GCPhysFirst, uint32_t fAccess, VBOXSTRICTRC rcMap) RT_NOEXCEPT;
 VBOXSTRICTRC    iemMemCommitAndUnmap(PVMCPUCC pVCpu, uint8_t bUnmapInfo) RT_NOEXCEPT;
 #ifndef IN_RING3
 VBOXSTRICTRC    iemMemCommitAndUnmapPostponeTroubleToR3(PVMCPUCC pVCpu, uint8_t bUnmapInfo) RT_NOEXCEPT;
 #endif
 void            iemMemRollbackAndUnmap(PVMCPUCC pVCpu, uint8_t bUnmapInfo) RT_NOEXCEPT;
 void            iemMemRollback(PVMCPUCC pVCpu) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemApplySegment(PVMCPUCC pVCpu, uint32_t fAccess, uint8_t iSegReg, size_t cbMem, PRTGCPTR pGCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemMarkSelDescAccessed(PVMCPUCC pVCpu, uint16_t uSel) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t cbAccess, uint32_t fAccess, PRTGCPHYS pGCPhysMem) RT_NOEXCEPT;
-
-void            iemOpcodeFlushLight(PVMCPUCC pVCpu, uint8_t cbInstr);
-void            iemOpcodeFlushHeavy(PVMCPUCC pVCpu, uint8_t cbInstr);
-#ifdef IEM_WITH_CODE_TLB
-void            iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXCEPT_MAY_LONGJMP;
-#else
-VBOXSTRICTRC    iemOpcodeFetchMoreBytes(PVMCPUCC pVCpu, size_t cbMin) RT_NOEXCEPT;
-#endif
-#ifdef IEM_WITH_SETJMP
-uint8_t         iemOpcodeGetNextU8SlowJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-uint16_t        iemOpcodeGetNextU16SlowJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t        iemOpcodeGetNextU32SlowJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t        iemOpcodeGetNextU64SlowJmp(PVMCPUCC pVCpu) IEM_NOEXCEPT_MAY_LONGJMP;
-#else
-VBOXSTRICTRC    iemOpcodeGetNextU8Slow(PVMCPUCC pVCpu, uint8_t *pb) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextS8SxU16Slow(PVMCPUCC pVCpu, uint16_t *pu16) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextS8SxU32Slow(PVMCPUCC pVCpu, uint32_t *pu32) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextS8SxU64Slow(PVMCPUCC pVCpu, uint64_t *pu64) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextU16Slow(PVMCPUCC pVCpu, uint16_t *pu16) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextU16ZxU32Slow(PVMCPUCC pVCpu, uint32_t *pu32) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextU16ZxU64Slow(PVMCPUCC pVCpu, uint64_t *pu64) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextU32Slow(PVMCPUCC pVCpu, uint32_t *pu32) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextU32ZxU64Slow(PVMCPUCC pVCpu, uint64_t *pu64) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextS32SxU64Slow(PVMCPUCC pVCpu, uint64_t *pu64) RT_NOEXCEPT;
-VBOXSTRICTRC    iemOpcodeGetNextU64Slow(PVMCPUCC pVCpu, uint64_t *pu64) RT_NOEXCEPT;
-#endif
-
-VBOXSTRICTRC    iemMemFetchDataU8(PVMCPUCC pVCpu, uint8_t *pu8Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU16(PVMCPUCC pVCpu, uint16_t *pu16Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU32(PVMCPUCC pVCpu, uint32_t *pu32Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU32NoAc(PVMCPUCC pVCpu, uint32_t *pu32Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU32_ZX_U64(PVMCPUCC pVCpu, uint64_t *pu64Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU64(PVMCPUCC pVCpu, uint64_t *pu64Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU64NoAc(PVMCPUCC pVCpu, uint64_t *pu64Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU64AlignedU128(PVMCPUCC pVCpu, uint64_t *pu64Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataR80(PVMCPUCC pVCpu, PRTFLOAT80U pr80Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataD80(PVMCPUCC pVCpu, PRTPBCD80U pd80Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU128(PVMCPUCC pVCpu, PRTUINT128U pu128Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU128NoAc(PVMCPUCC pVCpu, PRTUINT128U pu128Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU128AlignedSse(PVMCPUCC pVCpu, PRTUINT128U pu128Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU256(PVMCPUCC pVCpu, PRTUINT256U pu256Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU256NoAc(PVMCPUCC pVCpu, PRTUINT256U pu256Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataU256AlignedAvx(PVMCPUCC pVCpu, PRTUINT256U pu256Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchDataXdtr(PVMCPUCC pVCpu, uint16_t *pcbLimit, PRTGCPTR pGCPtrBase, uint8_t iSegReg,
-                                    RTGCPTR GCPtrMem, IEMMODE enmOpSize) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-uint8_t         iemMemFetchDataU8SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint16_t        iemMemFetchDataU16SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t        iemMemFetchDataU32SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t        iemMemFetchDataU32NoAcSafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t        iemMemFlatFetchDataU32SafeJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t        iemMemFetchDataU64SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t        iemMemFetchDataU64NoAcSafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t        iemMemFetchDataU64AlignedU128SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataR80SafeJmp(PVMCPUCC pVCpu, PRTFLOAT80U pr80Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataD80SafeJmp(PVMCPUCC pVCpu, PRTPBCD80U pd80Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU128SafeJmp(PVMCPUCC pVCpu, PRTUINT128U pu128Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU128NoAcSafeJmp(PVMCPUCC pVCpu, PRTUINT128U pu128Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU128AlignedSseSafeJmp(PVMCPUCC pVCpu, PRTUINT128U pu128Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU256SafeJmp(PVMCPUCC pVCpu, PRTUINT256U pu256Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU256NoAcSafeJmp(PVMCPUCC pVCpu, PRTUINT256U pu256Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU256AlignedAvxSafeJmp(PVMCPUCC pVCpu, PRTUINT256U pu256Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-# if 0 /* these are inlined now */
-uint8_t         iemMemFetchDataU8Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint16_t        iemMemFetchDataU16Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t        iemMemFetchDataU32Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t        iemMemFlatFetchDataU32Jmp(PVMCPUCC pVCpu, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t        iemMemFetchDataU64Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t        iemMemFetchDataU64AlignedU128Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataR80Jmp(PVMCPUCC pVCpu, PRTFLOAT80U pr80Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataD80Jmp(PVMCPUCC pVCpu, PRTPBCD80U pd80Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU128Jmp(PVMCPUCC pVCpu, PRTUINT128U pu128Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU128NoAcJmp(PVMCPUCC pVCpu, PRTUINT128U pu128Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU128AlignedSseJmp(PVMCPUCC pVCpu, PRTUINT128U pu128Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU256NoAcJmp(PVMCPUCC pVCpu, PRTUINT256U pu256Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFetchDataU256AlignedAvxJmp(PVMCPUCC pVCpu, PRTUINT256U pu256Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-# endif
-void            iemMemFetchDataU256Jmp(PVMCPUCC pVCpu, PRTUINT256U pu256Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-
-VBOXSTRICTRC    iemMemFetchSysU8(PVMCPUCC pVCpu, uint8_t *pu8Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchSysU16(PVMCPUCC pVCpu, uint16_t *pu16Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchSysU32(PVMCPUCC pVCpu, uint32_t *pu32Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchSysU64(PVMCPUCC pVCpu, uint64_t *pu64Dst, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemFetchSelDesc(PVMCPUCC pVCpu, PIEMSELDESC pDesc, uint16_t uSel, uint8_t uXcpt) RT_NOEXCEPT;
-
-VBOXSTRICTRC    iemMemStoreDataU8(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint8_t u8Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataU16(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint16_t u16Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataU32(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint32_t u32Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataU64(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint64_t u64Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataU128(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, RTUINT128U u128Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataU128NoAc(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, RTUINT128U u128Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataU128AlignedSse(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, RTUINT128U u128Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataU256(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT256U pu256Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataU256NoAc(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT256U pu256Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataU256AlignedAvx(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT256U pu256Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStoreDataXdtr(PVMCPUCC pVCpu, uint16_t cbLimit, RTGCPTR GCPtrBase, uint8_t iSegReg, RTGCPTR GCPtrMem) RT_NOEXCEPT;
-#ifdef IEM_WITH_SETJMP
-void            iemMemStoreDataU8SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint8_t u8Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU16SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint16_t u16Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU32SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint32_t u32Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU64SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint64_t u64Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU128SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT128U u128Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU128NoAcSafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT128U pu128Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU128AlignedSseSafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT128U pu128Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU256SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT256U pu256Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU256NoAcSafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT256U pu256Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU256AlignedAvxSafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT256U pu256Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataR80SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTFLOAT80U pr80Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataD80SafeJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTPBCD80U pd80Value) IEM_NOEXCEPT_MAY_LONGJMP;
-#if 0
-void            iemMemStoreDataU8Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint8_t u8Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU16Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint16_t u16Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU32Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint32_t u32Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU64Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, uint64_t u64Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU128Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, RTUINT128U u128Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataNoAcU128Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, RTUINT128U u128Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU256NoAcJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT256U pu256Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU256AlignedAvxJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT256U pu256Value) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-void            iemMemStoreDataU128AlignedSseJmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, RTUINT128U u128Value) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreDataU256Jmp(PVMCPUCC pVCpu, uint8_t iSegReg, RTGCPTR GCPtrMem, PCRTUINT256U pu256Value) IEM_NOEXCEPT_MAY_LONGJMP;
-#endif
-
-#ifdef IEM_WITH_SETJMP
-uint8_t        *iemMemMapDataU8RwSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint8_t        *iemMemMapDataU8AtSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint8_t        *iemMemMapDataU8WoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint8_t const  *iemMemMapDataU8RoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint16_t       *iemMemMapDataU16RwSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint16_t       *iemMemMapDataU16AtSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint16_t       *iemMemMapDataU16WoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint16_t const *iemMemMapDataU16RoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t       *iemMemMapDataU32RwSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t       *iemMemMapDataU32AtSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t       *iemMemMapDataU32WoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t const *iemMemMapDataU32RoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t       *iemMemMapDataU64RwSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t       *iemMemMapDataU64AtSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t       *iemMemMapDataU64WoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t const *iemMemMapDataU64RoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PRTFLOAT80U     iemMemMapDataR80RwSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PRTFLOAT80U     iemMemMapDataR80WoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PCRTFLOAT80U    iemMemMapDataR80RoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PRTPBCD80U      iemMemMapDataD80RwSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PRTPBCD80U      iemMemMapDataD80WoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PCRTPBCD80U     iemMemMapDataD80RoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PRTUINT128U     iemMemMapDataU128RwSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PRTUINT128U     iemMemMapDataU128AtSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PRTUINT128U     iemMemMapDataU128WoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-PCRTUINT128U    iemMemMapDataU128RoSafeJmp(PVMCPUCC pVCpu, uint8_t *pbUnmapInfo, uint8_t iSegReg, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
 
 void            iemMemCommitAndUnmapJmp(PVMCPUCC pVCpu, uint8_t bUnmapInfo) IEM_NOEXCEPT_MAY_LONGJMP;
 void            iemMemCommitAndUnmapRwSafeJmp(PVMCPUCC pVCpu, uint8_t bUnmapInfo) IEM_NOEXCEPT_MAY_LONGJMP;
@@ -6296,420 +3724,16 @@ void            iemMemCommitAndUnmapAtSafeJmp(PVMCPUCC pVCpu, uint8_t bUnmapInfo
 void            iemMemCommitAndUnmapWoSafeJmp(PVMCPUCC pVCpu, uint8_t bUnmapInfo) IEM_NOEXCEPT_MAY_LONGJMP;
 void            iemMemCommitAndUnmapRoSafeJmp(PVMCPUCC pVCpu, uint8_t bUnmapInfo) IEM_NOEXCEPT_MAY_LONGJMP;
 void            iemMemRollbackAndUnmapWoSafe(PVMCPUCC pVCpu, uint8_t bUnmapInfo) RT_NOEXCEPT;
-#endif
 
-VBOXSTRICTRC    iemMemStackPushBeginSpecial(PVMCPUCC pVCpu, size_t cbMem, uint32_t cbAlign,
-                                            void **ppvMem, uint8_t *pbUnmapInfo, uint64_t *puNewRsp) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPushCommitSpecial(PVMCPUCC pVCpu, uint8_t bUnmapInfo, uint64_t uNewRsp) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPushU16(PVMCPUCC pVCpu, uint16_t u16Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPushU32(PVMCPUCC pVCpu, uint32_t u32Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPushU64(PVMCPUCC pVCpu, uint64_t u64Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPushU16Ex(PVMCPUCC pVCpu, uint16_t u16Value, PRTUINT64U pTmpRsp) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPushU32Ex(PVMCPUCC pVCpu, uint32_t u32Value, PRTUINT64U pTmpRsp) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPushU64Ex(PVMCPUCC pVCpu, uint64_t u64Value, PRTUINT64U pTmpRsp) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPushU32SReg(PVMCPUCC pVCpu, uint32_t u32Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPopBeginSpecial(PVMCPUCC pVCpu, size_t cbMem, uint32_t cbAlign,
-                                           void const **ppvMem, uint8_t *pbUnmapInfo, uint64_t *puNewRsp) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPopContinueSpecial(PVMCPUCC pVCpu, size_t off, size_t cbMem,
-                                              void const **ppvMem, uint8_t *pbUnmapInfo, uint64_t uCurNewRsp) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPopDoneSpecial(PVMCPUCC pVCpu, uint8_t bUnmapInfo) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPopU16(PVMCPUCC pVCpu, uint16_t *pu16Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPopU32(PVMCPUCC pVCpu, uint32_t *pu32Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPopU64(PVMCPUCC pVCpu, uint64_t *pu64Value) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPopU16Ex(PVMCPUCC pVCpu, uint16_t *pu16Value, PRTUINT64U pTmpRsp) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPopU32Ex(PVMCPUCC pVCpu, uint32_t *pu32Value, PRTUINT64U pTmpRsp) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemStackPopU64Ex(PVMCPUCC pVCpu, uint64_t *pu64Value, PRTUINT64U pTmpRsp) RT_NOEXCEPT;
+VBOXSTRICTRC    iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t cbAccess, uint32_t fAccess,
+                                                  PRTGCPHYS pGCPhysMem) RT_NOEXCEPT;
 
-#ifdef IEM_WITH_SETJMP
-void            iemMemStackPushU16SafeJmp(PVMCPUCC pVCpu, uint16_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStackPushU32SafeJmp(PVMCPUCC pVCpu, uint32_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStackPushU32SRegSafeJmp(PVMCPUCC pVCpu, uint32_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStackPushU64SafeJmp(PVMCPUCC pVCpu, uint64_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStackPopGRegU16SafeJmp(PVMCPUCC pVCpu, uint8_t iGReg) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStackPopGRegU32SafeJmp(PVMCPUCC pVCpu, uint8_t iGReg) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStackPopGRegU64SafeJmp(PVMCPUCC pVCpu, uint8_t iGReg) IEM_NOEXCEPT_MAY_LONGJMP;
-
-void            iemMemFlat32StackPushU16SafeJmp(PVMCPUCC pVCpu, uint16_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFlat32StackPushU32SafeJmp(PVMCPUCC pVCpu, uint32_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFlat32StackPushU32SRegSafeJmp(PVMCPUCC pVCpu, uint32_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFlat32StackPopGRegU16SafeJmp(PVMCPUCC pVCpu, uint8_t iGReg) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFlat32StackPopGRegU32SafeJmp(PVMCPUCC pVCpu, uint8_t iGReg) IEM_NOEXCEPT_MAY_LONGJMP;
-
-void            iemMemFlat64StackPushU16SafeJmp(PVMCPUCC pVCpu, uint16_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFlat64StackPushU64SafeJmp(PVMCPUCC pVCpu, uint64_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFlat64StackPopGRegU16SafeJmp(PVMCPUCC pVCpu, uint8_t iGReg) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemFlat64StackPopGRegU64SafeJmp(PVMCPUCC pVCpu, uint8_t iGReg) IEM_NOEXCEPT_MAY_LONGJMP;
-
-void            iemMemStoreStackU16SafeJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint16_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreStackU32SafeJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreStackU32SRegSafeJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-void            iemMemStoreStackU64SafeJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint64_t uValue) IEM_NOEXCEPT_MAY_LONGJMP;
-
-uint16_t        iemMemFetchStackU16SafeJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint32_t        iemMemFetchStackU32SafeJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-uint64_t        iemMemFetchStackU64SafeJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrMem) IEM_NOEXCEPT_MAY_LONGJMP;
-
-#endif
-
+void            iemTlbInvalidateAllPhysicalSlow(PVMCPUCC pVCpu) RT_NOEXCEPT;
 /** @} */
-
-/** @name IEMAllCImpl.cpp
- * @note sed -e '/IEM_CIMPL_DEF_/!d' -e 's/IEM_CIMPL_DEF_/IEM_CIMPL_PROTO_/' -e 's/$/;/'
- * @{ */
-IEM_CIMPL_PROTO_2(iemCImpl_pop_mem16, uint16_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_2(iemCImpl_pop_mem32, uint16_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_2(iemCImpl_pop_mem64, uint16_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_0(iemCImpl_popa_16);
-IEM_CIMPL_PROTO_0(iemCImpl_popa_32);
-IEM_CIMPL_PROTO_0(iemCImpl_pusha_16);
-IEM_CIMPL_PROTO_0(iemCImpl_pusha_32);
-IEM_CIMPL_PROTO_1(iemCImpl_pushf, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_1(iemCImpl_popf, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_3(iemCImpl_FarJmp, uint16_t, uSel, uint64_t, offSeg, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_3(iemCImpl_callf, uint16_t, uSel, uint64_t, offSeg, IEMMODE, enmEffOpSize);
-typedef IEM_CIMPL_DECL_TYPE_3(FNIEMCIMPLFARBRANCH, uint16_t, uSel, uint64_t, offSeg, IEMMODE, enmEffOpSize);
-typedef FNIEMCIMPLFARBRANCH *PFNIEMCIMPLFARBRANCH;
-IEM_CIMPL_PROTO_2(iemCImpl_retf, IEMMODE, enmEffOpSize, uint16_t, cbPop);
-IEM_CIMPL_PROTO_3(iemCImpl_enter, IEMMODE, enmEffOpSize, uint16_t, cbFrame, uint8_t, cParameters);
-IEM_CIMPL_PROTO_1(iemCImpl_leave, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_int, uint8_t, u8Int, IEMINT, enmInt);
-IEM_CIMPL_PROTO_1(iemCImpl_iret_real_v8086, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_4(iemCImpl_iret_prot_v8086, uint32_t, uNewEip, uint16_t, uNewCs, uint32_t, uNewFlags, uint64_t, uNewRsp);
-IEM_CIMPL_PROTO_1(iemCImpl_iret_prot_NestedTask, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_1(iemCImpl_iret_prot, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_1(iemCImpl_iret_64bit, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_1(iemCImpl_iret, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_0(iemCImpl_loadall286);
-IEM_CIMPL_PROTO_0(iemCImpl_syscall);
-IEM_CIMPL_PROTO_1(iemCImpl_sysret, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_0(iemCImpl_sysenter);
-IEM_CIMPL_PROTO_1(iemCImpl_sysexit, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_LoadSReg, uint8_t, iSegReg, uint16_t, uSel);
-IEM_CIMPL_PROTO_2(iemCImpl_load_SReg, uint8_t, iSegReg, uint16_t, uSel);
-IEM_CIMPL_PROTO_2(iemCImpl_pop_Sreg, uint8_t, iSegReg, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_5(iemCImpl_load_SReg_Greg, uint16_t, uSel, uint64_t, offSeg, uint8_t, iSegReg, uint8_t, iGReg, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_VerX, uint16_t, uSel, bool, fWrite);
-IEM_CIMPL_PROTO_3(iemCImpl_LarLsl_u64, uint64_t *, pu64Dst, uint16_t, uSel, bool, fIsLar);
-IEM_CIMPL_PROTO_3(iemCImpl_LarLsl_u16, uint16_t *, pu16Dst, uint16_t, uSel, bool, fIsLar);
-IEM_CIMPL_PROTO_3(iemCImpl_lgdt, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_sgdt, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_3(iemCImpl_lidt, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_sidt, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_1(iemCImpl_lldt, uint16_t, uNewLdt);
-IEM_CIMPL_PROTO_2(iemCImpl_sldt_reg, uint8_t, iGReg, uint8_t, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_sldt_mem, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_1(iemCImpl_ltr, uint16_t, uNewTr);
-IEM_CIMPL_PROTO_2(iemCImpl_str_reg, uint8_t, iGReg, uint8_t, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_str_mem, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_2(iemCImpl_mov_Rd_Cd, uint8_t, iGReg, uint8_t, iCrReg);
-IEM_CIMPL_PROTO_2(iemCImpl_smsw_reg, uint8_t, iGReg, uint8_t, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_smsw_mem, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_4(iemCImpl_load_CrX, uint8_t, iCrReg, uint64_t, uNewCrX, IEMACCESSCRX, enmAccessCrX, uint8_t, iGReg);
-IEM_CIMPL_PROTO_2(iemCImpl_mov_Cd_Rd, uint8_t, iCrReg, uint8_t, iGReg);
-IEM_CIMPL_PROTO_2(iemCImpl_lmsw, uint16_t, u16NewMsw, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_0(iemCImpl_clts);
-IEM_CIMPL_PROTO_2(iemCImpl_mov_Rd_Dd, uint8_t, iGReg, uint8_t, iDrReg);
-IEM_CIMPL_PROTO_2(iemCImpl_mov_Dd_Rd, uint8_t, iDrReg, uint8_t, iGReg);
-IEM_CIMPL_PROTO_2(iemCImpl_mov_Rd_Td, uint8_t, iGReg, uint8_t, iTrReg);
-IEM_CIMPL_PROTO_2(iemCImpl_mov_Td_Rd, uint8_t, iTrReg, uint8_t, iGReg);
-IEM_CIMPL_PROTO_1(iemCImpl_invlpg, RTGCPTR, GCPtrPage);
-IEM_CIMPL_PROTO_3(iemCImpl_invpcid, uint8_t, iEffSeg, RTGCPTR, GCPtrInvpcidDesc, uint64_t, uInvpcidType);
-IEM_CIMPL_PROTO_0(iemCImpl_invd);
-IEM_CIMPL_PROTO_0(iemCImpl_wbinvd);
-IEM_CIMPL_PROTO_0(iemCImpl_rsm);
-IEM_CIMPL_PROTO_0(iemCImpl_rdtsc);
-IEM_CIMPL_PROTO_0(iemCImpl_rdtscp);
-IEM_CIMPL_PROTO_0(iemCImpl_rdpmc);
-IEM_CIMPL_PROTO_0(iemCImpl_rdmsr);
-IEM_CIMPL_PROTO_0(iemCImpl_wrmsr);
-IEM_CIMPL_PROTO_3(iemCImpl_in, uint16_t, u16Port, uint8_t, cbReg, uint8_t, bImmAndEffAddrMode);
-IEM_CIMPL_PROTO_2(iemCImpl_in_eAX_DX, uint8_t, cbReg, IEMMODE, enmEffAddrMode);
-IEM_CIMPL_PROTO_3(iemCImpl_out, uint16_t, u16Port, uint8_t, cbReg, uint8_t, bImmAndEffAddrMode);
-IEM_CIMPL_PROTO_2(iemCImpl_out_DX_eAX, uint8_t, cbReg, IEMMODE, enmEffAddrMode);
-IEM_CIMPL_PROTO_0(iemCImpl_cli);
-IEM_CIMPL_PROTO_0(iemCImpl_sti);
-IEM_CIMPL_PROTO_0(iemCImpl_hlt);
-IEM_CIMPL_PROTO_1(iemCImpl_monitor, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_mwait);
-IEM_CIMPL_PROTO_0(iemCImpl_swapgs);
-IEM_CIMPL_PROTO_0(iemCImpl_cpuid);
-IEM_CIMPL_PROTO_1(iemCImpl_aad, uint8_t, bImm);
-IEM_CIMPL_PROTO_1(iemCImpl_aam, uint8_t, bImm);
-IEM_CIMPL_PROTO_0(iemCImpl_daa);
-IEM_CIMPL_PROTO_0(iemCImpl_das);
-IEM_CIMPL_PROTO_0(iemCImpl_aaa);
-IEM_CIMPL_PROTO_0(iemCImpl_aas);
-IEM_CIMPL_PROTO_3(iemCImpl_bound_16, int16_t, idxArray, int16_t, idxLowerBound, int16_t, idxUpperBound);
-IEM_CIMPL_PROTO_3(iemCImpl_bound_32, int32_t, idxArray, int32_t, idxLowerBound, int32_t, idxUpperBound);
-IEM_CIMPL_PROTO_0(iemCImpl_xgetbv);
-IEM_CIMPL_PROTO_0(iemCImpl_xsetbv);
-IEM_CIMPL_PROTO_5(iemCImpl_cmpxchg16b_fallback_rendezvous, PRTUINT128U, pu128Dst, PRTUINT128U, pu128RaxRdx,
-                  PRTUINT128U, pu128RbxRcx, uint32_t *, pEFlags, uint8_t, bUnmapInfo);
-IEM_CIMPL_PROTO_2(iemCImpl_clflush_clflushopt, uint8_t, iEffSeg, RTGCPTR, GCPtrEff);
-IEM_CIMPL_PROTO_1(iemCImpl_finit, bool, fCheckXcpts);
-IEM_CIMPL_PROTO_3(iemCImpl_fxsave, uint8_t, iEffSeg, RTGCPTR, GCPtrEff, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_3(iemCImpl_fxrstor, uint8_t, iEffSeg, RTGCPTR, GCPtrEff, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_3(iemCImpl_xsave, uint8_t, iEffSeg, RTGCPTR, GCPtrEff, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_3(iemCImpl_xrstor, uint8_t, iEffSeg, RTGCPTR, GCPtrEff, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_stmxcsr, uint8_t, iEffSeg, RTGCPTR, GCPtrEff);
-IEM_CIMPL_PROTO_2(iemCImpl_vstmxcsr, uint8_t, iEffSeg, RTGCPTR, GCPtrEff);
-IEM_CIMPL_PROTO_2(iemCImpl_ldmxcsr, uint8_t, iEffSeg, RTGCPTR, GCPtrEff);
-IEM_CIMPL_PROTO_2(iemCImpl_vldmxcsr, uint8_t, iEffSeg, RTGCPTR, GCPtrEff);
-IEM_CIMPL_PROTO_3(iemCImpl_fnstenv, IEMMODE, enmEffOpSize, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_3(iemCImpl_fnsave, IEMMODE, enmEffOpSize, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst);
-IEM_CIMPL_PROTO_3(iemCImpl_fldenv, IEMMODE, enmEffOpSize, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_3(iemCImpl_frstor, IEMMODE, enmEffOpSize, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_1(iemCImpl_fldcw, uint16_t, u16Fcw);
-IEM_CIMPL_PROTO_2(iemCImpl_fxch_underflow, uint8_t, iStReg, uint16_t, uFpuOpcode);
-IEM_CIMPL_PROTO_3(iemCImpl_fcomi_fucomi, uint8_t, iStReg, bool, fUCmp, uint32_t, uPopAndFpuOpcode);
-IEM_CIMPL_PROTO_2(iemCImpl_rdseed, uint8_t, iReg, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_2(iemCImpl_rdrand, uint8_t, iReg, IEMMODE, enmEffOpSize);
-IEM_CIMPL_PROTO_4(iemCImpl_vmaskmovps_load_u128, uint8_t, iXRegDst, uint8_t, iXRegMsk, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vmaskmovps_load_u256, uint8_t, iYRegDst, uint8_t, iYRegMsk, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vmaskmovps_store_u128, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst, uint8_t, iXRegMsk, uint8_t, iXRegSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vmaskmovps_store_u256, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst, uint8_t, iYRegMsk, uint8_t, iYRegSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vpmaskmovd_load_u128, uint8_t, iXRegDst, uint8_t, iXRegMsk, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vpmaskmovd_load_u256, uint8_t, iYRegDst, uint8_t, iYRegMsk, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vpmaskmovd_store_u128, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst, uint8_t, iXRegMsk, uint8_t, iXRegSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vpmaskmovd_store_u256, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst, uint8_t, iYRegMsk, uint8_t, iYRegSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vmaskmovpd_load_u128, uint8_t, iXRegDst, uint8_t, iXRegMsk, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vmaskmovpd_load_u256, uint8_t, iYRegDst, uint8_t, iYRegMsk, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vmaskmovpd_store_u128, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst, uint8_t, iXRegMsk, uint8_t, iXRegSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vmaskmovpd_store_u256, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst, uint8_t, iYRegMsk, uint8_t, iYRegSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vpmaskmovq_load_u128, uint8_t, iXRegDst, uint8_t, iXRegMsk, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vpmaskmovq_load_u256, uint8_t, iYRegDst, uint8_t, iYRegMsk, uint8_t, iEffSeg, RTGCPTR, GCPtrEffSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vpmaskmovq_store_u128, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst, uint8_t, iXRegMsk, uint8_t, iXRegSrc);
-IEM_CIMPL_PROTO_4(iemCImpl_vpmaskmovq_store_u256, uint8_t, iEffSeg, RTGCPTR, GCPtrEffDst, uint8_t, iYRegMsk, uint8_t, iYRegSrc);
-IEM_CIMPL_PROTO_2(iemCImpl_vpgather_worker_xx, uint32_t, u32PackedArgs, uint32_t, u32Disp);
-
-/** @} */
-
-/** @name IEMAllCImplStrInstr.cpp.h
- * @note sed -e '/IEM_CIMPL_DEF_/!d' -e 's/IEM_CIMPL_DEF_/IEM_CIMPL_PROTO_/' -e 's/$/;/' -e 's/RT_CONCAT4(//' \
- *           -e 's/,ADDR_SIZE)/64/g' -e 's/,OP_SIZE,/64/g' -e 's/,OP_rAX,/rax/g' IEMAllCImplStrInstr.cpp.h
- * @{ */
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op8_addr16, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op8_addr16, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_al_m16);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_al_m16);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op8_addr16, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_al_m16);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_al_m16, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op8_addr16, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op8_addr16, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op8_addr16, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op8_addr16, uint8_t, iEffSeg, bool, fIoChecked);
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op16_addr16, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op16_addr16, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_ax_m16);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_ax_m16);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op16_addr16, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_ax_m16);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_ax_m16, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op16_addr16, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op16_addr16, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op16_addr16, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op16_addr16, uint8_t, iEffSeg, bool, fIoChecked);
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op32_addr16, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op32_addr16, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_eax_m16);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_eax_m16);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op32_addr16, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_eax_m16);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_eax_m16, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op32_addr16, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op32_addr16, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op32_addr16, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op32_addr16, uint8_t, iEffSeg, bool, fIoChecked);
-
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op8_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op8_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_al_m32);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_al_m32);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op8_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_al_m32);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_al_m32, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op8_addr32, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op8_addr32, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op8_addr32, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op8_addr32, uint8_t, iEffSeg, bool, fIoChecked);
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op16_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op16_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_ax_m32);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_ax_m32);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op16_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_ax_m32);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_ax_m32, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op16_addr32, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op16_addr32, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op16_addr32, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op16_addr32, uint8_t, iEffSeg, bool, fIoChecked);
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op32_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op32_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_eax_m32);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_eax_m32);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op32_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_eax_m32);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_eax_m32, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op32_addr32, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op32_addr32, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op32_addr32, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op32_addr32, uint8_t, iEffSeg, bool, fIoChecked);
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op64_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op64_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_rax_m32);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_rax_m32);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op64_addr32, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_rax_m32);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_rax_m32, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op64_addr32, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op64_addr32, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op64_addr32, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op64_addr32, uint8_t, iEffSeg, bool, fIoChecked);
-
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op8_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op8_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_al_m64);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_al_m64);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op8_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_al_m64);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_al_m64, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op8_addr64, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op8_addr64, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op8_addr64, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op8_addr64, uint8_t, iEffSeg, bool, fIoChecked);
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op16_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op16_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_ax_m64);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_ax_m64);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op16_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_ax_m64);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_ax_m64, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op16_addr64, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op16_addr64, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op16_addr64, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op16_addr64, uint8_t, iEffSeg, bool, fIoChecked);
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op32_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op32_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_eax_m64);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_eax_m64);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op32_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_eax_m64);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_eax_m64, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op32_addr64, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op32_addr64, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op32_addr64, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op32_addr64, uint8_t, iEffSeg, bool, fIoChecked);
-
-IEM_CIMPL_PROTO_1(iemCImpl_repe_cmps_op64_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_repne_cmps_op64_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_repe_scas_rax_m64);
-IEM_CIMPL_PROTO_0(iemCImpl_repne_scas_rax_m64);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_movs_op64_addr64, uint8_t, iEffSeg);
-IEM_CIMPL_PROTO_0(iemCImpl_stos_rax_m64);
-IEM_CIMPL_PROTO_1(iemCImpl_lods_rax_m64, int8_t, iEffSeg);
-IEM_CIMPL_PROTO_1(iemCImpl_ins_op64_addr64, bool, fIoChecked);
-IEM_CIMPL_PROTO_1(iemCImpl_rep_ins_op64_addr64, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_outs_op64_addr64, uint8_t, iEffSeg, bool, fIoChecked);
-IEM_CIMPL_PROTO_2(iemCImpl_rep_outs_op64_addr64, uint8_t, iEffSeg, bool, fIoChecked);
-/** @} */
-
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-VBOXSTRICTRC    iemVmxVmexit(PVMCPUCC pVCpu, uint32_t uExitReason, uint64_t u64ExitQual) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstr(PVMCPUCC pVCpu, uint32_t uExitReason, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrNeedsInfo(PVMCPUCC pVCpu, uint32_t uExitReason, VMXINSTRID uInstrId, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitTaskSwitch(PVMCPUCC pVCpu, IEMTASKSWITCH enmTaskSwitch, RTSEL SelNewTss, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitEvent(PVMCPUCC pVCpu, uint8_t uVector, uint32_t fFlags, uint32_t uErrCode, uint64_t uCr2, uint8_t cbInstr)  RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitEventDoubleFault(PVMCPUCC pVCpu) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitEpt(PVMCPUCC pVCpu, PPGMPTWALKFAST pWalk, uint32_t fAccess, uint32_t fSlatFail, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitPreemptTimer(PVMCPUCC pVCpu) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrMwait(PVMCPUCC pVCpu, bool fMonitorHwArmed, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrIo(PVMCPUCC pVCpu, VMXINSTRID uInstrId, uint16_t u16Port,
-                                    bool fImm, uint8_t cbAccess, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrStrIo(PVMCPUCC pVCpu, VMXINSTRID uInstrId, uint16_t u16Port, uint8_t cbAccess,
-                                       bool fRep, VMXEXITINSTRINFO ExitInstrInfo, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrMovDrX(PVMCPUCC pVCpu, VMXINSTRID uInstrId, uint8_t iDrReg, uint8_t iGReg, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrMovToCr8(PVMCPUCC pVCpu, uint8_t iGReg, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrMovFromCr8(PVMCPUCC pVCpu, uint8_t iGReg, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrMovToCr3(PVMCPUCC pVCpu, uint64_t uNewCr3, uint8_t iGReg, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrMovFromCr3(PVMCPUCC pVCpu, uint8_t iGReg, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrMovToCr0Cr4(PVMCPUCC pVCpu, uint8_t iCrReg, uint64_t *puNewCrX, uint8_t iGReg, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrClts(PVMCPUCC pVCpu, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrLmsw(PVMCPUCC pVCpu, uint32_t uGuestCr0, uint16_t *pu16NewMsw,
-                                      RTGCPTR GCPtrEffDst, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVmexitInstrInvlpg(PVMCPUCC pVCpu, RTGCPTR GCPtrPage, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxApicWriteEmulation(PVMCPUCC pVCpu) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxVirtApicAccessUnused(PVMCPUCC pVCpu, PRTGCPHYS pGCPhysAccess, size_t cbAccess, uint32_t fAccess) RT_NOEXCEPT;
-uint32_t        iemVmxVirtApicReadRaw32(PVMCPUCC pVCpu, uint16_t offReg) RT_NOEXCEPT;
-void            iemVmxVirtApicWriteRaw32(PVMCPUCC pVCpu, uint16_t offReg, uint32_t uReg) RT_NOEXCEPT;
-VBOXSTRICTRC    iemVmxInvvpid(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t iEffSeg, RTGCPTR GCPtrInvvpidDesc,
-                              uint64_t u64InvvpidType, PCVMXVEXITINFO pExitInfo) RT_NOEXCEPT;
-bool            iemVmxIsRdmsrWrmsrInterceptSet(PCVMCPU pVCpu, uint32_t uExitReason, uint32_t idMsr) RT_NOEXCEPT;
-IEM_CIMPL_PROTO_0(iemCImpl_vmxoff);
-IEM_CIMPL_PROTO_2(iemCImpl_vmxon, uint8_t, iEffSeg, RTGCPTR, GCPtrVmxon);
-IEM_CIMPL_PROTO_0(iemCImpl_vmlaunch);
-IEM_CIMPL_PROTO_0(iemCImpl_vmresume);
-IEM_CIMPL_PROTO_2(iemCImpl_vmptrld, uint8_t, iEffSeg, RTGCPTR, GCPtrVmcs);
-IEM_CIMPL_PROTO_2(iemCImpl_vmptrst, uint8_t, iEffSeg, RTGCPTR, GCPtrVmcs);
-IEM_CIMPL_PROTO_2(iemCImpl_vmclear, uint8_t, iEffSeg, RTGCPTR, GCPtrVmcs);
-IEM_CIMPL_PROTO_2(iemCImpl_vmwrite_reg, uint64_t, u64Val, uint64_t, u64VmcsField);
-IEM_CIMPL_PROTO_3(iemCImpl_vmwrite_mem, uint8_t, iEffSeg, RTGCPTR, GCPtrVal, uint32_t, u64VmcsField);
-IEM_CIMPL_PROTO_2(iemCImpl_vmread_reg64, uint64_t *, pu64Dst, uint64_t, u64VmcsField);
-IEM_CIMPL_PROTO_2(iemCImpl_vmread_reg32, uint64_t *, pu32Dst, uint32_t, u32VmcsField);
-IEM_CIMPL_PROTO_3(iemCImpl_vmread_mem_reg64, uint8_t, iEffSeg, RTGCPTR, GCPtrDst, uint32_t, u64VmcsField);
-IEM_CIMPL_PROTO_3(iemCImpl_vmread_mem_reg32, uint8_t, iEffSeg, RTGCPTR, GCPtrDst, uint32_t, u32VmcsField);
-IEM_CIMPL_PROTO_3(iemCImpl_invvpid, uint8_t, iEffSeg, RTGCPTR, GCPtrInvvpidDesc, uint64_t, uInvvpidType);
-IEM_CIMPL_PROTO_3(iemCImpl_invept, uint8_t, iEffSeg, RTGCPTR, GCPtrInveptDesc, uint64_t, uInveptType);
-IEM_CIMPL_PROTO_0(iemCImpl_vmx_pause);
-#endif
-
-#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
-VBOXSTRICTRC    iemSvmVmexit(PVMCPUCC pVCpu, uint64_t uExitCode, uint64_t uExitInfo1, uint64_t uExitInfo2) RT_NOEXCEPT;
-VBOXSTRICTRC    iemHandleSvmEventIntercept(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t u8Vector, uint32_t fFlags, uint32_t uErr, uint64_t uCr2) RT_NOEXCEPT;
-VBOXSTRICTRC    iemSvmHandleIOIntercept(PVMCPUCC pVCpu, uint16_t u16Port, SVMIOIOTYPE enmIoType, uint8_t cbReg,
-                                        uint8_t cAddrSizeBits, uint8_t iEffSeg, bool fRep, bool fStrIo, uint8_t cbInstr) RT_NOEXCEPT;
-VBOXSTRICTRC    iemSvmHandleMsrIntercept(PVMCPUCC pVCpu, uint32_t idMsr, bool fWrite, uint8_t cbInstr) RT_NOEXCEPT;
-IEM_CIMPL_PROTO_0(iemCImpl_vmrun);
-IEM_CIMPL_PROTO_0(iemCImpl_vmload);
-IEM_CIMPL_PROTO_0(iemCImpl_vmsave);
-IEM_CIMPL_PROTO_0(iemCImpl_clgi);
-IEM_CIMPL_PROTO_0(iemCImpl_stgi);
-IEM_CIMPL_PROTO_0(iemCImpl_invlpga);
-IEM_CIMPL_PROTO_0(iemCImpl_skinit);
-IEM_CIMPL_PROTO_0(iemCImpl_svm_pause);
-#endif
-
-IEM_CIMPL_PROTO_0(iemCImpl_vmcall);  /* vmx */
-IEM_CIMPL_PROTO_0(iemCImpl_vmmcall); /* svm */
-IEM_CIMPL_PROTO_1(iemCImpl_Hypercall, uint16_t, uDisOpcode); /* both */
-
-extern const PFNIEMOP g_apfnIemInterpretOnlyOneByteMap[256];
-extern const PFNIEMOP g_apfnIemInterpretOnlyTwoByteMap[1024];
-extern const PFNIEMOP g_apfnIemInterpretOnlyThreeByte0f3a[1024];
-extern const PFNIEMOP g_apfnIemInterpretOnlyThreeByte0f38[1024];
-extern const PFNIEMOP g_apfnIemInterpretOnlyVecMap1[1024];
-extern const PFNIEMOP g_apfnIemInterpretOnlyVecMap2[1024];
-extern const PFNIEMOP g_apfnIemInterpretOnlyVecMap3[1024];
 
 /*
  * Recompiler related stuff.
  */
-extern const PFNIEMOP g_apfnIemThreadedRecompilerOneByteMap[256];
-extern const PFNIEMOP g_apfnIemThreadedRecompilerTwoByteMap[1024];
-extern const PFNIEMOP g_apfnIemThreadedRecompilerThreeByte0f3a[1024];
-extern const PFNIEMOP g_apfnIemThreadedRecompilerThreeByte0f38[1024];
-extern const PFNIEMOP g_apfnIemThreadedRecompilerVecMap1[1024];
-extern const PFNIEMOP g_apfnIemThreadedRecompilerVecMap2[1024];
-extern const PFNIEMOP g_apfnIemThreadedRecompilerVecMap3[1024];
 
 DECLHIDDEN(int)     iemPollTimers(PVMCC pVM, PVMCPUCC pVCpu) RT_NOEXCEPT;
 
@@ -6747,52 +3771,6 @@ typedef FNIEMTHREADEDFUNC *PFNIEMTHREADEDFUNC;
 #endif
 
 
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_Nop);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_LogCpuState);
-
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_DeferToCImpl0);
-
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckIrq);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckTimers);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckTimersAndIrq);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckMode);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckHwInstrBps);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckCsLim);
-
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckCsLimAndOpcodes);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodes);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodesConsiderCsLim);
-
-/* Branching: */
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckCsLimAndPcAndOpcodes);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckPcAndOpcodes);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckPcAndOpcodesConsiderCsLim);
-
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckCsLimAndOpcodesLoadingTlb);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodesLoadingTlb);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodesLoadingTlbConsiderCsLim);
-
-/* Natural page crossing: */
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckCsLimAndOpcodesAcrossPageLoadingTlb);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodesAcrossPageLoadingTlb);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodesAcrossPageLoadingTlbConsiderCsLim);
-
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckCsLimAndOpcodesOnNextPageLoadingTlb);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodesOnNextPageLoadingTlb);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodesOnNextPageLoadingTlbConsiderCsLim);
-
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckCsLimAndOpcodesOnNewPageLoadingTlb);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodesOnNewPageLoadingTlb);
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_CheckOpcodesOnNewPageLoadingTlbConsiderCsLim);
-
-IEM_DECL_IEMTHREADEDFUNC_PROTO(iemThreadedFunc_BltIn_Jump);
-
-bool iemThreadedCompileEmitIrqCheckBefore(PVMCPUCC pVCpu, PIEMTB pTb);
-bool iemThreadedCompileBeginEmitCallsComplications(PVMCPUCC pVCpu, PIEMTB pTb);
-#ifdef IEM_WITH_INTRA_TB_JUMPS
-DECLHIDDEN(int)     iemThreadedCompileBackAtFirstInstruction(PVMCPU pVCpu, PIEMTB pTb) RT_NOEXCEPT;
-#endif
-
 /* Native recompiler public bits: */
 
 DECLHIDDEN(PIEMTB)  iemNativeRecompile(PVMCPUCC pVCpu, PIEMTB pTb) RT_NOEXCEPT;
@@ -6808,28 +3786,11 @@ DECLASM(DECL_NO_RETURN(void)) iemNativeTbLongJmp(void *pvFramePointer, int rc) R
 DECLHIDDEN(struct IEMNATIVEPERCHUNKCTX const *) iemExecMemGetTbChunkCtx(PVMCPU pVCpu, PCIEMTB pTb);
 DECLHIDDEN(int) iemNativeRecompileAttachExecMemChunkCtx(PVMCPU pVCpu, uint32_t idxChunk, struct IEMNATIVEPERCHUNKCTX const **ppCtx);
 
-/** Packed 32-bit argument for iemCImpl_vpgather_worker_xx. */
-typedef union IEMGATHERARGS
-{
-    /** Integer view. */
-    uint32_t u;
-    /** Bitfield view. */
-    struct
-    {
-        uint32_t iYRegDst       : 4; /**<  0 - XMM or YMM register number (destination) */
-        uint32_t iYRegIdc       : 4; /**<  4 - XMM or YMM register number (indices)     */
-        uint32_t iYRegMsk       : 4; /**<  8 - XMM or YMM register number (mask)        */
-        uint32_t iGRegBase      : 4; /**< 12 - general register number    (base ptr)    */
-        uint32_t iScale         : 2; /**< 16 - scale factor               (1/2/4/8)     */
-        uint32_t enmEffOpSize   : 2; /**< 18 - operand size               (16/32/64/--) */
-        uint32_t enmEffAddrMode : 2; /**< 20 - addressing  mode           (16/32/64/--) */
-        uint32_t iEffSeg        : 3; /**< 22 - effective segment (ES/CS/SS/DS/FS/GS)    */
-        uint32_t fVex256        : 1; /**< 25 - overall instruction width (128/256 bits) */
-        uint32_t fIdxQword      : 1; /**< 26 - individual index width     (4/8 bytes)   */
-        uint32_t fValQword      : 1; /**< 27 - individual value width     (4/8 bytes)   */
-    } s;
-} IEMGATHERARGS;
-AssertCompileSize(IEMGATHERARGS, sizeof(uint32_t));
+# ifdef VBOX_VMM_TARGET_X86
+#  include "VMMAll/target-x86/IEMInternal-x86.h"
+# elif defined(VBOX_VMM_TARGET_ARMV8)
+#  include "VMMAll/target-armv8/IEMInternal-armv8.h"
+# endif
 
 #endif /* !RT_IN_ASSEMBLER - ASM-NOINC-END */
 

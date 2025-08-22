@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1565,7 +1565,7 @@ static RTEXITCODE gctlHandleRunCommon(PGCTLCMDCTX pCtx, int argc, char **argv, b
                         RTPrintf(GuestCtrl::tr("Exit code=%u (Status=%u [%s])\n"),
                                  lExitCode, procStatus, gctlProcessStatusToText(procStatus));
 
-                    rcExit = gctlRunCalculateExitCode(procStatus, lExitCode, true /*fReturnExitCodes*/);
+                    rcExit = gctlRunCalculateExitCode(procStatus, (ULONG)lExitCode, true /*fReturnExitCodes*/);
                 }
                 else if (   procStatus == ProcessStatus_TimedOutKilled
                          || procStatus == ProcessStatus_TimedOutAbnormally)
@@ -1660,7 +1660,6 @@ static RTEXITCODE gctlHandleCopy(PGCTLCMDCTX pCtx, int argc, char **argv, bool f
     RTGETOPTSTATE GetState;
     RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, RTGETOPTINIT_FLAGS_OPTS_FIRST);
 
-    bool fDstMustBeDir = false;
     const char *pszDst = NULL;
     bool fFollow = false;
     bool fRecursive = false;
@@ -1692,7 +1691,6 @@ static RTEXITCODE gctlHandleCopy(PGCTLCMDCTX pCtx, int argc, char **argv, bool f
 
             case 't':
                 pszDst = ValueUnion.psz;
-                fDstMustBeDir = true;
                 break;
 
             case 'u':
@@ -1705,7 +1703,7 @@ static RTEXITCODE gctlHandleCopy(PGCTLCMDCTX pCtx, int argc, char **argv, bool f
     }
 
     char **papszSources = RTGetOptNonOptionArrayPtr(&GetState);
-    size_t cSources = &argv[argc] - papszSources;
+    size_t cSources = (size_t)(&argv[argc] - papszSources);
 
     if (!cSources)
         return errorSyntax(GuestCtrl::tr("No sources specified!"));
@@ -1803,7 +1801,7 @@ static RTEXITCODE gctlHandleCopy(PGCTLCMDCTX pCtx, int argc, char **argv, bool f
             strCopyFlags += "Update,";
         if (fNoReplace) /* Do not overwrite files. */
             strCopyFlags += "NoReplace,";
-        else if (!fNoReplace && fIsDir)
+        else if (fIsDir)
             strCopyFlags += "CopyIntoExisting,"; /* Only copy into existing directories if "--no-replace" isn't specified. */
        aCopyFlags.push_back(Bstr(strCopyFlags).raw());
     }
@@ -2385,18 +2383,12 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleMkTemp(PGCTLCMDCTX pCtx, int argc, cha
      */
     if (pCtx->cVerbose)
     {
-        if (fDirectory && !strTempDir.isEmpty())
-            RTPrintf(GuestCtrl::tr("Creating temporary directory from template '%s' in directory '%s' ...\n"),
-                     strTemplate.c_str(), strTempDir.c_str());
-        else if (fDirectory)
-            RTPrintf(GuestCtrl::tr("Creating temporary directory from template '%s' in default temporary directory ...\n"),
-                     strTemplate.c_str());
-        else if (!fDirectory && !strTempDir.isEmpty())
-            RTPrintf(GuestCtrl::tr("Creating temporary file from template '%s' in directory '%s' ...\n"),
-                     strTemplate.c_str(), strTempDir.c_str());
-        else if (!fDirectory)
-            RTPrintf(GuestCtrl::tr("Creating temporary file from template '%s' in default temporary directory ...\n"),
-                     strTemplate.c_str());
+        if (!strTempDir.isEmpty())
+            RTPrintf(GuestCtrl::tr("Creating temporary %s from template '%s' in directory '%s' ...\n"),
+                     fDirectory ? GuestCtrl::tr("directory") : GuestCtrl::tr("file"), strTemplate.c_str(), strTempDir.c_str());
+        else
+            RTPrintf(GuestCtrl::tr("Creating temporary %s from template '%s' in default temporary directory ...\n"),
+                     fDirectory ? GuestCtrl::tr("directory") : GuestCtrl::tr("file"),  strTemplate.c_str());
     }
 
     HRESULT hrc = S_OK;

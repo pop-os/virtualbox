@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2016-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -227,6 +227,7 @@ protected:
     virtual void     createFileViewContextMenu(const QWidget *pWidget, const QPoint &point) = 0;
     virtual void     toggleForwardBackwardActions() = 0;
     virtual bool     event(QEvent *pEvent) RT_OVERRIDE;
+    virtual void     showEvent(QShowEvent *pEvent) RT_OVERRIDE;
 
     /** @name Copy/Cut guest-to-guest (host-to-host) stuff.
      * @{ */
@@ -328,6 +329,7 @@ private:
     QHBoxLayout     *m_pToolBarLayout;
     QVector<QWidget*> m_sessionWidgets;
     friend class     UIFileSystemModel;
+    bool            m_fColumnWidthInitialized;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_guestctrl_UIFileManagerTable_h */

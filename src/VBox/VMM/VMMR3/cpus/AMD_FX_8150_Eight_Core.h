@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -367,17 +367,20 @@ static CPUMMSRRANGE const g_aMsrRanges_AMD_FX_8150_Eight_Core[] =
 /**
  * Database entry for AMD FX(tm)-8150 Eight-Core Processor.
  */
-static CPUMDBENTRY const g_Entry_AMD_FX_8150_Eight_Core =
+static CPUMDBENTRYX86 const g_Entry_AMD_FX_8150_Eight_Core =
 {
-    /*.pszName          = */ "AMD FX-8150 Eight-Core",
-    /*.pszFullName      = */ "AMD FX(tm)-8150 Eight-Core Processor",
-    /*.enmVendor        = */ CPUMCPUVENDOR_AMD,
+    {
+        /*.pszName      = */ "AMD FX-8150 Eight-Core",
+        /*.pszFullName  = */ "AMD FX(tm)-8150 Eight-Core Processor",
+        /*.enmVendor    = */ CPUMCPUVENDOR_AMD,
+        /*.enmMicroarch = */ kCpumMicroarch_AMD_15h_Bulldozer,
+        /*.fFlags       = */ 0,
+        /*.enmEntryType = */ CPUMDBENTRYTYPE_X86,
+    },
     /*.uFamily          = */ 21,
     /*.uModel           = */ 1,
     /*.uStepping        = */ 2,
-    /*.enmMicroarch     = */ kCpumMicroarch_AMD_15h_Bulldozer,
     /*.uScalableBusFreq = */ CPUM_SBUSFREQ_UNKNOWN,
-    /*.fFlags           = */ 0,
     /*.cMaxPhysAddrWidth= */ 48,
     /*.fMxCsrMask       = */ 0x2ffff,
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_AMD_FX_8150_Eight_Core),

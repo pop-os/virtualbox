@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1410,6 +1410,8 @@ void UIDetailsGenerator::acquireSharedFoldersStatusInfo(CMachine &comMachine, CC
 {
     /* Enumerate all the folders: */
     QMap<QString, QString> folders;
+    foreach (const CSharedFolder &comGlobalFolder, gpGlobalSession->virtualBox().GetSharedFolders())
+        folders.insert(comGlobalFolder.GetName(), comGlobalFolder.GetHostPath());
     foreach (const CSharedFolder &comPermanentFolder, comMachine.GetSharedFolders())
         folders.insert(comPermanentFolder.GetName(), comPermanentFolder.GetHostPath());
     foreach (const CSharedFolder &comTemporaryFolder, comConsole.GetSharedFolders())

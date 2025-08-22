@@ -12,9 +12,6 @@
           settings, you select from the displayed menu options.</p>
       </li>
     </ul>
-   
-   <p>See <xref href="BasicConcepts.dita#BasicConcepts"/> for detailed information about the available virtual 
-      machine settings.</p>
     
     <p><xref href="#vm-status-bar/table-status-bar-icons"/> describes the icons on the status bar.</p>
    
@@ -53,7 +50,7 @@
             <entry>
               <p><b>Storage (SATA)</b></p>
               <p>Settings for attached SATA storage devices, such as hard disk drives.</p>
-              <p>See also <xref href="settings-storage.dita#settings-storage"/>.</p>
+              <p>See also <xref href="settings-storage.dita"/>.</p>
               
             </entry>
           </row>
@@ -73,9 +70,9 @@
             <entry>
               <p><b>Storage (IDE)</b></p>
               <p>Settings for attached IDE storage devices, such as optical CD-ROM drives.</p>
-              <p>See also <xref href="settings-storage.dita#settings-storage"/>.</p>
+              <p>See also <xref href="settings-storage.dita"/>.</p>
               <p>Right-click to show options for adding and removing IDE devices.</p>
-              <p>See also <xref href="intro-removable-media-changing.dita#intro-removable-media-changing"/>.</p>
+              <p>See also <xref href="virtual-media-manager.dita"/>.</p>
             </entry>
           </row>
           <row>
@@ -96,7 +93,7 @@
               <p>Settings for audio output and audio input.</p>
               <p>Right-click to change a setting. The status bar icon is updated automatically to show 
                 which settings are enabled.</p>
-              <p>See also <xref href="settings-audio.dita#settings-audio"/>.</p>
+              <p>See also <xref href="settings-audio.dita"/>.</p>
             </entry>
           </row>
           <row>
@@ -116,7 +113,7 @@
               <p><b>Network</b></p>
               <p>Settings for attached network adapters.</p>
               <p>Right-click to connect or disconnect a network adapter.</p>
-              <p>See also <xref href="settings-network.dita#settings-network"/>.</p>
+              <p>See also <xref href="settings-network.dita"/>.</p>
             </entry>
           </row>
           <row>
@@ -158,7 +155,7 @@
               <p>Settings for shared folders.</p>
               <p>Right-click to change shared folder settings or to add a new 
                 shared folder.</p>
-              <p>See also <xref href="shared-folders.dita#shared-folders"/>.</p>
+              <p>See also <xref href="shared-folders.dita"/>.</p>
             </entry>
           </row>
           <row>
@@ -199,19 +196,14 @@
               <p>Settings for video and audio recording.</p>
               <p>Right-click to show options to enable and disable recording, or to change recording
                 settings.</p>
-              <p>To enable recording, right-click the status bar icon and select the
-                  <b>Recording</b> option. The icon changes to show a movie reel animation, as
-                follows:</p>
-             <p>
-               <xref href="images/icon_recording_enabled.png" format="png" platform="htmlhelp"> 
-                 <image href="images/icon_recording_enabled.png" placement="break" align="center">
-                 <alt>Recording settings icon on the virtual machine status bar. Recording is enabled.</alt>
-               </image>
-               </xref>
-               <image platform="ohc" href="images/icon_recording_enabled.png" align="center" placement="break">
-                 <alt>Recording settings icon on the virtual machine status bar. Recording is enabled.</alt>
-               </image>
-             </p>
+              <p>To enable recording, right-click the status bar icon and select the <b>Recording</b> option. The icon changes to a pulsing red dot <xref href="images/icon_recording_enabled.png" format="png" platform="htmlhelp">
+                  <image href="images/icon_recording_enabled.png" placement="inline" align="center">
+                    <alt>Recording settings icon on the virtual machine status bar. Recording is enabled.</alt>
+                  </image>
+                </xref><image platform="ohc" href="images/icon_recording_enabled.png" align="center" placement="inline">
+                  <alt>Recording settings icon on the virtual machine status bar. Recording is enabled.</alt>
+                </image>to indicate that recording is in progress.</p>
+              <p> </p>
               <p>To disable recording, right-click the status bar icon and deselect the
                   <b>Recording</b> option. The icon changes back to the default image.</p>
               <p>See also <xref href="settings-capture.dita#settings-capture"/>.</p>
@@ -321,7 +313,7 @@
             <li><p>Drag and drop icons to change their order in the status bar.</p></li>
           </ul>
           <p>Click the check mark button to save your changes to the status bar.</p>
-          <p>See also <xref href="user-interface.dita#user-interface"/> for other options to change the status bar.</p>
+          <p>See also <xref href="user-interface.dita"/> for other options to change the status bar.</p>
         </li>     
       </ul>  
       

@@ -14,7 +14,7 @@ from __future__ import print_function;
 
 __copyright__ = \
 """
-Copyright (C) 2023-2024 Oracle and/or its affiliates.
+Copyright (C) 2023-2025 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -34,7 +34,7 @@ along with this program; if not, see <https://www.gnu.org/licenses>.
 
 SPDX-License-Identifier: GPL-3.0-only
 """
-__version__ = "$Revision: 164901 $"
+__version__ = "$Revision: 170187 $"
 
 # Standard python imports:
 import copy;
@@ -54,13 +54,13 @@ g_dMcStmtThreaded = {
     'IEM_MC_DEFER_TO_CIMPL_2_RET_THREADED':                              (None, True,  True,  True,  ),
     'IEM_MC_DEFER_TO_CIMPL_3_RET_THREADED':                              (None, True,  True,  True,  ),
 
-    'IEM_MC_ADVANCE_RIP_AND_FINISH_THREADED_PC16':                       (None, True,  True,  True,  ),
-    'IEM_MC_ADVANCE_RIP_AND_FINISH_THREADED_PC32':                       (None, True,  True,  True,  ),
-    'IEM_MC_ADVANCE_RIP_AND_FINISH_THREADED_PC64':                       (None, True,  True,  True,  ),
+    'IEM_MC_ADVANCE_PC_AND_FINISH_THREADED_PC16':                        (None, True,  True,  True,  ),
+    'IEM_MC_ADVANCE_PC_AND_FINISH_THREADED_PC32':                        (None, True,  True,  True,  ),
+    'IEM_MC_ADVANCE_PC_AND_FINISH_THREADED_PC64':                        (None, True,  True,  True,  ),
 
-    'IEM_MC_ADVANCE_RIP_AND_FINISH_THREADED_PC16_WITH_FLAGS':            (None, True,  True,  True,  ),
-    'IEM_MC_ADVANCE_RIP_AND_FINISH_THREADED_PC32_WITH_FLAGS':            (None, True,  True,  True,  ),
-    'IEM_MC_ADVANCE_RIP_AND_FINISH_THREADED_PC64_WITH_FLAGS':            (None, True,  True,  True,  ),
+    'IEM_MC_ADVANCE_PC_AND_FINISH_THREADED_PC16_WITH_FLAGS':             (None, True,  True,  True,  ),
+    'IEM_MC_ADVANCE_PC_AND_FINISH_THREADED_PC32_WITH_FLAGS':             (None, True,  True,  True,  ),
+    'IEM_MC_ADVANCE_PC_AND_FINISH_THREADED_PC64_WITH_FLAGS':             (None, True,  True,  True,  ),
 
     'IEM_MC_REL_JMP_S8_AND_FINISH_THREADED_PC16':                        (None, True,  True,  True,  ),
     'IEM_MC_REL_JMP_S8_AND_FINISH_THREADED_PC32':                        (None, True,  True,  True,  ),
@@ -109,23 +109,23 @@ g_dMcStmtThreaded = {
     'IEM_MC_REL_CALL_S64_AND_FINISH_THREADED_PC32_WITH_FLAGS':           (None, True,  True,  False, ), # @todo These should never be called - can't encode this
     'IEM_MC_REL_CALL_S64_AND_FINISH_THREADED_PC64_WITH_FLAGS':           (None, True,  True,  True,  ),
 
-    'IEM_MC_SET_RIP_U16_AND_FINISH_THREADED_PC16':                       (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U16_AND_FINISH_THREADED_PC32':                       (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U16_AND_FINISH_THREADED_PC64':                       (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U32_AND_FINISH_THREADED_PC16':                       (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U32_AND_FINISH_THREADED_PC32':                       (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U32_AND_FINISH_THREADED_PC64':                       (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U64_AND_FINISH_THREADED_PC32':                       (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U64_AND_FINISH_THREADED_PC64':                       (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U16_AND_FINISH_THREADED_PC16':                       (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U16_AND_FINISH_THREADED_PC32':                       (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U16_AND_FINISH_THREADED_PC64':                       (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U32_AND_FINISH_THREADED_PC16':                       (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U32_AND_FINISH_THREADED_PC32':                       (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U32_AND_FINISH_THREADED_PC64':                       (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U64_AND_FINISH_THREADED_PC32':                       (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U64_AND_FINISH_THREADED_PC64':                       (None, True,  True,  True,  ),
 
-    'IEM_MC_SET_RIP_U16_AND_FINISH_THREADED_PC16_WITH_FLAGS':            (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U16_AND_FINISH_THREADED_PC32_WITH_FLAGS':            (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U16_AND_FINISH_THREADED_PC64_WITH_FLAGS':            (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U32_AND_FINISH_THREADED_PC16_WITH_FLAGS':            (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U32_AND_FINISH_THREADED_PC32_WITH_FLAGS':            (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U32_AND_FINISH_THREADED_PC64_WITH_FLAGS':            (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U64_AND_FINISH_THREADED_PC32_WITH_FLAGS':            (None, True,  True,  True,  ),
-    'IEM_MC_SET_RIP_U64_AND_FINISH_THREADED_PC64_WITH_FLAGS':            (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U16_AND_FINISH_THREADED_PC16_WITH_FLAGS':            (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U16_AND_FINISH_THREADED_PC32_WITH_FLAGS':            (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U16_AND_FINISH_THREADED_PC64_WITH_FLAGS':            (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U32_AND_FINISH_THREADED_PC16_WITH_FLAGS':            (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U32_AND_FINISH_THREADED_PC32_WITH_FLAGS':            (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U32_AND_FINISH_THREADED_PC64_WITH_FLAGS':            (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U64_AND_FINISH_THREADED_PC32_WITH_FLAGS':            (None, True,  True,  True,  ),
+    'IEM_MC_IND_JMP_U64_AND_FINISH_THREADED_PC64_WITH_FLAGS':            (None, True,  True,  True,  ),
 
     'IEM_MC_IND_CALL_U16_AND_FINISH_THREADED_PC16':                      (None, True,  True,  True,  ),
     'IEM_MC_IND_CALL_U16_AND_FINISH_THREADED_PC32':                      (None, True,  True,  True,  ),
@@ -221,6 +221,7 @@ g_dMcStmtThreaded = {
     'IEM_MC_FETCH_MEM_FLAT_XMM_NO_AC':                                   (None, True,  True,  g_fNativeSimd),
     'IEM_MC_FETCH_MEM_FLAT_U128_AND_XREG_U128':                          (None, True,  True,  False, ),
     'IEM_MC_FETCH_MEM_FLAT_XMM_ALIGN_SSE_AND_XREG_XMM':                  (None, True,  True,  False, ),
+    'IEM_MC_FETCH_MEM_FLAT_XMM_NO_AC_AND_XREG_XMM':                      (None, True,  True,  False, ),
     'IEM_MC_FETCH_MEM_FLAT_XMM_U32_AND_XREG_XMM':                        (None, True,  True,  False, ),
     'IEM_MC_FETCH_MEM_FLAT_XMM_U64_AND_XREG_XMM':                        (None, True,  True,  False, ),
     'IEM_MC_FETCH_MEM_FLAT_U128_AND_XREG_U128_AND_RAX_RDX_U64':          (None, True,  True,  False, ),

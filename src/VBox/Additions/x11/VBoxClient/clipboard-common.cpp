@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -40,22 +40,6 @@
 
 #include "VBoxClient.h"
 #include "clipboard.h"
-
-RTDECL(int) VBClClipboardThreadStart(PRTTHREAD pThread, PFNRTTHREAD pfnThread, const char *pszName, void *pvUser)
-{
-    int rc;
-
-    rc = RTThreadCreate(pThread, pfnThread, pvUser, 0, RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, pszName);
-    if (RT_SUCCESS(rc))
-        rc = RTThreadUserWait(*pThread, RT_MS_30SEC /* msTimeout */);
-
-    if (RT_SUCCESS(rc))
-        VBClLogVerbose(1, "started %s thread\n", pszName);
-    else
-        LogRel(("unable to start %s thread, rc=%Rrc\n", pszName, rc));
-
-    return rc;
-}
 
 RTDECL(int) VBClClipboardReadHostEvent(PSHCLCONTEXT pCtx, const PFNHOSTCLIPREPORTFMTS pfnHGClipReport,
                                        const PFNHOSTCLIPREAD pfnGHClipRead)

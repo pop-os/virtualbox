@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -3182,22 +3182,26 @@ static int ichac97R3MixerSetGain(PAC97STATE pThis, PAC97STATER3 pThisCC, int ind
      * zero being 0dB gain and 15 being +22.5dB gain.
      */
     bool const  fCtlMuted     = (uVal >> AC97_BARS_VOL_MUTE_SHIFT) & 1;
+# ifdef VBOX_WITH_AC97_GAIN_SUPPORT
     uint8_t     uCtlGainLeft  = (uVal >> 8) & AC97_BARS_GAIN_MASK;
     uint8_t     uCtlGainRight = uVal & AC97_BARS_GAIN_MASK;
-
     Assert(uCtlGainLeft  <= 255 / AC97_DB_FACTOR);
     Assert(uCtlGainRight <= 255 / AC97_DB_FACTOR);
+    LogFunc(("uCtlGainLeft=%RU8, uCtlGainRight=%RU8 ", uCtlGainLeft, uCtlGainRight));
+# endif
 
     LogFunc(("index=0x%x, uVal=%RU32, enmMixerCtl=%RU32\n", index, uVal, enmMixerCtl));
-    LogFunc(("uCtlGainLeft=%RU8, uCtlGainRight=%RU8 ", uCtlGainLeft, uCtlGainRight));
 
-    uint8_t lVol = PDMAUDIO_VOLUME_MAX + uCtlGainLeft  * AC97_DB_FACTOR;
-    uint8_t rVol = PDMAUDIO_VOLUME_MAX + uCtlGainRight * AC97_DB_FACTOR;
+    uint8_t lVol;
+    uint8_t rVol;
 
     /* We do not currently support gain. Since AC'97 does not support attenuation
      * for the recording input, the best we can do is set the maximum volume.
      */
-# ifndef VBOX_WITH_AC97_GAIN_SUPPORT
+# ifdef VBOX_WITH_AC97_GAIN_SUPPORT
+    lVol = PDMAUDIO_VOLUME_MAX + uCtlGainLeft  * AC97_DB_FACTOR;
+    rVol = PDMAUDIO_VOLUME_MAX + uCtlGainRight * AC97_DB_FACTOR;
+# else
     /* NB: Currently there is no gain support, only attenuation. Since AC'97 does not
      * support attenuation for the recording inputs, the best we can do is set the
      * maximum volume.
@@ -4593,10 +4597,6 @@ static DECLCALLBACK(int) ichac97R3Construct(PPDMDEVINS pDevIns, int iInstance, P
         }
         AssertLogRelMsgReturn(RT_SUCCESS(rc),  ("LUN#%u: rc=%Rrc\n", iLun, rc), rc);
     }
-
-    uint32_t fMixer = AUDMIXER_FLAGS_NONE;
-    if (pThisCC->Dbg.fEnabled)
-        fMixer |= AUDMIXER_FLAGS_DEBUG;
 
     rc = AudioMixerCreate("AC'97 Mixer", 0 /* uFlags */, &pThisCC->pMixer);
     AssertRCReturn(rc, rc);

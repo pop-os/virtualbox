@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2024 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2025 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1230,8 +1230,8 @@ int main(int argc, char *argv[])
      * Init IPRT and globals.
      */
     int rc = RTTestInitAndCreate("IoPerf", &g_hTest);
-    if (rc)
-        return rc;
+    if (RT_FAILURE(rc))
+        return RTEXITCODE_FAILURE;
 
     /*
      * Default values.
@@ -1352,7 +1352,7 @@ int main(int argc, char *argv[])
 
             case 'V':
             {
-                char szRev[] = "$Revision: 164827 $";
+                char szRev[] = "$Revision: 170187 $";
                 szRev[RT_ELEMENTS(szRev) - 2] = '\0';
                 RTPrintf(RTStrStrip(strchr(szRev, ':') + 1));
                 return RTEXITCODE_SUCCESS;
@@ -1397,10 +1397,14 @@ int main(int argc, char *argv[])
             else
                 rc = ioPerfDoTestMulti();
 
-            g_szDir[g_cchDir] = '\0';
-            rc = RTDirRemoveRecursive(g_szDir, RTDIRRMREC_F_CONTENT_AND_DIR | (g_fRelativeDir ? RTDIRRMREC_F_NO_ABS_PATH : 0));
             if (RT_FAILURE(rc))
-                RTTestFailed(g_hTest, "RTDirRemoveRecursive(%s,) -> %Rrc\n", g_szDir, rc);
+                RTTestFailed(g_hTest, "ioPerfDoTestXXX -> %Rrc\n", rc);
+
+            g_szDir[g_cchDir] = '\0';
+            int rc2 = RTDirRemoveRecursive(g_szDir,
+                                           RTDIRRMREC_F_CONTENT_AND_DIR | (g_fRelativeDir ? RTDIRRMREC_F_NO_ABS_PATH : 0));
+            if (RT_FAILURE(rc2))
+                RTTestFailed(g_hTest, "RTDirRemoveRecursive(%s,) -> %Rrc\n", g_szDir, rc2);
         }
         else
             RTTestFailed(g_hTest, "RTDirCreate(%s) -> %Rrc\n", g_szDir, rc);
