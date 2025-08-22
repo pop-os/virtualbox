@@ -3,7 +3,7 @@ Index: virtualbox/src/VBox/Main/webservice/Makefile.kmk
 ===================================================================
 --- virtualbox.orig/src/VBox/Main/webservice/Makefile.kmk
 +++ virtualbox/src/VBox/Main/webservice/Makefile.kmk
-@@ -852,7 +852,7 @@
+@@ -858,7 +858,7 @@
   		$(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
  	$(call MSG_GENERATE,,lots of files,$(GSOAPH_RELEVANT))
  	$(RM) -f $@

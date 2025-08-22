@@ -5,14 +5,12 @@ Index: virtualbox/src/VBox/Additions/linux/Makefile.kmk
 ===================================================================
 --- virtualbox.orig/src/VBox/Additions/linux/Makefile.kmk
 +++ virtualbox/src/VBox/Additions/linux/Makefile.kmk
-@@ -315,9 +315,7 @@
+@@ -306,8 +306,6 @@
  lnx_add_inst-noexec_SOURCES  = \
  	$(VBOX_REL_X11_ADD_INST)vboxclient.desktop \
  	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \
--	$(if $(VBOX_WITH_LIGHTDM_GREETER_PACKING),lightdm-greeter/vbox-greeter.desktop,) \
 -	selinux-fedora/vbox_x11.pp \
 -	selinux-fedora/vbox_accel.pp
-+	$(if $(VBOX_WITH_LIGHTDM_GREETER_PACKING),lightdm-greeter/vbox-greeter.desktop,)
  
  INSTALLS += lnx_add_inst-license
  lnx_add_inst-license_INST     = $(VBOX_LNX_ADD_INST_OUT_DIR)
