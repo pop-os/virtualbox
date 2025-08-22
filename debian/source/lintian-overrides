@@ -1,2 +1,3 @@
 virtualbox source: license-problem-non-free-RFC doc/manual/en_US/dita/topics/licensing/vbox-base/licensing-license-vbox-base-glibc-2.17-326.0.9.el7_9.dita
 virtualbox source: license-problem-non-free-RFC doc/manual/en_US/dita/topics/licensing/vbox-ext/licensing-license-vbox-ext-glibc-2.17-326.0.9.el7_9.dita
+virtualbox source: source-contains-prebuilt-ms-help-file [src/libs/dxmt-0.60/external/nvapi/docs/NVAPI_Reference_OpenSource.chm]
