@@ -1,0 +1,188 @@
+Description: use system libslirp
+Author: Gianfranco Costamagna <locutusofborg@debian.org>
+Last-Update: 2025-08-25
+
+--- virtualbox-7.2.0-dfsg.orig/Config.kmk
++++ virtualbox-7.2.0-dfsg/Config.kmk
+@@ -5286,6 +5286,13 @@ SDK_VBoxLibXml2_DEFS.win      ?= WIN32 _
+ # Note: no linking to LIB here, we do that explicitly in src/VBox/Runtime/Makefile.kmk to link
+ #       libxml against VBoxRT
+ 
++# libslirp
++SDK_VBoxLibSlirp              := libslirp for dll linking.
++SDK_VBoxLibSlirp_DEFAULT_INCS ?= $(PATH_ROOT)/src/libs/libslirp-4.9.1/include
++SDK_VBoxLibSlirp_INCS         ?= $(SDK_VBoxLibSlirp_DEFAULT_INCS)
++SDK_VBoxLibSlirp_LIBS         ?= $(PATH_STAGE_LIB)/VBox-libslirp$(VBOX_SUFF_LIB)
++
++
+ # zlib
+ SDK_VBoxZlib                  := zlib for dll linking.
+ if1of ($(KBUILD_TARGET), os2 solaris win)
+--- virtualbox-7.2.0-dfsg.orig/configure
++++ virtualbox-7.2.0-dfsg/configure
+@@ -110,11 +110,13 @@ WITH_LIBOGG=0
+ WITH_LIBVORBIS=0
+ WITH_LIBTPMS=1
+ WITH_LIBLZMA=1
++WITH_LIBSLIRP=1
+ BUILD_LIBXML2=
+ BUILD_LIBCURL=
+ BUILD_LIBSSL=
+ BUILD_LIBVPX=
+ BUILD_LIBTPMS=
++BUILD_LIBSLIRP=
+ if [ "$OS" = "darwin" ]; then # Do not use the /opt/local version of this! We end up using the wrong iconv.h then.
+     BUILD_LIBLZMA=1
+ else
+@@ -1904,6 +1906,62 @@ EOF
+   fi
+ }
+ 
++#
++# Check for libslirp
++#
++check_libslirp()
++{
++  if [ -z "$BUILD_LIBSLIRP" ]; then
++    test_header libslirp
++    if which_wrapper pkg-config > /dev/null; then
++      libslirp_ver=`pkg-config slirp --modversion 2>> $LOG`
++      if [ $? -eq 0 ]; then
++        FLGSLIRP=`pkg-config slirp --cflags`
++        INCSLIRP=`strip_I "$FLGSLIRP"`
++        LIBSLIRP=`pkg-config slirp --libs`
++      fi
++      cat > $ODIR.tmp_src.cc << EOF
++#include <cstdio>
++#include <stdlib.h>
++#include <assert.h>
++#include <string.h>
++#include <libslirp.h>
++#define NCSI_RESPONSE_CAPACITY 1024
++static slirp_ssize_t send_packet(const void *buf, size_t len, void *opaque)
++{
++  assert(len <= NCSI_RESPONSE_CAPACITY);
++  memcpy(opaque, buf, len);
++  return len;
++}
++extern "C" int main(void)
++{
++  SlirpConfig config = {
++    .version = SLIRP_CONFIG_VERSION_MAX,
++  };
++  SlirpCb callbacks = {
++    .send_packet = send_packet,
++  };
++  Slirp *slirp = NULL;
++  uint8_t ncsi_response[NCSI_RESPONSE_CAPACITY];
++  slirp = slirp_new(&config, &callbacks, ncsi_response);
++  slirp_cleanup(slirp);
++  printf("found, OK.\n");
++  return 0;
++}
++EOF
++      [ -n "$INCSLIRP" ] && I_INCSLIRP=`prefix_I "$INCSLIRP"`
++      if test_compile "$LIBSLIRP $I_INCSLIRP" slirp slirp nofatal; then
++        if test_execute; then
++          cnf_append "SDK_VBoxLibSlirp_INCS" "$INCSLIRP"
++          cnf_append "SDK_VBoxLibSlirp_LIBS" "`strip_l "$LIBSLIRP"`"
++        fi
++      else
++        echo "not found -- building libslirp from in-tree code."
++      fi
++    fi
++  fi
++}
++
+ 
+ #
+ # Check whether static libstdc++ is installed. This library is required
+@@ -2471,8 +2510,9 @@ EOF
+ [ $OSE          -eq 0 ] && echo "  --disable-extpack        don't build the extpack"
+ [ $WITH_DOCS    -eq 1 ] && echo "  --disable-docs           don't build the documentation"
+ [ $WITH_LIBVPX  -eq 1 ] && echo "  --disable-libvpx         don't use libvpx for video capturing"
+-[ $WITH_LIBVORBIS -eq 0 ] && echo "  --enable-libvorbis       enable system libvorbis"
++[ $WITH_LIBVORBIS -eq 0 ] && echo "  --enable-libvorbis     enable system libvorbis"
+ [ $WITH_LIBOGG -eq 0 ]  && echo "  --enable-libogg          enable system libogg"
++[ $WITH_LIBSLIRP -eq 0 ]  && echo "  --enable-libslirp      enable system libslirp"
+ [ $WITH_LIBTPMS -eq 1 ] && echo "  --disable-libtpms        don't use libtpms for TPM emulation"
+ [ $WITH_LIBLZMA -eq 1 ] && echo "  --disable-liblzma        don't use liblzma"
+ [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
+@@ -2723,6 +2763,9 @@ for option in "$@"; do
+     --enable-libogg)
+       WITH_LIBOGG=1
+       ;;
++    --enable-libslirp)
++      WITH_LIBSLIRP=1
++      ;;
+     --enable-libvorbis)
+       WITH_LIBVORBIS=1
+       ;;
+@@ -2929,6 +2972,10 @@ if [ $WITH_LIBOGG -eq 0 -o $WITH_LIBVORB
+   cnf_append "VBOX_WITH_AUDIO_RECORDING" ""
+ fi
+ 
++if [ $WITH_LIBSLIRP -eq 0 ]; then
++  cnf_append "VBOX_WITH_LIBSLIRP" ""
++fi
++
+ # Darwin-specific
+ [ "$OS" = "darwin" ] && check_darwinversion
+ # the tools
+@@ -2953,6 +3003,7 @@ if [ $ONLY_ADDITIONS -eq 0 ]; then
+   [ $WITH_LIBVORBIS -eq 1 ] && check_libvorbis
+   [ $WITH_LIBTPMS -eq 1 ] && check_libtpms
+   [ $WITH_LIBLZMA -eq 1 ] && check_liblzma
++  [ $WITH_LIBSLIRP -eq 1 ] && check_libslirp
+   [ "$OS" != "darwin"  ] && check_png
+   [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
+   if [ $WITH_SDL -eq 1 ]; then
+--- virtualbox-7.2.0-dfsg.orig/src/VBox/Devices/Makefile.kmk
++++ virtualbox-7.2.0-dfsg/src/VBox/Devices/Makefile.kmk
+@@ -594,10 +594,9 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(in
+  	Network/DrvNAT.cpp
+  VBoxDD_SOURCES.win += \
+  	Network/RTWinSocketPair.cpp
+- VBoxDD_LIBS    += $(PATH_STAGE_LIB)/VBox-libslirp$(VBOX_SUFF_LIB)
+  VBoxDD_LIBS.darwin += resolv
+- Network/DrvNAT.cpp_INCS = \
+- 	$(PATH_ROOT)/src/libs/libslirp-4.9.1/include
++ VBoxDD_LIBS    += $(SDK_VBoxLibSlirp_LIBS)
++ Network/DrvNAT.cpp_INCS = $(SDK_VBoxLibSlirp_INCS)
+ 
+  ifdef VBOX_WITH_VMNET
+   VBoxDD_DEFS.darwin    += VBOX_WITH_VMNET
+--- virtualbox-7.2.0-dfsg.orig/src/VBox/NetworkServices/NAT/Makefile.kmk
++++ virtualbox-7.2.0-dfsg/src/VBox/NetworkServices/NAT/Makefile.kmk
+@@ -60,8 +60,7 @@ VBoxNetNAT_DEFS     = \
+ 	IPv6 \
+ 	$(if $(VBOX_WITH_INTNET_SERVICE_IN_R3),VBOX_WITH_INTNET_SERVICE_IN_R3,)
+ VBoxNetNAT_DEFS.win = VBOX_COM_OUTOFPROC_MODULE
+-VBoxNetNAT_INCS += \
+-	$(PATH_ROOT)/src/libs/libslirp-4.9.1/include
++VBoxNetNAT_INCS += $(SDK_VBoxLibSlirp_INCS)
+ VBoxNetNAT_SOURCES = \
+ 	VBoxNetSlirpNAT.cpp \
+ 	../NetLib/IntNetIf.cpp \
+@@ -70,7 +69,7 @@ VBoxNetNAT_SOURCES.win += \
+ 	RTWinPoll.cpp \
+ 	RTWinSocketPair.cpp
+ VBoxNetNAT_LIBS = \
+-	$(PATH_STAGE_LIB)/VBox-libslirp$(VBOX_SUFF_LIB) \
++	$(SDK_VBoxLibSlirp_LIBS) \
+ 	$(LIB_RUNTIME)
+ VBoxNetNAT_LIBS.solaris += socket nsl
+ VBoxNetNAT_LIBS.darwin += resolv
+--- virtualbox-7.2.0-dfsg.orig/src/libs/Makefile.kmk
++++ virtualbox-7.2.0-dfsg/src/libs/Makefile.kmk
+@@ -82,7 +82,9 @@ endif
+ 
+ # libslirp for NAT
+ if   !defined(VBOX_ONLY_BUILD) \
+-  && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
++  && !defined(VBOX_WITH_LIBSLIRP) \
++  && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != "" \
++  && ("$(SDK_VBoxLibSlirp_INCS)" == "$(SDK_VBoxLibSlirp_DEFAULT_INCS)")
+  include $(PATH_SUB_CURRENT)/libslirp-4.9.1/Makefile.kmk
+ endif
+ 
