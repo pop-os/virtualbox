@@ -1,3 +1,17 @@
+virtualbox (7.2.0-dfsg-2) UNRELEASED; urgency=medium
+
+  * Fix FTBFS (Closes: #1111869)
+  * Add new lintian override
+  * Also drop libjpeg-turbo
+  * Reorder removals alphabetically
+  * Add python3.14 detect too
+  * Do not include libslirp inside tarball
+  * Add patch to fix typo in ogg discovery
+  * Add patch to detect system libslirp
+  * Include the two patches in patchset
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 25 Aug 2025 20:18:49 +0200
+
 virtualbox (7.2.0-dfsg-1) experimental; urgency=medium
 
   * New upstream version 7.2.0-dfsg
