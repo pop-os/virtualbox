@@ -15,4 +15,4 @@
 37-do-not-run-if-not-in-vm.patch
 python3.13.diff
 vrb.patch
-system-libslirp.patch
+#system-libslirp.patch

@@ -43,7 +43,7 @@ rm -fr ${ORIG_TARBALL_DIR}/src/libs/liblzf*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/liblzma*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libogg*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libpng*
-rm -fr ${ORIG_TARBALL_DIR}/src/libs/libslirp*
+#rm -fr ${ORIG_TARBALL_DIR}/src/libs/libslirp*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libtpms*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libvorbis*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libxml2*
