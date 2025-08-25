@@ -1,14 +1,11 @@
 virtualbox (7.2.0-dfsg-2) unstable; urgency=medium
 
   * Fix FTBFS (Closes: #1111869)
+  * Refresh no-update patch
   * Add new lintian override
-  * Also drop libjpeg-turbo
-  * Reorder removals alphabetically
+  * Drop libjpeg-turbo from tarball
   * Add python3.14 detect too
-  * Do not include libslirp inside tarball
   * Add patch to fix typo in ogg discovery
-  * Add patch to detect system libslirp
-  * Include the two patches in patchset
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 25 Aug 2025 20:21:21 +0200
 
