@@ -14,3 +14,5 @@
 36-fix-vnc-version-string.patch
 37-do-not-run-if-not-in-vm.patch
 python3.13.diff
+vrb.patch
+system-libslirp.patch
