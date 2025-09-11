@@ -17,3 +17,4 @@ python3.13.diff
 vrb.patch
 #system-libslirp.patch
 new-curl.patch
+qt-version.patch

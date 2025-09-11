@@ -1,0 +1,13 @@
+Index: virtualbox/configure
+===================================================================
+--- virtualbox.orig/configure
++++ virtualbox/configure
+@@ -172,7 +172,7 @@ PYTHONDIR="/usr /usr/local"
+ QT6DIR="/usr/lib/qt6 /usr/share/qt6 /usr/lib64/qt6 /usr /usr/local"
+ QT6DIR_PKGCONFIG=1
+ QT6MAJ=6
+-QT6MIN=8
++QT6MIN=2
+ #
+ # Git submodules can only mirror whole repositories, not sub directories,
+ # meaning that kBuild is residing a level deeper than with svn externals.
