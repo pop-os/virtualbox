@@ -1,0 +1,825 @@
+virtualbox (7.0.18-dfsg-2pop2) jammy; urgency=medium
+
+  * Replace VirtualBox code with transitional packages
+
+ -- Jacob Kauffmann <jacob@system76.com>  Mon, 15 Sep 2025 15:50:11 -0600
+
+virtualbox (7.0.18-dfsg-2pop1) jammy; urgency=medium
+
+  * 
+
+ -- Michael Aaron Murphy <michael@mmurphy.dev>  Sat, 15 Jun 2024 01:42:55 +0200
+
+virtualbox (7.0.18-dfsg-2) unstable; urgency=medium
+
+  * Set back R^3: no
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 06 Jun 2024 19:42:13 +0200
+
+virtualbox (7.0.18-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 7.0.18-dfsg
+  * Fixup link for tarball import
+  * Drop patch 162843, upstream. Refresh vnc patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 03 May 2024 16:44:26 +0200
+
+virtualbox (7.0.16-dfsg-9) unstable; urgency=medium
+
+  * Drop old NEWS file
+  * Update dependency of libgl1-mesa-dev
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 03 May 2024 11:29:23 +0200
+
+virtualbox (7.0.16-dfsg-8) unstable; urgency=medium
+
+  * Drop dh_installsystemd.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 03 May 2024 09:43:22 +0200
+
+virtualbox (7.0.16-dfsg-7) unstable; urgency=medium
+
+  * replace dh_systemd_enable with dh_installsystemd
+  * Drop old lintian override
+  * Drop priority optional, useless. Move package to contrib/oldlibs instead of just oldlibs
+  * Drop X-Python-Version
+  * Drop NEWS file
+  * Fix duplicate long description
+  * Fix duplicate short description
+  * Drop debug symbols migration code.
+  * Bump compat level to 13
+  * Drop trailing whitespace
+  * Bump std-version to 4.7.0
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 03 May 2024 08:46:00 +0200
+
+virtualbox (7.0.16-dfsg-6) unstable; urgency=medium
+
+  * Add versioning to breaks/replaces
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 02 May 2024 20:25:27 +0200
+
+virtualbox (7.0.16-dfsg-5) unstable; urgency=medium
+
+  * Add -hwe as transitional packages (To be dropped after 26.04)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 28 Apr 2024 08:56:40 +0200
+
+virtualbox (7.0.16-dfsg-4) unstable; urgency=medium
+
+  * Provide hwe package, to let virtualbox-hwe disappear from
+    Ubuntu (and also xorg-lts-transitional)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 27 Apr 2024 15:21:15 +0200
+
+virtualbox (7.0.16-dfsg-3) unstable; urgency=medium
+
+  * Add patch 162843 to fix an host crash with some network modes.
+    LP: #2063841
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 26 Apr 2024 12:51:11 +0200
+
+virtualbox (7.0.16-dfsg-2) unstable; urgency=medium
+
+  * Update manpages
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 17 Apr 2024 08:41:38 +0200
+
+virtualbox (7.0.16-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 7.0.16-dfsg
+  * Update get-orig-source script
+  * Drop patches part of upstream codebase:
+    - 102989
+    - 102990
+    - 102992
+    - 102993
+    - 102994
+    - 102999
+    - 103024
+    - 103066
+    - 103067
+    - fix-kernel-build gcc-13
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 16 Apr 2024 23:14:45 +0200
+
+virtualbox (7.0.14-dfsg-4) unstable; urgency=medium
+
+  * Add patch from Xu Zhen (xuzhen666) to fix kernel module build LP: #2053024)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 27 Feb 2024 17:02:07 +0100
+
+virtualbox (7.0.14-dfsg-3) unstable; urgency=medium
+
+  * Install man page for help (LP: #2054788)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 27 Feb 2024 11:13:01 +0100
+
+virtualbox (7.0.14-dfsg-2) unstable; urgency=medium
+
+  * Cherry-pick upstream fixes for kernel 6.8 and USBSAN (LP: #2053024
+    LP: #2037082, Closes: #1061917)
+  * debian/patches:
+    - 102989.patch
+    - 102990.patch
+    - 102992.patch
+    - 102993.patch
+    - 102994.patch
+    - 102999.patch
+    - 103024.patch
+    - 103066.patch
+    - 103067.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 19 Feb 2024 16:43:37 +0100
+
+virtualbox (7.0.14-dfsg-1) unstable; urgency=medium
+
+  * Bump kbuild dependency to fix an SDL related build failure
+  * Update get-orig-source.sh script
+  * New upstream version 7.0.14-dfsg
+  * Update copyright years
+  * Refresh patches
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 17 Jan 2024 09:59:13 +0100
+
+virtualbox (7.0.12-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 7.0.12-dfsg
+  * Refresh patches
+  * Drop patches now part of upstream codebase:
+    {100436,100653,100677,100799,100800,
+    virtualbox-modules-7.0.10-kernel-6.4.10}.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 18 Oct 2023 13:22:21 +0200
+
+virtualbox (7.0.10-dfsg-3) unstable; urgency=medium
+
+  * {100436,100653,100677,100799,100800}.patch
+    - cherry-pick upstream fixes for kernel 6.5
+  * virtualbox-modules-7.0.10-kernel-6.4.10.patch
+    - cherry-pick gentoo fix for kernel 6.4.10 (Closes: #1050096)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 25 Aug 2023 10:52:23 +0200
+
+virtualbox (7.0.10-dfsg-2) unstable; urgency=medium
+
+  * Add patch to fix gcc-13 related build failure
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 19 Jul 2023 17:16:24 +0200
+
+virtualbox (7.0.10-dfsg-1) unstable; urgency=medium
+
+  * Refresh patches with upstream versions
+  * New upstream version 7.0.10-dfsg
+  * refresh patches, drop python3.11 and lzma patches,
+    now part of upstream codebase
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 19 Jul 2023 17:16:20 +0200
+
+virtualbox (7.0.8-dfsg-2) unstable; urgency=medium
+
+  * Fixup typo in patch.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 20 Apr 2023 23:11:50 +0200
+
+virtualbox (7.0.8-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 7.0.8-dfsg
+  * Add patch to use system lzma library
+  * Update copyright file
+  * Add dependencies on libsdl2-dev and liblzma-dev
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 19 Apr 2023 10:56:07 +0200
+
+virtualbox (7.0.6-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 7.0.6-dfsg (Closes: #1029153)
+  * Refresh patches, drop upstream patches
+  * Update manpages
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 25 Jan 2023 12:16:26 +0100
+
+virtualbox (7.0.4-dfsg-5) unstable; urgency=medium
+
+  * Add patch to support default python3.11
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 27 Dec 2022 14:58:27 +0100
+
+virtualbox (7.0.4-dfsg-4) unstable; urgency=medium
+
+  * Add nother patch to finally make javadoc compile
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 30 Nov 2022 09:27:41 +0100
+
+virtualbox (7.0.4-dfsg-3) unstable; urgency=medium
+
+  * debian/patches/diff-trunk-from-97685-to-97687.patch:
+    - Add new patch to fix another failure due to java 17
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 25 Nov 2022 21:34:52 +0100
+
+virtualbox (7.0.4-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/changeset_97677.patch:
+    - Fix build failure with openjdk 17 with upstream patch.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 25 Nov 2022 08:56:54 +0100
+
+virtualbox (7.0.4-dfsg-1) unstable; urgency=medium
+
+  * Upload to sid
+  * New upstream version 7.0.4-dfsg
+  * Drop opus, not needed anymore
+  * Patch refresh, drop two patches now upstream:
+    - fix-build.patch
+    - system-libs.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 23 Nov 2022 10:12:38 +0100
+
+virtualbox (7.0.2-dfsg-2) experimental; urgency=medium
+
+  * Fix qt5 tools dependency
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 31 Oct 2022 08:12:58 +0100
+
+virtualbox (7.0.2-dfsg-1) experimental; urgency=medium
+
+  * Bump copyright years
+  * Refresh patches, drop latex patch: upstream
+  * Conflict with virtualbox-7.0
+  * License is now GPL-3
+  * add new libs
+  * Add patch to fix build, but also disable VBOX_WITH_HOST_SHIPPING_AUDIO_TEST= VBOX_WITH_VALIDATIONKIT=
+  * Drop new embedded libs from tarball
+  * New upstream version 7.0.2-dfsg
+  * Bump std-version to 4.6.1
+  * Add VBOXSDL back, default changed from new upstream release
+  * Drop Vboxtunctl and rdesktop-vrdp from build, removed upstream
+  * Update manpages for new release
+  * Refresh patches
+  * Add new patch to use system libraries for tpms, vorbis, ogg
+  * Drop wiki outdated page
+  * Enable new system libraries
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 30 Oct 2022 15:34:16 +0100
+
+virtualbox (6.1.40-dfsg-1) unstable; urgency=medium
+
+  * Drop NAME also from source dkms files.
+  * New upstream version 6.1.40-dfsg
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 19 Oct 2022 11:43:11 +0200
+
+virtualbox (6.1.38-dfsg-3) unstable; urgency=medium
+
+  * Switch to upstream approach to fix FTBFS
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 06 Sep 2022 22:01:06 +0200
+
+virtualbox (6.1.38-dfsg-2) unstable; urgency=medium
+
+  [ Andreas Beckmann ]
+  * Switch to dh-sequence-dkms.
+  * Declare Testsuite: autopkgtest-pkg-dkms.
+
+  [ Gianfranco Costamagna ]
+  * Drop utf8x from https://github.com/latex3/latex2e/issues/833
+  * And replace double arrow with two different arrows (left and right)
+    to avoid utf8 chars in documentation.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 06 Sep 2022 09:34:38 +0200
+
+virtualbox (6.1.38-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.38-dfsg (Closes: #1012627, LP: #1988473)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 04 Sep 2022 18:12:39 +0200
+
+virtualbox (6.1.36-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.36-dfsg
+  * Refresh patches, drop patches now upstream:
+    - 020-linux518.patch
+    - ffreestanding.patch
+    - python3.10.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 21 Jul 2022 19:03:38 +0200
+
+virtualbox (6.1.34-dfsg-3) unstable; urgency=medium
+
+  * Add patch from archlinux to fix a build failure with kernel 5.18
+    (Closes: #1012122)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 07 Jun 2022 14:12:22 +0200
+
+virtualbox (6.1.34-dfsg-2) unstable; urgency=medium
+
+  * Add ffreestanding.patch proposed from upstream to fix a empty memset code
+    generation with newer gccs
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 21 Apr 2022 11:42:03 +0200
+
+virtualbox (6.1.34-dfsg-1) unstable; urgency=medium
+
+  * Fix udev rule:
+    - If there is a NAME, the line "Only network interfaces can be renamed,
+      ignoring NAME" is written in the log
+
+  [ Gianfranco Costamagna ]
+  * New upstream version 6.1.34-dfsg
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 20 Apr 2022 11:27:31 +0200
+
+virtualbox (6.1.32-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.32-dfsg
+  * Refresh patches
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 24 Jan 2022 11:49:42 +0100
+
+virtualbox (6.1.30-dfsg-2) unstable; urgency=medium
+
+  * Add support for Python3.10
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 16 Jan 2022 16:10:45 +0100
+
+virtualbox (6.1.30-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.30-dfsg
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 01 Dec 2021 10:34:31 +0100
+
+virtualbox (6.1.28-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.28-dfsg
+  * Bump std-version to 4.6.0
+  * Drop patches now upstream or coming from upstream: new-mesa, 90377, no-vboxrem
+  * Patch refresh
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 20 Oct 2021 10:01:31 +0200
+
+virtualbox (6.1.26-dfsg-4) unstable; urgency=medium
+
+  * debian/patches/new-mesa.patch
+    - add new upstream proposed patch to fix whitescreens with new
+      mesa. (thanks Klaus for the patch)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 03 Sep 2021 08:29:58 +0200
+
+virtualbox (6.1.26-dfsg-3) unstable; urgency=medium
+
+  * Drop broken old symlinks (Closes: #991901)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 05 Aug 2021 16:14:08 +0200
+
+virtualbox (6.1.26-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/90377.patch:
+    - cherry-pick upstream build fix
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 29 Jul 2021 11:31:03 +0200
+
+virtualbox (6.1.26-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.26-dfsg
+  * Delete 40-linux-5.13-support.patch
+  * Patch refresh
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 29 Jul 2021 11:26:57 +0200
+
+virtualbox (6.1.22-dfsg-4) unstable; urgency=medium
+
+  * Set R^3 to binary-target, chmod +s in dh_fixperms needs root to work
+    Note: Debian implementation seems to set +s during build regardless
+    of the set, while Ubuntu implementation failed to set +s leading to
+    non-working virtualbox binary
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 23 Jul 2021 10:21:57 +0200
+
+virtualbox (6.1.22-dfsg-3) unstable; urgency=medium
+
+  [ Dimitri John Ledkov ]
+  * Drop virtualbox guest modules dkms and sources, as in Ubuntu and Debian,
+    all kernel flavours provide those from the upstream kernel since at least
+    focal 20.04 LTS.
+    Thus these are not needed anymore. LP: #1933248
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 19 Jul 2021 09:28:22 +0200
+
+virtualbox (6.1.22-dfsg-2) unstable; urgency=medium
+
+  [ Andrea Righi ]
+  * Support linux 5.13 with vbox-guest drivers (LP: #1929193):
+    - debian/patches/40-linux-5.13-support.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 23 Jun 2021 15:45:42 +0200
+
+virtualbox (6.1.22-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.22-dfsg
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 11 May 2021 12:07:27 +0200
+
+virtualbox (6.1.20-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.20-dfsg
+  * Drop patches now upstream:
+    - 50-kernel-5.11.patch
+    - 88207-kernel-5.11.patch
+    - 88212-kernel-5.11.patch
+    - kernel-5.10.patch
+    - python3.9.patch
+  * Refresh patches:
+    - 27-hide-host-cache-warning.patch
+    - 36-fix-vnc-version-string.patch
+    - no-vboxrem.patch
+  * Add R^3: no
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 20 Apr 2021 22:38:00 +0200
+
+virtualbox (6.1.18-dfsg-5) unstable; urgency=medium
+
+  * Drop vboxweb.service too
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 08 Apr 2021 20:43:02 +0200
+
+virtualbox (6.1.18-dfsg-4) unstable; urgency=medium
+
+  * Drop vboxweb.service.
+    Never worked, needs too much customization (LP: #1894862)
+  * Add patches from upstream to fix build with kernel 5.11
+    - upstream changeset: 88207 and 88212
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 08 Apr 2021 19:25:43 +0200
+
+virtualbox (6.1.18-dfsg-3) unstable; urgency=medium
+
+  * Support linux 5.11 (LP: #1915900):
+    - debian/patches/50-kernel-5.11.patch
+
+ -- Andrea Righi <andrea.righi@canonical.com>  Thu, 25 Feb 2021 15:32:11 +0000
+
+virtualbox (6.1.18-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/kernel-5.10.patch:
+    - fix 32bit guest kernel builds
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 21 Jan 2021 12:01:33 +0100
+
+virtualbox (6.1.18-dfsg-1) unstable; urgency=medium
+
+  [ Andrea Righi ]
+  * debian/patches/linux-5.10-TASK_SIZE_MAX-replaces-USER_DS.patch:
+    - upstream patch to fix build failure of virtualbox-guest-dkms with linux
+      5.10 (LP: #1908734)
+  * debian/patches/linux-5.10-drm-fixes.patch:
+    - upstream patch to fix multiple virtualbox-guest-dkms drm's build
+      failures with linux 5.10 (LP: #1908734)
+
+  [ Gianfranco Costamagna ]
+  * New upstream version 6.1.18-dfsg
+  * Drop kernel 5.10 build fixes, upstream
+  * Refresh patches
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 20 Jan 2021 13:52:19 +0100
+
+virtualbox (6.1.16-dfsg-6) unstable; urgency=medium
+
+  * debian/patches/linux-5.10-r0drv-memobj-fix-r0.patch:
+    - upstream-proposed patch to fix a build failure with linux 5.10
+      (LP: #1903741)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 04 Dec 2020 23:58:18 +0100
+
+virtualbox (6.1.16-dfsg-5) unstable; urgency=medium
+
+  * Use /run instead of /var/run, from Steve Langasek
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 04 Dec 2020 22:12:38 +0100
+
+virtualbox (6.1.16-dfsg-4) unstable; urgency=medium
+
+  [ Sam Van den Eynde ]
+  * Fix vboxweb.service startup script, from Sam Van den Eynde (LP: #1904123, LP: #1825598)
+  * Now the script also sources /etc/vbox/vbox.cfg that can contain all the
+    required variables.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 16 Nov 2020 14:12:27 +0100
+
+virtualbox (6.1.16-dfsg-3) unstable; urgency=medium
+
+  * Add patch to support python3.9 (Closes: #972918)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 27 Oct 2020 08:28:19 +0100
+
+virtualbox (6.1.16-dfsg-2) unstable; urgency=medium
+
+  * Fixup wrong patch refresh for vnc patch
+    - LP: #1901310
+    - thanks Gordon Lack for the report
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 26 Oct 2020 19:08:44 +0100
+
+virtualbox (6.1.16-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.16-dfsg
+  * Refresh patches:
+    - 27-hide-host-cache-warning.patch
+    - 36-fix-vnc-version-string.patch
+  * Drop upstream patches:
+    - changeset_86042.patch
+    - new-gsoap.patch
+    - virtio-core.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 21 Oct 2020 00:32:31 +0200
+
+virtualbox (6.1.14-dfsg-4) unstable; urgency=medium
+
+  [ Lorenzo Puliti <plorenzo@disroot.org> ]
+  * Also take care of unsigned kernel modules when installing the
+    virtualbox*source packages (Closes: #970262)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 16 Sep 2020 11:58:39 +0200
+
+virtualbox (6.1.14-dfsg-3) unstable; urgency=medium
+
+  * Don't add VBoxREM symlink (Closes: #969793)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 08 Sep 2020 10:06:18 +0200
+
+virtualbox (6.1.14-dfsg-2) unstable; urgency=medium
+
+  * Ack previous wrong NMU, not sure why it has been uploaded.
+  * Rebase previous changelog entries
+  * Don't use curl from upstream tarball (will be used from
+    the next dfsg repack)
+  * Re-enable virtionet (Closes: #969731, #969732)
+  * Drop patch disable-cloud, useless
+  * Drop liblzf patch: upstream and not needed anymore
+    - Add debian/patches/changeset_86042.patch:
+      new upstream patch for liblzf link failure
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 07 Sep 2020 18:11:33 +0200
+
+virtualbox (6.1.14-dfsg-1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Include the source code in the upload...
+  * Support for 5.8 kernel has been added (Closes: #968660)
+    and thus remove the following patches : 0001-new-tarball.patch,
+    kernel-5.8-1.patch, kernel-5.8-2.patch, kernel-5.8-2.patch and
+    kernel-5.8-4.patch
+  * Added a new patch (disable-cloud.patch) to disable CLoud (Apparently
+    this doesn't work).
+  * Build with 'VBOX_WITH_VIRTIO='
+  * New upstream release.
+
+ -- Christian Marillat <marillat@deb-multimedia.org>  Sat, 05 Sep 2020 21:02:05 +0200
+
+virtualbox (6.1.12-dfsg-9) unstable; urgency=medium
+
+  * Try to fix another kernel 5.8 change LP: #1884652
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 10 Aug 2020 14:37:08 +0200
+
+virtualbox (6.1.12-dfsg-8) unstable; urgency=medium
+
+  * debian/patches/kernel-5.8-1.patch:
+  * debian/patches/kernel-5.8-2.patch:
+  * debian/patches/kernel-5.8-3.patch:
+    - apply upstream proposed patches to fix a build failure with kernel 5.8
+      (note, this requires also a kernel patch)
+      https://www.virtualbox.org/ticket/19644
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 30 Jul 2020 18:58:32 +0200
+
+virtualbox (6.1.12-dfsg-7) unstable; urgency=medium
+
+  * Fix build with new gsoap (Closes: #966182)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 26 Jul 2020 09:34:56 +0200
+
+virtualbox (6.1.12-dfsg-6) unstable; urgency=medium
+
+  * Also add VirtualboxVM new binary (symlink to virtualboxvm)
+  * Add nasm dependency, thanks enyc for the hint!
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 20 Jul 2020 09:02:45 +0200
+
+virtualbox (6.1.12-dfsg-5) unstable; urgency=medium
+
+  * Add missing liblzf-dev dependency
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 17 Jul 2020 18:32:52 +0200
+
+virtualbox (6.1.12-dfsg-4) unstable; urgency=medium
+
+  * Also ship VirtualboxVM (LP: #1884363)
+  * Unbundle liblz (Closes: #958323)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jul 2020 20:02:41 +0200
+
+virtualbox (6.1.12-dfsg-3) unstable; urgency=medium
+
+  * Enable vboximg-mount builds
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jul 2020 13:37:52 +0200
+
+virtualbox (6.1.12-dfsg-2) unstable; urgency=medium
+
+  * Fix build failure, due to cloud net being enabled without corresponding
+    sources.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jul 2020 11:08:27 +0200
+
+virtualbox (6.1.12-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.12-dfsg (Closes: #964509)
+  * Patch refresh
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jul 2020 10:20:42 +0200
+
+virtualbox (6.1.10-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.10-dfsg
+  * Refresh patches, drop patch 19590: upstream
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 05 Jun 2020 22:57:54 +0200
+
+virtualbox (6.1.8-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/19590.patch:
+    - upstream proposed patch for x11/wayland resize issues.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 04 Jun 2020 14:31:41 +0200
+
+virtualbox (6.1.8-dfsg-1) unstable; urgency=medium
+
+  * Drop --display VBoxClient option
+  * Correctly call the generated and downloaded tarball
+  * Also drop openssl from upstream tarball
+  * New upstream version 6.1.8-dfsg
+  * Drop x86 patch now upstream
+  * Patch refresh for 06-xsession
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 16 May 2020 15:02:33 +0200
+
+virtualbox (6.1.6-dfsg-2) unstable; urgency=medium
+
+  * Add proposed patch on ticket https://www.virtualbox.org/ticket/19494
+    to fix compilation on 32bit guests
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 17 Apr 2020 10:10:03 +0200
+
+virtualbox (6.1.6-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.6-dfsg
+  * Drop upstream patches:
+    - shared-clipboard
+    - ftbfs-linux-5.6
+  * Patch refresh
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Apr 2020 17:48:44 +0200
+
+virtualbox (6.1.4-dfsg-4) unstable; urgency=medium
+
+  * Fixup previous upload, by grabbing upstream commits:
+    #83484 #43473 #83471
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 10 Apr 2020 13:25:51 +0200
+
+virtualbox (6.1.4-dfsg-3) unstable; urgency=medium
+
+  * Apply upstream fix for ticket 19312 to fix build with Linux 5.6.
+
+ -- Konstantin Demin <rockdrilla@gmail.com>  Wed, 01 Apr 2020 11:52:17 +0300
+
+virtualbox (6.1.4-dfsg-2) unstable; urgency=medium
+
+  * Apply upstream fix for ticket 19336, aka shared clipboard not working on
+    Ubuntu host
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 05 Mar 2020 16:02:51 +0100
+
+virtualbox (6.1.4-dfsg-1) unstable; urgency=medium
+
+  * Bump copyright years
+  * New upstream version 6.1.4-dfsg
+  * bump std-version to 4.5.0, no changes required
+  * Patch refresh
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 21 Feb 2020 09:33:05 +0100
+
+virtualbox (6.1.2-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.2-dfsg
+  * Patch refresh
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jan 2020 16:14:29 +0100
+
+virtualbox (6.1.0-dfsg-3) unstable; urgency=medium
+
+  * Add cfg files to UnattendedUpgrades (Closes: #942175)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 15 Dec 2019 15:03:06 +0100
+
+virtualbox (6.1.0-dfsg-2) unstable; urgency=medium
+
+  * Add missing library to the qt installation, useful to startup the program
+    correctly. Thanks Vincas Dargis for the report (Closes: #946754)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 15 Dec 2019 12:19:34 +0100
+
+virtualbox (6.1.0-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.0-dfsg
+  * Patch refresh, drop patches now upstream:
+    - 37-python-3.7-support.patch
+    - drm-ttm-build-fix.patch
+    - 016-linux-5-4.patch
+    - acpica-unix-20191018.patch
+  * Update VBox.sh with new tools
+  * Bump std-version to 4.4.1
+  * Conflict with official virtualbox-6.1 package
+  * Remove gl/ogl files, dropped upstream.
+  * Update vboxweb to work with the systemv upstream init script
+  * Drop vboxpci kernel module, removed upstream
+  * Drop VBoxREM.so file
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 12 Dec 2019 19:20:17 +0100
+
+virtualbox (6.0.14-dfsg-4) unstable; urgency=medium
+
+  * Fixup previous upload
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 03 Dec 2019 22:17:14 +0100
+
+virtualbox (6.0.14-dfsg-3) unstable; urgency=medium
+
+  * Fix build with new gsoap (Closes: #945548)
+  * Drop 81649 and take the archlinux version, that contains also rev 81586 and
+    81587 (LP: #1848594)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 28 Nov 2019 11:52:52 +0100
+
+virtualbox (6.0.14-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/81649.patch:
+    - upstream fixes for kernel 5.4 (LP: #1848594)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 21 Nov 2019 18:29:20 +0100
+
+virtualbox (6.0.14-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.0.14-dfsg
+  * drop kernel patch: upstream
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 17 Oct 2019 09:24:16 +0200
+
+virtualbox (6.0.12-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.0.12-dfsg
+  * Patch refresh, add support for Python3.8 too
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 05 Sep 2019 09:11:42 +0200
+
+virtualbox (6.0.10-dfsg-5) unstable; urgency=medium
+
+  * Add patch to fix build on newer kernels, thanks Ben Hutchings for the help!
+    Closes: #934483
+  * Stop using dh_link in the wrong way, thanks Nicolas Boulenguez <nicolas@debian.org> for the help!
+    Closes: #935309
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 21 Aug 2019 18:12:14 +0200
+
+virtualbox (6.0.10-dfsg-4) unstable; urgency=medium
+
+  * Refresh patch, the skb_frag_t struct is scheduled for kernel 5.4
+    (Closes: #934010)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 06 Aug 2019 11:15:30 +0200
+
+virtualbox (6.0.10-dfsg-3) unstable; urgency=medium
+
+  * Refresh kernel 5.3.patch with new fixes
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 03 Aug 2019 13:47:34 +0200
+
+virtualbox (6.0.10-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/kernel-5.3.patch
+    - upstream proposed build fix for kernle 5.3 LP: #1837895
+  * Build depend on libgsoap-dev too (Closes: #933246)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 28 Jul 2019 13:25:15 +0200
+
+virtualbox (6.0.10-dfsg-1) unstable; urgency=medium
+
+  * New upstream release (Closes: #929074)
+  * Drop kernel patch
+  * Bump std-version to 4.4.0, no changes required
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 17 Jul 2019 12:10:52 +0200
+
+# Older entries have been removed from this changelog.
+# To read the complete changelog use `apt changelog virtualbox`.
