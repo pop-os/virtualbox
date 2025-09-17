@@ -1,6 +1,12 @@
+virtualbox (7.0.18-dfsg-2pop2) jammy; urgency=medium
+
+  * Replace VirtualBox code with transitional packages
+
+ -- Jacob Kauffmann <jacob@system76.com>  Mon, 15 Sep 2025 15:50:11 -0600
+
 virtualbox (7.0.18-dfsg-2pop1) jammy; urgency=medium
 
-  * 
+  * Package for Pop!_OS
 
  -- Michael Aaron Murphy <michael@mmurphy.dev>  Sat, 15 Jun 2024 01:42:55 +0200
 
