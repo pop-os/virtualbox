@@ -1,0 +1,5 @@
+virtualbox (7.0.18-dfsg-2pop2) noble; urgency=medium
+
+  * VirtualBox transitional packages for Noble
+
+ -- Jacob Kauffmann <jacob@system76.com>  Wed, 18 Sep 2025 14:57:05 -0600

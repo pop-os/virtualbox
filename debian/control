@@ -1,0 +1,22 @@
+Source: virtualbox
+Section: metapackages
+Priority: optional
+Maintainer: System76 <info@system76.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.1.4
+Homepage: https://github.com/pop-os/virtualbox
+
+Package: virtualbox-dkms
+Architecture: amd64
+Depends: virtualbox
+Description: Empty transitional package for VirtualBox.
+
+Package: virtualbox-qt
+Architecture: amd64
+Depends: virtualbox
+Description: Empty transitional package for VirtualBox.
+
+Package: virtualbox-guest-additions-iso
+Architecture: amd64
+Depends: virtualbox
+Description: This is an empty transitional package that can be safely removed.
